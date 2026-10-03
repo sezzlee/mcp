@@ -185,7 +185,9 @@ describe("readOnlyGuard", () => {
   });
 
   it("reads a name that runs through digits as one identifier", () => {
-    expect(allows("select a1delete, [sp_x] from dbo.Orders")).toBe(true);
+    expect(allows('select a1delete, [sp_x], "a""delete" from dbo.Orders')).toBe(
+      true,
+    );
   });
 
   it("allows a query that opens with a parenthesis", () => {
@@ -221,6 +223,9 @@ describe("readOnlyGuard", () => {
     ["select 1 \u0130NSERT dbo.Orders values (1)", "INSERT"],
     ["select 1 \uff24\uff25\uff2c\uff25\uff34\uff25 from dbo.Orders", "DELETE"],
     ["select 1 writetext dbo.Orders.Notes @p 'x'", "WRITETEXT"],
+    ["select 1 de\u200blete from dbo.Orders", "invisible"],
+    ["select 1 del\u0000ete from dbo.Orders", "control"],
+    ["select 1 \ufeffdelete from dbo.Orders", "invisible"],
     ["select 1 exec('drop table dbo.Orders')", "EXEC"],
     ["with x as (select 1 as n) delete from dbo.Orders", "DELETE"],
     ["select * into #t from dbo.Orders", "INTO"],

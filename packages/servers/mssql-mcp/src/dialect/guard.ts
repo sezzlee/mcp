@@ -56,6 +56,22 @@ const statementKeywords = [
 /** Guard: ending a `--` comment early can only expose more text to the checks below, never hide any. */
 const lineEnd = /[\n\r\v\f\u0085\u2028\u2029]/u;
 
+/**
+ * Guard: a control or format character (NUL, a zero-width space, a BOM) may be
+ * skipped by the server's lexer while it splits a word here, so `de\u200blete`
+ * would be one keyword to the server and two harmless words to this check.
+ * Nothing legitimate needs one, so the text is refused outright.
+ */
+const invisible = (text: string): boolean =>
+  /\p{Cf}/u.test(text) ||
+  [...text].some((char) => {
+    const code = char.codePointAt(0) ?? 0;
+    return (
+      (code < 0x20 && !"\t\n\v\f\r".includes(char)) ||
+      (code >= 0x7f && code <= 0x9f)
+    );
+  });
+
 const keywordSet: ReadonlySet<string> = new Set(statementKeywords);
 
 /**
@@ -132,7 +148,14 @@ function normalise(sql: string): Normalised {
     }
     if (here === '"') {
       let end = index + 1;
-      while (end < sql.length && sql[end] !== '"') {
+      while (end < sql.length) {
+        if (sql[end] === '"') {
+          if (sql[end + 1] === '"') {
+            end += 2;
+            continue;
+          }
+          break;
+        }
         end += 1;
       }
       masked += " id ";
@@ -190,6 +213,12 @@ const refuse = (reason: string, recovery: string): GuardOutcome => ({
  * `allow` arm is the only place agent text becomes `SqlText`.
  */
 export function readOnlyGuard(sql: string): GuardOutcome {
+  if (invisible(sql)) {
+    return refuse(
+      "The statement carries a control or invisible formatting character.",
+      "Remove it and send the statement again.",
+    );
+  }
   const { masked, statements } = normalise(sql);
   if (statements.length === 0) {
     return refuse(
