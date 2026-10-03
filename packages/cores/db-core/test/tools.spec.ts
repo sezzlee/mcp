@@ -6,6 +6,7 @@ import {
   createDbMcpServer,
   createDbSource,
   dbCoreLimits,
+  queryPermitted,
   toolNames,
   type DbLimits,
   type DbVocabulary,
@@ -648,6 +649,34 @@ describe("run_query", () => {
     expect(body(result)["error"]).toBe("write_not_permitted");
   });
 
+  it.each(["writable", "administrator"])(
+    "refuses every statement while the principal is %s on a session that is not read-only",
+    async (posture) => {
+      const { driver, source } = build((spec) =>
+        spec.sql === "principal"
+          ? rows([column("posture", 0)], [[posture]])
+          : catalogOnly(spec),
+      );
+      const server = createDbMcpServer(
+        { name: "probe-db", version: "9.9.9" },
+        source,
+        normalize,
+      );
+      const local = new Client({ name: "db-spec", version: "0.0.0" });
+      const [a, b] = InMemoryTransport.createLinkedPair();
+      await Promise.all([local.connect(a), server.connect(b)]);
+      const result = (await local.callTool({
+        name: "run_query",
+        arguments: { sql: "select 1" },
+      })) as TextResult;
+      expect(result.isError).toBe(true);
+      expect(body(result)["error"]).toBe("write_not_permitted");
+      expect(driver.stats.ran.map((spec) => spec.sql)).not.toContain(
+        "select 1",
+      );
+    },
+  );
+
   it("marks the page truncated when the driver stopped at maxRows", async () => {
     await connect((spec) =>
       spec.sql === "select 1"
@@ -760,4 +789,22 @@ describe("run_query", () => {
     })) as TextResult;
     expect(result.isError).toBe(true);
   });
+});
+
+describe("queryPermitted", () => {
+  it.each([
+    ["read_only", "none", true],
+    ["read_only", "read_only", true],
+    ["writable", "read_only", true],
+    ["writable", "none", false],
+    ["administrator", "read_only", false],
+    ["administrator", "none", false],
+    ["unknown", "read_only", false],
+    ["unknown", "none", false],
+  ] as const)(
+    "a %s principal on a %s session may query: %s",
+    (posture, sessionIntent, permitted) => {
+      expect(queryPermitted(posture, sessionIntent)).toBe(permitted);
+    },
+  );
 });

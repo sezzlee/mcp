@@ -184,12 +184,14 @@ describe("readOnlyGuard", () => {
     }
   });
 
-  it("refuses SELECT INTO, which creates a table", () => {
-    expect(allows("select * into #t from dbo.Orders")).toBe(false);
+  it("reads a name that runs through digits as one identifier", () => {
+    expect(allows('select a1delete, [sp_x], "a""delete" from dbo.Orders')).toBe(
+      true,
+    );
   });
 
-  it("refuses WAITFOR, which holds the connection open", () => {
-    expect(allows("select 1 where 1 = 0 waitfor delay '00:10:00'")).toBe(false);
+  it("allows a query that opens with a parenthesis", () => {
+    expect(allows("(select 1) union (select 2)")).toBe(true);
   });
 
   it("does not trip on a keyword inside a string literal", () => {
@@ -211,15 +213,49 @@ describe("readOnlyGuard", () => {
     expect(allows("   ")).toBe(false);
   });
 
+  it.each([
+    ["select 1 delete from dbo.Orders", "DELETE"],
+    ["select [x]delete from dbo.Orders", "DELETE"],
+    ["select 1delete from dbo.Orders", "DELETE"],
+    ["select 1edelete from dbo.Orders", "DELETE"],
+    ["select 1 -- note\rdelete from dbo.Orders", "DELETE"],
+    ["select 1 -- note\u2028delete from dbo.Orders", "DELETE"],
+    ["select 1 \u0130NSERT dbo.Orders values (1)", "INSERT"],
+    ["select 1 \uff24\uff25\uff2c\uff25\uff34\uff25 from dbo.Orders", "DELETE"],
+    ["select 1 writetext dbo.Orders.Notes @p 'x'", "WRITETEXT"],
+    ["select next value for dbo.review_seq", "NEXT VALUE FOR"],
+    ["select NEXT /* x */ VALUE\nFOR dbo.review_seq as n", "NEXT VALUE FOR"],
+    ["select 1 de\u200blete from dbo.Orders", "invisible"],
+    ["select 1 del\u0000ete from dbo.Orders", "control"],
+    ["select 1 \ufeffdelete from dbo.Orders", "invisible"],
+    ["select 1 exec('drop table dbo.Orders')", "EXEC"],
+    ["with x as (select 1 as n) delete from dbo.Orders", "DELETE"],
+    ["select * into #t from dbo.Orders", "INTO"],
+    ["select 1 where 1 = 0 waitfor delay '00:10:00'", "WAITFOR"],
+    ["select * from openquery(Linked, 'delete from dbo.Orders')", "OPENQUERY"],
+    [
+      "select * from openrowset('SQLNCLI', 'Server=x;', 'select 1') as r",
+      "OPENROWSET",
+    ],
+  ])(
+    "refuses %s, a second statement or an escape T-SQL needs no semicolon for",
+    (sql, keyword) => {
+      expect(readOnlyGuard(sql)).toMatchObject({
+        verdict: "refuse",
+        reason: expect.stringContaining(keyword),
+      });
+    },
+  );
+
   it("refuses a system procedure by prefix", () => {
     expect(allows("select * from sp_helpsomething()")).toBe(false);
   });
 
-  it("names the keyword it refused, so the agent can fix it", () => {
-    const outcome = readOnlyGuard("select * into #t from dbo.Orders");
+  it("names the statement it refused, so the agent can fix it", () => {
+    const outcome = readOnlyGuard("exec sp_who");
     expect(outcome.verdict).toBe("refuse");
     if (outcome.verdict === "refuse") {
-      expect(outcome.reason).toContain("INTO");
+      expect(outcome.reason).toContain("EXEC");
       expect(outcome.recovery.length).toBeGreaterThan(0);
     }
   });

@@ -1,6 +1,6 @@
 {
   "name": "@sezzlee/db-core",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Shared machinery for read-only, dialect-agnostic, database-backed MCP servers.",
   "keywords": [
     "mcp",

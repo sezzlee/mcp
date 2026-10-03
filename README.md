@@ -1,7 +1,7 @@
 # Sezzlee MCP
 
 **Swagger for agents.** Sezzlee turns what you already have — an HTTP backend, a folder of
-spreadsheets, a SQL Server database — into tools an AI agent can find and call over the
+spreadsheets, a SQL Server or PostgreSQL database — into tools an AI agent can find and call over the
 [Model Context Protocol](https://modelcontextprotocol.io).
 
 It comes in two shapes:
@@ -11,7 +11,7 @@ It comes in two shapes:
   pipeline**, so your authentication, authorization and validation apply unchanged. For a backend
   on any other stack, an OpenAPI gateway builds the same catalog from its document.
 - **Source servers** are standalone, read-only MCP servers for local files and databases: Excel,
-  XML, PDF and Microsoft SQL Server, plus a server that hands bounded language work to a local
+  XML, PDF, Microsoft SQL Server and PostgreSQL, plus a server that hands bounded language work to a local
   model.
 
 > **Status:** early. Nothing is published to npm or NuGet yet; build from source (below). The
@@ -46,17 +46,18 @@ pnpm build
 
 Then pick what you need:
 
-| I want to…                                  | Start here                                                   |
-| ------------------------------------------- | ------------------------------------------------------------ |
-| Expose an ASP.NET Core API to agents        | [sdks/dotnet](sdks/dotnet/README.md)                         |
-| Expose a NestJS API to agents               | [sdks/nestjs](sdks/nestjs/README.md)                         |
-| Expose any backend that has an OpenAPI file | [packages/servers/openapi-mcp](packages/servers/openapi-mcp) |
-| Let an agent read Excel workbooks           | [packages/servers/excel-mcp](packages/servers/excel-mcp)     |
-| Let an agent read XML documents             | [packages/servers/xml-mcp](packages/servers/xml-mcp)         |
-| Let an agent read PDF documents             | [packages/servers/pdf-mcp](packages/servers/pdf-mcp)         |
-| Let an agent query SQL Server, read-only    | [packages/servers/mssql-mcp](packages/servers/mssql-mcp)     |
-| Hand bounded text work to a local model     | [packages/servers/llm-mcp](packages/servers/llm-mcp)         |
-| Build my own read-only MCP server           | [packages/cores/mcp-core](packages/cores/mcp-core)           |
+| I want to…                                  | Start here                                                     |
+| ------------------------------------------- | -------------------------------------------------------------- |
+| Expose an ASP.NET Core API to agents        | [sdks/dotnet](sdks/dotnet/README.md)                           |
+| Expose a NestJS API to agents               | [sdks/nestjs](sdks/nestjs/README.md)                           |
+| Expose any backend that has an OpenAPI file | [packages/servers/openapi-mcp](packages/servers/openapi-mcp)   |
+| Let an agent read Excel workbooks           | [packages/servers/excel-mcp](packages/servers/excel-mcp)       |
+| Let an agent read XML documents             | [packages/servers/xml-mcp](packages/servers/xml-mcp)           |
+| Let an agent read PDF documents             | [packages/servers/pdf-mcp](packages/servers/pdf-mcp)           |
+| Let an agent query SQL Server, read-only    | [packages/servers/mssql-mcp](packages/servers/mssql-mcp)       |
+| Let an agent query PostgreSQL, read-only    | [packages/servers/postgres-mcp](packages/servers/postgres-mcp) |
+| Hand bounded text work to a local model     | [packages/servers/llm-mcp](packages/servers/llm-mcp)           |
+| Build my own read-only MCP server           | [packages/cores/mcp-core](packages/cores/mcp-core)             |
 
 Each package README has its own quick start, configuration and limits.
 
@@ -82,6 +83,7 @@ Each package README has its own quick start, configuration and limits.
 | [@sezzlee/xml-mcp](packages/servers/xml-mcp)                    | Reads local XML documents                                    | publishable |
 | [@sezzlee/pdf-mcp](packages/servers/pdf-mcp)                    | Reads local PDF documents, with pluggable OCR                | publishable |
 | [@sezzlee/mssql-mcp](packages/servers/mssql-mcp)                | Read-only Microsoft SQL Server                               | publishable |
+| [@sezzlee/postgres-mcp](packages/servers/postgres-mcp)          | Read-only PostgreSQL                                         | publishable |
 | [@sezzlee/llm-mcp](packages/servers/llm-mcp)                    | Delegates bounded language work to a local model (Ollama)    | publishable |
 | [@sezzlee/ocr-ollama](packages/adapters/ocr-ollama)             | OCR provider for pdf-mcp                                     | publishable |
 | [@sezzlee/pdf-raster-pdfjs](packages/adapters/pdf-raster-pdfjs) | Page rasterizer for pdf-mcp                                  | publishable |

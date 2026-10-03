@@ -6,6 +6,7 @@ export type DbErrorCode =
   | SourceErrorCode
   | "connection_failed"
   | "authentication_failed"
+  | "database_unavailable"
   | "query_timeout"
   | "query_cancelled"
   | "query_failed"

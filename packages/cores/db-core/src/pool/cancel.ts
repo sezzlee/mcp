@@ -74,6 +74,7 @@ export async function runCancellable(
   signal: AbortSignal | undefined,
   limits: PoolLimits,
   fail: ErrorFactory<DbErrorCode>,
+  isBroken: (error: unknown) => boolean = () => false,
 ): Promise<QueryResult> {
   if (signal?.aborted)
     throw fail(
@@ -104,7 +105,11 @@ export async function runCancellable(
       const drained = await Promise.race([
         settled.then(
           () => true,
-          () => true,
+          (error: unknown) => {
+            /** Guard: settlement can acknowledge a physically closed socket; that connection must be quarantined before cancellation masks the native error. */
+            if (isBroken(error)) lease.quarantine();
+            return true;
+          },
         ),
         grace.promise,
       ]);

@@ -36,16 +36,28 @@ export function createQueryRunner<TConfig>(
       const lease = await pool.acquire(signal).catch((error: unknown) => {
         throw classify(error, dialect, fail);
       });
+      const scope = dialect.queryScope(query);
+      const run = (spec: QuerySpec) =>
+        runCancellable(lease, spec, signal, limits, fail, (error) =>
+          driver.isBroken(error),
+        );
       try {
-        return await runCancellable(lease, query, signal, limits, fail);
+        if (scope.kind === "session") return await run(query);
+        for (const statement of scope.begin) await run(statement);
+        const result = await run(query);
+        for (const statement of scope.commit) await run(statement);
+        return result;
       } catch (error) {
         /**
          * Guard: a connection the driver calls broken must not go back to the
          * pool. `runCancellable` already quarantines the cancellation case; this
          * covers a protocol or socket failure, where reuse would surface as an
-         * unrelated error on someone else's call.
+         * unrelated error on someone else's call. A failed transaction scope is
+         * quarantined too: the session may still hold the aborted transaction or
+         * state the statement set, and closing it is the only reset that does not
+         * depend on reaching the same backend through a transaction pooler.
          */
-        if (driver.isBroken(error)) {
+        if (scope.kind === "transaction" || driver.isBroken(error)) {
           lease.quarantine();
         }
         throw classify(error, dialect, fail);

@@ -26,13 +26,14 @@
         "title": "Connection",
         "codes": {
           "connection_failed": "The server could not be reached, or the connection dropped: a wrong host or port, a firewall, an encryption setting the server does not accept, or no answer within the connect timeout.",
-          "authentication_failed": "SQL Server refused the login. Check `SEZZLEE_MSSQL_USER`, `SEZZLEE_MSSQL_PASSWORD` and that the login may open `SEZZLEE_MSSQL_DATABASE`."
+          "authentication_failed": "SQL Server refused the login. Check `SEZZLEE_MSSQL_USER`, `SEZZLEE_MSSQL_PASSWORD` and that the login may open `SEZZLEE_MSSQL_DATABASE`.",
+          "database_unavailable": "SQL Server refused to open the configured database (error 4060): it does not exist, or the login has no access to it. Check `SEZZLEE_MSSQL_DATABASE` and that the login has a user in that database."
         }
       },
       {
         "title": "Queries",
         "codes": {
-          "write_not_permitted": "The statement does not begin with `SELECT` or `WITH`, holds more than one statement, or contains a write keyword. This refusal comes from the statement guard, which is advisory: the database principal is what actually prevents writes.",
+          "write_not_permitted": "No query ran. Either the connected login can write to or administer the database, or its privileges could not be verified: `run_query` answers only for a read-only login, and `describe_connection` reports what was measured as `principalPosture`. Or the statement guard refused the text: it does not begin with `SELECT` or `WITH`, holds more than one statement, carries a keyword that starts another statement or reaches outside the database, draws `NEXT VALUE FOR` a sequence, names a system procedure, or contains a control or invisible character. The guard is advisory; the login's own permissions are what prevent writes.",
           "query_timeout": "The statement ran past its deadline and was cancelled. The deadline is `timeoutMs`, or `SEZZLEE_MSSQL_QUERY_TIMEOUT_MS` when the call does not set one.",
           "query_cancelled": "The call was cancelled, by the client or because the call ended, before the statement finished.",
           "query_failed": "SQL Server reported an error this server has no more specific code for. The message carries the engine's text and error number.",

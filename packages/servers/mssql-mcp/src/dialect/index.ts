@@ -1,4 +1,9 @@
-import { sqlText, type Dialect, type QuerySpec } from "@sezzlee/db-core";
+import {
+  sqlText,
+  type Dialect,
+  type QueryScope,
+  type QuerySpec,
+} from "@sezzlee/db-core";
 import type { MssqlConfig } from "../platform/env.js";
 import { secretPatterns } from "../platform/errors.js";
 import { limits } from "../platform/limits.js";
@@ -24,6 +29,34 @@ const sessionStatements = (timeoutMs: number): readonly QuerySpec[] => [
 ];
 
 /**
+ * Guard: MSSQL has no read-only transaction, so every query runs inside one
+ * that is always rolled back. A write the statement guard missed is undone in
+ * this database; effects outside the transaction (sequence and identity
+ * values, remote calls) are not, which is why the principal check still
+ * refuses a writable principal. The guard refuses COMMIT, ROLLBACK, SAVE and
+ * BEGIN, so the statement cannot end the transaction itself.
+ */
+const queryScope = (spec: QuerySpec): QueryScope => ({
+  kind: "transaction",
+  begin: [
+    {
+      sql: sqlText("begin transaction"),
+      parameters: [],
+      timeoutMs: spec.timeoutMs,
+      maxRows: 0,
+    },
+  ],
+  commit: [
+    {
+      sql: sqlText("if @@trancount > 0 rollback transaction"),
+      parameters: [],
+      timeoutMs: spec.timeoutMs,
+      maxRows: 0,
+    },
+  ],
+});
+
+/**
  * Builds the dialect for one connection's query deadline.
  *
  * @param queryTimeoutMs the deadline the session's `lock_timeout` and the catalogue queries run under
@@ -41,6 +74,7 @@ export function createMssqlDialect(queryTimeoutMs: number) {
      * the database principal.
      */
     sessionIntent: () => "none" as const,
+    queryScope,
     quoteIdentifier,
     quoteQualified,
     describeType,

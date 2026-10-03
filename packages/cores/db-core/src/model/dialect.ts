@@ -20,6 +20,26 @@ export type GuardOutcome =
       readonly recovery: string;
     };
 
+/**
+ * How one query is bracketed on its leased connection. `session` runs it bare;
+ * `transaction` runs `begin`, the query and `commit` in order, and a connection
+ * whose transaction failed anywhere is quarantined rather than rolled back.
+ */
+export type QueryScope =
+  | { readonly kind: "session" }
+  | {
+      readonly kind: "transaction";
+      readonly begin: readonly QuerySpec[];
+      readonly commit: readonly QuerySpec[];
+    };
+
+/**
+ * What the connected principal can do beyond reading. `administrator` covers
+ * server-level control that no transaction mode contains; `writable` covers any
+ * write, DDL or ownership grant in the connected database.
+ */
+export type PrincipalPosture = "read_only" | "writable" | "administrator";
+
 export interface DriverFailure {
   readonly code: DbErrorCode;
   readonly message: string;
@@ -51,6 +71,7 @@ export interface Introspection {
   columns(ref: TableRef): IntrospectionQuery<ColumnDescriptor>;
   keys(ref: TableRef): IntrospectionQuery<KeyEntry>;
   server(): IntrospectionQuery<ServerFacts>;
+  principal(): IntrospectionQuery<PrincipalPosture>;
 }
 
 /**
@@ -73,6 +94,8 @@ export interface Dialect<TConfig> {
 
   /** What the connection-level read-only posture actually guarantees. */
   sessionIntent(config: TConfig): "read_only" | "none";
+
+  queryScope(spec: QuerySpec): QueryScope;
 
   quoteIdentifier(
     name: string,
