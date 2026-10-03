@@ -278,7 +278,16 @@ export function createMssqlDriver(
           });
           request.on("done", finish);
 
-          void request.query(spec.sql);
+          /**
+           * Guard: measured — `query()` always sends `sp_executesql`, and SQL
+           * Server fails a remote call that returns with a different
+           * transaction count (error 266) and restores the SET options it
+           * changed. A statement without parameters goes as a plain batch, so
+           * the query scope's BEGIN and ROLLBACK and the session SETs hold.
+           */
+          void (spec.parameters.length === 0
+            ? request.batch(spec.sql)
+            : request.query(spec.sql));
 
           return {
             settled,
