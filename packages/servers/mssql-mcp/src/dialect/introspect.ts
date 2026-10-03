@@ -117,6 +117,11 @@ export function createIntrospection(
                cross join (values ('INSERT'), ('UPDATE'), ('DELETE'), ('ALTER')) as p([name])
                where o.type in ('U', 'V') and o.is_ms_shipped = 0
                  and has_perms_by_name(quotename(schema_name(o.schema_id)) + N'.' + quotename(o.name), 'OBJECT', p.[name]) = 1)
+             or exists (
+               select 1
+               from sys.sequences as q
+               cross join (values ('UPDATE'), ('ALTER')) as p([name])
+               where has_perms_by_name(quotename(schema_name(q.schema_id)) + N'.' + quotename(q.name), 'OBJECT', p.[name]) = 1)
              then 'writable'
            else 'read_only'
          end as posture`,

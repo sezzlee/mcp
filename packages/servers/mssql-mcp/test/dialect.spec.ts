@@ -223,6 +223,8 @@ describe("readOnlyGuard", () => {
     ["select 1 \u0130NSERT dbo.Orders values (1)", "INSERT"],
     ["select 1 \uff24\uff25\uff2c\uff25\uff34\uff25 from dbo.Orders", "DELETE"],
     ["select 1 writetext dbo.Orders.Notes @p 'x'", "WRITETEXT"],
+    ["select next value for dbo.review_seq", "NEXT VALUE FOR"],
+    ["select NEXT /* x */ VALUE\nFOR dbo.review_seq as n", "NEXT VALUE FOR"],
     ["select 1 de\u200blete from dbo.Orders", "invisible"],
     ["select 1 del\u0000ete from dbo.Orders", "control"],
     ["select 1 \ufeffdelete from dbo.Orders", "invisible"],

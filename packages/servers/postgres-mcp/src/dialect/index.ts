@@ -20,11 +20,12 @@ const statement = (
 ): QuerySpec => ({ sql: sqlText(sql), parameters, timeoutMs, maxRows: 1 });
 
 /**
- * Guard: every setting is transaction-local and the transaction itself is read
- * only, so a statement cannot switch it to read-write after its snapshot is
- * taken, and a transaction pooler never carries a setting to another client's
- * session as a session-level `SET` would. Session advisory locks outlive the
- * transaction, so they are released before it commits.
+ * Guard: the transaction is read only, so a statement cannot switch it to
+ * read-write after its snapshot is taken, and it always ends in ROLLBACK, even
+ * when the query succeeded: a session-level `set_config(..., false)` the
+ * statement made is undone with it instead of committing into the session, and
+ * a NOTIFY it queued is never sent. Session advisory locks survive a rollback,
+ * so they are released first, on the same backend.
  */
 const queryScope = (spec: QuerySpec): QueryScope => ({
   kind: "transaction",
@@ -38,7 +39,7 @@ const queryScope = (spec: QuerySpec): QueryScope => ({
   ],
   commit: [
     statement("select pg_catalog.pg_advisory_unlock_all()", spec.timeoutMs),
-    statement("commit", spec.timeoutMs),
+    statement("rollback", spec.timeoutMs),
   ],
 });
 

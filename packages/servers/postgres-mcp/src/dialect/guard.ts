@@ -7,14 +7,56 @@ import {
 
 type Scan =
   | { readonly kind: "open" }
+  | { readonly kind: "unicode_identifier" }
   | {
       readonly kind: "closed";
       readonly first: string | undefined;
       readonly statements: number;
+      readonly calls: readonly string[];
     };
+
+/**
+ * Guard: built-in functions whose effect a read-only transaction that is
+ * rolled back does not contain. This list is an added layer, not the boundary:
+ * it cannot see functions the database defines or reaches through views, so
+ * the principal and the transaction remain what the guarantees rest on.
+ */
+const containedNot: ReadonlyMap<string, string> = new Map([
+  ["pg_cancel_backend", "signals another session"],
+  ["pg_terminate_backend", "signals another session"],
+  ["pg_advisory_lock", "takes a session lock that outlives the transaction"],
+  [
+    "pg_advisory_lock_shared",
+    "takes a session lock that outlives the transaction",
+  ],
+  ["pg_try_advisory_lock", "takes a session lock that outlives the transaction"],
+  [
+    "pg_try_advisory_lock_shared",
+    "takes a session lock that outlives the transaction",
+  ],
+  [
+    "pg_logical_emit_message",
+    "writes to the WAL outside the transaction",
+  ],
+  ["query_to_xml", "runs SQL text this check never sees"],
+  ["query_to_xmlschema", "runs SQL text this check never sees"],
+  ["query_to_xml_and_xmlschema", "runs SQL text this check never sees"],
+  ["cursor_to_xml", "runs SQL text this check never sees"],
+  ["cursor_to_xmlschema", "runs SQL text this check never sees"],
+  ["ts_stat", "runs SQL text this check never sees"],
+  ["ts_rewrite", "runs SQL text this check never sees"],
+]);
+
+const uncontained = (name: string): string | undefined =>
+  containedNot.get(name) ??
+  (name.startsWith("dblink")
+    ? "opens a connection outside this transaction"
+    : undefined);
 
 const word = /^[A-Za-z_][A-Za-z_0-9$]*/;
 const dollarTag = /^\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$/;
+
+const unquote = (body: string): string => body.replaceAll('""', '"');
 
 function closingQuote(
   sql: string,
@@ -57,15 +99,22 @@ function closingComment(sql: string, start: number): number {
  * `E'…'` is the only form where a backslash escapes the quote; every other form
  * relies on the `standard_conforming_strings=on` the query scope sets. A `--`
  * comment ends at a carriage return as well as a line feed, as in the server.
+ * A name directly followed by `(` is recorded as a call under the name the
+ * server resolves: unquoted lowered, quoted with `""` undone. A `U&"…"` name is
+ * refused rather than decoded, since its escape character is itself
+ * configurable and no analytical query needs one.
  */
 function scan(sql: string): Scan {
   let first: string | undefined;
   let statements = 0;
   let pending = false;
   let index = 0;
-  const token = (value: string) => {
+  let name: string | undefined;
+  const calls: string[] = [];
+  const token = (value: string, called?: string) => {
     if (!pending) first ??= value;
     pending = true;
+    name = called;
   };
   while (index < sql.length) {
     const here = sql[index]!;
@@ -90,9 +139,10 @@ function scan(sql: string): Scan {
       continue;
     }
     if (here === "'" || here === '"') {
-      index = closingQuote(sql, index + 1, here, false);
+      const start = index + 1;
+      index = closingQuote(sql, start, here, false);
       if (index < 0) return { kind: "open" };
-      token(here);
+      token(here, here === '"' ? unquote(sql.slice(start, index - 1)) : undefined);
       continue;
     }
     const tag =
@@ -104,34 +154,35 @@ function scan(sql: string): Scan {
       token("$");
       continue;
     }
-    const name = word.exec(sql.slice(index))?.[0];
-    if (name !== undefined) {
-      const lower = asciiLower(name);
-      index += name.length;
+    const bare = word.exec(sql.slice(index))?.[0];
+    if (bare !== undefined) {
+      const lower = asciiLower(bare);
+      index += bare.length;
       if (lower === "e" && sql[index] === "'") {
         index = closingQuote(sql, index + 1, "'", true);
         if (index < 0) return { kind: "open" };
         token("'");
         continue;
       }
-      if (
-        lower === "u" &&
-        sql[index] === "&" &&
-        /['"]/.test(sql[index + 1] ?? "")
-      ) {
-        index = closingQuote(sql, index + 2, sql[index + 1]!, false);
+      if (lower === "u" && sql[index] === "&" && sql[index + 1] === '"')
+        return { kind: "unicode_identifier" };
+      if (lower === "u" && sql[index] === "&" && sql[index + 1] === "'") {
+        index = closingQuote(sql, index + 2, "'", false);
         if (index < 0) return { kind: "open" };
         token("'");
         continue;
       }
-      token(lower);
+      token(lower, lower);
       continue;
     }
-    if (here !== "(") token(here);
+    if (here === "(") {
+      if (name !== undefined) calls.push(name);
+      name = undefined;
+    } else token(here);
     index++;
   }
   if (pending) statements++;
-  return { kind: "closed", first, statements };
+  return { kind: "closed", first, statements, calls };
 }
 
 const refuse = (reason: string, recovery: string): GuardOutcome => ({
@@ -142,6 +193,11 @@ const refuse = (reason: string, recovery: string): GuardOutcome => ({
 
 export function readOnlyGuard(sql: string): GuardOutcome {
   const outcome = scan(sql);
+  if (outcome.kind === "unicode_identifier")
+    return refuse(
+      "The statement carries a Unicode-escaped identifier (U&\"…\").",
+      "Write the name plainly or double-quoted.",
+    );
   if (outcome.kind === "open")
     return refuse(
       "A string, quoted identifier, dollar-quoted body or block comment is not closed.",
@@ -162,5 +218,13 @@ export function readOnlyGuard(sql: string): GuardOutcome {
       `A query has to begin with SELECT or WITH; this one begins with ${asciiUpper(outcome.first ?? "nothing")}.`,
       "Rewrite the request as a SELECT.",
     );
+  for (const call of outcome.calls) {
+    const effect = uncontained(asciiLower(call));
+    if (effect !== undefined)
+      return refuse(
+        `The statement calls ${call}, which ${effect}.`,
+        "Read the data with a plain SELECT and built-in read functions.",
+      );
+  }
   return { verdict: "allow", statement: sqlText(sql) };
 }

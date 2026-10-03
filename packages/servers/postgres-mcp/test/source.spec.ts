@@ -4,6 +4,7 @@ import { createPostgresSource } from "../src/server.js";
 import type { PostgresClient, PostgresCursor } from "../src/driver/adapter.js";
 import { readPostgresEnv, type PostgresConfig } from "../src/platform/env.js";
 import { redact } from "../src/platform/errors.js";
+import { limits } from "../src/platform/limits.js";
 
 const config: PostgresConfig = {
   server: "db.example",
@@ -17,7 +18,7 @@ const config: PostgresConfig = {
 };
 const scoped = (sql: string) =>
   sql === "start transaction read only" ||
-  sql === "commit" ||
+  sql === "rollback" ||
   sql.startsWith("select pg_catalog.");
 const query = {
   sql: sqlText("select 1"),
@@ -57,7 +58,7 @@ describe("PostgreSQL source", () => {
     });
     await source.close();
   });
-  it("runs each query inside its own read-only transaction and discards a failed one", async () => {
+  it("runs each query inside its own read-only transaction, rolls it back and discards a failed one", async () => {
     const issued: string[] = [];
     const clients: PostgresClient[] = [];
     const clientFactory = () => {
@@ -93,7 +94,7 @@ describe("PostgreSQL source", () => {
       expect.stringContaining("set_config('statement_timeout', $1, true)"),
       "select 1",
       "select pg_catalog.pg_advisory_unlock_all()",
-      "commit",
+      "rollback",
     ]);
     await expect(
       source.runner.run({ ...query, sql: sqlText("select broken") }),
@@ -194,6 +195,87 @@ describe("PostgreSQL source", () => {
       message: expect.stringContaining("PG_TLS_UNSUPPORTED"),
       recovery: expect.stringContaining("does not accept TLS"),
     });
+    await source.close();
+  });
+  it.each([
+    [limits.maxIndexObjects, true],
+    [limits.maxIndexObjects + 1, false],
+  ])(
+    "reports a catalogue of %i tables against the index cap as complete: %s",
+    async (tables, complete) => {
+      const names = Array.from({ length: tables }, (_, at) => `t${at}`);
+      const cursorFactory = (sql: string, values: unknown[]): PostgresCursor => {
+        const limit = Number(values[0]);
+        const rows = sql.startsWith("with objects")
+          ? names.slice(0, limit).map((name) => ["s", name, "c", 1, null])
+          : sql.startsWith("select n.nspname")
+            ? names.slice(0, limit).map((name, at) => ["s", name, at, "r", null])
+            : [];
+        const fields = sql.startsWith("with objects")
+          ? ["schema", "name", "column", "ordinal", "description"]
+          : ["schema", "name", "oid", "relkind", "description"];
+        let offset = 0;
+        return {
+          close: async () => {},
+          read: (size, callback) => {
+            const batch = rows.slice(offset, offset + size);
+            offset += batch.length;
+            callback(undefined, batch, {
+              fields: fields.map((name) => ({ name, dataTypeID: 25 })),
+            });
+          },
+        };
+      };
+      const source = createPostgresSource(config, {
+        clientFactory: () => ({
+          connect: async () => {},
+          end: async () => {},
+          on: () => {},
+          query: () => {},
+        }),
+        cursorFactory,
+      });
+      const snapshot = await source.catalog.read(false);
+      expect(snapshot.complete).toBe(complete);
+      expect(snapshot.objects).toHaveLength(
+        Math.min(tables, limits.maxIndexObjects),
+      );
+      await source.close();
+    },
+  );
+  it("returns json and jsonb text intact instead of rounding large integers", async () => {
+    const text = '{"id":9007199254740993,"price":0.1000000000000000055511}';
+    const cursorFactory = (
+      sql: string,
+      _values: unknown[],
+      options: { types?: { getTypeParser: (oid: number, format?: "text") => (value: string) => unknown } },
+    ): PostgresCursor => ({
+      close: async () => {},
+      read: (_size, callback) =>
+        sql === "select doc"
+          ? callback(
+              undefined,
+              [[3802, 114].map((oid) => options.types!.getTypeParser(oid, "text")(text))],
+              {
+                fields: [
+                  { name: "b", dataTypeID: 3802 },
+                  { name: "j", dataTypeID: 114 },
+                ],
+              },
+            )
+          : callback(undefined, [], { fields: [] }),
+    });
+    const source = createPostgresSource(config, {
+      clientFactory: () => ({
+        connect: async () => {},
+        end: async () => {},
+        on: () => {},
+        query: () => {},
+      }),
+      cursorFactory: cursorFactory as never,
+    });
+    const result = await source.runner.run({ ...query, sql: sqlText("select doc") });
+    expect(result.rows[0]).toEqual([text, text]);
     await source.close();
   });
   it("defaults CLI connections to verified TLS without echoing invalid secrets", () => {

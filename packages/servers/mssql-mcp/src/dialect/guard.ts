@@ -247,6 +247,17 @@ export function readOnlyGuard(sql: string): GuardOutcome {
       "Send one plain SELECT over this database's tables and views.",
     );
   }
+  if (
+    lexed.some(
+      (word, at) =>
+        word === "next" && lexed[at + 1] === "value" && lexed[at + 2] === "for",
+    )
+  ) {
+    return refuse(
+      "The statement draws NEXT VALUE FOR a sequence, which advances it even when the transaction is rolled back.",
+      "Read the sequence's current_value from sys.sequences instead.",
+    );
+  }
   if (lexed.some((word) => /^(?:sp|xp)_/u.test(word))) {
     return refuse(
       "The statement names a system procedure.",

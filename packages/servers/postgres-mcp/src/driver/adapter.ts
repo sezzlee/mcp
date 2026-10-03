@@ -46,7 +46,10 @@ export interface PostgresDriverOptions {
   ) => PostgresCursor;
 }
 
-const intactTypes = new Set([20, 1082, 1083, 1114, 1184, 1266, 1700]);
+/** Guard: pg's default parsers turn these into JS numbers, dates or `JSON.parse` output, which silently rounds integers past 2^53 inside json and jsonb as well as in int8 and numeric. */
+const intactTypes = new Set([
+  20, 114, 1082, 1083, 1114, 1184, 1266, 1700, 3802,
+]);
 const parserTypes: pg.CustomTypesConfig = {
   getTypeParser: (oid: number, format?: "text" | "binary") =>
     intactTypes.has(oid) && format !== "binary"

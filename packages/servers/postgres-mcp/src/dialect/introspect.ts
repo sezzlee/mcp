@@ -54,8 +54,8 @@ export function createIntrospection(
     catalogObjects: (scope) =>
       question<CatalogObject>(
         orderedObjects,
-        [{ name: "limit", value: scope.maxObjects }],
-        scope.maxObjects,
+        [{ name: "limit", value: scope.maxObjects + 1 }],
+        scope.maxObjects + 1,
         (row) => ({
           schema: text(row, "schema"),
           name: text(row, "name"),
@@ -66,8 +66,8 @@ export function createIntrospection(
     catalogColumns: (scope) =>
       question<CatalogColumn>(
         `with objects as (${orderedObjects}) select o.schema, o.name, a.attname as column, a.attnum as ordinal, col_description(o.oid,a.attnum) as description from objects o join pg_catalog.pg_attribute a on a.attrelid=o.oid where a.attnum>0 and not a.attisdropped order by o.schema collate "C", o.name collate "C", a.attnum`,
-        [{ name: "limit", value: scope.maxObjects }],
-        scope.maxRows,
+        [{ name: "limit", value: scope.maxObjects + 1 }],
+        scope.maxRows + 1,
         (row) => ({
           schema: text(row, "schema"),
           name: text(row, "name"),

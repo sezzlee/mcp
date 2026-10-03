@@ -70,6 +70,9 @@ describe("PostgreSQL dialect", () => {
     "select array_length(tags, 1), jsonb_array_elements(data) from sales.o",
     "(select 1) union (select 2)",
     "select 1; /* x */ ;",
+    "select pg_catalog.pg_advisory_xact_lock(1)",
+    "select pg_catalog.set_config('search_path', 'public', false)",
+    "select U&'d\\0061ta' as note",
     "select E'\\'; still one literal' as note",
     "select U&'d\\0061t;a' as note",
   ])("allows one query: %s", (sql) => {
@@ -86,6 +89,23 @@ describe("PostgreSQL dialect", () => {
     ["select $tag$ x", "not closed"],
     ["select E'\\'; delete from t; --", "not closed"],
     ["-- nothing", "empty"],
+    ["select pg_catalog.pg_terminate_backend(12345)", "signals another session"],
+    ['select "pg_cancel_backend"(12345)', "signals another session"],
+    ["select pg_cancel_backend /* note */ (12345)", "signals another session"],
+    [
+      'select pg_catalog.U&"pg_c\\0061ncel_backend"(12345)',
+      "Unicode-escaped",
+    ],
+    [
+      "select pg_catalog.query_to_xml('select pg_catalog.pg_cancel_' || 'backend(1)', false, false, '')",
+      "runs SQL text",
+    ],
+    ["select * from ts_stat('select vector from docs.pages')", "runs SQL text"],
+    [
+      "select public.dblink_exec('dbname=x', 'delete from t')",
+      "outside this transaction",
+    ],
+    ["select pg_advisory_lock(1)", "session lock"],
   ])("refuses %s and says why", (sql, reason) => {
     expect(readOnlyGuard(sql)).toMatchObject({
       verdict: "refuse",

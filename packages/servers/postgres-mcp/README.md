@@ -2,7 +2,19 @@
 
 Read-only PostgreSQL MCP server. Uses the shared database core for four tools: `describe_connection`, `search_catalog`, `describe_table`, and `run_query`.
 
-The database principal must have only the privileges needed to read approved objects. `run_query` measures the principal before it runs a statement and refuses every query while the principal is, or is a member of, a role that is a superuser, can create roles or replicate, or can read or write server files, run server programs or signal other backends. Every query, catalogue question included, runs in its own `START TRANSACTION READ ONLY` with transaction-local statement and lock deadlines, `pg_catalog` as its search path and `standard_conforming_strings` on, so no setting outlives the transaction or reaches another client through a transaction pooler; session advisory locks are released before commit, and a connection whose transaction failed is closed rather than reused. Qualify application tables with their schema. The statement guard only refuses a batch, a statement that does not begin with `SELECT` or `WITH`, and an unterminated literal or comment, and says which.
+Use a role created for this server alone, granted `SELECT` on the objects the agent may read and nothing else; never one another application signs in with. Qualify application tables with their schema.
+
+## Read-only guarantees
+
+Every query, catalogue questions included, runs in its own `START TRANSACTION READ ONLY` with transaction-local statement and lock deadlines, `pg_catalog` as its search path and `standard_conforming_strings` on, and always ends in `ROLLBACK`, including after a successful read. A connection whose transaction failed is closed rather than reused. `run_query` measures the principal first and refuses every query while it is, or is a member of, a role that is a superuser, can create roles or replicate, or can read or write server files, run server programs or signal other backends.
+
+These are three separate guarantees, held to different degrees:
+
+- **Data is not changed.** Held by the read-only transaction, which the server enforces for every principal, superusers included: writes, `nextval`, large-object writes and DDL fail. A function the database defines can still reach outside it, for example through `dblink` or another connection it opens itself.
+- **Session state does not outlive the query.** Held by the rollback, which undoes settings a statement changes with `set_config(..., false)` and drops any `NOTIFY` it queued. Session advisory locks survive a rollback, so the guard refuses the functions that take them and the scope releases any left before rolling back. No `SET` is ever issued at session level, so nothing reaches another client through a transaction pooler.
+- **Other sessions are not disturbed.** Held only in part. A role may cancel or terminate other sessions of the same role without `pg_signal_backend`, and functions are executable by `PUBLIC` by default. The statement guard refuses the built-in functions that signal other sessions, take session locks or run SQL text it never sees (`query_to_xml`, `cursor_to_xml`, `ts_stat`, `ts_rewrite`, `dblink`, and their siblings), and refuses `U&"…"` identifiers rather than decode them. That list is an added layer over a statement, not a boundary: it does not see what a view or a database-defined function calls. A dedicated role narrows what a missed call can reach to this server's own sessions; it does not remove it.
+
+The statement guard otherwise refuses only a batch, a statement that does not begin with `SELECT` or `WITH`, and an unterminated literal or comment, and says which.
 
 ## CLI
 
