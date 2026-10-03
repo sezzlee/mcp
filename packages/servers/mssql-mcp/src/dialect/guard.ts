@@ -8,9 +8,9 @@ import {
 /**
  * Guard: T-SQL needs no `;` between statements, so `select 1 delete from t` is
  * a batch of two and counting semicolons cannot find the boundary. Every word
- * here is reserved in T-SQL and can only appear unbracketed as syntax, so
- * finding one is how a second statement, a write inside this one, or a rowset
- * function that runs under another server's login is recognised.
+ * here is reserved in T-SQL, or a Service Broker verb, and so is how a second
+ * statement, a write inside this one, or a rowset function that runs under
+ * another server's login is recognised.
  */
 const statementKeywords = [
   "insert",
@@ -44,7 +44,17 @@ const statementKeywords = [
   "rollback",
   "kill",
   "dbcc",
+  "writetext",
+  "updatetext",
+  "setuser",
+  "revert",
+  "save",
+  "receive",
+  "send",
 ];
+
+/** Guard: ending a `--` comment early can only expose more text to the checks below, never hide any. */
+const lineEnd = /[\n\r\v\f\u0085\u2028\u2029]/u;
 
 const keywordSet: ReadonlySet<string> = new Set(statementKeywords);
 
@@ -57,8 +67,18 @@ const keywordSet: ReadonlySet<string> = new Set(statementKeywords);
  */
 const lexeme = /0x[0-9a-f]*|(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d*)?|[a-z_@#][a-z0-9_@#$]*/gu;
 
+/**
+ * Guard: a letter that folds to an ASCII one (`İ`, `ı`, a fullwidth form) is
+ * folded before lexing, so a keyword spelled with one is still found whether or
+ * not the server's collation would read it as that keyword.
+ */
+const fold = (text: string): string =>
+  asciiLower(
+    text.normalize("NFKD").replace(/\p{M}/gu, "").replaceAll("ı", "i"),
+  );
+
 const words = (masked: string): readonly string[] =>
-  [...masked.matchAll(lexeme)]
+  [...fold(masked).matchAll(lexeme)]
     .map((match) => match[0])
     .filter((word) => !/^[\d.]/u.test(word));
 
@@ -120,11 +140,7 @@ function normalise(sql: string): Normalised {
       continue;
     }
     if (here === "-" && next === "-") {
-      while (
-        index < sql.length &&
-        sql[index] !== "\n" &&
-        sql[index] !== "\r"
-      ) {
+      while (index < sql.length && !lineEnd.test(sql[index] ?? "")) {
         index += 1;
       }
       masked += " ";
