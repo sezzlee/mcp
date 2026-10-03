@@ -27,9 +27,11 @@ type MappedCode = Extract<
   | "query_timeout"
   | "authentication_failed"
   | "connection_failed"
+  | "database_unavailable"
 >;
 
 const byNumber: Readonly<Record<number, MappedCode>> = {
+  4060: "database_unavailable",
   208: "object_not_found",
   2812: "invalid_argument",
   229: "permission_denied",
@@ -73,6 +75,8 @@ const recoveries: Readonly<Record<MappedCode, string>> = {
     "This is a server configuration problem, not something the call can fix.",
   connection_failed:
     "The database was not reachable; retrying may succeed once it is.",
+  database_unavailable:
+    "Check that the configured database exists and that the principal can open it.",
   query_timeout:
     "Narrow the query with a filter or a paging clause, or pass a larger timeoutMs.",
   query_cancelled:
@@ -89,6 +93,15 @@ export function mapDriverError(error: unknown): DriverFailure | undefined {
   const message =
     typeof shape.message === "string" ? shape.message : "The query failed.";
   const code = typeof shape.code === "string" ? shape.code : undefined;
+
+  if (shape.number === 4060) {
+    return {
+      code: "database_unavailable",
+      message,
+      engineCode: 4060,
+      recovery: recoveries.database_unavailable,
+    };
+  }
 
   if (code === "EREQUEST") {
     const number = typeof shape.number === "number" ? shape.number : undefined;

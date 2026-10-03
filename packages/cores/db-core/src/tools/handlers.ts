@@ -18,6 +18,7 @@ import {
 import { likeMatches } from "../search/pattern.js";
 import { rank, type MatchReason } from "../search/rank.js";
 import type { KeyEntry } from "../model/catalog.js";
+import type { PrincipalPosture } from "../model/dialect.js";
 import type { ColumnDescriptor, JsonScalar } from "../model/value.js";
 import type { QueryResult } from "../model/sql.js";
 import type { DbSource } from "../source.js";
@@ -155,6 +156,7 @@ export function createHandlers<TConfig>(
           dialect.introspection.server(),
           signal,
         );
+        const posture = await source.principal(signal);
         const { display } = source.profile;
         return json({
           alias: display.alias,
@@ -169,6 +171,7 @@ export function createHandlers<TConfig>(
             principal:
               "The database principal decides what is readable; this server issues no writes.",
             sessionIntent: source.sessionIntent,
+            principalPosture: posture,
             statementGuard: "advisory",
             note: vocabulary.readOnlyRecovery,
           },
@@ -393,6 +396,16 @@ export function createHandlers<TConfig>(
       if (outcome.verdict === "refuse") {
         throw fail("write_not_permitted", outcome.reason, outcome.recovery);
       }
+      const posture = await source.principal(signal);
+      if (!queryPermitted(posture, source.sessionIntent)) {
+        throw fail(
+          "write_not_permitted",
+          posture === "unknown"
+            ? "The connected principal's privileges could not be verified, so queries are disabled."
+            : `The connected principal is ${posture === "administrator" ? "an administrator" : "able to write"}, so queries are disabled.`,
+          vocabulary.readOnlyRecovery,
+        );
+      }
       const result = await runner.run(
         {
           sql: outcome.statement,
@@ -405,4 +418,20 @@ export function createHandlers<TConfig>(
       return json(assemble(result));
     }),
   };
+}
+
+/**
+ * Guard: the statement guard is advisory, so this is where read-only is made
+ * true. An administrator escapes every transaction mode; a writable principal is
+ * contained only where the session itself is read-only; an unverified one is
+ * treated as the worst case.
+ */
+export function queryPermitted(
+  posture: PrincipalPosture | "unknown",
+  sessionIntent: "read_only" | "none",
+): boolean {
+  return (
+    posture === "read_only" ||
+    (posture === "writable" && sessionIntent === "read_only")
+  );
 }

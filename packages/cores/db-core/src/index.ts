@@ -102,6 +102,8 @@ export type {
   GuardOutcome,
   Introspection,
   IntrospectionQuery,
+  PrincipalPosture,
+  QueryScope,
   RowRecord,
 } from "./model/dialect.js";
 export { encodeRow, encodeValue } from "./values/encode.js";
@@ -154,5 +156,5 @@ export {
   type ToolInput,
   type ToolName,
 } from "./tools/definitions.js";
-export { createHandlers } from "./tools/handlers.js";
+export { createHandlers, queryPermitted } from "./tools/handlers.js";
 export { createDbMcpServer } from "./server.js";

@@ -331,18 +331,18 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
-      '@sezzlee/oxlint-config':
-        specifier: workspace:*
-        version: link:../../toolchain/oxlint-config
-      '@sezzlee/typescript-config':
-        specifier: workspace:*
-        version: link:../../toolchain/typescript-config
       '@modelcontextprotocol/client':
         specifier: ^2.0.0
         version: 2.0.0
       '@modelcontextprotocol/server':
         specifier: ^2.0.0
         version: 2.0.0
+      '@sezzlee/oxlint-config':
+        specifier: workspace:*
+        version: link:../../toolchain/oxlint-config
+      '@sezzlee/typescript-config':
+        specifier: workspace:*
+        version: link:../../toolchain/typescript-config
       '@types/node':
         specifier: ^24.3.0
         version: 24.13.3
@@ -371,18 +371,18 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
-      '@sezzlee/oxlint-config':
-        specifier: workspace:*
-        version: link:../../toolchain/oxlint-config
-      '@sezzlee/typescript-config':
-        specifier: workspace:*
-        version: link:../../toolchain/typescript-config
       '@modelcontextprotocol/client':
         specifier: ^2.0.0
         version: 2.0.0
       '@modelcontextprotocol/server':
         specifier: ^2.0.0
         version: 2.0.0
+      '@sezzlee/oxlint-config':
+        specifier: workspace:*
+        version: link:../../toolchain/oxlint-config
+      '@sezzlee/typescript-config':
+        specifier: workspace:*
+        version: link:../../toolchain/typescript-config
       '@types/node':
         specifier: ^24.3.0
         version: 24.13.3
@@ -407,18 +407,18 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
-      '@sezzlee/oxlint-config':
-        specifier: workspace:*
-        version: link:../../toolchain/oxlint-config
-      '@sezzlee/typescript-config':
-        specifier: workspace:*
-        version: link:../../toolchain/typescript-config
       '@modelcontextprotocol/client':
         specifier: ^2.0.0
         version: 2.0.0
       '@modelcontextprotocol/server':
         specifier: ^2.0.0
         version: 2.0.0
+      '@sezzlee/oxlint-config':
+        specifier: workspace:*
+        version: link:../../toolchain/oxlint-config
+      '@sezzlee/typescript-config':
+        specifier: workspace:*
+        version: link:../../toolchain/typescript-config
       '@types/node':
         specifier: ^24.3.0
         version: 24.13.3
@@ -576,15 +576,15 @@ importers:
       '@e965/xlsx':
         specifier: 0.20.3
         version: 0.20.3
+      '@modelcontextprotocol/server':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@sezzlee/file-core':
         specifier: workspace:^
         version: link:../../cores/file-core
       '@sezzlee/ooxml-core':
         specifier: workspace:^
         version: link:../../cores/ooxml-core
-      '@modelcontextprotocol/server':
-        specifier: ^2.0.0
-        version: 2.0.0
       csv-parse:
         specifier: ^7.0.2
         version: 7.0.2
@@ -592,15 +592,15 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
+      '@modelcontextprotocol/client':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@sezzlee/oxlint-config':
         specifier: workspace:*
         version: link:../../toolchain/oxlint-config
       '@sezzlee/typescript-config':
         specifier: workspace:*
         version: link:../../toolchain/typescript-config
-      '@modelcontextprotocol/client':
-        specifier: ^2.0.0
-        version: 2.0.0
       '@types/node':
         specifier: ^24.3.0
         version: 24.13.3
@@ -625,25 +625,25 @@ importers:
 
   packages/servers/llm-mcp:
     dependencies:
-      '@sezzlee/mcp-core':
-        specifier: workspace:^
-        version: link:../../cores/mcp-core
       '@modelcontextprotocol/server':
         specifier: ^2.0.0
         version: 2.0.0
+      '@sezzlee/mcp-core':
+        specifier: workspace:^
+        version: link:../../cores/mcp-core
       zod:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
+      '@modelcontextprotocol/client':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@sezzlee/oxlint-config':
         specifier: workspace:*
         version: link:../../toolchain/oxlint-config
       '@sezzlee/typescript-config':
         specifier: workspace:*
         version: link:../../toolchain/typescript-config
-      '@modelcontextprotocol/client':
-        specifier: ^2.0.0
-        version: 2.0.0
       '@types/node':
         specifier: ^24.3.0
         version: 24.13.3
@@ -662,12 +662,12 @@ importers:
 
   packages/servers/mssql-mcp:
     dependencies:
-      '@sezzlee/db-core':
-        specifier: workspace:^
-        version: link:../../cores/db-core
       '@modelcontextprotocol/server':
         specifier: ^2.0.0
         version: 2.0.0
+      '@sezzlee/db-core':
+        specifier: workspace:^
+        version: link:../../cores/db-core
       mssql:
         specifier: 11.0.2
         version: 11.0.2(supports-color@10.2.2)
@@ -675,15 +675,15 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
+      '@modelcontextprotocol/client':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@sezzlee/oxlint-config':
         specifier: workspace:*
         version: link:../../toolchain/oxlint-config
       '@sezzlee/typescript-config':
         specifier: workspace:*
         version: link:../../toolchain/typescript-config
-      '@modelcontextprotocol/client':
-        specifier: ^2.0.0
-        version: 2.0.0
       '@types/mssql':
         specifier: ^9.1.5
         version: 9.1.11(supports-color@10.2.2)
@@ -705,31 +705,31 @@ importers:
 
   packages/servers/openapi-mcp:
     dependencies:
-      '@sezzlee/core':
-        specifier: workspace:*
-        version: link:../../http/core
-      '@sezzlee/openapi':
-        specifier: workspace:*
-        version: link:../../http/openapi
       '@modelcontextprotocol/node':
         specifier: ^2.0.0
         version: 2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.5)
       '@modelcontextprotocol/server':
         specifier: ^2.0.0
         version: 2.0.0
+      '@sezzlee/core':
+        specifier: workspace:*
+        version: link:../../http/core
+      '@sezzlee/openapi':
+        specifier: workspace:*
+        version: link:../../http/openapi
       zod:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
+      '@modelcontextprotocol/client':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@sezzlee/oxlint-config':
         specifier: workspace:*
         version: link:../../toolchain/oxlint-config
       '@sezzlee/typescript-config':
         specifier: workspace:*
         version: link:../../toolchain/typescript-config
-      '@modelcontextprotocol/client':
-        specifier: ^2.0.0
-        version: 2.0.0
       '@types/node':
         specifier: ^24.3.0
         version: 24.13.3
@@ -748,16 +748,19 @@ importers:
       '@firecrawl/pdf-inspector':
         specifier: 1.23.0
         version: 1.23.0
-      '@sezzlee/file-core':
-        specifier: workspace:^
-        version: link:../../cores/file-core
       '@modelcontextprotocol/server':
         specifier: ^2.0.0
         version: 2.0.0
+      '@sezzlee/file-core':
+        specifier: workspace:^
+        version: link:../../cores/file-core
       zod:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
+      '@modelcontextprotocol/client':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@sezzlee/ocr-ollama':
         specifier: workspace:^
         version: link:../../adapters/ocr-ollama
@@ -770,9 +773,6 @@ importers:
       '@sezzlee/typescript-config':
         specifier: workspace:*
         version: link:../../toolchain/typescript-config
-      '@modelcontextprotocol/client':
-        specifier: ^2.0.0
-        version: 2.0.0
       '@types/node':
         specifier: ^24.3.0
         version: 24.13.3
@@ -789,17 +789,20 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0)(sugarss@5.0.1(postcss@8.5.26))(supports-color@10.2.2)(yaml@2.9.1)
 
-  packages/servers/xml-mcp:
+  packages/servers/postgres-mcp:
     dependencies:
-      '@sezzlee/file-core':
-        specifier: workspace:^
-        version: link:../../cores/file-core
       '@modelcontextprotocol/server':
         specifier: ^2.0.0
         version: 2.0.0
-      libxml2-wasm:
-        specifier: 0.7.2
-        version: 0.7.2
+      '@sezzlee/db-core':
+        specifier: workspace:^
+        version: link:../../cores/db-core
+      pg:
+        specifier: 8.23.1
+        version: 8.23.1
+      pg-cursor:
+        specifier: 2.22.1
+        version: 2.22.1(pg@8.23.1)
       zod:
         specifier: ^4.5.4
         version: 4.5.4
@@ -810,9 +813,49 @@ importers:
       '@sezzlee/typescript-config':
         specifier: workspace:*
         version: link:../../toolchain/typescript-config
+      '@types/node':
+        specifier: ^24.3.0
+        version: 24.13.3
+      '@types/pg':
+        specifier: ^8.15.6
+        version: 8.23.1
+      '@types/pg-cursor':
+        specifier: ^2.7.2
+        version: 2.7.2
+      oxlint:
+        specifier: 1.85.0
+        version: 1.85.0
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0)(sugarss@5.0.1(postcss@8.5.26))(supports-color@10.2.2)(yaml@2.9.1)
+
+  packages/servers/xml-mcp:
+    dependencies:
+      '@modelcontextprotocol/server':
+        specifier: ^2.0.0
+        version: 2.0.0
+      '@sezzlee/file-core':
+        specifier: workspace:^
+        version: link:../../cores/file-core
+      libxml2-wasm:
+        specifier: 0.7.2
+        version: 0.7.2
+      zod:
+        specifier: ^4.5.4
+        version: 4.5.4
+    devDependencies:
       '@modelcontextprotocol/client':
         specifier: ^2.0.0
         version: 2.0.0
+      '@sezzlee/oxlint-config':
+        specifier: workspace:*
+        version: link:../../toolchain/oxlint-config
+      '@sezzlee/typescript-config':
+        specifier: workspace:*
+        version: link:../../toolchain/typescript-config
       '@types/node':
         specifier: ^24.3.0
         version: 24.13.3
@@ -852,12 +895,6 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
-      '@sezzlee/oxlint-config':
-        specifier: workspace:*
-        version: link:../../packages/toolchain/oxlint-config
-      '@sezzlee/typescript-config':
-        specifier: workspace:*
-        version: link:../../packages/toolchain/typescript-config
       '@modelcontextprotocol/client':
         specifier: 2.0.0
         version: 2.0.0
@@ -882,6 +919,12 @@ importers:
       '@nestjs/testing':
         specifier: ^11.1.6
         version: 11.2.3(@nestjs/common@11.2.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.2.3)(@nestjs/platform-express@11.2.3)
+      '@sezzlee/oxlint-config':
+        specifier: workspace:*
+        version: link:../../packages/toolchain/oxlint-config
+      '@sezzlee/typescript-config':
+        specifier: workspace:*
+        version: link:../../packages/toolchain/typescript-config
       '@swc/core':
         specifier: ^1.13.0
         version: 1.16.1
@@ -955,9 +998,6 @@ importers:
 
   sdks/nestjs/samples/demo-api:
     dependencies:
-      '@sezzlee/sdk-nestjs':
-        specifier: workspace:*
-        version: link:../..
       '@modelcontextprotocol/express':
         specifier: ^2.0.0
         version: 2.0.0(@modelcontextprotocol/server@2.0.0)(express@5.2.1(supports-color@10.2.2))
@@ -976,6 +1016,9 @@ importers:
       '@nestjs/platform-express':
         specifier: ^11.1.6
         version: 11.2.3(@nestjs/common@11.2.3(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.2.3)(supports-color@10.2.2)
+      '@sezzlee/sdk-nestjs':
+        specifier: workspace:*
+        version: link:../..
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1
@@ -2921,6 +2964,12 @@ packages:
   '@types/node@24.13.3':
     resolution: {integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==}
 
+  '@types/pg-cursor@2.7.2':
+    resolution: {integrity: sha512-m3xT8bVFCvx98LuzbvXyuCdT/Hjdd/v8ml4jL4K1QF70Y8clOfCFdgoaEB1FWdcSwcpoFYZTJQaMD9/GQ27efQ==}
+
+  '@types/pg@8.23.1':
+    resolution: {integrity: sha512-fKVHpikPdg4GKks3JuLEhvwSyvwzF23hnabPy6DD8ljVbC7+6J5dQzdv4arV6jqq57djnMgs1HKBxX4P8aBI3A==}
+
   '@types/qs@6.15.1':
     resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
 
@@ -4648,6 +4697,45 @@ packages:
     resolution: {integrity: sha512-/Y3fcFrXEAsMjJXeL9J8+ZG9U01LbuWaYypvDW2ycW1jL269L3js3DVBjDJ0Up9Np1uqDXsDrRihHANhZOlwdQ==}
     engines: {node: '>=20'}
 
+  pg-cloudflare@1.4.1:
+    resolution: {integrity: sha512-6PQbsFWZcp9EmJEwy5cGQ2La+AMWpP46lgbb8X+U/XsHIUweYDNCpeuKck5RxL2MdVFi7krbbEi5nX4Zh7JhrQ==}
+
+  pg-connection-string@2.14.1:
+    resolution: {integrity: sha512-qR3kGNPBLpCNtz0evbKA0Y/MRFXwSSdT+pTJvYp/bXTcReZbvX1kzF0IyTc1QnxqF7AZbOeBhNL8R5mYQZV/MA==}
+
+  pg-cursor@2.22.1:
+    resolution: {integrity: sha512-X10ldv3wwBONQkOSwgWEbaEITMGLd92V2Zd+xsFPhDt3nhhU3hpAT08SERBChnIFmomczLax6lKXLJrHPPXfxA==}
+    peerDependencies:
+      pg: ^8
+
+  pg-int8@1.0.1:
+    resolution: {integrity: sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==}
+    engines: {node: '>=4.0.0'}
+
+  pg-pool@3.14.0:
+    resolution: {integrity: sha512-gKtPkFdQPU3DksooVLi9LsjZxrsBUZIpa+7aVx+LV5pNh0KzP4Zleud2po+ConrxbuXGBJ6Hfer6hdgpIBpBaw==}
+    peerDependencies:
+      pg: '>=8.0'
+
+  pg-protocol@1.16.1:
+    resolution: {integrity: sha512-p9VOFMiHB/ZbJATetbg+99PxssTVSQRnyuPSQ67mN1+1KBOjZaZ83ZQzltnxPhJwSsC3nwVjJ10DVJlerbFzLg==}
+
+  pg-types@2.2.0:
+    resolution: {integrity: sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA==}
+    engines: {node: '>=4'}
+
+  pg@8.23.1:
+    resolution: {integrity: sha512-aL96AHANtWjPLDOLqnhx+ngp9+UK7ETEU8VJrDCGvsSSi/mGLcWYsS6Herg7lmaBJe4uwrfqsa7gTEFaSizDoQ==}
+    engines: {node: '>= 16.0.0'}
+    peerDependencies:
+      pg-native: '>=3.0.1'
+    peerDependenciesMeta:
+      pg-native:
+        optional: true
+
+  pgpass@1.0.5:
+    resolution: {integrity: sha512-FdW9r/jQZhSeohs1Z3sI1yxFQNFvMcnmfuj4WBMUTxOrAyLMaTcE1aAMBiTlbMNaXvBCQuVi0R7hd8udDSP7ug==}
+
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
@@ -4695,6 +4783,22 @@ packages:
   postcss@8.5.26:
     resolution: {integrity: sha512-u82N74LFzG8ca+dD8puPnplTXoGH4fTPpVGuIbt36G3qvNlkvfD0lEAZSxaly3KX8TS/L1A1gsCEmvKmBcVbkQ==}
     engines: {node: ^10 || ^12 || >=14}
+
+  postgres-array@2.0.0:
+    resolution: {integrity: sha512-VpZrUqU5A69eQyW2c5CA1jtLecCsN2U/bD6VilrFDWq5+5UIEVO7nazS3TEcHf1zuPYO/sqGvUvW62g86RXZuA==}
+    engines: {node: '>=4'}
+
+  postgres-bytea@1.0.1:
+    resolution: {integrity: sha512-5+5HqXnsZPE65IJZSMkZtURARZelel2oXUEO8rH83VS/hxH5vv1uHquPg5wZs8yMAfdv971IU+kcPUczi7NVBQ==}
+    engines: {node: '>=0.10.0'}
+
+  postgres-date@1.0.7:
+    resolution: {integrity: sha512-suDmjLVQg78nMK2UZ454hAG+OAW+HQPZ6n++TNDUX+L0+uUlLywnoxJKDou51Zm+zTCjrCl0Nq6J9C5hP9vK/Q==}
+    engines: {node: '>=0.10.0'}
+
+  postgres-interval@1.2.0:
+    resolution: {integrity: sha512-9ZhXKM/rw350N1ovuWHbGxnGh/SNJ4cnxHiM0rxE4VN41wsg8P8zWn9hv/buK00RP4WvlOyr/RBDiptyxVbkZQ==}
+    engines: {node: '>=0.10.0'}
 
   prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
@@ -4958,6 +5062,10 @@ packages:
 
   space-separated-tokens@2.0.2:
     resolution: {integrity: sha512-PEGlAwrG8yXGXRjW32fGbg66JAlOAwbObuqVoJpv/mRgoWDQfgH1wDPvtzWyUSNAXBGSk8h755YDbbcEy3SH2Q==}
+
+  split2@4.2.0:
+    resolution: {integrity: sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg==}
+    engines: {node: '>= 10.x'}
 
   sprintf-js@1.1.3:
     resolution: {integrity: sha512-Oo+0REFV59/rz3gfJNKQiBlwfHaSESl1pcGyABQsnnIfWOFt6JNj5gCog2U6MLZ//IGYD+nA8nI+mTShREReaA==}
@@ -5474,6 +5582,10 @@ packages:
 
   xmlchars@2.2.0:
     resolution: {integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==}
+
+  xtend@4.0.2:
+    resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
+    engines: {node: '>=0.4'}
 
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
@@ -7098,6 +7210,17 @@ snapshots:
   '@types/node@24.13.3':
     dependencies:
       undici-types: 7.18.2
+
+  '@types/pg-cursor@2.7.2':
+    dependencies:
+      '@types/node': 24.13.3
+      '@types/pg': 8.23.1
+
+  '@types/pg@8.23.1':
+    dependencies:
+      '@types/node': 24.13.3
+      pg-protocol: 1.16.1
+      pg-types: 2.2.0
 
   '@types/qs@6.15.1': {}
 
@@ -9003,6 +9126,45 @@ snapshots:
     optionalDependencies:
       '@napi-rs/canvas': 0.1.100
 
+  pg-cloudflare@1.4.1:
+    optional: true
+
+  pg-connection-string@2.14.1: {}
+
+  pg-cursor@2.22.1(pg@8.23.1):
+    dependencies:
+      pg: 8.23.1
+
+  pg-int8@1.0.1: {}
+
+  pg-pool@3.14.0(pg@8.23.1):
+    dependencies:
+      pg: 8.23.1
+
+  pg-protocol@1.16.1: {}
+
+  pg-types@2.2.0:
+    dependencies:
+      pg-int8: 1.0.1
+      postgres-array: 2.0.0
+      postgres-bytea: 1.0.1
+      postgres-date: 1.0.7
+      postgres-interval: 1.2.0
+
+  pg@8.23.1:
+    dependencies:
+      pg-connection-string: 2.14.1
+      pg-pool: 3.14.0(pg@8.23.1)
+      pg-protocol: 1.16.1
+      pg-types: 2.2.0
+      pgpass: 1.0.5
+    optionalDependencies:
+      pg-cloudflare: 1.4.1
+
+  pgpass@1.0.5:
+    dependencies:
+      split2: 4.2.0
+
   picocolors@1.1.1: {}
 
   picomatch@4.0.7: {}
@@ -9047,6 +9209,16 @@ snapshots:
       nanoid: 3.3.18
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  postgres-array@2.0.0: {}
+
+  postgres-bytea@1.0.1: {}
+
+  postgres-date@1.0.7: {}
+
+  postgres-interval@1.2.0:
+    dependencies:
+      xtend: 4.0.2
 
   prelude-ls@1.2.1: {}
 
@@ -9412,6 +9584,8 @@ snapshots:
   source-map@0.7.6: {}
 
   space-separated-tokens@2.0.2: {}
+
+  split2@4.2.0: {}
 
   sprintf-js@1.1.3: {}
 
@@ -9992,6 +10166,8 @@ snapshots:
       js-yaml: 4.3.2
 
   xmlchars@2.2.0: {}
+
+  xtend@4.0.2: {}
 
   yallist@3.1.1: {}
 

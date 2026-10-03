@@ -1,5 +1,7 @@
 # sezzlee
 
+`packages/servers/postgres-mcp` is the publishable PostgreSQL database server. It consumes only `@sezzlee/db-core` among sezzlee packages and follows the same platform/dialect/driver layers as `mssql-mcp`. Only its driver imports `pg` and `pg-cursor`; only its dialect mints SQL and identifiers. Cursor reads retain at most a bounded batch plus retained output; capped portals close before reuse. Cancellation physically closes the connection, so native cancellation failures are marked broken and quarantined by db-core. Verified TLS retains the original certificate hostname independently of a pinned dial address. CLI environment access stays explicit and declared in package Turbo configuration.
+
 "Swagger for Agents": an MCP layer embedded into existing backends — spec + SDK per language.
 
 ## Package Boundaries

@@ -61,9 +61,9 @@ The first four variables are required. Parsing is eager and fatal; **connecting 
 
 Three layers, and **the weakest one lives inside this package**:
 
-1. **The database principal — the real guarantee.** Connect with a user that is `db_datareader` and nothing else.
+1. **The database principal — the real guarantee, and verified.** Connect with a user that is `db_datareader` and nothing else. `run_query` measures the principal before it runs a statement and refuses every query while it holds a server role, `db_owner`, `db_securityadmin`, `db_accessadmin`, `db_datawriter` or `db_ddladmin`, or any database or object permission to insert, update, delete, alter or create. `describe_connection` reports the result as `principalPosture`.
 2. **The session.** MSSQL has no read-only session flag. `ApplicationIntent=ReadOnly` only routes into a readable secondary inside an availability group; on a standalone instance it guarantees nothing. `describe_connection` reports this honestly as `sessionIntent: "none"`.
-3. **The statement guard — a legible error, nothing more.** `readOnlyGuard` masks comments and string literals, then checks that the first word is `SELECT` or `WITH`, that the statement is singular, and that it carries no write keyword. **It is not a security boundary.** If the connection uses a principal that can write, defeating this guard produces a real write.
+3. **The statement guard — a legible error, nothing more.** `readOnlyGuard` masks comments and string literals, then checks that the first word is `SELECT` or `WITH` and that the statement is singular. **It is not a security boundary**; the principal check in layer 1 is what refuses a writable connection.
 
 ## Rules
 

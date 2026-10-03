@@ -155,6 +155,7 @@ export function createFakeDialect(): Dialect<FakeConfig> {
     secretPatterns: [/(\bhost\s*=\s*)\S+/gi],
     sessionSetup: () => [],
     sessionIntent: () => "none",
+    queryScope: () => ({ kind: "session" }),
     quoteIdentifier: (name, failure) => {
       if (name.includes("\u0000")) {
         throw failure("invalid_argument", "An identifier carries a NUL byte.");
@@ -185,6 +186,15 @@ export function createFakeDialect(): Dialect<FakeConfig> {
        * cut, and the partial-index contract would pass here while failing in
        * production.
        */
+      principal: () => ({
+        spec: spec("principal", 1),
+        project: (row) =>
+          row["posture"] === "administrator"
+            ? "administrator"
+            : row["posture"] === "writable"
+              ? "writable"
+              : "read_only",
+      }),
       catalogObjects: (scope) => ({
         spec: spec("catalogObjects", scope.maxObjects + 1),
         project: (row) => ({

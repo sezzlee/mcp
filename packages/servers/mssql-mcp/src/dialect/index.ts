@@ -41,6 +41,7 @@ export function createMssqlDialect(queryTimeoutMs: number) {
      * the database principal.
      */
     sessionIntent: () => "none" as const,
+    queryScope: () => ({ kind: "session" }) as const,
     quoteIdentifier,
     quoteQualified,
     describeType,

@@ -5,50 +5,15 @@ import {
   type GuardOutcome,
 } from "@sezzlee/db-core";
 
-/**
- * Keywords that make a statement do something other than read. `into` is here
- * because `SELECT ... INTO #t` creates a table, which no `INSERT` check would
- * catch; `waitfor` because it holds a connection for an arbitrary time.
- */
-const forbidden = [
-  "insert",
-  "update",
-  "delete",
-  "merge",
-  "drop",
-  "alter",
-  "create",
-  "truncate",
-  "exec",
-  "execute",
-  "grant",
-  "revoke",
-  "deny",
-  "backup",
-  "restore",
-  "shutdown",
-  "reconfigure",
-  "waitfor",
-  "into",
-  "openquery",
-  "openrowset",
-  "opendatasource",
-  "bulk",
-];
-
-const procedurePrefix = /\b(?:sp_|xp_)\w*/u;
-
 interface Normalised {
   readonly masked: string;
   readonly statements: readonly string[];
 }
 
 /**
- * Guard: comments and literals are removed before any keyword is looked for. A
- * plain regex over the raw text both refuses `select 'drop me' as note` and
- * accepts a statement that hides `drop table t` behind a block comment, so
- * masking is what makes the check mean anything. Bracketed identifiers collapse
- * too, so a column named `[delete]` stays legal.
+ * Guard: comments and literals are removed before statements are counted, so a
+ * `;` inside a string, a bracketed identifier or a comment is not read as a
+ * batch boundary and a comment cannot hide a second statement.
  */
 function normalise(sql: string): Normalised {
   let masked = "";
@@ -142,10 +107,10 @@ const refuse = (reason: string, recovery: string): GuardOutcome => ({
 /**
  * Decides whether one statement may run.
  *
- * Guard: advisory. The security boundary is the database principal — this check
- * exists so a write attempt returns a legible refusal instead of a driver
- * permission error, and so a typo cannot run a batch. Its `allow` arm is
- * nonetheless the only place agent text becomes `SqlText`.
+ * Guard: advisory. The boundary is the database principal, which `run_query`
+ * verifies before every statement; this check only keeps a batch or a
+ * non-query from reaching the server. Its `allow` arm is nonetheless the only
+ * place agent text becomes `SqlText`.
  */
 export function readOnlyGuard(sql: string): GuardOutcome {
   const { masked, statements } = normalise(sql);
@@ -161,26 +126,11 @@ export function readOnlyGuard(sql: string): GuardOutcome {
       "Send a single SELECT statement, with no semicolon-separated batch.",
     );
   }
-  const first = /^\s*(\w+)/u.exec(masked)?.[1];
+  const first = /^[\s(]*(\w+)/u.exec(masked)?.[1];
   if (first !== "select" && first !== "with") {
     return refuse(
-      `A read-only statement has to begin with SELECT or WITH; this one begins with ${first ?? "nothing"}.`,
+      `A read-only statement has to begin with SELECT or WITH; this one begins with ${asciiUpper(first ?? "nothing")}.`,
       "Rewrite the request as a SELECT.",
-    );
-  }
-  const hit = forbidden.find((word) =>
-    new RegExp(`\\b${word}\\b`, "u").test(masked),
-  );
-  if (hit !== undefined) {
-    return refuse(
-      `The statement carries the keyword ${asciiUpper(hit)}, which is not read-only.`,
-      "Remove it, or ask for the data with a plain SELECT.",
-    );
-  }
-  if (procedurePrefix.test(masked)) {
-    return refuse(
-      "The statement names a system procedure.",
-      "Use search_catalog and describe_table for catalogue questions.",
     );
   }
   return { verdict: "allow", statement: sqlText(sql) };

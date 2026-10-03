@@ -8,6 +8,7 @@ import {
   type Introspection,
   type IntrospectionQuery,
   type KeyEntry,
+  type PrincipalPosture,
   type QueryParameter,
   type QuerySpec,
   type RowRecord,
@@ -42,6 +43,10 @@ const optional = (row: RowRecord, key: string): string | undefined => {
   const raw = row[key];
   return typeof raw === "string" && raw.trim().length > 0 ? raw : undefined;
 };
+
+/** Guard: an answer this projector does not recognise is read as the worst posture, never as read-only. */
+const principalPosture = (value: string): PrincipalPosture =>
+  value === "read_only" || value === "writable" ? value : "administrator";
 
 const number = (row: RowRecord, key: string): number | undefined => {
   const raw = row[key];
@@ -79,6 +84,43 @@ export function createIntrospection(
         catalog: text(row, "catalog"),
         principal: text(row, "principal"),
       }),
+    }),
+
+    principal: (): IntrospectionQuery<PrincipalPosture> => ({
+      spec: spec(
+        `select case
+           when is_srvrolemember('sysadmin') = 1
+             or is_srvrolemember('serveradmin') = 1
+             or is_srvrolemember('securityadmin') = 1
+             or is_srvrolemember('setupadmin') = 1
+             or is_srvrolemember('processadmin') = 1
+             or is_srvrolemember('dbcreator') = 1
+             or is_srvrolemember('bulkadmin') = 1
+             or is_rolemember('db_owner') = 1
+             or is_rolemember('db_securityadmin') = 1
+             or is_rolemember('db_accessadmin') = 1
+             or has_perms_by_name(db_name(), 'DATABASE', 'CONTROL') = 1
+             then 'administrator'
+           when is_rolemember('db_datawriter') = 1
+             or is_rolemember('db_ddladmin') = 1
+             or exists (
+               select 1
+               from (values ('INSERT'), ('UPDATE'), ('DELETE'), ('ALTER'), ('CREATE TABLE'), ('CREATE VIEW'), ('CREATE PROCEDURE'), ('CREATE FUNCTION'), ('ALTER ANY SCHEMA')) as p([name])
+               where has_perms_by_name(db_name(), 'DATABASE', p.[name]) = 1)
+             or exists (
+               select 1
+               from sys.objects as o
+               cross join (values ('INSERT'), ('UPDATE'), ('DELETE'), ('ALTER')) as p([name])
+               where o.type in ('U', 'V') and o.is_ms_shipped = 0
+                 and has_perms_by_name(quotename(schema_name(o.schema_id)) + N'.' + quotename(o.name), 'OBJECT', p.[name]) = 1)
+             then 'writable'
+           else 'read_only'
+         end as posture`,
+        [],
+        timeoutMs,
+        1,
+      ),
+      project: (row) => principalPosture(text(row, "posture")),
     }),
 
     catalogObjects: (

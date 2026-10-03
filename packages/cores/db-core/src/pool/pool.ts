@@ -6,6 +6,7 @@ import type {
   DriverConnection,
   Lease,
   PoolLimits,
+  RunningQuery,
 } from "../model/connection.js";
 import type { QuerySpec } from "../model/sql.js";
 
@@ -20,30 +21,9 @@ export interface ConnectionPoolSpec<TConfig> {
 interface Waiter {
   readonly resolve: (connection: DriverConnection) => void;
   readonly reject: (error: unknown) => void;
+  readonly signal?: AbortSignal;
+  dispose(): void;
   settled: boolean;
-}
-
-function withTimeout<T>(
-  work: Promise<T>,
-  ms: number,
-  onTimeout: () => Error,
-): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(onTimeout());
-    }, ms);
-    timer.unref?.();
-    work.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error: unknown) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
 }
 
 export function createConnectionPool<TConfig>(
@@ -52,25 +32,90 @@ export function createConnectionPool<TConfig>(
   const { driver, config, limits, fail } = spec;
   const idle: DriverConnection[] = [];
   const waiters: Waiter[] = [];
+  const openings = new Set<() => void>();
   let opened = 0;
   let generation = 0;
   let closed = false;
 
-  async function open(signal?: AbortSignal): Promise<DriverConnection> {
-    const connection = await withTimeout(
-      driver.open(config, signal),
-      limits.connectTimeoutMs,
-      () =>
-        fail(
-          "connection_failed",
-          `The connection was not established within ${limits.connectTimeoutMs} ms.`,
-          "Check that the server is reachable and accepting connections.",
-        ),
-    );
-    for (const statement of spec.sessionSetup) {
-      await connection.run(statement).settled;
-    }
-    return connection;
+  function open(signal?: AbortSignal): Promise<DriverConnection> {
+    return new Promise<DriverConnection>((resolve, reject) => {
+      const controller = new AbortController();
+      let connection: DriverConnection | undefined;
+      let running: RunningQuery | undefined;
+      let finished = false;
+      let destroyed = false;
+      const destroy = () => {
+        if (connection === undefined || destroyed) return;
+        destroyed = true;
+        void connection.destroy().catch(() => undefined);
+      };
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", aborted);
+        openings.delete(shutdown);
+      };
+      const stop = (error: unknown) => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        controller.abort();
+        try {
+          running?.cancel();
+        } catch {
+          running = undefined;
+        }
+        destroy();
+        reject(error);
+      };
+      const aborted = () =>
+        stop(
+          fail(
+            "query_cancelled",
+            "The call was cancelled while opening a connection.",
+          ),
+        );
+      const shutdown = () =>
+        stop(fail("internal_error", "The server is shutting down."));
+      const timer = setTimeout(
+        () =>
+          stop(
+            fail(
+              "connection_failed",
+              `The connection was not established within ${limits.connectTimeoutMs} ms.`,
+              "Check that the server is reachable and accepting connections.",
+            ),
+          ),
+        limits.connectTimeoutMs,
+      );
+      timer.unref?.();
+      openings.add(shutdown);
+      signal?.addEventListener("abort", aborted, { once: true });
+      if (signal?.aborted) {
+        aborted();
+        return;
+      }
+      /** Guard: deadline, cancellation and shutdown own late connections too; abandoning only the opening promise leaks a physical socket. */
+      void (async () => {
+        try {
+          connection = await driver.open(config, controller.signal);
+          if (finished) {
+            destroy();
+            return;
+          }
+          for (const statement of spec.sessionSetup) {
+            running = connection.run(statement);
+            await running.settled;
+            running = undefined;
+            if (finished) return;
+          }
+          finished = true;
+          cleanup();
+          resolve(connection);
+        } catch (error) {
+          stop(error);
+        }
+      })();
+    });
   }
 
   function handOff(connection: DriverConnection): boolean {
@@ -80,10 +125,27 @@ export function createConnectionPool<TConfig>(
         continue;
       }
       waiter.settled = true;
+      waiter.dispose();
       waiter.resolve(connection);
       return true;
     }
     return false;
+  }
+
+  function serveWaiters(): void {
+    while (!closed && opened < limits.maxConnections) {
+      const waiter = waiters.shift();
+      if (waiter === undefined) return;
+      if (waiter.settled) continue;
+      waiter.settled = true;
+      waiter.dispose();
+      opened += 1;
+      void open(waiter.signal).then(waiter.resolve, (error: unknown) => {
+        opened -= 1;
+        waiter.reject(error);
+        serveWaiters();
+      });
+    }
   }
 
   function discard(connection: DriverConnection): void {
@@ -95,6 +157,7 @@ export function createConnectionPool<TConfig>(
      */
     generation += 1;
     void connection.destroy().catch(() => undefined);
+    serveWaiters();
   }
 
   function leaseFor(connection: DriverConnection): Lease {
@@ -145,6 +208,7 @@ export function createConnectionPool<TConfig>(
           return leaseFor(await open(signal));
         } catch (error) {
           opened -= 1;
+          serveWaiters();
           throw error;
         }
       }
@@ -157,24 +221,28 @@ export function createConnectionPool<TConfig>(
       }
       const connection = await new Promise<DriverConnection>(
         (resolve, reject) => {
-          const waiter: Waiter = { resolve, reject, settled: false };
+          const aborted = () => {
+            if (waiter.settled) return;
+            waiter.settled = true;
+            const index = waiters.indexOf(waiter);
+            if (index !== -1) waiters.splice(index, 1);
+            waiter.dispose();
+            reject(
+              fail(
+                "query_cancelled",
+                "The call was cancelled while it waited for a connection.",
+              ),
+            );
+          };
+          const waiter: Waiter = {
+            resolve,
+            reject,
+            settled: false,
+            ...(signal === undefined ? {} : { signal }),
+            dispose: () => signal?.removeEventListener("abort", aborted),
+          };
           waiters.push(waiter);
-          signal?.addEventListener(
-            "abort",
-            () => {
-              if (waiter.settled) {
-                return;
-              }
-              waiter.settled = true;
-              reject(
-                fail(
-                  "query_cancelled",
-                  "The call was cancelled while it waited for a connection.",
-                ),
-              );
-            },
-            { once: true },
-          );
+          signal?.addEventListener("abort", aborted, { once: true });
         },
       );
       return leaseFor(connection);
@@ -182,9 +250,11 @@ export function createConnectionPool<TConfig>(
 
     async close(): Promise<void> {
       closed = true;
+      for (const shutdown of [...openings]) shutdown();
       for (const waiter of waiters.splice(0)) {
         if (!waiter.settled) {
           waiter.settled = true;
+          waiter.dispose();
           waiter.reject(fail("internal_error", "The server is shutting down."));
         }
       }
