@@ -44,6 +44,7 @@ try {
         "@sezzlee/mcp-core": archive("sezzlee-mcp-core-"),
         "@sezzlee/db-core": archive("sezzlee-db-core-"),
         "@sezzlee/mssql-mcp": archive("sezzlee-mssql-mcp-"),
+        "@sezzlee/postgres-mcp": archive("sezzlee-postgres-mcp-"),
         "@sezzlee/llm-mcp": archive("sezzlee-llm-mcp-"),
         "@sezzlee/file-core": archive("sezzlee-file-core-0"),
         "@sezzlee/ooxml-core": archive("sezzlee-ooxml-core-"),
