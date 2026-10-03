@@ -204,12 +204,17 @@ describe("PostgreSQL source", () => {
     "reports a catalogue of %i tables against the index cap as complete: %s",
     async (tables, complete) => {
       const names = Array.from({ length: tables }, (_, at) => `t${at}`);
-      const cursorFactory = (sql: string, values: unknown[]): PostgresCursor => {
+      const cursorFactory = (
+        sql: string,
+        values: unknown[],
+      ): PostgresCursor => {
         const limit = Number(values[0]);
         const rows = sql.startsWith("with objects")
           ? names.slice(0, limit).map((name) => ["s", name, "c", 1, null])
           : sql.startsWith("select n.nspname")
-            ? names.slice(0, limit).map((name, at) => ["s", name, at, "r", null])
+            ? names
+                .slice(0, limit)
+                .map((name, at) => ["s", name, at, "r", null])
             : [];
         const fields = sql.startsWith("with objects")
           ? ["schema", "name", "column", "ordinal", "description"]
@@ -248,14 +253,25 @@ describe("PostgreSQL source", () => {
     const cursorFactory = (
       sql: string,
       _values: unknown[],
-      options: { types?: { getTypeParser: (oid: number, format?: "text") => (value: string) => unknown } },
+      options: {
+        types?: {
+          getTypeParser: (
+            oid: number,
+            format?: "text",
+          ) => (value: string) => unknown;
+        };
+      },
     ): PostgresCursor => ({
       close: async () => {},
       read: (_size, callback) =>
         sql === "select doc"
           ? callback(
               undefined,
-              [[3802, 114].map((oid) => options.types!.getTypeParser(oid, "text")(text))],
+              [
+                [3802, 114].map((oid) =>
+                  options.types!.getTypeParser(oid, "text")(text),
+                ),
+              ],
               {
                 fields: [
                   { name: "b", dataTypeID: 3802 },
@@ -274,7 +290,10 @@ describe("PostgreSQL source", () => {
       }),
       cursorFactory: cursorFactory as never,
     });
-    const result = await source.runner.run({ ...query, sql: sqlText("select doc") });
+    const result = await source.runner.run({
+      ...query,
+      sql: sqlText("select doc"),
+    });
     expect(result.rows[0]).toEqual([text, text]);
     await source.close();
   });

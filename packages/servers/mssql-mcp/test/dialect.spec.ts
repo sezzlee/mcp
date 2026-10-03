@@ -232,20 +232,20 @@ describe("readOnlyGuard", () => {
     ["with x as (select 1 as n) delete from dbo.Orders", "DELETE"],
     ["select * into #t from dbo.Orders", "INTO"],
     ["select 1 where 1 = 0 waitfor delay '00:10:00'", "WAITFOR"],
-    [
-      "select * from openquery(Linked, 'delete from dbo.Orders')",
-      "OPENQUERY",
-    ],
+    ["select * from openquery(Linked, 'delete from dbo.Orders')", "OPENQUERY"],
     [
       "select * from openrowset('SQLNCLI', 'Server=x;', 'select 1') as r",
       "OPENROWSET",
     ],
-  ])("refuses %s, a second statement or an escape T-SQL needs no semicolon for", (sql, keyword) => {
-    expect(readOnlyGuard(sql)).toMatchObject({
-      verdict: "refuse",
-      reason: expect.stringContaining(keyword),
-    });
-  });
+  ])(
+    "refuses %s, a second statement or an escape T-SQL needs no semicolon for",
+    (sql, keyword) => {
+      expect(readOnlyGuard(sql)).toMatchObject({
+        verdict: "refuse",
+        reason: expect.stringContaining(keyword),
+      });
+    },
+  );
 
   it("refuses a system procedure by prefix", () => {
     expect(allows("select * from sp_helpsomething()")).toBe(false);

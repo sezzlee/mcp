@@ -29,15 +29,15 @@ const containedNot: ReadonlyMap<string, string> = new Map([
     "pg_advisory_lock_shared",
     "takes a session lock that outlives the transaction",
   ],
-  ["pg_try_advisory_lock", "takes a session lock that outlives the transaction"],
+  [
+    "pg_try_advisory_lock",
+    "takes a session lock that outlives the transaction",
+  ],
   [
     "pg_try_advisory_lock_shared",
     "takes a session lock that outlives the transaction",
   ],
-  [
-    "pg_logical_emit_message",
-    "writes to the WAL outside the transaction",
-  ],
+  ["pg_logical_emit_message", "writes to the WAL outside the transaction"],
   ["query_to_xml", "runs SQL text this check never sees"],
   ["query_to_xmlschema", "runs SQL text this check never sees"],
   ["query_to_xml_and_xmlschema", "runs SQL text this check never sees"],
@@ -142,7 +142,10 @@ function scan(sql: string): Scan {
       const start = index + 1;
       index = closingQuote(sql, start, here, false);
       if (index < 0) return { kind: "open" };
-      token(here, here === '"' ? unquote(sql.slice(start, index - 1)) : undefined);
+      token(
+        here,
+        here === '"' ? unquote(sql.slice(start, index - 1)) : undefined,
+      );
       continue;
     }
     const tag =
@@ -195,7 +198,7 @@ export function readOnlyGuard(sql: string): GuardOutcome {
   const outcome = scan(sql);
   if (outcome.kind === "unicode_identifier")
     return refuse(
-      "The statement carries a Unicode-escaped identifier (U&\"…\").",
+      'The statement carries a Unicode-escaped identifier (U&"…").',
       "Write the name plainly or double-quoted.",
     );
   if (outcome.kind === "open")

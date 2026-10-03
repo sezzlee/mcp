@@ -89,13 +89,13 @@ describe("PostgreSQL dialect", () => {
     ["select $tag$ x", "not closed"],
     ["select E'\\'; delete from t; --", "not closed"],
     ["-- nothing", "empty"],
-    ["select pg_catalog.pg_terminate_backend(12345)", "signals another session"],
+    [
+      "select pg_catalog.pg_terminate_backend(12345)",
+      "signals another session",
+    ],
     ['select "pg_cancel_backend"(12345)', "signals another session"],
     ["select pg_cancel_backend /* note */ (12345)", "signals another session"],
-    [
-      'select pg_catalog.U&"pg_c\\0061ncel_backend"(12345)',
-      "Unicode-escaped",
-    ],
+    ['select pg_catalog.U&"pg_c\\0061ncel_backend"(12345)', "Unicode-escaped"],
     [
       "select pg_catalog.query_to_xml('select pg_catalog.pg_cancel_' || 'backend(1)', false, false, '')",
       "runs SQL text",

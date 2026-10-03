@@ -81,7 +81,8 @@ const keywordSet: ReadonlySet<string> = new Set(statementKeywords);
  * one name. Anything outside ASCII splits a word here, which can only find more
  * keywords than the server sees, never fewer.
  */
-const lexeme = /0x[0-9a-f]*|(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d*)?|[a-z_@#][a-z0-9_@#$]*/gu;
+const lexeme =
+  /0x[0-9a-f]*|(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d*)?|[a-z_@#][a-z0-9_@#$]*/gu;
 
 /**
  * Guard: a letter that folds to an ASCII one (`İ`, `ı`, a fullwidth form) is
