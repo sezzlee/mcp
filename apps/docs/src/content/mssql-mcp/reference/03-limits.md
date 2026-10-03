@@ -1,6 +1,6 @@
 # Limits
 
-> Generated from the exported `limits` object of `@sezzlee/mssql-mcp` 0.1.2.
+> Generated from the exported `limits` object of `@sezzlee/mssql-mcp` 0.2.0.
 
 Every limit is fixed at build time; none is configurable. A call that would cross one either answers with `truncated: true` and a way to continue, or fails with `resource_limit`.
 

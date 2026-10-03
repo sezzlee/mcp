@@ -1,6 +1,6 @@
 {
   "name": "@sezzlee/mssql-mcp",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Read-only MCP server that lets AI agents explore and query Microsoft SQL Server: catalogue search, schema introspection and read-only queries.",
   "keywords": [
     "mcp",
