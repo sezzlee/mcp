@@ -28,7 +28,7 @@ const strings = (value: unknown): string[] =>
 /** Guard: an answer this projector does not recognise is read as the worst posture, never as read-only. */
 const principalPosture = (value: string): PrincipalPosture =>
   value === "read_only" || value === "writable" ? value : "administrator";
-const administrator = `r.rolsuper or r.rolcreaterole or r.rolreplication or exists (select 1 from pg_catalog.pg_roles g where g.rolname in ('pg_read_server_files','pg_write_server_files','pg_execute_server_program','pg_signal_backend') and pg_catalog.pg_has_role(r.oid, g.oid, 'MEMBER'))`;
+const administrator = `exists (select 1 from pg_catalog.pg_roles s where (s.rolsuper or s.rolcreaterole or s.rolreplication) and pg_catalog.pg_has_role(r.oid, s.oid, 'MEMBER')) or exists (select 1 from pg_catalog.pg_roles g where g.rolname in ('pg_read_server_files','pg_write_server_files','pg_execute_server_program','pg_signal_backend') and pg_catalog.pg_has_role(r.oid, g.oid, 'MEMBER'))`;
 const writable = `pg_catalog.has_database_privilege(pg_catalog.current_database(), 'CREATE') or exists (select 1 from pg_catalog.pg_namespace n where n.nspname not in ('pg_catalog','information_schema') and n.nspname not like 'pg_toast%' and n.nspname not like 'pg_temp_%' and pg_catalog.has_schema_privilege(n.oid, 'CREATE')) or exists (select 1 from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where c.relkind in ('r','p','v','m','f') and n.nspname not in ('pg_catalog','information_schema') and n.nspname not like 'pg_toast%' and pg_catalog.has_table_privilege(c.oid, 'INSERT, UPDATE, DELETE, TRUNCATE'))`;
 
 export function createIntrospection(

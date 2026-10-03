@@ -5,6 +5,49 @@ import {
   type GuardOutcome,
 } from "@sezzlee/db-core";
 
+/**
+ * Guard: T-SQL needs no `;` between statements, so `select 1 delete from t` is
+ * a batch of two and counting semicolons cannot find the boundary. Every word
+ * here is reserved in T-SQL and can only appear unbracketed as syntax, so
+ * finding one is how a second statement, a write inside this one, or a rowset
+ * function that runs under another server's login is recognised.
+ */
+const statementKeywords = [
+  "insert",
+  "update",
+  "delete",
+  "merge",
+  "drop",
+  "alter",
+  "create",
+  "truncate",
+  "exec",
+  "execute",
+  "grant",
+  "revoke",
+  "deny",
+  "backup",
+  "restore",
+  "shutdown",
+  "reconfigure",
+  "waitfor",
+  "into",
+  "openquery",
+  "openrowset",
+  "opendatasource",
+  "bulk",
+  "use",
+  "declare",
+  "set",
+  "begin",
+  "commit",
+  "rollback",
+  "kill",
+  "dbcc",
+];
+
+const procedurePrefix = /\b(?:sp_|xp_)\w*/u;
+
 interface Normalised {
   readonly masked: string;
   readonly statements: readonly string[];
@@ -107,10 +150,10 @@ const refuse = (reason: string, recovery: string): GuardOutcome => ({
 /**
  * Decides whether one statement may run.
  *
- * Guard: advisory. The boundary is the database principal, which `run_query`
- * verifies before every statement; this check only keeps a batch or a
- * non-query from reaching the server. Its `allow` arm is nonetheless the only
- * place agent text becomes `SqlText`.
+ * Guard: the principal `run_query` verifies is the boundary for writes in this
+ * database. This check is what keeps the text to one statement, because MSSQL
+ * has neither a read-only session nor a protocol that refuses a batch. Its
+ * `allow` arm is the only place agent text becomes `SqlText`.
  */
 export function readOnlyGuard(sql: string): GuardOutcome {
   const { masked, statements } = normalise(sql);
@@ -131,6 +174,21 @@ export function readOnlyGuard(sql: string): GuardOutcome {
     return refuse(
       `A read-only statement has to begin with SELECT or WITH; this one begins with ${asciiUpper(first ?? "nothing")}.`,
       "Rewrite the request as a SELECT.",
+    );
+  }
+  const hit = statementKeywords.find((word) =>
+    new RegExp(`\\b${word}\\b`, "u").test(masked),
+  );
+  if (hit !== undefined) {
+    return refuse(
+      `The statement carries the keyword ${asciiUpper(hit)}, which starts another statement, writes, or runs outside this database.`,
+      "Send one plain SELECT over this database's tables and views.",
+    );
+  }
+  if (procedurePrefix.test(masked)) {
+    return refuse(
+      "The statement names a system procedure.",
+      "Use search_catalog and describe_table for catalogue questions.",
     );
   }
   return { verdict: "allow", statement: sqlText(sql) };

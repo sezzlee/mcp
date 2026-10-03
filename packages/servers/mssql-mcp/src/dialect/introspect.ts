@@ -100,6 +100,10 @@ export function createIntrospection(
              or is_rolemember('db_securityadmin') = 1
              or is_rolemember('db_accessadmin') = 1
              or has_perms_by_name(db_name(), 'DATABASE', 'CONTROL') = 1
+             or (case when serverproperty('EngineEdition') = 5 then 0
+                  else (select count(*)
+                        from (values ('CONTROL SERVER'), ('ALTER ANY LOGIN'), ('ALTER ANY LINKED SERVER'), ('ALTER ANY DATABASE'), ('ADMINISTER BULK OPERATIONS'), ('ALTER SETTINGS'), ('IMPERSONATE ANY LOGIN')) as s([name])
+                        where has_perms_by_name(null, null, s.[name]) = 1) end) > 0
              then 'administrator'
            when is_rolemember('db_datawriter') = 1
              or is_rolemember('db_ddladmin') = 1
