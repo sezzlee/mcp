@@ -75,6 +75,8 @@ describe("PostgreSQL dialect", () => {
     "select U&'d\\0061ta' as note",
     "select E'\\'; still one literal' as note",
     "select U&'d\\0061t;a' as note",
+    "select E'first'\n'\\'' as note",
+    "select E'first' -- note\r\n  'a\\'b' as note",
   ])("allows one query: %s", (sql) => {
     expect(readOnlyGuard(sql).verdict).toBe("allow");
   });
@@ -107,6 +109,22 @@ describe("PostgreSQL dialect", () => {
     ],
     ["select pg_advisory_lock(1)", "session lock"],
     ["select ée'\\' , pg_cancel_backend(1) --'", "signals another session"],
+    [
+      "select E'first'\n'\\'', pg_catalog.pg_cancel_backend(1) --'",
+      "signals another session",
+    ],
+    [
+      "select E'first'\r\n'\\'', pg_cancel_backend(1) --'",
+      "signals another session",
+    ],
+    [
+      "select E'first'\n-- note\n'\\'', pg_cancel_backend(1) --'",
+      "signals another session",
+    ],
+    [
+      "select E'first' -- note\n'\\'', pg_cancel_backend(1) --'",
+      "signals another session",
+    ],
   ])("refuses %s and says why", (sql, reason) => {
     expect(readOnlyGuard(sql)).toMatchObject({
       verdict: "refuse",

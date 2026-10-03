@@ -85,6 +85,25 @@ function closingQuote(
   return -1;
 }
 
+/**
+ * Guard: PostgreSQL joins string constants separated by whitespace holding a
+ * line break, and the joined part keeps the first part's escape rules. Reading
+ * `E'a'` + newline + `'\''` as two literals would end the second one a quote
+ * later than the server does. The pattern is the server's `quotecontinue`.
+ */
+const continuation =
+  /^[ \t\f]*(?:--[^\n\r]*)?[\n\r](?:[ \t\n\r\f\v]|--[^\n\r]*[\n\r])*'/u;
+
+function closingLiteral(sql: string, start: number, backslash: boolean) {
+  let end = closingQuote(sql, start, "'", backslash);
+  while (end >= 0) {
+    const next = continuation.exec(sql.slice(end))?.[0];
+    if (next === undefined) return end;
+    end = closingQuote(sql, end + next.length, "'", backslash);
+  }
+  return end;
+}
+
 function closingComment(sql: string, start: number): number {
   let depth = 1;
   let index = start;
@@ -148,7 +167,10 @@ function scan(sql: string): Scan {
     }
     if (here === "'" || here === '"') {
       const start = index + 1;
-      index = closingQuote(sql, start, here, false);
+      index =
+        here === "'"
+          ? closingLiteral(sql, start, false)
+          : closingQuote(sql, start, here, false);
       if (index < 0) return { kind: "open" };
       token(
         here,
@@ -170,7 +192,7 @@ function scan(sql: string): Scan {
       const lower = asciiLower(bare);
       index += bare.length;
       if (lower === "e" && sql[index] === "'") {
-        index = closingQuote(sql, index + 1, "'", true);
+        index = closingLiteral(sql, index + 1, true);
         if (index < 0) return { kind: "open" };
         token("'");
         continue;
@@ -178,7 +200,7 @@ function scan(sql: string): Scan {
       if (lower === "u" && sql[index] === "&" && sql[index + 1] === '"')
         return { kind: "unicode_identifier" };
       if (lower === "u" && sql[index] === "&" && sql[index + 1] === "'") {
-        index = closingQuote(sql, index + 2, "'", false);
+        index = closingLiteral(sql, index + 2, false);
         if (index < 0) return { kind: "open" };
         token("'");
         continue;
