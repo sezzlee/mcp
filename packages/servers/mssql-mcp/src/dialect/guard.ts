@@ -46,7 +46,21 @@ const statementKeywords = [
   "dbcc",
 ];
 
-const procedurePrefix = /\b(?:sp_|xp_)\w*/u;
+const keywordSet: ReadonlySet<string> = new Set(statementKeywords);
+
+/**
+ * Guard: words are cut the way the T-SQL lexer cuts them, not at `\b`. A
+ * number ends where its digits, exponent or hex digits end, so `1delete` is
+ * `1` followed by `delete`; an identifier runs through digits, so `a1delete` is
+ * one name. Anything outside ASCII splits a word here, which can only find more
+ * keywords than the server sees, never fewer.
+ */
+const lexeme = /0x[0-9a-f]*|(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d*)?|[a-z_@#][a-z0-9_@#$]*/gu;
+
+const words = (masked: string): readonly string[] =>
+  [...masked.matchAll(lexeme)]
+    .map((match) => match[0])
+    .filter((word) => !/^[\d.]/u.test(word));
 
 interface Normalised {
   readonly masked: string;
@@ -92,7 +106,7 @@ function normalise(sql: string): Normalised {
         }
         end += 1;
       }
-      masked += "id";
+      masked += " id ";
       index = end + 1;
       continue;
     }
@@ -101,12 +115,16 @@ function normalise(sql: string): Normalised {
       while (end < sql.length && sql[end] !== '"') {
         end += 1;
       }
-      masked += "id";
+      masked += " id ";
       index = end + 1;
       continue;
     }
     if (here === "-" && next === "-") {
-      while (index < sql.length && sql[index] !== "\n") {
+      while (
+        index < sql.length &&
+        sql[index] !== "\n" &&
+        sql[index] !== "\r"
+      ) {
         index += 1;
       }
       masked += " ";
@@ -176,16 +194,15 @@ export function readOnlyGuard(sql: string): GuardOutcome {
       "Rewrite the request as a SELECT.",
     );
   }
-  const hit = statementKeywords.find((word) =>
-    new RegExp(`\\b${word}\\b`, "u").test(masked),
-  );
+  const lexed = words(masked);
+  const hit = lexed.find((word) => keywordSet.has(word));
   if (hit !== undefined) {
     return refuse(
       `The statement carries the keyword ${asciiUpper(hit)}, which starts another statement, writes, or runs outside this database.`,
       "Send one plain SELECT over this database's tables and views.",
     );
   }
-  if (procedurePrefix.test(masked)) {
+  if (lexed.some((word) => /^(?:sp|xp)_/u.test(word))) {
     return refuse(
       "The statement names a system procedure.",
       "Use search_catalog and describe_table for catalogue questions.",

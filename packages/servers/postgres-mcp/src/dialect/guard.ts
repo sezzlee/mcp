@@ -55,7 +55,8 @@ function closingComment(sql: string, start: number): number {
  * Guard: the lexer has to agree with the server about where a literal ends, or
  * a `;` inside one is counted as a statement boundary and the other way round.
  * `E'…'` is the only form where a backslash escapes the quote; every other form
- * relies on the `standard_conforming_strings=on` the query scope sets.
+ * relies on the `standard_conforming_strings=on` the query scope sets. A `--`
+ * comment ends at a carriage return as well as a line feed, as in the server.
  */
 function scan(sql: string): Scan {
   let first: string | undefined;
@@ -73,8 +74,8 @@ function scan(sql: string): Scan {
       continue;
     }
     if (sql.startsWith("--", index)) {
-      const end = sql.indexOf("\n", index + 2);
-      index = end < 0 ? sql.length : end + 1;
+      const end = sql.slice(index + 2).search(/[\r\n]/u);
+      index = end < 0 ? sql.length : index + 2 + end + 1;
       continue;
     }
     if (sql.startsWith("/*", index)) {

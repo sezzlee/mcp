@@ -77,6 +77,7 @@ describe("PostgreSQL dialect", () => {
   });
   it.each([
     ["select 1; select 2", "2 statements"],
+    ["select 1 -- note\r; select 2", "2 statements"],
     ["copy t to stdout", "COPY"],
     ["set default_transaction_read_only=off", "SET"],
     ["explain analyze delete from t", "EXPLAIN"],

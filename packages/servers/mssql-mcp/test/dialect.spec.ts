@@ -184,6 +184,10 @@ describe("readOnlyGuard", () => {
     }
   });
 
+  it("reads a name that runs through digits as one identifier", () => {
+    expect(allows("select a1delete, [sp_x] from dbo.Orders")).toBe(true);
+  });
+
   it("allows a query that opens with a parenthesis", () => {
     expect(allows("(select 1) union (select 2)")).toBe(true);
   });
@@ -209,6 +213,10 @@ describe("readOnlyGuard", () => {
 
   it.each([
     ["select 1 delete from dbo.Orders", "DELETE"],
+    ["select [x]delete from dbo.Orders", "DELETE"],
+    ["select 1delete from dbo.Orders", "DELETE"],
+    ["select 1edelete from dbo.Orders", "DELETE"],
+    ["select 1 -- note\rdelete from dbo.Orders", "DELETE"],
     ["select 1 exec('drop table dbo.Orders')", "EXEC"],
     ["with x as (select 1 as n) delete from dbo.Orders", "DELETE"],
     ["select * into #t from dbo.Orders", "INTO"],
