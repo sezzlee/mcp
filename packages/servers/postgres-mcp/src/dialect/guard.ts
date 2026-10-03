@@ -53,7 +53,15 @@ const uncontained = (name: string): string | undefined =>
     ? "opens a connection outside this transaction"
     : undefined);
 
-const word = /^[A-Za-z_][A-Za-z_0-9$]*/;
+/**
+ * Guard: PostgreSQL treats every byte from 0x80 up as an identifier character
+ * and only space, tab, line feed, carriage return, form feed and vertical tab
+ * as whitespace. Reading a non-ASCII letter as a separator would let `ée'\'…'`
+ * look like an escape string here while the server reads an identifier and a
+ * plain string that ends at the second quote.
+ */
+const word = /^[A-Za-z_\u{80}-\u{10FFFF}][A-Za-z_0-9$\u{80}-\u{10FFFF}]*/u;
+const whitespace = /[ \t\n\r\f\v]/;
 const dollarTag = /^\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$/;
 
 const unquote = (body: string): string => body.replaceAll('""', '"');
@@ -118,7 +126,7 @@ function scan(sql: string): Scan {
   };
   while (index < sql.length) {
     const here = sql[index]!;
-    if (/\s/.test(here)) {
+    if (whitespace.test(here)) {
       index++;
       continue;
     }

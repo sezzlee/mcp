@@ -106,6 +106,7 @@ describe("PostgreSQL dialect", () => {
       "outside this transaction",
     ],
     ["select pg_advisory_lock(1)", "session lock"],
+    ["select ée'\\' , pg_cancel_backend(1) --'", "signals another session"],
   ])("refuses %s and says why", (sql, reason) => {
     expect(readOnlyGuard(sql)).toMatchObject({
       verdict: "refuse",
