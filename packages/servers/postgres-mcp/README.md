@@ -31,7 +31,7 @@ Optional variables: `SEZZLEE_POSTGRES_PORT` (5432), `SEZZLEE_POSTGRES_SSL_MODE` 
 
 ## Embedding
 
-`createPostgresSource(config, options?)` returns `DbSource<PostgresConfig>`; `createPostgresMcpServer(source)` exposes the shared tools. Configuration fields: `server`, `port`, `database`, `user`, `password`, `sslMode`, `connectTimeoutMs`, `queryTimeoutMs`.
+`createPostgresSource(config, options?)` returns `DbSource<PostgresConfig>`; `createPostgresMcpServer(source)` exposes the shared tools. Configuration fields: `server`, `port`, `database`, `user`, `password`, `sslMode`, `caCertificate`, `connectTimeoutMs`, `queryTimeoutMs`. `caCertificate` is optional PEM text holding one or more certificate authority certificates; when set, the server certificate must chain to one of them instead of the Node.js default trust store, which is how a server signed by a private authority (AWS RDS, Google Cloud SQL, a self-hosted CA) passes `verify-full`.
 
 `options.host` overrides the physical dial address, allowing a caller to pin an approved IP. `options.serverName` retains the original certificate hostname independently of that address. Verified TLS uses this original identity for certificate checks; IP identities omit SNI. Callers requiring verified TLS must choose `verify-full`. Test seams `clientFactory` and `cursorFactory` accept structural driver adapters; production defaults use `pg` and `pg-cursor`.
 
