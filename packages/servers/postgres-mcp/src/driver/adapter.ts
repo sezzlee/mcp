@@ -84,6 +84,9 @@ function clientConfig(
         : {
             rejectUnauthorized: config.sslMode === "verify-full",
             ...(isIP(hostname) === 0 ? { servername: hostname } : {}),
+            ...(config.caCertificate === undefined
+              ? {}
+              : { ca: config.caCertificate }),
             ...(config.sslMode === "verify-full"
               ? {
                   checkServerIdentity: (_host, certificate) =>

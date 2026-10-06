@@ -7,6 +7,7 @@ export const postgresConfigSchema = z.object({
   user: z.string().min(1),
   password: z.string().min(1),
   sslMode: z.enum(["disable", "require", "verify-full"]),
+  caCertificate: z.string().min(1).optional(),
   connectTimeoutMs: z.number().int().min(1).max(300000),
   queryTimeoutMs: z.number().int().min(1).max(300000),
 });
