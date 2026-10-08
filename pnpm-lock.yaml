@@ -1021,10 +1021,10 @@ importers:
     dependencies:
       '@modelcontextprotocol/express':
         specifier: ^2.0.0
-        version: 2.0.0(@modelcontextprotocol/server@2.2.0)(express@5.2.1(supports-color@10.2.2))
+        version: 2.0.0(@modelcontextprotocol/server@2.0.0)(express@5.2.1(supports-color@10.2.2))
       '@modelcontextprotocol/server':
         specifier: ^2.0.0
-        version: 2.2.0
+        version: 2.0.0
       '@modelcontextprotocol/server-legacy':
         specifier: ^2.0.0
         version: 2.0.0(express@5.2.1(supports-color@10.2.2))(supports-color@10.2.2)
@@ -6523,12 +6523,6 @@ snapshots:
   '@modelcontextprotocol/express@2.0.0(@modelcontextprotocol/server@2.0.0)(express@5.2.1(supports-color@10.2.2))':
     dependencies:
       '@modelcontextprotocol/server': 2.0.0
-      cors: 2.8.6
-      express: 5.2.1(supports-color@10.2.2)
-
-  '@modelcontextprotocol/express@2.0.0(@modelcontextprotocol/server@2.2.0)(express@5.2.1(supports-color@10.2.2))':
-    dependencies:
-      '@modelcontextprotocol/server': 2.2.0
       cors: 2.8.6
       express: 5.2.1(supports-color@10.2.2)
 
