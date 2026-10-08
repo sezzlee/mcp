@@ -146,6 +146,7 @@ describe("CSV security and limits (#1 #14 #15 #17)", () => {
       ).toEqual([[`a${char}b\n"quote"`, "ok"]]);
     },
   );
+  /** Guard: parsing 16 MiB of CSV was measured at 31 s on the GitHub darwin-x64 runner. */
   it("enforces the real 16 MiB byte boundary before decoding", async () => {
     const at = Buffer.alloc(limits.maxCsvBytes, 0x61);
     expect(
@@ -159,7 +160,7 @@ describe("CSV security and limits (#1 #14 #15 #17)", () => {
     await expect(
       parseCsv(forbidden, limits.maxCsvBytes + 1, {}, "over.csv"),
     ).rejects.toMatchObject({ code: "file_too_large" });
-  }, 30000);
+  }, 120_000);
   it("enforces the real 16 MiB byte boundary through the handler", async () => {
     const at = Buffer.alloc(limits.maxCsvBytes, 0x61);
     await writeFile(join(directory, "at.csv"), at);
@@ -183,7 +184,7 @@ describe("CSV security and limits (#1 #14 #15 #17)", () => {
         }),
       ).error,
     ).toBe("file_too_large");
-  }, 30000);
+  }, 120_000);
   it("enforces exactly 2,000,000 fields independently of bytes and record width", async () => {
     // 2,000 records x 1,000 fields, including the first/header record.
     const at = Buffer.from(`${Array(1000).fill("x").join(",")}\n`.repeat(2000));

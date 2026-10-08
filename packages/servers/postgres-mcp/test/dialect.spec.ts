@@ -46,6 +46,33 @@ describe("PostgreSQL dialect", () => {
       ),
     ).toMatchObject({ code: "query_failed" });
   });
+  it.each(["UNABLE_TO_VERIFY_LEAF_SIGNATURE", "ERR_TLS_CERT_ALTNAME_INVALID"])(
+    "reports a rejected server certificate as a connection failure: %s",
+    (code) => {
+      const failure = mapDriverError(
+        Object.assign(new Error("certificate rejected"), { code }),
+      );
+      expect(failure).toMatchObject({
+        code: "connection_failed",
+        engineCode: code,
+      });
+      expect(failure?.recovery).toMatch(/certificate/);
+    },
+  );
+  it.each([
+    ["25006", "write_not_permitted", /read-only transaction/],
+    ["ETIMEOUT", "query_timeout", /timeoutMs/],
+    ["57014", "query_cancelled", /call again/],
+  ])(
+    "answers %s with the next step for that failure",
+    (code, mapped, nextStep) => {
+      const failure = mapDriverError(
+        Object.assign(new Error("refused"), { code }),
+      );
+      expect(failure?.code).toBe(mapped);
+      expect(failure?.recovery).toMatch(nextStep);
+    },
+  );
   it("classifies unavailable databases without parsing message prose", () => {
     expect(
       mapDriverError(
