@@ -16,7 +16,7 @@ sql run_query --tool-arg sql="SELECT order_id, status FROM sezzlee_shop.orders" 
 ```
 
 ```json
-
+{"rows":[[1001,"shipped"],[1002,"shipped"],[1003,"pending"]],"truncated":true,"truncationReason":"maxRows","hint":"Add ORDER BY and LIMIT with an explicit page boundary to read another page."}
 ```
 
 `truncated` is `true`, `truncationReason` is `maxRows`, and `hint` names the clauses to add: an
@@ -34,7 +34,7 @@ sql run_query --tool-arg sql="SELECT order_id, status FROM sezzlee_shop.orders O
 ```
 
 ```json
-
+{"rows":[[1004,"shipped"],[1005,"cancelled"],[1006,"shipped"]],"truncated":false}
 ```
 
 Raise `OFFSET` by the page size for each page. When a page returns fewer rows than it asked for,
@@ -51,7 +51,9 @@ sql run_query --tool-arg sql="SELECT status, COUNT(*)::int AS orders FROM sezzle
 ```
 
 ```json
-
+["cancelled",1]
+["pending",2]
+["shipped",4]
 ```
 
 `COUNT(*)` is a `bigint`, which arrives as a string; the cast to `int` makes it a number.

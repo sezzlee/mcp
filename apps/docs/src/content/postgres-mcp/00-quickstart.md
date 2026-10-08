@@ -208,7 +208,10 @@ sql run_query --tool-arg sql="SELECT c.name, COUNT(*) AS orders, SUM(t.total) AS
 ```
 
 ```json
-
+["Ada Yılmaz","2","735.00"]
+["Emre Kaya","2","620.00"]
+["Lena Müller","1","273.00"]
+["Zoë Martin","1","215.50"]
 ```
 
 The counts and sums arrive as strings, not JSON numbers: `COUNT` is a `bigint` and `SUM` of a

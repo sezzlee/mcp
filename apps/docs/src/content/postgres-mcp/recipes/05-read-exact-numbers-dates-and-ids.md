@@ -15,7 +15,9 @@ sql run_query --tool-arg sql="SELECT entry_id, booked_at, amount FROM sezzlee_sh
 ```
 
 ```json
-
+{"name":"entry_id","kind":"bigint","nativeType":"int8"}
+{"name":"booked_at","kind":"timestamptz","nativeType":"timestamptz"}
+{"name":"amount","kind":"decimal","nativeType":"numeric","precision":38,"scale":4}
 ```
 
 And the rows those columns describe:
@@ -26,7 +28,8 @@ sql run_query --tool-arg sql="SELECT entry_id, booked_at, amount FROM sezzlee_sh
 ```
 
 ```json
-
+["9007199254740993","2026-01-31 20:30:00+00","123456789012345678.1234"]
+["9007199254740994","2026-01-31 21:10:00+00","12.5000"]
 ```
 
 Three types, three behaviors:
@@ -55,7 +58,8 @@ sql run_query --tool-arg sql="SELECT entry_id, booked_at AT TIME ZONE 'Europe/Is
 ```
 
 ```json
-
+["9007199254740993","2026-01-31 23:30:00"]
+["9007199254740994","2026-02-01 00:10:00"]
 ```
 
 Do arithmetic on these in SQL, where the value is exact, rather than on the strings in the answer: a
@@ -73,7 +77,10 @@ sql describe_table --tool-arg schema=sezzlee_shop table=ledger \
 ```
 
 ```json
-
+{"name":"entry_id","kind":"bigint","nativeType":"int8"}
+{"name":"booked_at","kind":"timestamptz","nativeType":"timestamptz"}
+{"name":"amount","kind":"decimal","nativeType":"numeric","precision":38,"scale":4}
+{"name":"note","kind":"text","nativeType":"varchar"}
 ```
 
 Other types come back as follows. `smallint` and `integer` are numbers, and so are `real` and

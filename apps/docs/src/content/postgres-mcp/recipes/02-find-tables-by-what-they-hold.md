@@ -18,7 +18,7 @@ sql search_catalog --tool-arg query=revenue schema=sezzlee_shop \
 ```
 
 ```json
-
+{"name":"order_totals","kind":"view","matched":[{"field":"description","term":"revenue","value":"Revenue per order, summed from its lines."}]}
 ```
 
 Nothing is named "revenue"; the view's comment says it. Comments are how a catalogue with cryptic
@@ -32,7 +32,7 @@ sql search_catalog --tool-arg query=SHIPP schema=sezzlee_shop \
 ```
 
 ```json
-
+{"name":"orders","matched":["description: One row per purchase; status is pending, shipped or cancelled.","column: shipped_at","columnDescription: shipped_at"]}
 ```
 
 Only the beginning of a word is matched, never the middle: `ship` finds `shipped_at`, but `date` does
@@ -50,7 +50,7 @@ sql search_catalog --tool-arg schema=sezzlee_shop namePattern="order%" \
 ```
 
 ```json
-
+[{"name":"order_lines","kind":"table"},{"name":"order_totals","kind":"view"},{"name":"orders","kind":"table"}]
 ```
 
 Views include materialized views. The search sees tables, partitioned tables, foreign tables and
@@ -68,7 +68,7 @@ sql search_catalog --tool-arg schema=sezzlee_shop maxResults=2 \
 ```
 
 ```json
-
+{"names":["customers","ledger"],"truncated":true}
 ```
 
 Pass `nextCursor` back with the same `query`, `schema`, `namePattern` and `includeViews`; a cursor

@@ -16,7 +16,12 @@ sql run_query --tool-arg sql="SELECT pg_sleep(10)" timeoutMs=1000
 ```
 
 ```text
-
+{"error":{"code":"tool_is_error","message":"Tool 'run_query' returned isError:true."}}
+{
+  "error": "query_timeout",
+  "message": "The PostgreSQL query deadline expired. (ETIMEOUT)",
+  "recovery": "Narrow the SELECT or correct the statement using catalog metadata."
+}
 ```
 
 The first line comes from the Inspector; the object under it is the server's answer. The statement

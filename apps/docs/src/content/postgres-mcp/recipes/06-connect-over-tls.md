@@ -46,7 +46,7 @@ sql describe_connection | jq -c '{engine, dialect, sessionIntent: .readOnly.sess
 ```
 
 ```json
-
+{"engine":"PostgreSQL","dialect":"postgres","sessionIntent":"read_only"}
 ```
 
 ## If the server does not offer TLS

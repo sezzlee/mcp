@@ -56,7 +56,7 @@ sql describe_connection | jq -c '.readOnly | {sessionIntent, principalPosture, s
 ```
 
 ```json
-
+{"sessionIntent":"read_only","principalPosture":"read_only","statementGuard":"advisory"}
 ```
 
 `administrator` means the role is one of the roles `run_query` refuses, and `writable` means it can
@@ -91,7 +91,12 @@ sql run_query --tool-arg sql="DELETE FROM sezzlee_shop.orders WHERE order_id = 1
 ```
 
 ```text
-
+{"error":{"code":"tool_is_error","message":"Tool 'run_query' returned isError:true."}}
+{
+  "error": "write_not_permitted",
+  "message": "A query has to begin with SELECT or WITH; this one begins with DELETE.",
+  "recovery": "Rewrite the request as a SELECT."
+}
 ```
 
 The first line comes from the Inspector; the object under it is the server's answer. The statement
@@ -104,7 +109,12 @@ sql run_query --tool-arg sql="WITH gone AS (DELETE FROM sezzlee_shop.orders WHER
 ```
 
 ```text
-
+{"error":{"code":"tool_is_error","message":"Tool 'run_query' returned isError:true."}}
+{
+  "error": "write_not_permitted",
+  "message": "cannot execute SELECT in a read-only transaction (25006)",
+  "recovery": "Narrow the SELECT or correct the statement using catalog metadata."
+}
 ```
 
 That one passes the check and reaches PostgreSQL, which refuses it because the statement runs in a
