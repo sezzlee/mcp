@@ -58,7 +58,8 @@ network between the two is one you trust.
 ## If a private authority signed the certificate
 
 A server whose certificate comes from an authority Node.js does not trust, such as AWS RDS, Google
-Cloud SQL or your own, fails `verify-full`. The command-line server has no setting for a certificate
+Cloud SQL or your own, fails `verify-full` with `connection_failed`, and the recovery names the
+certificate. The command-line server has no setting for a certificate
 authority. You can set `require`, which encrypts without checking who answered, or embed the server
 and pass the authority's certificates to `createPostgresSource` as `caCertificate`, PEM text holding
 one or more certificates:
