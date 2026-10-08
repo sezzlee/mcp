@@ -50,26 +50,34 @@ every link is slash-less; the default `auto-trailing-slash` would answer each pa
 ## Writing documentation
 
 **Read [WRITING.md](WRITING.md) before adding or editing any page.** It is the
-binding convention: Diátaxis four-mode taxonomy, one page = one mode, reference is generated not
-written, RFC 2119 keywords stay in `packages/http/spec`, every code example must have been run.
+binding convention: three sections per product (quickstart, recipes, generated reference), rationale
+folded into `:::details` next to what it explains, reference is generated not written, RFC 2119
+keywords stay in `packages/http/spec`, every code example must have been run.
 
-Pages are markdown under `src/content/<product>/`. The tree has two axes: the first directory is
-the **product line** (`http-catalog/`, later `excel-mcp/`, `xml-mcp/`), the second is the
-**Diátaxis mode** (`tutorial/`, `how-to/`, `reference/`, `explanation/`), plus ungrouped
-orientation pages directly under the product. Order comes from the numeric filename prefix, the
-title from the first `#` line, the slug from the filename with that prefix stripped. Slugs must be
-unique **within a product** — the route is `/docs/$product/$slug`, so two products may both have an
-`introduction`. Renumbering never changes a slug.
+Pages are markdown under `src/content/<product>/`: one `00-quickstart.md`, recipes under `recipes/`,
+generated pages under `reference/`; no other top-level page and no other folder exists. Order comes from the numeric filename prefix, the title from the
+first `#` line, the slug from the filename with that prefix stripped. Slugs must be unique **within a
+product** — the route is `/docs/$product/$slug`. A renamed slug goes into `src/content/redirects.json`,
+which the `$slug` loader answers with a 301.
 
 Nothing registers a page: `src/lib/content.ts` globs the tree at build time and derives the
-sidebar. Adding a **product** is two steps — create `src/content/<id>/` with at least one page, and
-add one `{ id, label, tagline }` entry to `src/content/products.json`. No route file changes;
-`$product` is a route param, so `routeTree.gen.ts` is untouched.
+sidebar and the home page's recipe list. Adding a **product** is two steps — create
+`src/content/<id>/` with at least one page, and add one `{ id, label, goal, tagline }` entry to
+`src/content/products.json`; the home page's icon for it is keyed by id in
+`src/components/ProductIcon.tsx`. No route file changes; `$product` is a route param, so
+`routeTree.gen.ts` is untouched.
+
+Markdown goes through `src/lib/remark-docs.ts` and `src/components/DocMarkdown.tsx`: code blocks
+with a copy button, the block under an `sh` command labelled as its output, `:::tabs` (each block
+with `title="…"`) and `:::details[label]`. An unknown block directive throws; an unknown `:word` in
+prose is kept as text, because `remark-directive` would otherwise drop it.
 
 `pnpm --filter @sezzlee/docs validate` (`scripts/check-content.mjs`) enforces the structural half of
-`WRITING.md`: folder/registry agreement, mode directory names, numeric prefixes, unique
-slugs, a `# Title` on every page, the how-to/reference title patterns, and that every internal
-`/docs/...` link points at a page that exists. It runs inside `pnpm lint` and in CI's node job.
+`WRITING.md`: folder/registry agreement, section folder names, one `00-quickstart.md` per product,
+numeric prefixes, unique slugs, a `# Title` on every page, the recipe/reference title
+patterns, the two known directives with titled tabs, `redirects.json` targets, and that every
+internal `/docs/...` link points at a page that exists. It runs inside `pnpm lint` and in CI's node
+job.
 
 ### Server products: generated reference and runnable examples
 
@@ -89,7 +97,7 @@ A server product (`excel-mcp`, `xml-mcp`, later `pdf-mcp`, `mssql-mcp`, `llm-mcp
 generated only once it is registered in `products.json`.
 
 `scripts/run-examples.mjs` is WRITING.md rule 4 made executable. For each non-reference page it runs
-every `sh` block in order in one bash session, with `HOME` pointing at a sandbox that holds the
+every bare `sh` block (a block with `title="…"`, as in `:::tabs`, is never run) in order in one bash session, with `HOME` pointing at a sandbox that holds the
 product's samples and a shim that starts the **workspace build** of the server, and compares each
 output with the fenced block directly below its command (`--write` fills them in). Volatile values
 (`modifiedAt`, `nextCursor`) are masked. A shell helper defined on a page (`excel() { ... }`) must be

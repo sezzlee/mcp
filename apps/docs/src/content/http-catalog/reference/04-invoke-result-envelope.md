@@ -102,7 +102,7 @@ The seventeen codes are `unknown_argument`, `invalid_path_type`, `missing_path_p
 
 `search_ranker_unavailable` is a `search_tools` answer, not an invoke one: it appears only when you
 bound a search ranker and told the SDK to refuse rather than fall back when it fails, and it is
-`retryable: true`. See [how to plug in your own search](/docs/http-catalog/plug-in-your-own-search).
+`retryable: true`. See [replacing the ranking](/docs/http-catalog/help-an-agent-find-the-right-tool#replace-the-ranking).
 
 The three file codes are described in
 [how to accept form bodies and file uploads](/docs/http-catalog/accept-form-and-file-uploads);

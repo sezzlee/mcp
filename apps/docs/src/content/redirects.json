@@ -1,0 +1,66 @@
+{
+  "excel-mcp": {
+    "introduction": "quickstart",
+    "reading-your-first-workbook": "quickstart",
+    "connect-the-server-to-your-mcp-client": "quickstart",
+    "how-the-server-stays-inside-one-folder": "quickstart",
+    "continue-a-truncated-read": "answer-a-question-without-reading-every-row",
+    "read-a-sheet-whose-header-is-not-in-row-1": "read-a-report-whose-header-is-not-in-row-1",
+    "why-the-header-row-is-never-guessed": "read-a-report-whose-header-is-not-in-row-1",
+    "why-csv-values-are-never-converted": "read-a-csv-export",
+    "read-formulas-as-well-as-values": "read-formulas-tables-and-rules",
+    "read-tables-validation-rules-and-formatting": "read-formulas-tables-and-rules",
+    "why-charts-and-pivot-tables-are-refused": "read-formulas-tables-and-rules"
+  },
+  "pdf-mcp": {
+    "introduction": "quickstart",
+    "reading-your-first-pdf": "quickstart",
+    "connect-the-server-to-your-mcp-client": "quickstart",
+    "how-the-server-stays-inside-one-folder": "quickstart",
+    "why-a-document-is-extracted-once-and-whole": "read-a-document-a-few-pages-at-a-time",
+    "why-a-scanned-page-is-never-shown-as-empty": "find-text-in-a-document",
+    "why-ocr-is-a-plug-in-and-off-by-default": "read-scanned-pages-with-ocr"
+  },
+  "mssql-mcp": {
+    "introduction": "quickstart",
+    "querying-your-first-database": "quickstart",
+    "connect-the-server-to-your-mcp-client": "quickstart",
+    "why-the-statement-check-is-not-the-security-boundary": "create-a-read-only-login-for-the-server",
+    "how-catalogue-search-finds-a-table": "find-tables-by-what-they-hold",
+    "how-a-slow-query-is-stopped": "set-a-deadline-for-a-slow-query",
+    "why-a-value-can-be-marked-lossy": "read-exact-numbers-dates-and-ids"
+  },
+  "xml-mcp": {
+    "introduction": "quickstart",
+    "reading-your-first-xml-document": "quickstart",
+    "connect-the-server-to-your-mcp-client": "quickstart",
+    "why-namespaces-are-never-guessed": "query-a-document-with-xpath",
+    "why-a-doctype-is-refused": "quickstart",
+    "why-values-come-back-as-written": "count-and-total-records-without-paging",
+    "how-the-server-stays-inside-one-folder": "quickstart"
+  },
+  "llm-mcp": {
+    "introduction": "quickstart",
+    "handing-your-first-task-to-a-local-model": "quickstart",
+    "connect-the-server-to-your-mcp-client": "quickstart",
+    "size-the-context-window": "configure-the-server",
+    "why-the-server-counts-tokens-before-sending": "summarise-a-document-longer-than-the-models-window",
+    "why-local-calls-wait-in-one-queue": "configure-the-server",
+    "when-delegating-to-a-local-model-pays-off": "quickstart",
+    "how-the-server-stays-inside-its-workspace": "quickstart"
+  },
+  "http-catalog": {
+    "introduction": "quickstart",
+    "exposing-your-first-aspnet-core-endpoint": "quickstart",
+    "mounting-your-first-nestjs-mcp-endpoint": "quickstart",
+    "seeing-visibility-filtering-in-action": "control-what-a-caller-can-see",
+    "why-visibility-is-not-enforcement": "control-what-a-caller-can-see",
+    "why-there-is-no-depth-limit": "curate-the-arguments-an-agent-sees",
+    "why-tools-list-returns-only-three-tools": "quickstart",
+    "why-the-two-sdks-do-not-feel-the-same": "quickstart",
+    "why-probe-visibility-is-not-the-default": "declare-visibility-for-a-nestjs-guard",
+    "why-sezzlee-is-not-an-openapi-adapter": "quickstart",
+    "group-your-operations-so-an-agent-can-browse": "help-an-agent-find-the-right-tool",
+    "plug-in-your-own-search": "help-an-agent-find-the-right-tool"
+  }
+}

@@ -14,15 +14,21 @@
     "gen": "node scripts/gen-reference.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/newsreader": "^5.3.0",
+    "@fontsource-variable/public-sans": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
     "@mantine/core": "9.6.0",
     "@mantine/hooks": "9.6.0",
+    "@mantine/spotlight": "9.6.0",
     "@tabler/icons-react": "^3.46.0",
     "@tanstack/react-router": "^1.170.32",
     "@tanstack/react-start": "^1.168.49",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "remark-directive": "^4.0.0",
+    "remark-gfm": "^4.0.1",
+    "shiki": "^4.5.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.60.1",
@@ -31,6 +37,7 @@
     "@sezzlee/mssql-mcp": "workspace:*",
     "@sezzlee/oxlint-config": "workspace:*",
     "@sezzlee/pdf-mcp": "workspace:*",
+    "@sezzlee/postgres-mcp": "workspace:*",
     "@sezzlee/typescript-config": "workspace:*",
     "@sezzlee/xml-mcp": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",

@@ -9,15 +9,23 @@ import {
   AppShell,
   Box,
   Burger,
-  Divider,
   Group,
+  Menu,
   NavLink,
   ScrollArea,
   Text,
+  UnstyledButton,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { ColorSchemeToggle } from "../components/ColorSchemeToggle";
-import { defaultProduct, getProduct, products } from "../lib/content";
+import { IconSelector } from "@tabler/icons-react";
+import { ProductIcon } from "../components/ProductIcon";
+import { SiteHeader } from "../components/SiteHeader";
+import {
+  defaultProduct,
+  getProduct,
+  products,
+  type Product,
+} from "../lib/content";
 
 export const Route = createFileRoute("/docs")({
   component: DocsLayout,
@@ -25,9 +33,61 @@ export const Route = createFileRoute("/docs")({
 
 function GroupLabel({ children }: Readonly<{ children: string }>) {
   return (
-    <Text size="xs" fw={700} c="dimmed" tt="uppercase" px="xs" pb={4}>
+    <Text
+      ff="monospace"
+      fz={11}
+      c="dimmed"
+      tt="uppercase"
+      px="sm"
+      pb={6}
+      className="tracking-[0.08em]"
+    >
       {children}
     </Text>
+  );
+}
+
+function ProductSwitcher({
+  active,
+  onPick,
+}: Readonly<{ active: Product; onPick: () => void }>) {
+  return (
+    <Menu position="bottom-start" width="target" withinPortal={false}>
+      <Menu.Target>
+        <UnstyledButton
+          aria-label={`Product: ${active.label}. Switch product`}
+          className="w-full rounded-(--mantine-radius-md) border border-(--mantine-color-default-border) px-3 py-2.5 hover:bg-(--mantine-color-default-hover)"
+        >
+          <Group gap="sm" wrap="nowrap">
+            <Box c="var(--mantine-primary-color-filled)" className="flex">
+              <ProductIcon product={active.id} size={20} />
+            </Box>
+            <Text fw={600} fz="sm" className="flex-1">
+              {active.label}
+            </Text>
+            <IconSelector size={16} aria-hidden />
+          </Group>
+        </UnstyledButton>
+      </Menu.Target>
+      <Menu.Dropdown>
+        {products.map((product) => (
+          <Menu.Item
+            key={product.id}
+            leftSection={<ProductIcon product={product.id} size={16} />}
+            onClick={onPick}
+            renderRoot={(props) => (
+              <Link
+                to="/docs/$product/$slug"
+                params={{ product: product.id, slug: product.firstSlug }}
+                {...props}
+              />
+            )}
+          >
+            {product.label}
+          </Menu.Item>
+        ))}
+      </Menu.Dropdown>
+    </Menu>
   );
 }
 
@@ -39,92 +99,60 @@ function DocsLayout() {
 
   return (
     <AppShell
-      header={{ height: 60 }}
-      navbar={{ width: 280, breakpoint: "sm", collapsed: { mobile: !opened } }}
-      padding="lg"
+      header={{ height: 64 }}
+      navbar={{ width: 288, breakpoint: "sm", collapsed: { mobile: !opened } }}
+      padding="xl"
     >
       <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
-          <Group gap="sm">
+        <SiteHeader
+          width="full"
+          leading={
             <Burger
               opened={opened}
               onClick={toggle}
               hiddenFrom="sm"
               size="sm"
+              aria-label="Toggle navigation"
             />
-            <Text
-              component={Link}
-              to="/"
-              fw={700}
-              size="lg"
-              className="no-underline text-inherit"
-            >
-              Sezzlee
-            </Text>
-            {active && (
-              <>
-                <Text c="dimmed" visibleFrom="xs">
-                  /
-                </Text>
-                <Text c="dimmed" size="sm" visibleFrom="xs">
-                  {active.label}
-                </Text>
-              </>
-            )}
-          </Group>
-          <ColorSchemeToggle />
-        </Group>
+          }
+        />
       </AppShell.Header>
 
-      <AppShell.Navbar p="sm">
-        <ScrollArea type="scroll">
-          <Box mb="sm">
-            <GroupLabel>Products</GroupLabel>
-            {products.map((product) => (
-              <NavLink
-                key={product.id}
-                label={product.label}
-                active={product.id === active?.id}
-                onClick={close}
-                renderRoot={(props) => (
-                  <Link
-                    to="/docs/$product/$slug"
-                    params={{ product: product.id, slug: product.firstSlug }}
-                    {...props}
-                  />
-                )}
-              />
-            ))}
-          </Box>
-
-          <Divider mb="sm" />
-
-          {active?.groups.map((group) => (
-            <Box key={group.key ?? "root"} mb="sm">
-              {group.label !== "" && <GroupLabel>{group.label}</GroupLabel>}
-              {group.docs.map((doc) => (
-                <NavLink
-                  key={doc.slug}
-                  label={doc.title}
-                  active={
-                    !!matchRoute({
-                      to: "/docs/$product/$slug",
-                      params: { product: doc.product, slug: doc.slug },
-                    })
-                  }
-                  onClick={close}
-                  renderRoot={(props) => (
-                    <Link
-                      to="/docs/$product/$slug"
-                      params={{ product: doc.product, slug: doc.slug }}
-                      {...props}
-                    />
+      <AppShell.Navbar p="md">
+        {active ? (
+          <>
+            <ProductSwitcher active={active} onPick={close} />
+            <ScrollArea type="scroll" mt="md" className="flex-1">
+              {active.groups.map((group) => (
+                <Box key={group.key ?? "root"} mb="md">
+                  {group.label === "" ? null : (
+                    <GroupLabel>{group.label}</GroupLabel>
                   )}
-                />
+                  {group.docs.map((doc) => (
+                    <NavLink
+                      key={doc.slug}
+                      label={doc.navLabel}
+                      active={
+                        !!matchRoute({
+                          to: "/docs/$product/$slug",
+                          params: { product: doc.product, slug: doc.slug },
+                        })
+                      }
+                      onClick={close}
+                      renderRoot={(props) => (
+                        <Link
+                          to="/docs/$product/$slug"
+                          params={{ product: doc.product, slug: doc.slug }}
+                          {...props}
+                        />
+                      )}
+                    />
+                  ))}
+                </Box>
               ))}
-            </Box>
-          ))}
-        </ScrollArea>
+            </ScrollArea>
+          </>
+        ) : null}
       </AppShell.Navbar>
 
       <AppShell.Main>

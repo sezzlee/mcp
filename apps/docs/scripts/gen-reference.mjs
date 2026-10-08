@@ -39,6 +39,20 @@ const servers = [
     },
   },
   {
+    product: "postgres-mcp",
+    pkg: "@sezzlee/postgres-mcp",
+    dir: "postgres-mcp",
+    env: {
+      SEZZLEE_POSTGRES_SERVER: "127.0.0.1",
+      SEZZLEE_POSTGRES_PORT: "9",
+      SEZZLEE_POSTGRES_DATABASE: "docs",
+      SEZZLEE_POSTGRES_USER: "docs",
+      SEZZLEE_POSTGRES_PASSWORD: "docs",
+      SEZZLEE_POSTGRES_SSL_MODE: "disable",
+      SEZZLEE_POSTGRES_CONNECT_TIMEOUT_MS: "2000",
+    },
+  },
+  {
     product: "llm-mcp",
     pkg: "@sezzlee/llm-mcp",
     dir: "llm-mcp",
