@@ -132,8 +132,8 @@ registerSezzleeTools(server: McpServer, deps: MetaToolDependencies): () => void
 `MetaToolDependencies` is `{ catalog, dispatcher, mapper, visibility, scopes, options }` —
 injectable as `SezzleeCatalog`, `SezzleeDispatcher`, `extensionTokens.invokeResultMapper`,
 `CallerVisibilityProvider`, `extensionTokens.callerScopeResolver` and `SEZZLEE_OPTIONS`. The
-tutorial has the whole controller:
-[mounting your first NestJS MCP endpoint](/docs/http-catalog/mounting-your-first-nestjs-mcp-endpoint).
+quickstart has the whole controller:
+[Expose your backend's endpoints to an agent](/docs/http-catalog/quickstart).
 
 Selection markers:
 
@@ -178,7 +178,7 @@ cache · callerScopeResolver · invokeResultMapper · visibilityEvaluator · pro
 `toolRanker` defaults to none, which keeps BM25. Bound, it replaces the ranking of a non-empty
 `search_tools` query; `options.search.rankerTimeoutMs` and `options.search.onRankerFailure` govern
 it. The ASP.NET Core equivalent is an `IToolRanker` registered in DI, with `options.Search`. See
-[plug in your own search](/docs/http-catalog/plug-in-your-own-search).
+[replacing the ranking](/docs/http-catalog/help-an-agent-find-the-right-tool#replace-the-ranking).
 
 Cache invalidation is a service, not an option:
 

@@ -1,32 +1,44 @@
 [
   {
-    "id": "http-catalog",
-    "label": "HTTP Catalog",
-    "tagline": "The ASP.NET Core and NestJS SDKs that turn an existing backend's endpoints into a searchable agent tool catalog."
-  },
-  {
     "id": "excel-mcp",
     "label": "Excel MCP",
+    "goal": "Spreadsheets",
     "tagline": "A read-only MCP server that lets an agent read the .xlsx, .xlsm and .csv files in one folder."
-  },
-  {
-    "id": "xml-mcp",
-    "label": "XML MCP",
-    "tagline": "A read-only MCP server that lets an agent read, search, query and tabulate the XML documents in one folder."
   },
   {
     "id": "pdf-mcp",
     "label": "PDF MCP",
+    "goal": "PDF documents",
     "tagline": "A read-only MCP server that lets an agent read and search the PDF documents in one folder, with optional OCR for scanned pages."
   },
   {
     "id": "mssql-mcp",
     "label": "SQL Server MCP",
+    "goal": "SQL Server",
     "tagline": "A read-only MCP server that lets an agent find, describe and query the tables of one SQL Server database."
+  },
+  {
+    "id": "postgres-mcp",
+    "label": "PostgreSQL MCP",
+    "goal": "PostgreSQL",
+    "tagline": "A read-only MCP server that lets an agent find, describe and query the tables of one PostgreSQL database, every query inside a read-only transaction."
+  },
+  {
+    "id": "xml-mcp",
+    "label": "XML MCP",
+    "goal": "XML documents",
+    "tagline": "A read-only MCP server that lets an agent read, search, query and tabulate the XML documents in one folder."
+  },
+  {
+    "id": "http-catalog",
+    "label": "HTTP Catalog",
+    "goal": "Your own API",
+    "tagline": "The ASP.NET Core and NestJS SDKs that turn an existing backend's endpoints into a searchable agent tool catalog."
   },
   {
     "id": "llm-mcp",
     "label": "Local LLM MCP",
+    "goal": "A local model",
     "tagline": "An MCP server that lets a planning agent hand bounded language work, such as summarising files or labelling rows, to a model on your own Ollama."
   }
 ]

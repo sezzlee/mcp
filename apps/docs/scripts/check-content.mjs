@@ -4,8 +4,9 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const contentDir = path.resolve(here, "../src/content");
-const MODES = ["tutorial", "how-to", "reference", "explanation"];
-const KEYS = ["id", "label", "tagline"];
+const FOLDERS = ["recipes", "reference"];
+const KEYS = ["id", "label", "goal", "tagline"];
+const DIRECTIVES = ["tabs", "details"];
 
 const problems = [];
 const report = (where, message) =>
@@ -35,7 +36,7 @@ for (const [i, entry] of registry.entries()) {
 
 const dirs = [];
 for (const name of readdirSync(contentDir)) {
-  if (name === "products.json") continue;
+  if (name === "products.json" || name === "redirects.json") continue;
   if (statSync(path.join(contentDir, name)).isDirectory()) {
     dirs.push(name);
   } else {
@@ -58,8 +59,10 @@ for (const id of registered) {
 }
 
 const titleRules = {
-  "how-to": (t) =>
-    t.startsWith("How to ") ? null : 'a how-to title starts with "How to "',
+  recipes: (t) =>
+    t.endsWith("?") || /^How to\b/.test(t)
+      ? 'a recipe title states the goal, e.g. "Read a CSV export"'
+      : null,
   reference: (t) =>
     t.endsWith("?") || /^(How|Why|What|When)\b/.test(t)
       ? "a reference title is a noun phrase, not a question"
@@ -79,9 +82,12 @@ for (const dir of dirs) {
 
       if (statSync(abs).isDirectory()) {
         if (depth > 0) {
-          report(childRel, "content nests at most <product>/<mode>/<file>.md");
-        } else if (!MODES.includes(name)) {
-          report(childRel, `not a Diataxis mode (${MODES.join(", ")})`);
+          report(
+            childRel,
+            "content nests at most <product>/<section>/<file>.md",
+          );
+        } else if (!FOLDERS.includes(name)) {
+          report(childRel, `not a section folder (${FOLDERS.join(", ")})`);
         } else {
           walk(childRel, depth + 1);
         }
@@ -91,6 +97,12 @@ for (const dir of dirs) {
       if (!name.endsWith(".md")) {
         report(childRel, "only .md pages belong under a product folder");
         continue;
+      }
+      if (depth === 0 && name !== "00-quickstart.md") {
+        report(
+          childRel,
+          "a product's only top-level page is 00-quickstart.md; move this into recipes/",
+        );
       }
       if (!/^\d+-/.test(name)) {
         report(childRel, "filename needs a numeric order prefix, e.g. 01-");
@@ -112,8 +124,41 @@ for (const dir of dirs) {
       for (const match of text.matchAll(/\]\((\/docs\/[^)\s]+)\)/g)) {
         links.push({
           from: childRel,
-          target: match[1].replace(/^\/docs\//, ""),
+          target: match[1].replace(/^\/docs\//, "").replace(/#.*$/, ""),
         });
+      }
+
+      let fence = null;
+      let directive = null;
+      for (const line of text.split("\n")) {
+        const fenceMatch = line.match(/^(`{3,})(\S*)(.*)$/);
+        if (fenceMatch) {
+          if (fence === null) {
+            fence = fenceMatch[1];
+            if (directive === "tabs" && !/title="[^"]+"/.test(fenceMatch[3])) {
+              report(
+                childRel,
+                'every code block inside :::tabs needs title="…"',
+              );
+            }
+          } else if (line.trim() === fence) {
+            fence = null;
+          }
+          continue;
+        }
+        if (fence !== null) continue;
+        const open = line.match(/^:{3,}([A-Za-z][\w-]*)/);
+        if (open) {
+          if (!DIRECTIVES.includes(open[1])) {
+            report(
+              childRel,
+              `unknown directive ":::${open[1]}" (${DIRECTIVES.join(", ")})`,
+            );
+          }
+          directive = open[1];
+        } else if (/^:{3,}\s*$/.test(line)) {
+          directive = null;
+        }
       }
 
       const title = text.match(/^#\s+(.+)$/m)?.[1]?.trim();
@@ -132,6 +177,33 @@ for (const dir of dirs) {
   walk(dir, 0);
   if (slugs.size === 0) {
     report(`${dir}/`, "has no pages");
+  }
+  if (!slugs.has("quickstart")) {
+    report(`${dir}/`, "has no 00-quickstart.md");
+  }
+}
+
+const redirects = JSON.parse(
+  readFileSync(path.join(contentDir, "redirects.json"), "utf8"),
+);
+for (const [product, moves] of Object.entries(redirects)) {
+  if (!registered.has(product)) {
+    report("redirects.json", `"${product}" is not a product in products.json`);
+    continue;
+  }
+  for (const [from, to] of Object.entries(moves)) {
+    if (allSlugs.has(`${product}/${from}`)) {
+      report(
+        "redirects.json",
+        `${product}/${from} is still a page; drop the redirect`,
+      );
+    }
+    if (typeof to !== "string" || !allSlugs.has(`${product}/${to}`)) {
+      report(
+        "redirects.json",
+        `${product}/${from} moves to "${to}", which is not a page`,
+      );
+    }
   }
 }
 

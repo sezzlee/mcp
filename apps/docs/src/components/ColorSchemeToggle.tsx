@@ -10,13 +10,15 @@ export function ColorSchemeToggle() {
   const computed = useComputedColorScheme("light", {
     getInitialValueInEffect: true,
   });
+  const next = computed === "dark" ? "light" : "dark";
 
   return (
     <ActionIcon
-      variant="default"
-      size="lg"
-      aria-label="Toggle color scheme"
-      onClick={() => setColorScheme(computed === "dark" ? "light" : "dark")}
+      variant="subtle"
+      color="gray"
+      size={44}
+      aria-label={`Switch to ${next} theme`}
+      onClick={() => setColorScheme(next)}
     >
       {computed === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
     </ActionIcon>

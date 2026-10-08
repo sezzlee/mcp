@@ -25,10 +25,7 @@ const products = {
   "excel-mcp": {
     bins: { "sezzlee-excel": "packages/servers/excel-mcp/dist/cli.js" },
     folder: "sezzlee-sheets",
-    samples: {
-      default: ["sales.xlsx", "report.xlsx"],
-      "tutorial/01-reading-your-first-workbook.md": ["sales.xlsx"],
-    },
+    samples: { default: ["sales.xlsx", "report.xlsx"] },
     preamble: `excel() {
   npx -y @modelcontextprotocol/inspector --cli sezzlee-excel ~/sezzlee-sheets \\
     --method tools/call --tool-name "$@" | jq '.content[0].text | fromjson'
@@ -57,7 +54,7 @@ const products = {
     -- --method tools/call --tool-name "$@" | jq '.content[0].text | fromjson'
 }`,
     ],
-    ollama: ["how-to/04-read-scanned-pages-with-ocr.md"],
+    ollama: ["recipes/03-read-scanned-pages-with-ocr.md"],
   },
   "llm-mcp": {
     bins: { "sezzlee-llm": "packages/servers/llm-mcp/dist/cli.js" },
@@ -78,6 +75,14 @@ const products = {
     secrets: { "sezzlee-mssql.json": "SEZZLEE_DOCS_MSSQL_CONFIG" },
     preamble: `sql() {
   npx -y @modelcontextprotocol/inspector --cli --config ~/sezzlee-mssql.json --server shop \\
+    --method tools/call --tool-name "$@" | jq '.content[0].text | fromjson'
+}`,
+  },
+  "postgres-mcp": {
+    bins: { "sezzlee-postgres": "packages/servers/postgres-mcp/dist/cli.js" },
+    secrets: { "sezzlee-postgres.json": "SEZZLEE_DOCS_POSTGRES_CONFIG" },
+    preamble: `sql() {
+  npx -y @modelcontextprotocol/inspector --cli --config ~/sezzlee-postgres.json --server shop \\
     --method tools/call --tool-name "$@" | jq '.content[0].text | fromjson'
 }`,
   },

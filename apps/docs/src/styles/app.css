@@ -1,6 +1,11 @@
 @layer theme, base, components, mantine, utilities;
-@import 'tailwindcss' source('../');
-@import '@mantine/core/styles.layer.css';
+@import "tailwindcss" source("../");
+@import "@mantine/core/styles.layer.css";
+@import "@mantine/spotlight/styles.layer.css";
+@import "@fontsource-variable/newsreader/opsz.css";
+@import "@fontsource-variable/public-sans/wght.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
 
 /* Mantine 9.6.0 Typography emits `:where(pre) :where(code) { padding: 0 }` before
    `:where(code) { padding: 1px 5px }`. Both are specificity (0,1,0) because of :where(),
