@@ -44,6 +44,11 @@ spec, a guard comment or the package README.
   skips a missing provider at invoke time instead.
 - **Member bodies on `[McpToolVariant]`.** A NestJS `@McpVariant` can carry a family member's body,
   so a fixed family needs no source; on ASP.NET Core a member with its own body comes from a source.
+- **Re-reading the gateway's document.** `openapi-mcp` ingests its `source` once at startup, so a
+  backend deploy that renames or moves routes leaves the catalog stale until the gateway restarts.
+  Re-fetch an `http(s)` source on an interval or when its `ETag` changes, rebuild the catalog,
+  keep the current one when the new one has a fatal diagnostic, and announce the change with
+  `listChanged` the way the SDKs do on reload.
 
 ## Source servers
 
