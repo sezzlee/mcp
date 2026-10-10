@@ -2,7 +2,7 @@
 
 The language-neutral reference implementation of the sezzlee spec, in TypeScript.
 
-> Status: `0.1.0`, alpha. Published so that `@sezzlee/sdk-nestjs`, `@sezzlee/openapi` and
+> Status: `0.2.0`, alpha. Published so that `@sezzlee/sdk-nestjs`, `@sezzlee/openapi` and
 > `@sezzlee/openapi-mcp` can depend on it; it has no runtime dependencies.
 
 You do not install this package yourself: an SDK or the gateway pulls it in. Its exports follow the

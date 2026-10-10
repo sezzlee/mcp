@@ -6,7 +6,7 @@ descriptor — naming, selection, curation, template production, composition, er
 — is the existing catalog and lives elsewhere. The one consumer today is
 [`@sezzlee/openapi-mcp`](../../servers/openapi-mcp).
 
-> Status: `0.1.0`, alpha. Normative source: [openapi-ingestion.md](../spec/openapi-ingestion.md).
+> Status: `0.2.0`, alpha. Normative source: [openapi-ingestion.md](../spec/openapi-ingestion.md).
 
 ## Usage
 
