@@ -26,6 +26,11 @@ Every one of them carries a `_meta` stamp naming the catalog generation it was l
 When the catalog reloads, the number changes and the server sends `notifications/tools/list_changed`.
 A client that caches tool definitions can compare the stamp instead of diffing them.
 
+The number counts reloads inside one server process, and every process starts from the same value,
+so it says nothing about whether two replicas hold the same catalog. To make sure a call lands on a
+replica that agrees with what the agent read, pin the call to the tool's
+[`version`](#invoke-tool).
+
 ## `search_tools`
 
 ```json
@@ -168,9 +173,17 @@ Takes `name`, exactly as `search_tools` returned it.
     },
     "required": ["id", "item", "quantity", "owner"]
   },
-  "annotations": { "readOnlyHint": true, "idempotentHint": true }
+  "annotations": { "readOnlyHint": true, "idempotentHint": true },
+  "version": "6361f59c4d6b968c"
 }
 ```
+
+`version` is a short fingerprint of everything above it except `authUncertain`. The same definition
+gets the same `version` on every replica running the same build, and any change to what the agent
+reads — the description, an argument, the output schema, a hint — gives a new one. Treat it as an
+opaque string: it is meant to be passed back to `invoke_tool`, not parsed.
+`search_tools` with `detail: "schema"` carries it too, because each of those results is the
+`load_tool` answer.
 
 `inputSchema` is always a flat object: path, query, header and body members are all top-level
 arguments. How a backend type becomes that schema is
@@ -204,6 +217,17 @@ anyway: `null` composes as `{}`, and a string that parses to a JSON object is un
 as that object, with the rewrite written to the server's log. Anything else — a string that is not
 JSON, an array, a scalar — is `invalid_type`, and the message names the kind that arrived. The flag
 stays `retryable: false`: it describes replaying the same call, not repairing it.
+
+`version` is optional. Pass the `version` that `load_tool` returned, and the call runs only if the
+replica that answers holds that same definition. During a rolling deploy an agent can load a tool
+from a new replica and have the call answered by an old one; with `version` set, that call is
+refused with `tool_changed` before it reaches your backend, and the agent loads the tool again.
+Without `version`, nothing is checked. A name that does not exist is `unknown_tool` whatever
+`version` says.
+
+```json
+{ "name": "get_order", "arguments": { "id": 1 }, "version": "6361f59c4d6b968c" }
+```
 
 Success returns the HTTP result:
 

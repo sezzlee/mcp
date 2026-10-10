@@ -94,11 +94,25 @@ These either never reached your backend, or reached it and got an answer sezzlee
 }
 ```
 
-The seventeen codes are `unknown_argument`, `invalid_path_type`, `missing_path_parameter`,
+The twenty codes are `unknown_argument`, `invalid_path_type`, `missing_path_parameter`,
 `header_injection`, `null_not_allowed`, `invalid_type`, `deferred_value_missing`,
-`deferred_value_invalid`, `invalid_file_argument`, `file_too_large`, `file_unresolved`,
-`unknown_tool`, `not_invocable`, `response_too_large`, `invoke_timeout`,
-`search_ranker_unavailable` and `internal_error`.
+`deferred_value_invalid`, `invalid_cookie_value`, `cookie_carrier_collision`,
+`invalid_file_argument`, `file_too_large`, `file_unresolved`, `unknown_tool`, `not_invocable`,
+`tool_changed`, `response_too_large`, `invoke_timeout`, `search_ranker_unavailable` and
+`internal_error`.
+
+`tool_changed` answers a call that pinned a tool `version` the answering server does not hold. The
+backend was never reached; the agent loads the tool again and retries with the new version:
+
+```json
+{
+  "error": "tool_changed",
+  "message": "The tool 'get_order' changed after it was loaded, so the call was refused before reaching the backend. Load it again with load_tool and retry with the new version.",
+  "retryable": false
+}
+```
+
+See [`invoke_tool`](/docs/http-catalog/meta-tool-contract#invoke-tool).
 
 `search_ranker_unavailable` is a `search_tools` answer, not an invoke one: it appears only when you
 bound a search ranker and told the SDK to refuse rather than fall back when it fails, and it is

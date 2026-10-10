@@ -163,6 +163,11 @@
           "minLength": 1,
           "description": "The file argument a file_unresolved or file_too_large refusal names."
         },
+        "tool": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The operation a tool_changed refusal names."
+        },
         "reason": {
           "type": "string",
           "enum": ["not_found", "forbidden", "unavailable", "too_large"],

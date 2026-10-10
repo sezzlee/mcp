@@ -2,12 +2,14 @@ import { createRequire } from "node:module";
 import { McpServer } from "@modelcontextprotocol/server";
 import {
   assertCatalogValid,
-  createDetail,
+  checkPinnedVersion,
+  createLoadedTool,
   defaultSearchLimit,
   emitGuarded,
   evaluateVisibility,
   invokeArgumentsDescription,
   invokeDescription,
+  invokeVersionDescription,
   loadDescription,
   missingArgument,
   operationNameDescription,
@@ -143,7 +145,7 @@ export function createOpenApiMcpServer(
         if (entry === undefined || !visible(decision)) {
           return unknownTool(name);
         }
-        return textResult(createDetail(entry.tool, decision), false);
+        return textResult(createLoadedTool(entry.tool, decision), false);
       }),
   );
 
@@ -158,10 +160,15 @@ export function createOpenApiMcpServer(
             .unknown()
             .optional()
             .meta({ description: invokeArgumentsDescription }),
+          version: z.unknown().optional().meta({
+            type: "string",
+            description: invokeVersionDescription,
+            default: null,
+          }),
         })
         .meta({ required: ["name", "arguments"] }),
     },
-    async ({ name, arguments: args }, ctx) =>
+    async ({ name, arguments: args, version: pinned }, ctx) =>
       emitGuarded(budget, async () => {
         if (name === undefined) {
           return missingArgument("invoke_tool", "name");
@@ -173,6 +180,10 @@ export function createOpenApiMcpServer(
         const entry = catalog.byName.get(name);
         if (entry === undefined) {
           return unknownTool(name);
+        }
+        const stale = checkPinnedVersion(entry.tool, pinned);
+        if (stale !== undefined) {
+          return stale;
         }
         const context = ctx as ToolContext | undefined;
         const exchanged = context?.http?.authInfo?.extra?.[exchangedTokenKey];

@@ -212,4 +212,43 @@ describe("openapi-mcp over http with token exchange", () => {
     expect(made.length).toBe(1);
     expect(made[0]?.get("audience")).toBe("backend");
   });
+
+  it("runs a call pinned to the loaded version and refuses a stale one before the backend", async () => {
+    const client = new Client({ name: "http-spec", version: "0.0.0" });
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL(mcpUrl), {
+        requestInit: { headers: { authorization: "Bearer caller-token" } },
+      }),
+    );
+    const textOf = (result: unknown): unknown =>
+      JSON.parse(
+        (result as { content: { text: string }[] }).content[0]?.text ?? "",
+      );
+    const loaded = textOf(
+      await client.callTool({ name: "load_tool", arguments: { name: "me" } }),
+    ) as { version: unknown };
+    const calls = backendSaw.length;
+
+    const pinned = textOf(
+      await client.callTool({
+        name: "invoke_tool",
+        arguments: { name: "me", arguments: {}, version: loaded.version },
+      }),
+    );
+    const stale = await client.callTool({
+      name: "invoke_tool",
+      arguments: { name: "me", arguments: {}, version: "0000000000000000" },
+    });
+    await client.close();
+
+    expect(pinned).toEqual({ status: 200, body: { ok: true } });
+    expect(stale.isError).toBe(true);
+    expect(textOf(stale)).toEqual({
+      error: "tool_changed",
+      message:
+        "The tool 'me' changed after it was loaded, so the call was refused before reaching the backend. Load it again with load_tool and retry with the new version.",
+      retryable: false,
+    });
+    expect(backendSaw.length).toBe(calls + 1);
+  });
 });

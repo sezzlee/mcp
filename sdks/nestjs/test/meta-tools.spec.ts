@@ -275,7 +275,7 @@ describe("nest meta-tools", () => {
    * description and no `type` on purpose: the argument accepts raw JSON so a non-object value
    * reaches the handler and leaves as an sezzlee envelope rather than a raw MCP validation error.
    */
-  it("invoke_tool publishes name and arguments as required", async () => {
+  it("invoke_tool publishes name and arguments as required and version as an optional string", async () => {
     const listed = await (await clientFor("alice")).listTools();
     const invoke = listed.tools.find((tool) => tool.name === "invoke_tool");
     const properties = invoke?.inputSchema.properties as Record<
@@ -290,6 +290,11 @@ describe("nest meta-tools", () => {
       "Arguments as a JSON object whose keys are the input schema's properties. Send the object itself, not a string containing JSON.",
     );
     expect(properties["arguments"]).not.toHaveProperty("type");
+    expect(properties["version"]?.["type"]).toBe("string");
+    expect(properties["version"]?.["default"]).toBeNull();
+    expect(properties["version"]?.["description"]).toBe(
+      "The version load_tool returned for this operation. When present, the call is refused with tool_changed if the operation changed after it was loaded; omit it to skip the check.",
+    );
     expect(
       [...((invoke?.inputSchema["required"] as string[]) ?? [])].sort(),
     ).toEqual(["arguments", "name"]);

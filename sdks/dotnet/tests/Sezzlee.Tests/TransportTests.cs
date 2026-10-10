@@ -597,7 +597,7 @@ public sealed class TransportTests
     }
 
     /// <remarks>
-    /// The twin of "invoke_tool publishes name and arguments as required" in
+    /// The twin of "invoke_tool publishes name and arguments as required and version as an optional string" in
     /// sdks/nestjs/test/meta-tools.spec.ts. <c>arguments</c> publishes a description and no
     /// <c>type</c> on purpose: the parameter binds as raw JSON so a non-object value reaches the
     /// handler and leaves as an sezzlee envelope rather than a raw MCP validation error.
@@ -621,6 +621,13 @@ public sealed class TransportTests
             JsonElement arguments = properties.GetProperty("arguments");
             Assert.Equal("Arguments as a JSON object whose keys are the input schema's properties. Send the object itself, not a string containing JSON.", arguments.GetProperty("description").GetString());
             Assert.False(arguments.TryGetProperty("type", out _));
+
+            JsonElement version = properties.GetProperty("version");
+            Assert.Equal("string", version.GetProperty("type").GetString());
+            Assert.Equal(JsonValueKind.Null, version.GetProperty("default").ValueKind);
+            Assert.Equal(
+                "The version load_tool returned for this operation. When present, the call is refused with tool_changed if the operation changed after it was loaded; omit it to skip the check.",
+                version.GetProperty("description").GetString());
 
             Assert.Equal(
                 ["arguments", "name"],

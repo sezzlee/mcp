@@ -1,12 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import {
   catalogGenerationMetaKey,
+  checkPinnedVersion,
   compose,
-  createDetail,
+  createLoadedTool,
   emitGuarded as emitWithin,
   errorResult,
   invokeArgumentsDescription,
   invokeDescription,
+  invokeVersionDescription,
   isInvokeError,
   knownFields,
   loadDescription,
@@ -298,7 +300,7 @@ export function registerSezzleeTools(
         if (!deps.visibility.visible(decision)) {
           return unknownTool(name);
         }
-        return textResult(createDetail(entry.tool, decision), false);
+        return textResult(createLoadedTool(entry.tool, decision), false);
       }),
   );
 
@@ -319,10 +321,21 @@ export function registerSezzleeTools(
           arguments: z.unknown().optional().meta({
             description: invokeArgumentsDescription,
           }),
+          /**
+           * Guard: `meta` publishes the `default: null` the ASP.NET SDK emits for this optional
+           * string and cannot omit, the same trap `tags` has. It binds as `unknown` so a value that
+           * is not a string reaches checkPinnedVersion and leaves as an envelope. Pinned by T18 and
+           * by test/meta-tools.spec.ts.
+           */
+          version: z.unknown().optional().meta({
+            type: "string",
+            description: invokeVersionDescription,
+            default: null,
+          }),
         })
         .meta({ required: ["name", "arguments"] }),
     },
-    async ({ name, arguments: args }, ctx) =>
+    async ({ name, arguments: args, version }, ctx) =>
       emitGuarded(deps, async () => {
         if (name === undefined) {
           return missingArgument("invoke_tool", "name");
@@ -334,6 +347,10 @@ export function registerSezzleeTools(
         const entry = deps.catalog.find(name);
         if (entry === undefined) {
           return unknownTool(name);
+        }
+        const stale = checkPinnedVersion(entry.tool, version);
+        if (stale !== undefined) {
+          return stale;
         }
         if (entry.template === undefined) {
           return notInvocable(name);

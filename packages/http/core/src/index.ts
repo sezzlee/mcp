@@ -143,6 +143,9 @@ export {
   truncateDescription,
 } from "./card.js";
 export type { Card, ToolDetail } from "./card.js";
+export { canonicalJson } from "./canonical-json.js";
+export { createLoadedTool, toolVersion } from "./tool-version.js";
+export type { LoadedTool, ToolVersion } from "./tool-version.js";
 export { createRequestTemplateFromEndpoint, createTool } from "./tool.js";
 export type { Tool } from "./tool.js";
 export { foldToken, ToolIndex, tokenize } from "./search.js";
@@ -232,6 +235,7 @@ export {
   maxNarrowingArguments,
   narrowingArguments,
   narrowingFallback,
+  refuseChangedTool,
   refuseOversizeResponse,
   refuseRankerUnavailable,
   refuseTimedOutInvoke,
@@ -304,11 +308,13 @@ export type {
 } from "./invoke/deadline.js";
 export {
   catalogGenerationMetaKey,
+  checkPinnedVersion,
   deferredSourcesOf,
   emitGuarded,
   errorResult,
   invokeArgumentsDescription,
   invokeDescription,
+  invokeVersionDescription,
   knownFields,
   loadDescription,
   missingArgument,

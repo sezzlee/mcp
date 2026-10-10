@@ -1,6 +1,5 @@
 import {
   createCard,
-  createDetail,
   defaultSearchLimit,
   maxSearchLimit,
   maxSearchTagVocabulary,
@@ -11,6 +10,7 @@ import type { FieldError, SdkErrorCode } from "../generated/invoke-result.js";
 import type { ToolDefinition } from "../generated/tool-definition.js";
 import {
   describePayload,
+  refuseChangedTool,
   refuseOversizeResponse,
   refuseRankerUnavailable,
   sdkError,
@@ -25,6 +25,7 @@ import {
   type SearchRankerOptions,
 } from "../ranker.js";
 import { foldToken } from "../search.js";
+import { createLoadedTool, toolVersion } from "../tool-version.js";
 import type { VisibilityDecision } from "../visibility.js";
 
 export const catalogGenerationMetaKey = "sezzlee/catalogGeneration";
@@ -51,6 +52,9 @@ export const invokeDescription =
 
 export const invokeArgumentsDescription =
   "Arguments as a JSON object whose keys are the input schema's properties. Send the object itself, not a string containing JSON.";
+
+export const invokeVersionDescription =
+  "The version load_tool returned for this operation. When present, the call is refused with tool_changed if the operation changed after it was loaded; omit it to skip the check.";
 
 export const operationNameDescription =
   "Operation name exactly as returned by search_tools.";
@@ -131,6 +135,30 @@ export function wrongArgumentType(
     "unknown_argument",
     `Tool '${tool}' takes '${argument}' as a string; ${typeof value} arrived. Call it again with '${argument}' set to an operation name from search_tools.`,
   );
+}
+
+/**
+ * Checks the version an `invoke_tool` call pinned against the tool that resolved.
+ *
+ * @param pinned the raw `version` argument; absent or `null` skips the check
+ * @returns the refusal to answer with, or `undefined` when the call may proceed
+ */
+export function checkPinnedVersion(
+  tool: ToolDefinition,
+  pinned: unknown,
+): MetaResponse<never> | undefined {
+  if (pinned === undefined || pinned === null) {
+    return undefined;
+  }
+  if (typeof pinned !== "string") {
+    return errorResult(
+      "unknown_argument",
+      `Tool 'invoke_tool' takes 'version' as a string; ${typeof pinned} arrived. Call it again with the version load_tool returned, or without 'version'.`,
+    );
+  }
+  return pinned === toolVersion(tool)
+    ? undefined
+    : { payload: refuseChangedTool(tool.name), isError: true };
 }
 
 /**
@@ -310,7 +338,7 @@ export async function searchCatalog<Source extends object>(
     }
     results.push(
       wantsSchema
-        ? createDetail(entry.tool, decision)
+        ? createLoadedTool(entry.tool, decision)
         : createCard(entry.tool, decision),
     );
     if (results.length >= capped) {

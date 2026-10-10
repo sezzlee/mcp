@@ -96,10 +96,11 @@ Every package is published from CI with npm provenance; the tarballs are checked
 1. At startup the SDK reads your framework's route and authorization metadata and builds a catalog
    of tools, named by fixed rules; a name collision fails startup.
 2. An agent calls `search_tools`, gets compact cards for the tools **this caller** may use, and
-   `load_tool` for the full schema of the one it picks.
+   `load_tool` for the full schema of the one it picks, with a `version` fingerprint of it.
 3. `invoke_tool` composes an HTTP request from the arguments and replays it through your pipeline
    as the caller. The response is mapped to a fixed error vocabulary and a size budget before it
-   reaches the agent.
+   reaches the agent. A call that passes `version` back is refused with `tool_changed` if the
+   server answering it holds a different definition, as can happen mid-deploy.
 
 The rules for each step are in the [spec](packages/http/spec/README.md), and the
 [conformance corpus](packages/http/conformance) pins them so the TypeScript and C#

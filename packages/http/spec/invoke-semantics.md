@@ -109,6 +109,22 @@ A host lowers either; neither is negotiable by the agent. The overrides are dele
 
 Precedence is a single step — `maxResponseBytesFor(target) ?? maxResponseBytes` — deliberately simpler than the layered ladder of [argument-curation.md](argument-curation.md). That ladder needs `seal` because a method decorator can defeat a central rule; there is no decorator layer here, so there is nothing to seal against. Restoring the parity would be ceremony with no failure mode behind it.
 
+## The tool version
+
+Every request is served on its own ([transport.md](transport.md), Session mode), so during a rolling deploy one agent can load a tool from a new replica and have the call answered by an old one. Each replica is consistent with itself; what can disagree is the contract the agent read and the contract the answering replica holds. The tool version makes that disagreement visible instead of letting the arguments be composed against a schema the agent never saw.
+
+- **What it is.** An opaque string derived from the tool's loaded shape ([search-semantics.md](search-semantics.md), "The loaded shape") with `authUncertain` removed, because that member describes one caller's decision and not the tool. Equal shapes MUST produce equal versions in every process running the same implementation, independent of discovery order, key order and process start; different shapes SHOULD produce different versions. The value is compared for equality only, so implementations need not agree with each other on how it is derived.
+- **What it is not.** The route, the method and the request template are absent from it on purpose: each replica composes against its own, consistently. A change in behaviour that leaves the loaded shape untouched is invisible to it, exactly as it is to any other client of the backend.
+- **Where it appears.** `load_tool`'s answer and every `search_tools` result under `detail: "schema"` carry it as `version`, next to the members of the loaded shape. The compact card does not: an agent invoking from a card has not read the schema the version would vouch for.
+- **How it is checked.** `invoke_tool` takes an optional `version`. When it is present the implementation compares it with the version of the tool it resolved, after `name` is resolved and before composition; a mismatch is refused with `tool_changed` and the backend is never reached. When it is absent nothing is checked. An unknown `name` is `unknown_tool` whatever `version` says. The check MUST NOT consult the visibility filter, for the same reason `invoke_tool` never does ([search-semantics.md](search-semantics.md)).
+- **The refusal.** `tool_changed`, `retryable: false`: the same call, carrying the same stale version, fails the same way. The message is pinned:
+
+```
+The tool '{name}' changed after it was loaded, so the call was refused before reaching the backend. Load it again with load_tool and retry with the new version.
+```
+
+`catalogGeneration` ([transport.md](transport.md)) is unrelated: it counts reloads inside one process to make `listChanged` honest, starts at the same value in every process, and is never compared across replicas.
+
 ## Fixture pattern
 
 `error-mapping` fixtures take two input forms. The second one drives the guards:
@@ -141,4 +157,5 @@ Precedence is a single step — `maxResponseBytesFor(target) ?? maxResponseBytes
 - Every interpolated number in a standard message is an integer, so culture-sensitive formatting cannot diverge.
 - Both implementations buffer the whole backend body before anything is measured, so an endpoint returning gigabytes exhausts memory before the budget runs. This predates the budget and is not addressed here.
 - A `retryable: true` timeout can produce a duplicate write. The message says so; the protocol offers nothing better.
+- A replica built before the tool version existed drops `version` as an argument it does not know, so a pinned call answered by such a replica is not checked. The gap closes once every replica carries the check.
 - `SdkErrorCode` and `BackendErrorCode` MUST stay disjoint. A shared member makes an envelope match two branches of the `InvokeResult` union, and the resulting validation error names the top-level fixture union rather than the real cause.
