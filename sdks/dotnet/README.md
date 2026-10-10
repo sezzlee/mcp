@@ -5,7 +5,7 @@ agents as a search-first tool catalog and replays each call through **your own**
 authentication and authorization keep working exactly as they do today. Not a gateway, not
 duplicated business logic.
 
-> Status: `0.1.0`, alpha; breaking changes are possible.
+> Status: `0.1.1`, alpha; breaking changes are possible.
 
 ## Requirements
 
