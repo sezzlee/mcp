@@ -255,6 +255,11 @@ internal sealed class SezzleeDispatcher(
             try
             {
                 await run.ConfigureAwait(false);
+                // Guard: ASP.NET's JSON writer swallows a cancelled RequestAborted, so a handler cut
+                // off mid-response returns normally with a partial body, and it can win the race
+                // against the abandon signal above. A pipeline that finished after the deadline is a
+                // timeout, never a truncated success. Pinned by ResponseBudgetTests.R6.
+                linked.Token.ThrowIfCancellationRequested();
             }
             catch (OperationCanceledException) when (linked.IsCancellationRequested)
             {

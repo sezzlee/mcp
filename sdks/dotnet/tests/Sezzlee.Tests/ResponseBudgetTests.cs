@@ -19,6 +19,7 @@ namespace Sezzlee.Tests;
 public sealed class ResponseBudgetTests
 {
     private const int Budget = 4_096;
+    private static readonly TimeSpan ShortDeadline = TimeSpan.FromMilliseconds(150);
 
     private sealed record BudgetHarness(WebApplication App, SezzleeMetaTools Tools, SezzleeOptions Options) : IAsyncDisposable
     {
@@ -37,7 +38,6 @@ public sealed class ResponseBudgetTests
         builder.Services.AddSezzlee(o =>
         {
             o.Invoke.MaxResponseBytes = Budget;
-            o.Invoke.Timeout = TimeSpan.FromMilliseconds(150);
             configure?.Invoke(o);
         });
 
@@ -61,6 +61,13 @@ public sealed class ResponseBudgetTests
                 return new { ignored = true };
             })
             .WithMetadata(new McpToolAttribute { Name = "stubborn_call" });
+        app.MapGet("/swallowing", (HttpContext http) =>
+            {
+                SpinWait.SpinUntil(() => http.RequestAborted.IsCancellationRequested, TimeSpan.FromSeconds(5));
+                http.Response.Body.Write("{\"rows\":[{\"id\":0},"u8);
+                return Results.Empty;
+            })
+            .WithMetadata(new McpToolAttribute { Name = "swallowing_call" });
         app.MapSezzlee("/mcp");
         await app.StartAsync();
 
@@ -138,7 +145,7 @@ public sealed class ResponseBudgetTests
     [Fact]
     public async Task R4_DeadlineExpiry_AnswersWithInvokeTimeout()
     {
-        await using BudgetHarness harness = await HostAsync();
+        await using BudgetHarness harness = await HostAsync(o => o.Invoke.Timeout = ShortDeadline);
         (SdkError? error, _, bool isError) = await InvokeAsync(harness.Tools, "slow_call", new { });
 
         Assert.True(isError);
@@ -160,7 +167,7 @@ public sealed class ResponseBudgetTests
         TaskScheduler.UnobservedTaskException += OnUnobserved;
         try
         {
-            await using (BudgetHarness harness = await HostAsync())
+            await using (BudgetHarness harness = await HostAsync(o => o.Invoke.Timeout = ShortDeadline))
             {
                 (SdkError? error, _, _) = await InvokeAsync(harness.Tools, "stubborn_call", new { });
                 Assert.Equal(SdkErrorCode.InvokeTimeout, error!.Error);
@@ -176,5 +183,16 @@ public sealed class ResponseBudgetTests
         {
             TaskScheduler.UnobservedTaskException -= OnUnobserved;
         }
+    }
+
+    [Fact]
+    public async Task R6_HandlerThatSwallowsTheDeadline_AnswersWithInvokeTimeoutNotAPartialBody()
+    {
+        await using BudgetHarness harness = await HostAsync(o => o.Invoke.Timeout = ShortDeadline);
+        (SdkError? error, JsonElement raw, bool isError) = await InvokeAsync(harness.Tools, "swallowing_call", new { });
+
+        Assert.True(isError, raw.GetRawText());
+        Assert.Equal(SdkErrorCode.InvokeTimeout, error!.Error);
+        Assert.DoesNotContain("rows", raw.GetRawText(), StringComparison.Ordinal);
     }
 }
