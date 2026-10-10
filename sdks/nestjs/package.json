@@ -1,13 +1,44 @@
 {
   "name": "@sezzlee/sdk-nestjs",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Embeds an MCP layer into an existing NestJS backend: search-first tool discovery over your real endpoints, dispatched through your own guards, pipes and interceptors.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "nestjs",
+    "sezzlee",
+    "agents",
+    "ai",
+    "llm",
+    "typescript"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sezzlee/mcp.git",
+    "directory": "sdks/nestjs"
+  },
+  "homepage": "https://github.com/sezzlee/mcp/tree/main/sdks/nestjs#readme",
+  "bugs": {
+    "url": "https://github.com/sezzlee/mcp/issues"
+  },
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
+      "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc",
@@ -16,7 +47,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@sezzlee/core": "workspace:*"
+    "@sezzlee/core": "workspace:^"
   },
   "peerDependencies": {
     "@modelcontextprotocol/express": ">=2.0.0",
@@ -24,7 +55,22 @@
     "@modelcontextprotocol/server": ">=2.0.0",
     "@nestjs/common": ">=10",
     "@nestjs/core": ">=10",
+    "@types/express": ">=4",
+    "class-transformer": ">=0.5",
+    "class-validator": ">=0.14",
+    "rxjs": "^7.1.0",
     "zod": "^4.5.4"
+  },
+  "peerDependenciesMeta": {
+    "@types/express": {
+      "optional": true
+    },
+    "class-transformer": {
+      "optional": true
+    },
+    "class-validator": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "2.0.0",

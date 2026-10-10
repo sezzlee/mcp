@@ -1,14 +1,30 @@
 {
   "name": "@sezzlee/openapi-mcp",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "MCP server that exposes an OpenAPI document as a search-first sezzlee catalog over a remote backend.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "sezzlee",
+    "openapi",
+    "swagger",
+    "api-gateway",
+    "agents"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sezzlee/mcp.git",
+    "directory": "packages/servers/openapi-mcp"
+  },
+  "homepage": "https://github.com/sezzlee/mcp/tree/main/packages/servers/openapi-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/sezzlee/mcp/issues"
+  },
   "type": "module",
   "engines": {
     "node": ">=22"
-  },
-  "bin": {
-    "sezzlee-openapi": "./dist/cli.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,12 +34,14 @@
       "default": "./dist/index.js"
     }
   },
-  "dependencies": {
-    "@modelcontextprotocol/node": "^2.0.0",
-    "@modelcontextprotocol/server": "^2.0.0",
-    "@sezzlee/core": "workspace:*",
-    "@sezzlee/openapi": "workspace:*",
-    "zod": "^4.5.4"
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "sezzlee-openapi": "./dist/cli.js"
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc",
@@ -31,6 +49,13 @@
     "lint": "oxlint --deny-warnings",
     "check-types": "tsc -p tsconfig.test.json",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@sezzlee/core": "workspace:^",
+    "@sezzlee/openapi": "workspace:^",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "^2.0.0",

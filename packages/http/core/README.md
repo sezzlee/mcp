@@ -2,10 +2,11 @@
 
 The language-neutral reference implementation of the sezzlee spec, in TypeScript.
 
-**This is not a package you install.** `private: true`, version `0.0.0`, never published; it exists
-as a `workspace:*` dependency of `@sezzlee/sdk-nestjs`, `@sezzlee/openapi` and `@sezzlee/openapi-mcp`
-(and the NestJS agent-client sample). There is no version to pin
-and no public API contract. If you are reading this you are changing it.
+> Status: `0.1.0`, alpha. Published so that `@sezzlee/sdk-nestjs`, `@sezzlee/openapi` and
+> `@sezzlee/openapi-mcp` can depend on it; it has no runtime dependencies.
+
+You do not install this package yourself: an SDK or the gateway pulls it in. Its exports follow the
+spec and may change with it between minor versions.
 
 `core` is **not** `file-core`. This package is the HTTP catalog implementation;
 [`@sezzlee/file-core`](../../cores/file-core) is the shared machinery for file-backed MCP servers. Neither depends

@@ -4,9 +4,8 @@ MCP server that exposes an OpenAPI (Swagger 2.0 / OpenAPI 3.0–3.2) document as
 search-first tool catalog — `search_tools`, `load_tool`, `invoke_tool` — over a **remote**
 backend, calling it with `fetch`.
 
-> Status: `0.0.0`, `private: true` (it depends on the private `@sezzlee/core`, and a published
-> package may never depend on a private one — `pnpm publish` would silently rewrite the
-> dependency and the failure would surface in a consumer's `install`).
+> Status: `0.1.0`, alpha. Install with `npm install -g @sezzlee/openapi-mcp` or run it with
+> `npx -y @sezzlee/openapi-mcp`; the binary is `sezzlee-openapi`.
 
 ## How this differs from the embedded SDKs
 

@@ -1,13 +1,43 @@
 {
   "name": "@sezzlee/openapi",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Ingests a Swagger 2.0 or OpenAPI 3.0–3.2 document into the endpoint descriptors the sezzlee catalog is built from.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "sezzlee",
+    "openapi",
+    "swagger",
+    "agents",
+    "typescript"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sezzlee/mcp.git",
+    "directory": "packages/http/openapi"
+  },
+  "homepage": "https://github.com/sezzlee/mcp/tree/main/packages/http/openapi#readme",
+  "bugs": {
+    "url": "https://github.com/sezzlee/mcp/issues"
+  },
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
+      "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc",
@@ -17,7 +47,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@sezzlee/core": "workspace:*",
+    "@sezzlee/core": "workspace:^",
     "yaml": "^2.9.1"
   },
   "devDependencies": {

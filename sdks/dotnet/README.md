@@ -5,8 +5,7 @@ agents as a search-first tool catalog and replays each call through **your own**
 authentication and authorization keep working exactly as they do today. Not a gateway, not
 duplicated business logic.
 
-> Status: `0.1.0-alpha.2`. The public API is frozen in this release but it is alpha; breaking
-> changes are possible.
+> Status: `0.1.0`, alpha; breaking changes are possible.
 
 ## Requirements
 
@@ -15,18 +14,8 @@ duplicated business logic.
 
 ## 1. Install
 
-The alpha ships from a local nupkg feed; it is not on nuget.org.
-
 ```bash
-# in the sezzlee repository
-pnpm turbo run pack --filter=@sezzlee/sdk-dotnet
-# → sdks/dotnet/local/nupkg-feed/Sezzlee.AspNetCore.0.1.0-alpha.2.nupkg
-```
-
-```bash
-# in your own project
-dotnet nuget add source /absolute/path/to/sezzlee/sdks/dotnet/local/nupkg-feed --name sezzlee-local
-dotnet add package Sezzlee.AspNetCore --version 0.1.0-alpha.2
+dotnet add package Sezzlee.AspNetCore
 ```
 
 Do not wire it with a `ProjectReference`. Sezzlee multi-targets (`net8.0;net10.0`) and a

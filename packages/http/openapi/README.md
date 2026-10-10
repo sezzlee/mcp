@@ -6,7 +6,7 @@ descriptor — naming, selection, curation, template production, composition, er
 — is the existing catalog and lives elsewhere. The one consumer today is
 [`@sezzlee/openapi-mcp`](../../servers/openapi-mcp).
 
-> Status: `0.0.0`, `private: true`. Normative source: [openapi-ingestion.md](../spec/openapi-ingestion.md).
+> Status: `0.1.0`, alpha. Normative source: [openapi-ingestion.md](../spec/openapi-ingestion.md).
 
 ## Usage
 
@@ -94,9 +94,6 @@ CatalogSeverity>>`, so a code added without a severity fails to compile.
   `CatalogSeverity` and the descriptor types this library fills in.
 - Bound by the `openapi-ingestion` fixture profile, not the core catalog's fixture profile — an
   SDK that never reads an OpenAPI document is unaffected by a change here.
-- `private: true`: it is consumed only inside this repository today (`@sezzlee/openapi-mcp`), and a
-  published package may never depend on a `private: true` workspace package, so it stays private
-  until it has a publishable consumer.
 
 ## Development
 

@@ -538,7 +538,7 @@ importers:
   packages/http/openapi:
     dependencies:
       '@sezzlee/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       yaml:
         specifier: ^2.9.1
@@ -733,10 +733,10 @@ importers:
         specifier: ^2.0.0
         version: 2.2.0
       '@sezzlee/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../http/core
       '@sezzlee/openapi':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../http/openapi
       zod:
         specifier: ^4.5.4
@@ -910,7 +910,7 @@ importers:
   sdks/nestjs:
     dependencies:
       '@sezzlee/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../packages/http/core
       zod:
         specifier: ^4.5.4

@@ -24,8 +24,6 @@ spec, a guard comment or the package README.
   between security alternatives have no tests.
 - **A login credential source.** Listed under "Not specified" in
   [credentials.md](packages/http/spec/credentials.md).
-- **Publishing the gateway.** `@sezzlee/openapi-mcp` depends on the private `@sezzlee/core`, and a
-  published package may not depend on a private one. Either publish core or bundle it.
 - **A route-normalisation conformance corpus.** Each SDK pins its own route folding with unit tests
   ([selection-hierarchy.md](packages/http/spec/selection-hierarchy.md), Known limits).
 - **Tool families from an OpenAPI document.** Ingestion never produces `family`

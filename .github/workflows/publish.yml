@@ -53,3 +53,33 @@ jobs:
               npm publish "$tgz" --access public --provenance
             fi
           done
+
+  publish-nuget:
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: nuget
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: Sezzlee.AspNetCore-nupkg
+          path: nupkg
+      - name: NuGet login
+        id: login
+        if: ${{ !inputs.dry_run }}
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ vars.NUGET_USER }}
+      - name: Publish packages
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          ls ./nupkg/*.nupkg ./nupkg/*.snupkg
+          for nupkg in ./nupkg/*.nupkg; do
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "dry run: would push $nupkg"
+              continue
+            fi
+            dotnet nuget push "$nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          done
