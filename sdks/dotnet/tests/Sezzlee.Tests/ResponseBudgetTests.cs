@@ -55,9 +55,19 @@ public sealed class ResponseBudgetTests
                 return new { eventually = true };
             })
             .WithMetadata(new McpToolAttribute { Name = "slow_call" });
-        app.MapGet("/stubborn", async () =>
+        app.MapGet("/stubborn", async (HttpContext http) =>
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(400), CancellationToken.None);
+                // Guard: the handler outlives the deadline by construction, not by a 400 ms margin.
+                // A fixed delay raced the deadline timer, and a starved thread pool on CI let the
+                // handler finish first, so R5 read a success instead of invoke_timeout.
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, http.RequestAborted);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                await Task.Delay(TimeSpan.FromMilliseconds(100), CancellationToken.None);
                 return new { ignored = true };
             })
             .WithMetadata(new McpToolAttribute { Name = "stubborn_call" });

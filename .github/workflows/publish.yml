@@ -7,6 +7,10 @@ on:
         description: Run the full CI and pack, but do not publish
         type: boolean
         default: true
+      from_run:
+        description: Id of a green Publish run of this same main commit; its packages are published and CI is not run again
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -18,17 +22,60 @@ concurrency:
 
 jobs:
   ci:
+    if: ${{ inputs.from_run == '' }}
     uses: ./.github/workflows/ci.yml
 
-  publish:
+  # Guard: publishing another run's packages is only as safe as the check that the run built
+  # this very commit on main and passed the full CI, release matrix included. Anything looser
+  # would let a stale or failed build reach the registries without CI ever running on it.
+  source:
     needs: ci
+    if: ${{ !cancelled() && (needs.ci.result == 'success' || (needs.ci.result == 'skipped' && inputs.from_run != '')) }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    outputs:
+      run-id: ${{ steps.pick.outputs.run-id }}
+    steps:
+      - id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FROM_RUN: ${{ inputs.from_run }}
+        run: |
+          set -euo pipefail
+          if [ -z "$FROM_RUN" ]; then
+            echo "run-id=$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "$FROM_RUN" in
+            *[!0-9]*) echo "::error::from_run must be a numeric run id" ; exit 1 ;;
+          esac
+          IFS=$'\t' read -r path branch sha status conclusion < <(
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$FROM_RUN" \
+              --jq '[.path, .head_branch, .head_sha, .status, (.conclusion // "")] | @tsv')
+          fail() { echo "::error::run $FROM_RUN $1" ; exit 1 ; }
+          [ "$path" = ".github/workflows/publish.yml" ] || fail "is not a Publish run ($path)"
+          [ "$branch" = "main" ] || fail "did not build main ($branch)"
+          [ "$sha" = "$GITHUB_SHA" ] || fail "built $sha, not $GITHUB_SHA"
+          [ "$status/$conclusion" = "completed/success" ] || fail "is $status/$conclusion, not green"
+          echo "Publishing the packages run $FROM_RUN built and tested."
+          echo "run-id=$FROM_RUN" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: source
+    if: ${{ !cancelled() && needs.source.result == 'success' }}
     runs-on: ubuntu-latest
     environment: npm
+    permissions:
+      actions: read
+      id-token: write
     steps:
       - uses: actions/download-artifact@v8
         with:
           name: npm-tarballs
           path: tarballs
+          run-id: ${{ needs.source.outputs.run-id }}
+          github-token: ${{ github.token }}
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -55,14 +102,20 @@ jobs:
           done
 
   publish-nuget:
-    needs: ci
+    needs: source
+    if: ${{ !cancelled() && needs.source.result == 'success' }}
     runs-on: ubuntu-latest
     environment: nuget
+    permissions:
+      actions: read
+      id-token: write
     steps:
       - uses: actions/download-artifact@v8
         with:
           name: Sezzlee.AspNetCore-nupkg
           path: nupkg
+          run-id: ${{ needs.source.outputs.run-id }}
+          github-token: ${{ github.token }}
       - name: NuGet login
         id: login
         if: ${{ !inputs.dry_run }}
