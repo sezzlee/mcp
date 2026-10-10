@@ -21,6 +21,7 @@ import {
   describePayload,
   mapInvokeResult,
   refuseOversizeResponse,
+  refuseChangedTool,
   refuseRankerUnavailable,
   refuseTimedOutInvoke,
   refuseUnresolvedFile,
@@ -577,6 +578,9 @@ function sdkResultFrom(input: SdkInput): InvokeResult {
   }
   if (input.sdkError === "search_ranker_unavailable") {
     return refuseRankerUnavailable();
+  }
+  if (input.sdkError === "tool_changed") {
+    return refuseChangedTool(input.tool ?? "");
   }
   if (input.reason !== undefined) {
     return refuseUnresolvedFile(
