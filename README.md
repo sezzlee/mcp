@@ -14,8 +14,8 @@ It comes in two shapes:
   XML, PDF, Microsoft SQL Server and PostgreSQL, plus a server that hands bounded language work to a local
   model.
 
-> **Status:** early. Nothing is published to npm or NuGet yet; build from source (below). The
-> spec, the fixture corpus and both SDKs are tested in CI; APIs may still change.
+> **Status:** early. Every package below is on npm or NuGet; APIs may still change. The spec, the
+> fixture corpus and both SDKs are tested in CI.
 
 ## Why
 
@@ -31,35 +31,27 @@ represent. Sezzlee instead:
   an error with a code the agent can act on.
 
 The longer argument is on the docs site:
-[why sezzlee is not an OpenAPI adapter](apps/docs/src/content/http-catalog/explanation/06-why-sezzlee-is-not-an-openapi-adapter.md).
+[why sezzlee is not an OpenAPI adapter](https://docs.sezzlee.app/docs/http-catalog/quickstart).
 
 ## Quick start
 
-Requirements: Node.js 24+, pnpm 11 (`corepack enable`), and the .NET 8 or 10 SDK for the C# side.
+Pick what you need. The servers need Node.js 22+; the ASP.NET Core SDK targets .NET 8 and 10.
 
-```bash
-git clone https://github.com/sezzlee/mcp.git
-cd sezzlee
-pnpm install
-pnpm build
-```
+| I want to…                                  | Install                                 | Start here                                                     |
+| ------------------------------------------- | --------------------------------------- | -------------------------------------------------------------- |
+| Expose an ASP.NET Core API to agents        | `dotnet add package Sezzlee.AspNetCore` | [sdks/dotnet](sdks/dotnet/README.md)                           |
+| Expose a NestJS API to agents               | `npm install @sezzlee/sdk-nestjs`       | [sdks/nestjs](sdks/nestjs/README.md)                           |
+| Expose any backend that has an OpenAPI file | `npx -y @sezzlee/openapi-mcp`           | [packages/servers/openapi-mcp](packages/servers/openapi-mcp)   |
+| Let an agent read Excel workbooks           | `npx -y @sezzlee/excel-mcp`             | [packages/servers/excel-mcp](packages/servers/excel-mcp)       |
+| Let an agent read XML documents             | `npx -y @sezzlee/xml-mcp`               | [packages/servers/xml-mcp](packages/servers/xml-mcp)           |
+| Let an agent read PDF documents             | `npx -y @sezzlee/pdf-mcp`               | [packages/servers/pdf-mcp](packages/servers/pdf-mcp)           |
+| Let an agent query SQL Server, read-only    | `npx -y @sezzlee/mssql-mcp`             | [packages/servers/mssql-mcp](packages/servers/mssql-mcp)       |
+| Let an agent query PostgreSQL, read-only    | `npx -y @sezzlee/postgres-mcp`          | [packages/servers/postgres-mcp](packages/servers/postgres-mcp) |
+| Hand bounded text work to a local model     | `npx -y @sezzlee/llm-mcp`               | [packages/servers/llm-mcp](packages/servers/llm-mcp)           |
+| Build my own read-only MCP server           | `npm install @sezzlee/mcp-core`         | [packages/cores/mcp-core](packages/cores/mcp-core)             |
 
-Then pick what you need:
-
-| I want to…                                  | Start here                                                     |
-| ------------------------------------------- | -------------------------------------------------------------- |
-| Expose an ASP.NET Core API to agents        | [sdks/dotnet](sdks/dotnet/README.md)                           |
-| Expose a NestJS API to agents               | [sdks/nestjs](sdks/nestjs/README.md)                           |
-| Expose any backend that has an OpenAPI file | [packages/servers/openapi-mcp](packages/servers/openapi-mcp)   |
-| Let an agent read Excel workbooks           | [packages/servers/excel-mcp](packages/servers/excel-mcp)       |
-| Let an agent read XML documents             | [packages/servers/xml-mcp](packages/servers/xml-mcp)           |
-| Let an agent read PDF documents             | [packages/servers/pdf-mcp](packages/servers/pdf-mcp)           |
-| Let an agent query SQL Server, read-only    | [packages/servers/mssql-mcp](packages/servers/mssql-mcp)       |
-| Let an agent query PostgreSQL, read-only    | [packages/servers/postgres-mcp](packages/servers/postgres-mcp) |
-| Hand bounded text work to a local model     | [packages/servers/llm-mcp](packages/servers/llm-mcp)           |
-| Build my own read-only MCP server           | [packages/cores/mcp-core](packages/cores/mcp-core)             |
-
-Each package README has its own quick start, configuration and limits.
+Each package README has its own quick start, configuration and limits. To build from source, see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Packages
 
@@ -68,31 +60,31 @@ Each package README has its own quick start, configuration and limits.
 | Package                                              | What it is                                                            | Status    |
 | ---------------------------------------------------- | --------------------------------------------------------------------- | --------- |
 | [Sezzlee.AspNetCore](sdks/dotnet)                    | ASP.NET Core SDK                                                      | alpha     |
-| [@sezzlee/sdk-nestjs](sdks/nestjs)                   | NestJS SDK                                                            | internal  |
-| [@sezzlee/openapi-mcp](packages/servers/openapi-mcp) | Gateway: an OpenAPI document as a catalog over a remote backend       | internal  |
-| [@sezzlee/openapi](packages/http/openapi)            | Swagger 2.0 / OpenAPI 3.0–3.2 ingestion                               | internal  |
-| [@sezzlee/core](packages/http/core)                  | TypeScript reference implementation of the spec                       | internal  |
+| [@sezzlee/sdk-nestjs](sdks/nestjs)                   | NestJS SDK                                                            | alpha     |
+| [@sezzlee/openapi-mcp](packages/servers/openapi-mcp) | Gateway: an OpenAPI document as a catalog over a remote backend       | alpha     |
+| [@sezzlee/openapi](packages/http/openapi)            | Swagger 2.0 / OpenAPI 3.0–3.2 ingestion                               | alpha     |
+| [@sezzlee/core](packages/http/core)                  | TypeScript reference implementation of the spec                       | alpha     |
 | [spec](packages/http/spec)                           | The normative spec and JSON Schemas — the single source of truth      | normative |
 | [conformance](packages/http/conformance)             | 480 JSON fixtures across 11 kinds that every implementation must pass | —         |
 
 ### Source servers and their cores
 
-| Package                                                         | What it is                                                   | Status      |
-| --------------------------------------------------------------- | ------------------------------------------------------------ | ----------- |
-| [@sezzlee/excel-mcp](packages/servers/excel-mcp)                | Reads local Excel workbooks                                  | publishable |
-| [@sezzlee/xml-mcp](packages/servers/xml-mcp)                    | Reads local XML documents                                    | publishable |
-| [@sezzlee/pdf-mcp](packages/servers/pdf-mcp)                    | Reads local PDF documents, with pluggable OCR                | publishable |
-| [@sezzlee/mssql-mcp](packages/servers/mssql-mcp)                | Read-only Microsoft SQL Server                               | publishable |
-| [@sezzlee/postgres-mcp](packages/servers/postgres-mcp)          | Read-only PostgreSQL                                         | publishable |
-| [@sezzlee/llm-mcp](packages/servers/llm-mcp)                    | Delegates bounded language work to a local model (Ollama)    | publishable |
-| [@sezzlee/ocr-ollama](packages/adapters/ocr-ollama)             | OCR provider for pdf-mcp                                     | publishable |
-| [@sezzlee/pdf-raster-pdfjs](packages/adapters/pdf-raster-pdfjs) | Page rasterizer for pdf-mcp                                  | publishable |
-| [@sezzlee/mcp-core](packages/cores/mcp-core)                    | Source-agnostic machinery for read-only MCP servers          | publishable |
-| [@sezzlee/file-core](packages/cores/file-core)                  | Sandboxed file layer over mcp-core                           | publishable |
-| [@sezzlee/db-core](packages/cores/db-core)                      | Relational layer over mcp-core; dialects and drivers plug in | publishable |
-| [@sezzlee/ooxml-core](packages/cores/ooxml-core)                | Reader for OOXML (zip/OPC) containers                        | publishable |
+| Package                                                         | What it is                                                   | Status    |
+| --------------------------------------------------------------- | ------------------------------------------------------------ | --------- |
+| [@sezzlee/excel-mcp](packages/servers/excel-mcp)                | Reads local Excel workbooks                                  | published |
+| [@sezzlee/xml-mcp](packages/servers/xml-mcp)                    | Reads local XML documents                                    | published |
+| [@sezzlee/pdf-mcp](packages/servers/pdf-mcp)                    | Reads local PDF documents, with pluggable OCR                | published |
+| [@sezzlee/mssql-mcp](packages/servers/mssql-mcp)                | Read-only Microsoft SQL Server                               | published |
+| [@sezzlee/postgres-mcp](packages/servers/postgres-mcp)          | Read-only PostgreSQL                                         | published |
+| [@sezzlee/llm-mcp](packages/servers/llm-mcp)                    | Delegates bounded language work to a local model (Ollama)    | published |
+| [@sezzlee/ocr-ollama](packages/adapters/ocr-ollama)             | OCR provider for pdf-mcp                                     | published |
+| [@sezzlee/pdf-raster-pdfjs](packages/adapters/pdf-raster-pdfjs) | Page rasterizer for pdf-mcp                                  | published |
+| [@sezzlee/mcp-core](packages/cores/mcp-core)                    | Source-agnostic machinery for read-only MCP servers          | published |
+| [@sezzlee/file-core](packages/cores/file-core)                  | Sandboxed file layer over mcp-core                           | published |
+| [@sezzlee/db-core](packages/cores/db-core)                      | Relational layer over mcp-core; dialects and drivers plug in | published |
+| [@sezzlee/ooxml-core](packages/cores/ooxml-core)                | Reader for OOXML (zip/OPC) containers                        | published |
 
-"Publishable" means the package is built and checked for publication in CI but not on npm yet.
+Every package is published from CI with npm provenance; the tarballs are checked and smoke-installed before publication.
 
 ### Also in this repository
 

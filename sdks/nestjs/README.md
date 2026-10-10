@@ -4,13 +4,16 @@ An MCP layer that embeds into your existing NestJS backend. It exposes your endp
 a search-first tool catalog and replays each call through **your own** pipeline, so your guards,
 pipes and interceptors keep running unchanged. Not a gateway, not duplicated business logic.
 
-> Status: internal, version `0.0.0`, not published to npm. Consumed today as a workspace
-> dependency; [samples/demo-api](samples/demo-api) is the reference wiring.
+> Status: `0.1.0`, alpha; breaking changes are possible. [samples/demo-api](samples/demo-api) is
+> the reference wiring.
 
 ## Requirements
 
 - NestJS 10 or later (`@nestjs/common`, `@nestjs/core`), dev-tested against 11.x
-- `@modelcontextprotocol/sdk` 1.30.0 or later
+- `@modelcontextprotocol/server`, `@modelcontextprotocol/node` and `@modelcontextprotocol/express`
+  2.0 or later, `rxjs` 7 and `zod` 4
+- `class-validator` and `class-transformer` are optional; when installed, their decorators shape
+  the argument schemas
 - Node 22 or later, Express as the HTTP adapter
 
 Peers are peers on purpose: sezzlee uses your Nest and your MCP SDK, not its own copies.
@@ -20,8 +23,6 @@ Peers are peers on purpose: sezzlee uses your Nest and your MCP SDK, not its own
 ```bash
 pnpm add @sezzlee/sdk-nestjs
 ```
-
-Not on npm yet, so in this repository it resolves as `workspace:*`.
 
 ## 2. Wiring — three pieces
 
