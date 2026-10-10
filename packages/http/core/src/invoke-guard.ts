@@ -197,6 +197,16 @@ export function refuseTimedOutInvoke(limitMs: number): SdkError {
   };
 }
 
+export function refuseChangedTool(name: string): SdkError {
+  return {
+    error: "tool_changed",
+    message:
+      `The tool '${name}' changed after it was loaded, so the call was refused before reaching the backend. ` +
+      "Load it again with load_tool and retry with the new version.",
+    retryable: false,
+  };
+}
+
 export function refuseRankerUnavailable(): SdkError {
   return {
     error: "search_ranker_unavailable",

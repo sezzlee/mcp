@@ -13,21 +13,26 @@ namespace Sezzlee.AspNetCore.Requests;
 /// </summary>
 internal static class CanonicalJson
 {
-    public static string Stringify(JsonElement value)
+    /// <param name="sortMembers">Writes every object's members in ordinal order instead of source
+    /// order, so two spellings of one value render identically.</param>
+    public static string Stringify(JsonElement value, bool sortMembers = false)
     {
         StringBuilder builder = new();
-        Write(builder, value);
+        Write(builder, value, sortMembers);
         return builder.ToString();
     }
 
-    private static void Write(StringBuilder builder, JsonElement value)
+    private static void Write(StringBuilder builder, JsonElement value, bool sortMembers)
     {
         switch (value.ValueKind)
         {
             case JsonValueKind.Object:
                 builder.Append('{');
                 bool firstMember = true;
-                foreach (JsonProperty property in value.EnumerateObject())
+                IEnumerable<JsonProperty> members = sortMembers
+                    ? value.EnumerateObject().OrderBy(property => property.Name, StringComparer.Ordinal)
+                    : value.EnumerateObject();
+                foreach (JsonProperty property in members)
                 {
                     if (!firstMember)
                     {
@@ -36,7 +41,7 @@ internal static class CanonicalJson
                     firstMember = false;
                     WriteString(builder, property.Name);
                     builder.Append(':');
-                    Write(builder, property.Value);
+                    Write(builder, property.Value, sortMembers);
                 }
                 builder.Append('}');
                 break;
@@ -50,7 +55,7 @@ internal static class CanonicalJson
                         builder.Append(',');
                     }
                     firstItem = false;
-                    Write(builder, item);
+                    Write(builder, item, sortMembers);
                 }
                 builder.Append(']');
                 break;

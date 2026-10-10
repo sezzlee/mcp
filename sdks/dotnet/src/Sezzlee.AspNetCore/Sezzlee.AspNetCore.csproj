@@ -6,7 +6,7 @@
 
   <PropertyGroup>
     <PackageId>Sezzlee.AspNetCore</PackageId>
-    <VersionPrefix>0.1.1</VersionPrefix>
+    <VersionPrefix>0.2.0</VersionPrefix>
     <Description>Embeds an MCP layer into an existing ASP.NET Core backend: search-first tool discovery over your real endpoints, dispatched through your own pipeline so authentication and authorization keep working unchanged.</Description>
     <PackageTags>mcp;model-context-protocol;aspnetcore;agents;ai;llm</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>

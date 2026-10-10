@@ -28,7 +28,8 @@ export type SdkErrorCode =
   | "response_too_large"
   | "invoke_timeout"
   | "search_ranker_unavailable"
-  | "internal_error";
+  | "internal_error"
+  | "tool_changed";
 export type PayloadShapeKind = "array" | "object" | "text";
 
 export interface InvokeSuccess {

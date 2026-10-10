@@ -139,7 +139,8 @@ export type SdkErrorCode =
   | "response_too_large"
   | "invoke_timeout"
   | "search_ranker_unavailable"
-  | "internal_error";
+  | "internal_error"
+  | "tool_changed";
 export type InvokeResult = InvokeSuccess | MappedError | SdkError;
 export type BackendErrorCode =
   | "validation_failed"
@@ -603,6 +604,7 @@ export interface SdkErrorSpec {
   limitMs?: number;
   narrowing?: FieldError[];
   field?: string;
+  tool?: string;
   reason?: "not_found" | "forbidden" | "unavailable" | "too_large";
 }
 export interface FieldError {

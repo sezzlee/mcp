@@ -4,6 +4,7 @@ import type {
   ToolDefinition,
 } from "./generated/tool-definition.js";
 import { assertUniqueArgumentNames } from "./argument-names.js";
+import { canonicalJson } from "./canonical-json.js";
 import { curationShapeOf, resolveCuration } from "./curation.js";
 import type { CurationRelief } from "./curation.js";
 import type { ToolVariant } from "./generated/endpoint-descriptor.js";
@@ -416,28 +417,6 @@ function buildOutputSchema(
 }
 
 /**
- * Renders a value with every object's keys in sorted order.
- *
- * The `$defs` conflict check MUST NOT see two spellings of one schema as two schemas. Plain
- * `JSON.stringify` is key-order sensitive while the .NET side compares with `JsonNode.DeepEquals`,
- * which is not — so a parameter bag and a body bag carrying the same type in a different key order
- * would drop the endpoint here and build the tool there.
- */
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map(canonical).join(",")}]`;
-  }
-  if (typeof value === "object" && value !== null) {
-    const bag = value as Record<string, unknown>;
-    return `{${Object.keys(bag)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonical(bag[key])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "null";
-}
-
-/**
  * Merges every `$defs` bag reachable from the tool's own root into one.
  *
  * A property declaring `$id` is skipped: it is its own schema resource, so a `#/$defs/...` inside it
@@ -461,7 +440,13 @@ function liftDefs(
   const take = (name: string, body: JsonSchemaObject): void => {
     const existing = merged[name];
     if (existing !== undefined) {
-      if (canonical(existing) !== canonical(body)) {
+      /**
+       * Guard: the conflict check MUST NOT see two spellings of one schema as two schemas. Plain
+       * `JSON.stringify` is key-order sensitive while the .NET side compares with
+       * `JsonNode.DeepEquals`, which is not — so a parameter bag and a body bag carrying the same
+       * type in a different key order would drop the endpoint here and build the tool there.
+       */
+      if (canonicalJson(existing) !== canonicalJson(body)) {
         throw new SezzleeTemplateError(
           "schema_def_conflict",
           `Two schemas define '${name}' differently; the tool cannot be built.`,

@@ -114,6 +114,13 @@ internal static class SdkErrors
         Retryable = true,
     };
 
+    public static SdkError RefuseChangedTool(string name) => new()
+    {
+        Error = SdkErrorCode.ToolChanged,
+        Message = $"The tool '{name}' changed after it was loaded, so the call was refused before reaching the backend. Load it again with load_tool and retry with the new version.",
+        Retryable = false,
+    };
+
     public static SdkError RefuseRankerUnavailable() => new()
     {
         Error = SdkErrorCode.SearchRankerUnavailable,

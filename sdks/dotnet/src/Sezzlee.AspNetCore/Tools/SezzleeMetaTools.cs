@@ -128,7 +128,7 @@ internal sealed class SezzleeMetaTools(
             {
                 continue;
             }
-            results.Add(wantsSchema ? Detail(entry, decision) : Card(entry, decision));
+            results.Add(wantsSchema ? Loaded(entry, decision) : Card(entry, decision));
             if (results.Count == capped)
             {
                 break;
@@ -183,7 +183,7 @@ internal sealed class SezzleeMetaTools(
         {
             return UnknownTool(name);
         }
-        return Respond(DetailFor(entry.Tool, decision), isError: false);
+        return Respond(Loaded(entry, decision), isError: false);
     }
 
     [McpServerTool(Name = "invoke_tool")]
@@ -193,13 +193,19 @@ internal sealed class SezzleeMetaTools(
         string name,
         [Description("Arguments as a JSON object whose keys are the input schema's properties. Send the object itself, not a string containing JSON.")]
         JsonElement arguments,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [Description("The version load_tool returned for this operation. When present, the call is refused with tool_changed if the operation changed after it was loaded; omit it to skip the check.")]
+        string version = null!)
     {
         catalog.EnsureValid();
         CatalogEntry? entry = catalog.Find(name);
         if (entry is null)
         {
             return UnknownTool(name);
+        }
+        if (version is not null && !string.Equals(version, ToolVersion.Of(entry.Tool), StringComparison.Ordinal))
+        {
+            return Respond(SdkErrors.RefuseChangedTool(entry.Tool.Name), isError: true);
         }
         if (entry.Template is not { } template)
         {
@@ -348,8 +354,8 @@ internal sealed class SezzleeMetaTools(
         AuthUncertain = Uncertain(decision),
     };
 
-    private static object Detail(CatalogEntry entry, VisibilityDecision decision) =>
-        DetailFor(entry.Tool, decision);
+    private static object Loaded(CatalogEntry entry, VisibilityDecision decision) =>
+        DetailFor(entry.Tool, decision, ToolVersion.Of(entry.Tool));
 
     /// <summary>
     /// Projects a tool into its loaded shape: name, untruncated description, input schema, output schema
@@ -361,7 +367,7 @@ internal sealed class SezzleeMetaTools(
     /// name MUST NOT reach the agent (visibility.md invariant 3). detail/auth-is-never-emitted.json fails
     /// on either SDK that emits <c>auth</c>.
     /// </remarks>
-    internal static object DetailFor(Spec.ToolDefinition tool, VisibilityDecision decision) => new
+    internal static object DetailFor(Spec.ToolDefinition tool, VisibilityDecision decision, string? version = null) => new
     {
         tool.Name,
         tool.Description,
@@ -370,6 +376,7 @@ internal sealed class SezzleeMetaTools(
         tool.Annotations,
         Deprecated = tool.Deprecated == true ? true : (bool?)null,
         AuthUncertain = Uncertain(decision),
+        Version = version,
     };
 
     private static string Truncate(string text)

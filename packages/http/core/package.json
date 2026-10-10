@@ -1,6 +1,6 @@
 {
   "name": "@sezzlee/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "TypeScript reference implementation of sezzlee's HTTP catalog spec: naming, selection, curation, search, request composition and error mapping.",
   "keywords": [
     "mcp",

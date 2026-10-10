@@ -1,6 +1,6 @@
 {
   "name": "@sezzlee/sdk-nestjs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Embeds an MCP layer into an existing NestJS backend: search-first tool discovery over your real endpoints, dispatched through your own guards, pipes and interceptors.",
   "keywords": [
     "mcp",
