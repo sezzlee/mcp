@@ -36,6 +36,12 @@ export const Route = createFileRoute("/docs/$product/$slug")({
             title: `${loaderData.title} — ${loaderData.productLabel} — Sezzlee Docs`,
           },
           { name: "description", content: loaderData.summary },
+          { property: "og:type", content: "article" },
+          {
+            property: "og:title",
+            content: `${loaderData.title} — ${loaderData.productLabel}`,
+          },
+          { property: "og:description", content: loaderData.summary },
         ]
       : [],
   }),
