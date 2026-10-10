@@ -322,10 +322,18 @@ public sealed class TransportTests
                     return ValueTask.CompletedTask;
                 });
 
-            await app.App.Services.GetRequiredService<SezzleeCatalogProvider>().ReloadAsync();
-
-            Task completed = await Task.WhenAny(notified.Task, Task.Delay(TimeSpan.FromSeconds(10)));
-            Assert.Same(notified.Task, completed);
+            // Guard: the client opens its standalone GET stream after initialize, asynchronously, and
+            // the MCP server drops a notification sent before that stream exists
+            // (StreamableHttpServerTransport.SendMessageAsync). One reload right after connect races
+            // it, so the catalog keeps changing until the notification lands or the deadline passes.
+            SezzleeCatalogProvider catalog = app.App.Services.GetRequiredService<SezzleeCatalogProvider>();
+            Task deadline = Task.Delay(TimeSpan.FromSeconds(10));
+            while (!notified.Task.IsCompleted && !deadline.IsCompleted)
+            {
+                await catalog.ReloadAsync();
+                await Task.WhenAny(notified.Task, deadline, Task.Delay(TimeSpan.FromMilliseconds(250)));
+            }
+            Assert.True(notified.Task.IsCompleted);
         }
     }
 
