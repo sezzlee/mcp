@@ -1,6 +1,6 @@
 # Error codes
 
-> Generated from the error-code union types of `@sezzlee/mssql-mcp` 0.2.0.
+> Generated from the error-code union types of `@sezzlee/mssql-mcp` 0.2.1.
 
 A tool that fails answers with `isError: true` and one text item holding a JSON object with three fields: `error`, a stable machine code from this page; `message`, what went wrong; and `recovery`, what the next call should do differently. Branch on `error`, never on `message`.
 

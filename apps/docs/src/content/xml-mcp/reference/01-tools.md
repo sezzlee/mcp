@@ -1,6 +1,6 @@
 # Tools
 
-> Generated from the `tools/list` answer (server name `sezzlee-xml`) of `@sezzlee/xml-mcp` 0.5.0.
+> Generated from the `tools/list` answer (server name `sezzlee-xml`) of `@sezzlee/xml-mcp` 0.5.1.
 
 The descriptions are the text the server publishes to every client, so your agent reads exactly what this page shows. Every input schema is closed: an argument a tool does not list here, or a value of the wrong type, is refused with `invalid_argument` and never silently ignored.
 

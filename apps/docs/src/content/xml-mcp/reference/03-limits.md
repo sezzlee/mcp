@@ -1,6 +1,6 @@
 # Limits
 
-> Generated from the exported `limits` object of `@sezzlee/xml-mcp` 0.5.0.
+> Generated from the exported `limits` object of `@sezzlee/xml-mcp` 0.5.1.
 
 Every limit is fixed at build time; none is configurable. A call that would cross one either answers with `truncated: true` and a way to continue, or fails with `resource_limit`.
 
