@@ -5,7 +5,12 @@ import { ProductIcon } from "../components/ProductIcon";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import { products } from "../lib/content";
-import { ORGANIZATION_ID, SITE_LINKS, SITE_ORIGIN, SITE_TITLE } from "../lib/site";
+import {
+  ORGANIZATION_ID,
+  SITE_LINKS,
+  SITE_ORIGIN,
+  SITE_TITLE,
+} from "../lib/site";
 import classes from "../styles/home.module.css";
 
 const homeUrl = `${SITE_ORIGIN}/`;
