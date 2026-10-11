@@ -1,0 +1,38 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.sezzlee/pdf",
+  "title": "Sezzlee PDF",
+  "description": "Extract text from local PDF documents with optional pluggable OCR. Read-only, no network.",
+  "websiteUrl": "https://docs.sezzlee.app/docs/pdf-mcp/quickstart",
+  "repository": {
+    "url": "https://github.com/sezzlee/mcp",
+    "source": "github",
+    "subfolder": "packages/servers/pdf-mcp"
+  },
+  "version": "0.1.2",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@sezzlee/pdf-mcp",
+      "version": "0.1.2",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "valueHint": "root",
+          "description": "Folder the server may read; every path stays inside it",
+          "isRequired": true,
+          "format": "filepath"
+        },
+        {
+          "type": "named",
+          "name": "--ocr",
+          "description": "Module whose default export is an OcrBinding; omit to keep OCR off",
+          "format": "filepath"
+        }
+      ]
+    }
+  ]
+}

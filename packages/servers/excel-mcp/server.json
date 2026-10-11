@@ -1,0 +1,32 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.sezzlee/excel",
+  "title": "Sezzlee Excel",
+  "description": "Read local Excel workbooks (.xlsx, .xlsm, .csv): cells, formulas, tables. Read-only, sandboxed.",
+  "websiteUrl": "https://docs.sezzlee.app/docs/excel-mcp/quickstart",
+  "repository": {
+    "url": "https://github.com/sezzlee/mcp",
+    "source": "github",
+    "subfolder": "packages/servers/excel-mcp"
+  },
+  "version": "0.7.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@sezzlee/excel-mcp",
+      "version": "0.7.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "valueHint": "root",
+          "description": "Folder the server may read; every path stays inside it",
+          "isRequired": true,
+          "format": "filepath"
+        }
+      ]
+    }
+  ]
+}

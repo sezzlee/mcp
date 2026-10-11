@@ -4,6 +4,7 @@ import { DocMarkdown } from "../components/DocMarkdown";
 import { DocsNotFound } from "../components/DocsNotFound";
 import { OnThisPage } from "../components/OnThisPage";
 import { getDoc, getProduct, getRedirect } from "../lib/content";
+import { ORGANIZATION_ID, SITE_ORIGIN, SITE_TITLE } from "../lib/site";
 
 export const Route = createFileRoute("/docs/$product/$slug")({
   loader: ({ params }) => {
@@ -29,22 +30,44 @@ export const Route = createFileRoute("/docs/$product/$slug")({
       productLabel: product.label,
     };
   },
-  head: ({ loaderData }) => ({
-    meta: loaderData
-      ? [
-          {
-            title: `${loaderData.title} — ${loaderData.productLabel} — Sezzlee Docs`,
-          },
-          { name: "description", content: loaderData.summary },
-          { property: "og:type", content: "article" },
-          {
-            property: "og:title",
-            content: `${loaderData.title} — ${loaderData.productLabel}`,
-          },
-          { property: "og:description", content: loaderData.summary },
-        ]
-      : [],
-  }),
+  head: ({ loaderData }) => {
+    if (!loaderData) {
+      return {};
+    }
+    const url = `${SITE_ORIGIN}/docs/${loaderData.file}`;
+    return {
+      meta: [
+        {
+          title: `${loaderData.title} — ${loaderData.productLabel} — ${SITE_TITLE}`,
+        },
+        { name: "description", content: loaderData.summary },
+        { property: "og:type", content: "article" },
+        { property: "og:url", content: url },
+        {
+          property: "og:title",
+          content: `${loaderData.title} — ${loaderData.productLabel}`,
+        },
+        { property: "og:description", content: loaderData.summary },
+      ],
+      links: [{ rel: "canonical", href: url }],
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "TechArticle",
+            headline: loaderData.title,
+            description: loaderData.summary,
+            url,
+            inLanguage: "en",
+            about: loaderData.productLabel,
+            isPartOf: { "@id": `${SITE_ORIGIN}/#website` },
+            publisher: { "@id": ORGANIZATION_ID },
+          }),
+        },
+      ],
+    };
+  },
   component: DocPage,
   notFoundComponent: DocsNotFound,
 });

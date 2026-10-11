@@ -1,6 +1,7 @@
 {
   "name": "@sezzlee/pdf-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
+  "mcpName": "io.github.sezzlee/pdf",
   "description": "Read-only MCP server that lets AI agents extract text from local PDF documents, with optional pluggable OCR. Never reaches the network.",
   "keywords": [
     "mcp",

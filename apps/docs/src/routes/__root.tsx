@@ -12,11 +12,10 @@ import {
   mantineHtmlProps,
 } from "@mantine/core";
 import { DocsSpotlight } from "../components/DocsSearch";
+import { SITE_ORIGIN, SITE_TITLE } from "../lib/site";
 import appCss from "../styles/app.css?url";
 import { theme } from "../theme";
 
-const siteOrigin = "https://docs.sezzlee.app";
-const siteTitle = "Sezzlee Docs";
 const siteDescription =
   "Connect spreadsheets, PDFs, XML, SQL Server and your own API to any MCP agent with Sezzlee's open-source servers.";
 
@@ -25,16 +24,16 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: siteTitle },
+      { title: SITE_TITLE },
       { name: "description", content: siteDescription },
-      { property: "og:site_name", content: siteTitle },
+      { property: "og:site_name", content: SITE_TITLE },
       { property: "og:type", content: "website" },
-      { property: "og:title", content: siteTitle },
+      { property: "og:title", content: SITE_TITLE },
       { property: "og:description", content: siteDescription },
-      { property: "og:image", content: `${siteOrigin}/og.png` },
+      { property: "og:image", content: `${SITE_ORIGIN}/og.png` },
       { property: "og:image:width", content: "1200" },
       { property: "og:image:height", content: "630" },
-      { property: "og:image:alt", content: siteTitle },
+      { property: "og:image:alt", content: SITE_TITLE },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.sezzlee/xml",
+  "title": "Sezzlee XML",
+  "description": "Query local XML documents with XPath, paged and sandboxed to one folder. Read-only.",
+  "websiteUrl": "https://docs.sezzlee.app/docs/xml-mcp/quickstart",
+  "repository": {
+    "url": "https://github.com/sezzlee/mcp",
+    "source": "github",
+    "subfolder": "packages/servers/xml-mcp"
+  },
+  "version": "0.5.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@sezzlee/xml-mcp",
+      "version": "0.5.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "valueHint": "root",
+          "description": "Folder the server may read; every path stays inside it",
+          "isRequired": true,
+          "format": "filepath"
+        }
+      ]
+    }
+  ]
+}

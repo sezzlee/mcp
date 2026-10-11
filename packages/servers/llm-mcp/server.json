@@ -1,0 +1,61 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.sezzlee/llm",
+  "title": "Sezzlee Local LLM",
+  "description": "Let a planning agent hand bounded language work to a local Ollama model.",
+  "websiteUrl": "https://docs.sezzlee.app/docs/llm-mcp/quickstart",
+  "repository": {
+    "url": "https://github.com/sezzlee/mcp",
+    "source": "github",
+    "subfolder": "packages/servers/llm-mcp"
+  },
+  "version": "0.1.3",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@sezzlee/llm-mcp",
+      "version": "0.1.3",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "SEZZLEE_LLM_MODEL",
+          "description": "Ollama model to call",
+          "isRequired": true
+        },
+        {
+          "name": "SEZZLEE_LLM_BASE_URL",
+          "description": "Ollama base URL",
+          "default": "http://127.0.0.1:11434"
+        },
+        {
+          "name": "SEZZLEE_LLM_NUM_CTX",
+          "description": "Context window in tokens",
+          "format": "number",
+          "default": "16384"
+        },
+        {
+          "name": "SEZZLEE_LLM_TIMEOUT_MS",
+          "description": "Per-call timeout in milliseconds",
+          "format": "number",
+          "default": "300000"
+        },
+        {
+          "name": "SEZZLEE_LLM_KEEP_ALIVE",
+          "description": "How long Ollama keeps the model loaded"
+        },
+        {
+          "name": "SEZZLEE_LLM_ROOT",
+          "description": "Workspace folder paths resolve against",
+          "format": "filepath"
+        },
+        {
+          "name": "SEZZLEE_LLM_OUTPUT_DIR",
+          "description": "Folder local_map writes its CSV into",
+          "format": "filepath"
+        }
+      ]
+    }
+  ]
+}

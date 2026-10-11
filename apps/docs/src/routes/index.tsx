@@ -5,9 +5,35 @@ import { ProductIcon } from "../components/ProductIcon";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import { products } from "../lib/content";
+import { ORGANIZATION_ID, SITE_LINKS, SITE_ORIGIN, SITE_TITLE } from "../lib/site";
 import classes from "../styles/home.module.css";
 
+const homeUrl = `${SITE_ORIGIN}/`;
+
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [{ property: "og:url", content: homeUrl }],
+    links: [{ rel: "canonical", href: homeUrl }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          "@id": `${homeUrl}#website`,
+          name: SITE_TITLE,
+          url: homeUrl,
+          inLanguage: "en",
+          publisher: {
+            "@type": "Organization",
+            "@id": ORGANIZATION_ID,
+            name: "Sezzlee",
+            url: SITE_LINKS.product,
+          },
+        }),
+      },
+    ],
+  }),
   component: Home,
 });
 

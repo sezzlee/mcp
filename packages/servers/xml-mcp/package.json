@@ -1,6 +1,7 @@
 {
   "name": "@sezzlee/xml-mcp",
-  "version": "0.5.0",
+  "version": "0.5.1",
+  "mcpName": "io.github.sezzlee/xml",
   "description": "Read-only MCP server that lets AI agents query local XML documents with XPath, paged and sandboxed to one folder.",
   "keywords": [
     "mcp",

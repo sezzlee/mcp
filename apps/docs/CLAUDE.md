@@ -24,7 +24,8 @@ There are no tests in this app.
 The site runs on Cloudflare Workers through `@cloudflare/vite-plugin`; `wrangler.jsonc` is the
 config. Every page reachable by a link is prerendered at build time (`prerender.crawlLinks`) and
 served as a static asset; the Worker only answers what no file matches — the `/docs` and
-`/docs/$product` redirects and 404s. `cloudflare()` must stay first in `vite.config.ts`.
+`/docs/$product` redirects, `/sitemap.xml` (built from the content registry, so it lists every
+page and nothing the crawler merely followed) and 404s. `cloudflare()` must stay first in `vite.config.ts`.
 
 `assets.html_handling` is `drop-trailing-slash` because prerender writes `<route>/index.html` while
 every link is slash-less; the default `auto-trailing-slash` would answer each page with a 307 to

@@ -1,6 +1,7 @@
 {
   "name": "@sezzlee/openapi-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
+  "mcpName": "io.github.sezzlee/openapi",
   "description": "MCP server that exposes an OpenAPI document as a search-first sezzlee catalog over a remote backend.",
   "keywords": [
     "mcp",

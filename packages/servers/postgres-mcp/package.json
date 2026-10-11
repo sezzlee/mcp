@@ -1,6 +1,7 @@
 {
   "name": "@sezzlee/postgres-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
+  "mcpName": "io.github.sezzlee/postgres",
   "description": "Read-only PostgreSQL MCP server with catalog search, schema introspection and bounded queries.",
   "license": "MIT",
   "repository": {
