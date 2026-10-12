@@ -261,6 +261,30 @@ describe("openapi-mcp document reload", () => {
     await client.close();
   });
 
+  it("refuses a document that moves a host it already calls from https to plain http", async () => {
+    const host = new URL(origin).host;
+    const { reloader, client, call } = await start(
+      documentOf(
+        { "/a": { get: { operationId: "getA", responses: ok } } },
+        `https://${host}/v1`,
+      ),
+    );
+
+    served = {
+      body: documentOf(
+        { "/a": { get: { operationId: "getA", responses: ok } } },
+        `http://${host}/v1`,
+      ),
+      etag: "v2",
+    };
+    const outcome = await reloader.reload();
+
+    expect(outcome.kind === "kept" && outcome.reason).toBe("widens_egress");
+    expect(reloader.current().generation).toBe(1);
+    expect((await call("load_tool", { name: "get_a" })).error).toBeUndefined();
+    await client.close();
+  });
+
   it("runs one reload at a time and folds a burst of triggers into one more", async () => {
     const { reloader, client } = await start(first());
     const opening = reads;

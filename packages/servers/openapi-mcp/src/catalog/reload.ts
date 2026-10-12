@@ -60,6 +60,14 @@ const firstGeneration = 1;
 const digestOf = (text: string): string =>
   createHash("sha256").update(text).digest("hex");
 
+const plaintextOrigins = (gateway: GatewayCatalog): ReadonlySet<string> =>
+  new Set(
+    gateway.catalog.entries
+      .map((entry) => new URL(entry.baseUrl))
+      .filter((url) => url.protocol === "http:")
+      .map((url) => url.origin),
+  );
+
 /** A catalog that never changes, for a host that builds one and serves it as it is. */
 export function fixedCatalog(gateway: GatewayCatalog): CatalogState {
   const snapshot = Object.freeze({ gateway, generation: firstGeneration });
@@ -73,8 +81,10 @@ export function fixedCatalog(gateway: GatewayCatalog): CatalogState {
  * Re-reads the gateway's document and swaps the catalog when it changed.
  *
  * Guard: a reload never widens egress. The hosts the first catalog may call are the ceiling for
- * every later one; a document whose `servers` move to a host outside it is refused, because
- * accepting it would send the operator's credentials wherever the document's author points them.
+ * every later one, and the plain-http origins it calls are the ceiling for plain http; a document
+ * whose `servers` move to a host outside the first, or from https to http on a host it already
+ * calls, is refused. Accepting either would send the operator's credentials wherever the
+ * document's author points them, the second in clear text.
  *
  * Guard: one reload runs at a time. A trigger that arrives while one runs schedules exactly one
  * more, so a burst of triggers costs two builds, and the last document read is always the newest.
@@ -83,6 +93,7 @@ export function createCatalogReloader(
   options: ReloaderOptions,
 ): CatalogReloader {
   const ceiling = options.initial.allowedHosts;
+  const plaintextCeiling = plaintextOrigins(options.initial);
   const listeners = new Set<(snapshot: CatalogSnapshot) => void>();
   let snapshot: CatalogSnapshot = Object.freeze({
     gateway: options.initial,
@@ -127,18 +138,23 @@ export function createCatalogReloader(
       refused = digest;
       return kept("fatal", diagnostics);
     }
-    const widened = [...candidate.allowedHosts].filter(
-      (host) => !ceiling.has(host),
-    );
-    if (widened.length > 0) {
-      refused = digest;
-      return kept(
-        "widens_egress",
-        widened.map(
+    const widened = [
+      ...[...candidate.allowedHosts]
+        .filter((host) => !ceiling.has(host))
+        .map(
           (host) =>
             `the document now calls '${host}', which the running catalog does not; restart the gateway to accept it.`,
         ),
-      );
+      ...[...plaintextOrigins(candidate)]
+        .filter((origin) => !plaintextCeiling.has(origin))
+        .map(
+          (origin) =>
+            `the document now calls '${origin}' over plain http, which the running catalog does not; restart the gateway to accept it.`,
+        ),
+    ];
+    if (widened.length > 0) {
+      refused = digest;
+      return kept("widens_egress", widened);
     }
     snapshot = Object.freeze({
       gateway: candidate,

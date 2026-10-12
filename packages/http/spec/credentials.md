@@ -7,7 +7,7 @@ An embedded SDK replays a call through the backend's own pipeline, so the caller
 ## Invariants
 
 1. **The caller's MCP token is never forwarded.** Its audience is the invoker ([transport.md](transport.md)); a backend that accepted it would have its audience check bypassed, and a stolen MCP token would reach the backend directly. There is no configuration that forwards it, including a declaration that the backend accepts the invoker's audience.
-2. **A credential reaches only an allowlisted host.** The allowlist is the one invocation uses. A redirect is not followed, so a `Location` header cannot move a credential. A re-read document cannot move one either: the hosts the first catalog may call are the ceiling for every later catalog, and a document whose servers leave them is refused, keeping the running catalog.
+2. **A credential reaches only an allowlisted host.** The allowlist is the one invocation uses. A redirect is not followed, so a `Location` header cannot move a credential. A re-read document cannot move one either: the hosts the first catalog may call are the ceiling for every later catalog, and a document whose servers leave them, or move one from https to plain http, is refused, keeping the running catalog.
 3. **A credential is never an argument and never appears in a result.** It is written after composition and is invisible to the agent, the card, the error envelope and the log.
 
 ## Sources

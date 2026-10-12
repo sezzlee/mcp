@@ -125,7 +125,8 @@ and shared.
   exchange.
 - **A reload never widens egress.** `reload` re-reads only the document, never the config, and the
   hosts the first catalog may call are the ceiling for every later one: a document whose servers
-  move to a host outside it is refused (`widens_egress`). A refused document, one with a fatal
+  move to a host outside it, or from https to plain http on a host it already calls, is refused
+  (`widens_egress`). A refused document, one with a fatal
   diagnostic, or one that cannot be read keeps the running catalog. A committed reload advances the
   catalog generation stamped on every meta-tool and sends `tools/list_changed`. A tool loaded
   before a reload answers `unknown_tool` if it is gone and `tool_changed` to a call pinned to its
