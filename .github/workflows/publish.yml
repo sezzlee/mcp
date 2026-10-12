@@ -11,6 +11,10 @@ on:
         description: Id of a green Publish run of this same main commit; its packages are published and CI is not run again
         type: string
         default: ""
+      full:
+        description: Run the CI over every package and every matrix leg instead of the planned scope
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -24,10 +28,17 @@ jobs:
   ci:
     if: ${{ inputs.from_run == '' }}
     uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      actions: read
+    with:
+      full: ${{ inputs.full }}
 
   # Guard: publishing another run's packages is only as safe as the check that the run built
-  # this very commit on main and passed the full CI, release matrix included. Anything looser
-  # would let a stale or failed build reach the registries without CI ever running on it.
+  # this very commit on main and passed its CI. That CI is scoped by plan-ci.mjs, but always
+  # covers every package whose version is not yet published, with its dependents and the native
+  # matrix when one is a file package; a package outside the scope is one publish skips anyway.
+  # Anything looser would let a stale or failed build reach the registries without CI on it.
   source:
     needs: ci
     if: ${{ !cancelled() && (needs.ci.result == 'success' || (needs.ci.result == 'skipped' && inputs.from_run != '')) }}

@@ -1,8 +1,22 @@
 name: CI
 
 on:
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      full:
+        description: Run every package and every matrix leg, whatever changed
+        type: boolean
+        default: false
   workflow_call:
+    inputs:
+      full:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 # github.workflow is the caller's name under workflow_call, so a release
 # build started by publish.yml never shares a group with a push to main,
@@ -12,17 +26,55 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The scope is the packages changed since the last green CI of main (a pull
+  # request's base for a pull request) plus the packages about to be published,
+  # each with its dependents. A pull request never runs the native matrix or
+  # packs; .github/scripts/plan-ci.mjs falls back to everything when it cannot
+  # tell what a change touches.
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      filters: ${{ steps.plan.outputs.filters }}
+      native: ${{ steps.plan.outputs.native }}
+      node_versions: ${{ steps.plan.outputs.node_versions }}
+      dotnet: ${{ steps.plan.outputs.dotnet }}
+      pack: ${{ steps.plan.outputs.pack }}
+      pack_build: ${{ steps.plan.outputs.pack_build }}
+      pack_filters: ${{ steps.plan.outputs.pack_filters }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.6.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FULL: ${{ inputs.full }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node .github/scripts/plan-ci.mjs
+
   native:
     name: secure files (${{ matrix.target.id }}, Node ${{ matrix.node }})
+    needs: plan
+    if: ${{ needs.plan.outputs.native == 'true' }}
     runs-on: ${{ matrix.target.os }}
     strategy:
       fail-fast: false
       matrix:
         # Only Node 24 uploads a prebuild, so the Node 22 legs are pure
-        # compatibility checks and double the bill for no artifact. They run on
-        # a dispatched round — which is what a native release is — or when a
-        # commit asks for them with [node22].
-        node: [22, 24]
+        # compatibility checks. They run when a file package is being released
+        # or the run is full; plan decides.
+        node: ${{ fromJSON(needs.plan.outputs.node_versions) }}
         # pdf: whether the PDF engine publishes a prebuilt binary for this
         # target. @firecrawl/pdf-inspector ships no darwin-x64 build and its
         # wasm fallback is unpublished, so @sezzlee/pdf-mcp is left out of that
@@ -60,7 +112,10 @@ jobs:
 
   node:
     name: build, lint, types, fixtures
+    needs: plan
     runs-on: ubuntu-latest
+    env:
+      FILTERS: ${{ needs.plan.outputs.filters }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -76,12 +131,20 @@ jobs:
             8.0.x
             10.0.x
       - run: pnpm install --frozen-lockfile
-      - run: pnpm turbo run build check-types lint validate
+      - if: ${{ needs.plan.outputs.filters != '' }}
+        run: |
+          read -ra filters <<< "$FILTERS"
+          pnpm turbo run build check-types lint validate "${filters[@]}"
       - run: pnpm turbo run format:check
-      - run: pnpm turbo run test --filter='!@sezzlee/sdk-dotnet'
+      - if: ${{ needs.plan.outputs.filters != '' }}
+        run: |
+          read -ra filters <<< "$FILTERS"
+          pnpm turbo run test "${filters[@]}" --filter='!@sezzlee/sdk-dotnet'
 
   dotnet:
     name: dotnet test (net8.0 + net10.0)
+    needs: plan
+    if: ${{ needs.plan.outputs.dotnet == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -101,10 +164,18 @@ jobs:
       - run: node packages/http/conformance/validate.mjs
       - run: pnpm turbo run test --filter=@sezzlee/sdk-dotnet
 
+  # Packs what a publish can release: the HTTP catalog packages and the NuGet
+  # package always, the file packages only when the native matrix built their
+  # prebuilds. Publish skips any version already on its registry, so a package
+  # left out here is one whose version is already published.
   pack:
     name: pack Sezzlee.AspNetCore
     runs-on: ubuntu-latest
-    needs: [node, dotnet, native]
+    needs: [plan, node, dotnet, native]
+    if: ${{ !cancelled() && needs.plan.outputs.pack == 'true' && needs.node.result == 'success' && contains(fromJSON('["success","skipped"]'), needs.dotnet.result) && contains(fromJSON('["success","skipped"]'), needs.native.result) }}
+    env:
+      PACK_BUILD: ${{ needs.plan.outputs.pack_build }}
+      PACK_FILTERS: ${{ needs.plan.outputs.pack_filters }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -127,17 +198,23 @@ jobs:
         with:
           name: Sezzlee.AspNetCore-nupkg
           path: sdks/dotnet/local/nupkg-feed/*
-      - run: pnpm turbo run build --filter=@sezzlee/mcp-core --filter=@sezzlee/core --filter=@sezzlee/openapi --filter=@sezzlee/openapi-mcp --filter=@sezzlee/sdk-nestjs --filter=@sezzlee/db-core --filter=@sezzlee/mssql-mcp --filter=@sezzlee/postgres-mcp --filter=@sezzlee/file-core --filter=@sezzlee/ooxml-core --filter=@sezzlee/excel-mcp --filter=@sezzlee/xml-mcp --filter=@sezzlee/pdf-mcp --filter=@sezzlee/pdf-raster-pdfjs --filter=@sezzlee/ocr-ollama --filter=@sezzlee/llm-mcp
+      - run: |
+          read -ra filters <<< "$PACK_BUILD"
+          pnpm turbo run build "${filters[@]}"
       - uses: actions/download-artifact@v8
+        if: ${{ needs.plan.outputs.native == 'true' }}
         with:
           pattern: native-*
           path: packages/cores/file-core-native/prebuilds/
           merge-multiple: true
-      - run: pnpm pack --filter=@sezzlee/file-core-native --filter=@sezzlee/mcp-core --filter=@sezzlee/core --filter=@sezzlee/openapi --filter=@sezzlee/openapi-mcp --filter=@sezzlee/sdk-nestjs --filter=@sezzlee/db-core --filter=@sezzlee/mssql-mcp --filter=@sezzlee/postgres-mcp --filter=@sezzlee/file-core --filter=@sezzlee/ooxml-core --filter=@sezzlee/excel-mcp --filter=@sezzlee/xml-mcp --filter=@sezzlee/pdf-mcp --filter=@sezzlee/llm-mcp --filter=@sezzlee/pdf-raster-pdfjs --filter=@sezzlee/ocr-ollama --pack-destination ./local/npm-tarballs
+      - run: |
+          read -ra filters <<< "$PACK_FILTERS"
+          pnpm pack "${filters[@]}" --pack-destination ./local/npm-tarballs
       - run: python3 .github/scripts/check-npm-tarballs.py local/npm-tarballs
         env:
           SEZZLEE_REQUIRE_ALL_PREBUILDS: "1"
-      - run: node .github/scripts/smoke-file-packages.mjs local/npm-tarballs
+      - if: ${{ needs.plan.outputs.native == 'true' }}
+        run: node .github/scripts/smoke-file-packages.mjs local/npm-tarballs
       - run: node .github/scripts/smoke-http-packages.mjs local/npm-tarballs
       - uses: actions/upload-artifact@v7
         with:

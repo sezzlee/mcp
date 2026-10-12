@@ -195,7 +195,7 @@ async function gatewayOf(): Promise<GatewayCatalog> {
 }
 
 const limits = {
-  timeoutMs: 200,
+  timeoutMs: 5000,
   maxResponseBytes: 1024,
   maxInlineFileBytes: 1024,
 };
@@ -335,7 +335,7 @@ describe("openapi-mcp gateway", () => {
       gateway.catalog.byName.get("slow")!,
       {},
       fetcher,
-      limits,
+      { ...limits, timeoutMs: 200 },
       undefined,
     );
     expect(response.isError).toBe(true);

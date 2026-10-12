@@ -218,5 +218,14 @@ try {
     `Installed native ${manifest.version}; snapshot read, regex worker, XML listing and packed-worker parse passed on ${process.platform}-${process.arch} (${basename(input)}). PDF engine: ${packedPdf ? "page read and search passed" : "not packed for this target"}.`,
   );
 } finally {
-  await rm(directory, { recursive: true, force: true });
+  /**
+   * Guard: Windows releases the handles of a just-exited child a moment late, and a cleanup
+   * failure would fail a smoke that passed; rm retries EBUSY and EPERM on its own when asked.
+   */
+  await rm(directory, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 200,
+  });
 }

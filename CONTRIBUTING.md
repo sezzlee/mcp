@@ -28,7 +28,7 @@ pnpm check-types
 
 Package names are flat (`@sezzlee/excel-mcp`), so `--filter` never mentions a folder. The boundaries
 between packages — which may depend on which, and what each must never name — are listed in
-[CLAUDE.md](CLAUDE.md) and enforced by lint.
+[AGENTS.md](AGENTS.md) and enforced by lint.
 
 ## Tests
 
