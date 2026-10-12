@@ -74,9 +74,27 @@ interface RowPage {
 export function createHandlers<TConfig>(
   source: DbSource<TConfig>,
   normalize: ErrorNormalizer,
-  report?: UnexpectedErrorReporter,
+  options: {
+    readonly report?: UnexpectedErrorReporter;
+    readonly principalGate?: "query" | "every_read";
+  } = {},
 ): ToolHandlers {
   const { dialect, vocabulary, fail, limits, runner, redact } = source;
+  const { report } = options;
+  const everyRead = options.principalGate === "every_read";
+
+  async function requirePermittedPrincipal(signal?: AbortSignal) {
+    const posture = await source.principal(signal);
+    if (!queryPermitted(posture, source.sessionIntent)) {
+      throw fail(
+        "write_not_permitted",
+        posture === "unknown"
+          ? "The connected principal's privileges could not be verified, so queries are disabled."
+          : `The connected principal is ${posture === "administrator" ? "an administrator" : "able to write"}, so queries are disabled.`,
+        vocabulary.readOnlyRecovery,
+      );
+    }
+  }
 
   const guarded = <K extends ToolName>(
     tool: K,
@@ -189,6 +207,7 @@ export function createHandlers<TConfig>(
     ),
 
     search_catalog: guarded("search_catalog", async (args, signal) => {
+      if (everyRead) await requirePermittedPrincipal(signal);
       const snapshot = await source.catalog.read(args.refresh ?? false, signal);
       const maxResults = args.maxResults ?? limits.defaultListResults;
       const includeViews = args.includeViews ?? true;
@@ -328,6 +347,7 @@ export function createHandlers<TConfig>(
     }),
 
     describe_table: guarded("describe_table", async (args, signal) => {
+      if (everyRead) await requirePermittedPrincipal(signal);
       const ref = { schema: args.schema, name: args.table };
       const columns = await introspect(
         runner,
@@ -398,16 +418,7 @@ export function createHandlers<TConfig>(
       if (outcome.verdict === "refuse") {
         throw fail("write_not_permitted", outcome.reason, outcome.recovery);
       }
-      const posture = await source.principal(signal);
-      if (!queryPermitted(posture, source.sessionIntent)) {
-        throw fail(
-          "write_not_permitted",
-          posture === "unknown"
-            ? "The connected principal's privileges could not be verified, so queries are disabled."
-            : `The connected principal is ${posture === "administrator" ? "an administrator" : "able to write"}, so queries are disabled.`,
-          vocabulary.readOnlyRecovery,
-        );
-      }
+      await requirePermittedPrincipal(signal);
       const result = await runner.run(
         {
           sql: outcome.statement,
