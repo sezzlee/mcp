@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { ResolvedCredential } from "../platform/config.js";
 import { hasFatal, summarize, type GatewayCatalog } from "./build.js";
 
 export interface CatalogSnapshot {
@@ -60,13 +61,42 @@ const firstGeneration = 1;
 const digestOf = (text: string): string =>
   createHash("sha256").update(text).digest("hex");
 
-const plaintextOrigins = (gateway: GatewayCatalog): ReadonlySet<string> =>
-  new Set(
-    gateway.catalog.entries
-      .map((entry) => new URL(entry.baseUrl))
-      .filter((url) => url.protocol === "http:")
-      .map((url) => url.origin),
-  );
+type PlaintextCalls = ReadonlyMap<string, ReadonlySet<ResolvedCredential>>;
+
+function plaintextCalls(gateway: GatewayCatalog): PlaintextCalls {
+  const calls = new Map<string, Set<ResolvedCredential>>();
+  for (const entry of gateway.catalog.entries) {
+    const url = new URL(entry.baseUrl);
+    if (url.protocol !== "http:") {
+      continue;
+    }
+    const sent = calls.get(url.origin) ?? new Set<ResolvedCredential>();
+    for (const placement of entry.credentials) {
+      sent.add(placement.credential);
+    }
+    calls.set(url.origin, sent);
+  }
+  return calls;
+}
+
+function plaintextWidening(
+  ceiling: PlaintextCalls,
+  candidate: PlaintextCalls,
+): string[] {
+  return [...candidate].flatMap(([origin, sent]) => {
+    const allowed = ceiling.get(origin);
+    if (allowed === undefined) {
+      return [
+        `the document now calls '${origin}' over plain http, which the running catalog does not; restart the gateway to accept it.`,
+      ];
+    }
+    return [...sent].some((credential) => !allowed.has(credential))
+      ? [
+          `the document now sends a credential to '${origin}' over plain http that the running catalog does not send there; restart the gateway to accept it.`,
+        ]
+      : [];
+  });
+}
 
 /** A catalog that never changes, for a host that builds one and serves it as it is. */
 export function fixedCatalog(gateway: GatewayCatalog): CatalogState {
@@ -81,10 +111,11 @@ export function fixedCatalog(gateway: GatewayCatalog): CatalogState {
  * Re-reads the gateway's document and swaps the catalog when it changed.
  *
  * Guard: a reload never widens egress. The hosts the first catalog may call are the ceiling for
- * every later one, and the plain-http origins it calls are the ceiling for plain http; a document
- * whose `servers` move to a host outside the first, or from https to http on a host it already
- * calls, is refused. Accepting either would send the operator's credentials wherever the
- * document's author points them, the second in clear text.
+ * every later one, and what it sends over plain http, origin by origin and credential by
+ * credential, is the ceiling for plain http. A document that moves an operation to a new host,
+ * from https to http, or a credential onto an http origin that so far carried another or none, is
+ * refused. Accepting it would send the operator's credentials wherever the document's author
+ * points them, in the last two cases in clear text.
  *
  * Guard: one reload runs at a time. A trigger that arrives while one runs schedules exactly one
  * more, so a burst of triggers costs two builds, and the last document read is always the newest.
@@ -93,7 +124,7 @@ export function createCatalogReloader(
   options: ReloaderOptions,
 ): CatalogReloader {
   const ceiling = options.initial.allowedHosts;
-  const plaintextCeiling = plaintextOrigins(options.initial);
+  const plaintextCeiling = plaintextCalls(options.initial);
   const listeners = new Set<(snapshot: CatalogSnapshot) => void>();
   let snapshot: CatalogSnapshot = Object.freeze({
     gateway: options.initial,
@@ -145,12 +176,7 @@ export function createCatalogReloader(
           (host) =>
             `the document now calls '${host}', which the running catalog does not; restart the gateway to accept it.`,
         ),
-      ...[...plaintextOrigins(candidate)]
-        .filter((origin) => !plaintextCeiling.has(origin))
-        .map(
-          (origin) =>
-            `the document now calls '${origin}' over plain http, which the running catalog does not; restart the gateway to accept it.`,
-        ),
+      ...plaintextWidening(plaintextCeiling, plaintextCalls(candidate)),
     ];
     if (widened.length > 0) {
       refused = digest;

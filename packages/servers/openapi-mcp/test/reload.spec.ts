@@ -19,6 +19,7 @@ import {
   createOpenApiMcpServer,
   fetchDocument,
   type DocumentValidators,
+  type ResolvedCredential,
 } from "../src/index.js";
 
 interface Served {
@@ -101,7 +102,11 @@ const second = () =>
     "/c": { get: { operationId: "getC", responses: ok } },
   });
 
-async function start(body: string, etag: string | undefined = "v1") {
+async function start(
+  body: string,
+  etag: string | undefined = "v1",
+  credentials: ReadonlyMap<string, ResolvedCredential> = new Map(),
+) {
   served = { body, etag };
   const config = configSchema.parse({
     source: `${origin}/openapi.json`,
@@ -120,7 +125,7 @@ async function start(body: string, etag: string | undefined = "v1") {
     buildGatewayCatalog(
       text,
       config,
-      new Map(),
+      credentials,
       [],
       `${origin}/openapi.json`,
       undefined,
@@ -282,6 +287,41 @@ describe("openapi-mcp document reload", () => {
     expect(outcome.kind === "kept" && outcome.reason).toBe("widens_egress");
     expect(reloader.current().generation).toBe(1);
     expect((await call("load_tool", { name: "get_a" })).error).toBeUndefined();
+    await client.close();
+  });
+
+  it("refuses a document that moves a credentialed operation onto an http origin that only carried anonymous calls", async () => {
+    const host = new URL(origin).host;
+    const keyed = (keyedServer: string) =>
+      JSON.stringify({
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        servers: [{ url: keyedServer }],
+        components: {
+          securitySchemes: {
+            Key: { type: "apiKey", in: "header", name: "X-API-Key" },
+          },
+        },
+        security: [{ Key: [] }],
+        paths: {
+          "/a": { get: { operationId: "getA", responses: ok } },
+          "/b": {
+            servers: [{ url: `http://${host}/v1` }],
+            get: { operationId: "getB", security: [], responses: ok },
+          },
+        },
+      });
+    const { reloader, client } = await start(
+      keyed(`https://${host}/v1`),
+      "v1",
+      new Map([["Key", { kind: "value", value: "operator-secret" }]]),
+    );
+
+    served = { body: keyed(`http://${host}/v1`), etag: "v2" };
+    const outcome = await reloader.reload();
+
+    expect(outcome.kind === "kept" && outcome.reason).toBe("widens_egress");
+    expect(reloader.current().generation).toBe(1);
     await client.close();
   });
 
