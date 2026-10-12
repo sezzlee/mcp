@@ -1,0 +1,65 @@
+name: Registry
+
+on:
+  workflow_dispatch:
+    inputs:
+      servers:
+        description: Server folders under packages/servers to publish to the MCP Registry, space-separated (e.g. "openapi-mcp xml-mcp")
+        type: string
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: publish-registry
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Guard: the OIDC token of any branch in this repository is accepted for the
+    # io.github.sezzlee namespace, so only main's server.json may be published.
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PUBLISHER_VERSION: v1.8.1
+      PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+      REGISTRY_URL: https://registry.modelcontextprotocol.io
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install mcp-publisher
+        run: |
+          set -euo pipefail
+          curl -fsSL -o publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${PUBLISHER_SHA256}  publisher.tar.gz" | sha256sum -c -
+          tar -xzf publisher.tar.gz mcp-publisher
+          ./mcp-publisher --version
+      - name: Log in with GitHub OIDC
+        run: ./mcp-publisher login github-oidc
+      - name: Publish servers
+        env:
+          SERVERS: ${{ inputs.servers }}
+        run: |
+          set -euo pipefail -f
+          publisher="$PWD/mcp-publisher"
+          for server in $SERVERS; do
+            if ! [[ "$server" =~ ^[a-z0-9-]+$ ]] || [ ! -f "packages/servers/$server/server.json" ]; then
+              echo "::error::'$server' is not a server folder with a server.json"
+              exit 1
+            fi
+            manifest="packages/servers/$server/server.json"
+            name=$(jq -r .name "$manifest")
+            version=$(jq -r .version "$manifest")
+            if curl -fsS --get "$REGISTRY_URL/v0/servers" --data-urlencode "search=$name" \
+              | jq -e --arg name "$name" --arg version "$version" \
+                  'any(.servers[]?; (.server.name // .name) == $name and (.server.version // .version) == $version)' >/dev/null; then
+              echo "skip $name@$version: already in the registry"
+              continue
+            fi
+            (cd "packages/servers/$server" && "$publisher" publish)
+          done
