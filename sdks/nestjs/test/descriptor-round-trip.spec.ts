@@ -1062,6 +1062,8 @@ const unproducible: Record<string, string> = {
     "Nest discovery writes no auth.carriers: its identity carriers are the host's forwarded headers, never a declared slot on the descriptor.",
   "deprecated-surfaced.json":
     "Nest discovery does not read a deprecation marker; the flag arrives from an OpenAPI source.",
+  "revision-carried-to-tool.json":
+    "A revision is reduced by the catalog pipeline, not by discovery: the catalog level comes from options.revision, which this round-trip never builds a catalog for. revision.spec.ts carries all three levels through a real catalog.",
   "header-carrier-match-is-case-insensitive.json":
     "Nest discovery writes no auth.carriers: its identity carriers are the host's forwarded headers, never a declared slot on the descriptor.",
   "method-query-annotations.json":
