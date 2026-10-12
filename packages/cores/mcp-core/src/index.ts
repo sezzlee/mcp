@@ -41,6 +41,7 @@ export {
   type ToolDefinitions,
   type ToolInputOf,
   type ToolNameOf,
+  type UnexpectedErrorReporter,
 } from "./tools.js";
 export { mcpCoreLimits, type McpCoreLimits } from "./limits.js";
 export {

@@ -227,6 +227,28 @@ describe("the guard", () => {
     expect(written).toContain("x is not a function");
   });
 
+  it("hands an unclassified throw to an injected reporter instead of stderr", async () => {
+    const thrown = new TypeError("connect sql01.corp.local:1433 as reader");
+    const report = vi.fn();
+    const handler = guard<Definitions, "break_document">(
+      { tool: "break_document", fail, report },
+      async () => {
+        throw thrown;
+      },
+      normalize,
+    );
+    const stderr = vi
+      .spyOn(process.stderr, "write")
+      .mockImplementation(() => true);
+    const result = await handler({});
+    const written = stderr.mock.calls.length;
+    stderr.mockRestore();
+
+    expect(body(result)["error"]).toBe("internal_error");
+    expect(report).toHaveBeenCalledExactlyOnceWith("break_document", thrown);
+    expect(written).toBe(0);
+  });
+
   it("omits recovery when the failure carries none", async () => {
     const bare = fail("invalid_argument", "plain");
     expect(bare.recovery).toBeUndefined();

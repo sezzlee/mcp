@@ -1,5 +1,5 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { McpSourceError } from "@sezzlee/mcp-core";
 import {
   connectionSecret,
@@ -629,6 +629,34 @@ describe("run_query", () => {
     const envelope = body(result);
     expect(envelope["rows"]).toEqual([[1], [2]]);
     expect(envelope["complete"]).toBe(true);
+  });
+
+  it("hands a driver error no normalizer classified to the server's reporter", async () => {
+    const thrown = new Error("socket to db.internal:1433 as reader closed");
+    const { source } = build(catalogOnly, undefined, () => thrown);
+    const report = vi.fn();
+    const server = createDbMcpServer(
+      { name: "probe-db", version: "9.9.9" },
+      source,
+      normalize,
+      { report },
+    );
+    const local = new Client({ name: "db-spec", version: "0.0.0" });
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    await Promise.all([local.connect(a), server.connect(b)]);
+    const stderr = vi
+      .spyOn(process.stderr, "write")
+      .mockImplementation(() => true);
+    const result = (await local.callTool({
+      name: "run_query",
+      arguments: { sql: "select 1" },
+    })) as TextResult;
+    const written = stderr.mock.calls.length;
+    stderr.mockRestore();
+
+    expect(result.isError).toBe(true);
+    expect(report).toHaveBeenCalledWith("run_query", thrown);
+    expect(written).toBe(0);
   });
 
   it("refuses a write through the dialect guard, before any connection is used", async () => {

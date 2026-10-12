@@ -4,6 +4,7 @@ import {
   connectionSecret,
   createDbMcpServer,
   createDbSource,
+  type DbServerOptions,
   type DbSource,
 } from "@sezzlee/db-core";
 import { createPostgresDialect } from "./dialect/index.js";
@@ -56,10 +57,12 @@ export function createPostgresSource(
 }
 export function createPostgresMcpServer(
   source: DbSource<PostgresConfig>,
+  options: DbServerOptions = {},
 ): McpServer {
   return createDbMcpServer(
     { name: "sezzlee-postgres", version: manifest.version },
     source,
     asPostgresError,
+    options,
   );
 }
