@@ -2,7 +2,10 @@ import { searchParameters } from "../card.js";
 import { curatedDescriptions, type CurationRelief } from "../curation.js";
 import { SezzleeCatalogError, SezzleeTemplateError } from "../errors.js";
 import type { FileOptions } from "../file-argument.js";
-import type { EndpointDescriptor } from "../generated/endpoint-descriptor.js";
+import type {
+  EndpointDescriptor,
+  Revision,
+} from "../generated/endpoint-descriptor.js";
 import type { ToolDefinition } from "../generated/tool-definition.js";
 import {
   deduplicateOperations,
@@ -42,6 +45,7 @@ import {
   type CatalogDiagnostic,
   type CatalogSeverity,
 } from "./diagnostics.js";
+import { declareRevision, type RevisionDeclarations } from "./revision.js";
 
 export type DiagnosticReporter = (diagnostic: CatalogDiagnostic) => void;
 
@@ -69,6 +73,7 @@ export interface CatalogCandidate<Source extends object = object> {
   readonly operation?: SelectionMarker;
   readonly tags?: readonly string[];
   readonly searchTerms?: readonly string[];
+  readonly revision?: RevisionDeclarations;
   readonly declare: (tags: readonly string[] | undefined) => EndpointDescriptor;
 }
 
@@ -157,6 +162,7 @@ export function buildCatalog<Source extends object>(
 
   const tagsOf = new Map<CatalogCandidate<Source>, readonly string[]>();
   const termsOf = new Map<CatalogCandidate<Source>, readonly string[]>();
+  const revisionOf = new Map<CatalogCandidate<Source>, Revision | undefined>();
   for (const candidate of chosen) {
     if (candidate.tags !== undefined) {
       tagsOf.set(candidate, cleanTags(candidate.tags, candidate.owner, report));
@@ -165,12 +171,22 @@ export function buildCatalog<Source extends object>(
     if (terms !== undefined) {
       termsOf.set(candidate, cleanSearchTerms(terms, candidate.owner, report));
     }
+    if (candidate.revision !== undefined) {
+      revisionOf.set(
+        candidate,
+        declareRevision(candidate.owner, candidate.revision, report),
+      );
+    }
   }
-  const declare = (candidate: CatalogCandidate<Source>): EndpointDescriptor =>
-    withSearchTerms(
+  const declare = (candidate: CatalogCandidate<Source>): EndpointDescriptor => {
+    const declared = withSearchTerms(
       candidate.declare(tagsOf.get(candidate)),
       termsOf.get(candidate),
     );
+    return revisionOf.has(candidate)
+      ? withRevision(declared, revisionOf.get(candidate))
+      : declared;
+  };
 
   const alternates = new Map<CatalogCandidate<Source>, string[]>();
   const operations = deduplicateOperations(
@@ -607,6 +623,14 @@ function withSearchTerms(
   return terms === undefined || terms.length === 0
     ? rest
     : { ...rest, searchTerms: [...terms] };
+}
+
+function withRevision(
+  descriptor: EndpointDescriptor,
+  revision: Revision | undefined,
+): EndpointDescriptor {
+  const { revision: _declared, ...rest } = descriptor;
+  return revision === undefined ? rest : { ...rest, revision };
 }
 
 function reportBodyRoot(

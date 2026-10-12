@@ -178,10 +178,12 @@ Takes `name`, exactly as `search_tools` returned it.
 }
 ```
 
-`version` is a short fingerprint of everything above it except `authUncertain`. The same definition
-gets the same `version` on every replica running the same build, and any change to what the agent
-reads — the description, an argument, the output schema, a hint — gives a new one. Treat it as an
-opaque string: it is meant to be passed back to `invoke_tool`, not parsed.
+`version` is a short fingerprint of everything above it except `authUncertain`, together with the
+revision the host declared for the tool. The same definition gets the same `version` on every
+replica running the same build, and any change to what the agent reads — the description, an
+argument, the output schema, a hint — gives a new one, as does a raised revision; see
+[shipping a behaviour change mid-deploy](/docs/http-catalog/ship-a-behaviour-change-without-breaking-agents-mid-deploy).
+Treat it as an opaque string: it is meant to be passed back to `invoke_tool`, not parsed.
 `search_tools` with `detail: "schema"` carries it too, because each of those results is the
 `load_tool` answer.
 

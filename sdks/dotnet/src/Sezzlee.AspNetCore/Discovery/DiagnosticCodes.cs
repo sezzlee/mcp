@@ -21,6 +21,7 @@ public static class DiagnosticCodes
     public const string EmptyTag = "empty_tag";
     public const string EnumFormatUnresolved = "enum_format_unresolved";
     public const string InvalidName = "invalid_name";
+    public const string InvalidRevision = "invalid_revision";
     public const string LongToolName = "long_tool_name";
     public const string MissingHttpMethod = "missing_http_method";
     public const string MultipleBodyBindings = "multiple_body_bindings";
@@ -28,6 +29,7 @@ public static class DiagnosticCodes
     public const string NameDisambiguated = "name_disambiguated";
     public const string NamingPolicyUnresolved = "naming_policy_unresolved";
     public const string OptionalBodyArgument = "optional_body_argument";
+    public const string RevisionOverridden = "revision_overridden";
     public const string RouteFolded = "route_folded";
     public const string SchemaDefConflict = "schema_def_conflict";
     public const string SchemaDefNameDisambiguated = "schema_def_name_disambiguated";

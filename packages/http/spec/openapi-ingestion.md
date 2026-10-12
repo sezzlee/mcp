@@ -105,6 +105,7 @@ A host MAY configure the output schema as omitted for a backend whose responses 
 - `operationId` becomes the descriptor's `operationId`. One whose snake_case form cannot satisfy the tool-name pattern is not passed on (`operation_id_unusable`, warning), and route-based naming applies.
 - The operation's **first tag** becomes its `container`; every tag becomes a descriptor tag. An operation without tags has no container and no prefix.
 - An operation's `x-sezzlee-search-terms` becomes the descriptor's `searchTerms` ([metadata-contract.md](metadata-contract.md)). It MUST be an array of strings; any other value is `search_terms_invalid` (warning) and nothing is carried, and a blank entry is dropped the way a blank tag is. The extension is the document author's declaration; a host that cannot edit the document declares the same vocabulary in its own configuration, which replaces the extension for that operation.
+- `x-sezzlee-revision` declares the descriptor's `revision` ([metadata-contract.md](metadata-contract.md)) on three levels: at the document root it is the `catalog` level, on a path item the `container` level for every operation under it, and on an operation the `operation` level. The revision's container is the path item and not the naming container above: a tag may be shared by many operations and an operation may carry many tags, so a tag cannot say which revision one operation inherits. The levels are carried side by side and never replace one another. Each value MUST be a whole number from 1; any other value is `revision_invalid` (warning), reported once at its own location, and that level is not carried. A host that cannot edit the document declares the same levels in its own configuration, which comes first at each level; the extension it hides is reported as `revision_overridden`.
 - Duplicate `operationId`s, and route-derived names that collide, reach the existing fatal `name_collision` ([naming.md](naming.md)). The host resolves them with a `names` override. Nothing is renamed automatically.
 - A host MAY hoist a common path prefix into the server base (`/Rest` in `/Rest/Tasks/{id}`), so that it does not become a segment of every derived name. Hoisting is a declaration and is applied to every operation whose path starts with the prefix; an operation that does not start with it keeps its full path.
 
@@ -153,6 +154,7 @@ How a requirement is satisfied at invocation time is [credentials.md](credential
 | `request_media_type_alternative_ignored`                 | warning                        |
 | `operation_id_unusable`                                  | warning                        |
 | `search_terms_invalid`                                   | warning                        |
+| `revision_invalid`                                       | warning                        |
 | `callbacks_ignored`, `links_ignored`, `webhooks_ignored` | warning                        |
 
 Template-production codes of the core catalog (`unsupported_array_style`, `identity_carrier_parameter`, …) keep their own severities; ingestion does not re-grade them.

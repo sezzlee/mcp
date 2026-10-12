@@ -197,6 +197,13 @@ instead of BM25, register an `IToolRanker`; `options.Search.RankerTimeout` (10 s
 `options.Search.OnRankerFailure` (`Fallback` or `Error`) govern it. Visibility, the tag filter and
 the payload budget still apply to its answer — see the how-to on plugging in your own search.
 
+When an operation's behaviour changes behind an unchanged schema, raise its revision
+(`[McpTool(Revision = 2)]` on the action, on the controller for every action in it, or
+`options.Revision` for the whole catalog). The revision enters the tool version, so during a rolling
+deploy a call pinned to the old version is refused with `tool_changed` instead of running against
+the new behaviour. The levels add up rather than replacing one another — see the how-to on shipping
+a behaviour change mid-deploy.
+
 To protect `/mcp`, attach your own authorization:
 
 ```csharp

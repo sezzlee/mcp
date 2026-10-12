@@ -82,6 +82,9 @@
       },
       "description": "Host-declared search vocabulary. Indexed by search_tools like the description; never shown to the agent and never a filter key."
     },
+    "revision": {
+      "$ref": "#/$defs/Revision"
+    },
     "arguments": {
       "type": "array",
       "items": {
@@ -348,6 +351,27 @@
           "type": "string"
         }
       }
+    },
+    "Revision": {
+      "title": "Revision",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "catalog": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "container": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operation": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "Host-declared behaviour revisions, one per level. Every level enters the tool version on its own, so raising any of them changes the version of each tool below it. Never shown to the agent."
     },
     "Auth": {
       "title": "Auth",

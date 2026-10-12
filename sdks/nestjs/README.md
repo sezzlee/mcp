@@ -330,6 +330,13 @@ of BM25, bind a `ToolRanker` through `forRoot`'s overrides (`{ toolRanker: { use
 (`"fallback"` or `"error"`) govern it. Visibility, the tag filter and the payload budget still apply
 to its answer — see the how-to on plugging in your own search.
 
+When an operation's behaviour changes behind an unchanged schema, raise its revision
+(`@McpTool({ revision: 2 })` on the method, on the controller for every method in it, or
+`options.revision` for the whole catalog). The revision enters the tool version, so during a rolling
+deploy a call pinned to the old version is refused with `tool_changed` instead of running against
+the new behaviour. The levels add up rather than replacing one another — see the how-to on shipping
+a behaviour change mid-deploy.
+
 This repository ships a client:
 
 ```bash

@@ -87,6 +87,25 @@ describe("toolVersion", () => {
     expect(toolVersion(tool)).not.toBe(toolVersion(getOrder()));
   });
 
+  it("keeps the version a replica without revisions derives when none is declared", () => {
+    expect(toolVersion(getOrder())).toBe("43af1f25c0f1a186");
+  });
+
+  it.each<[string, ToolDefinition]>([
+    ["catalog", changed({ revision: { catalog: 1 } })],
+    ["container", changed({ revision: { container: 1 } })],
+    ["operation", changed({ revision: { operation: 1 } })],
+  ])("changes when a %s revision is declared", (_level, tool) => {
+    expect(toolVersion(tool)).not.toBe(toolVersion(getOrder()));
+  });
+
+  it("changes when a container revision is raised under an operation revision", () => {
+    const before = changed({ revision: { container: 3, operation: 2 } });
+    const after = changed({ revision: { container: 4, operation: 2 } });
+
+    expect(toolVersion(after)).not.toBe(toolVersion(before));
+  });
+
   it("ignores auth, which the loaded shape never carries", () => {
     const tightened = changed({
       auth: { anonymous: "no", policies: ["orders.admin"], imperative: true },

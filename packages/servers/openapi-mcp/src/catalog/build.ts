@@ -4,6 +4,7 @@ import {
   severityIn,
   type CatalogBuild,
   type CatalogDiagnostic,
+  type RevisionDeclarations,
 } from "@sezzlee/core";
 import {
   ingest,
@@ -102,6 +103,7 @@ export async function buildGatewayCatalog(
         descriptor,
         ...(descriptor.tags === undefined ? {} : { tags: descriptor.tags }),
         ...(searchTerms === undefined ? {} : { searchTerms }),
+        revision: revisionDeclarations(endpoint, config.revision),
         declare: (tags: readonly string[] | undefined) => ({
           ...descriptor,
           ...(tags === undefined ? {} : { tags: [...tags] }),
@@ -130,6 +132,39 @@ export async function buildGatewayCatalog(
     security: result.security,
     ingestion: result.diagnostics,
     dropped,
+  };
+}
+
+function revisionDeclarations(
+  endpoint: SourcedEndpoint,
+  configured: GatewayConfig["revision"],
+): RevisionDeclarations {
+  const declared = endpoint.descriptor.revision;
+  return {
+    catalog: [
+      { value: configured.catalog, by: "revision.catalog" },
+      { value: declared?.catalog, by: "the document's x-sezzlee-revision" },
+    ],
+    container: [
+      {
+        value: configured.paths[endpoint.path],
+        by: `revision.paths["${endpoint.path}"]`,
+      },
+      {
+        value: declared?.container,
+        by: `x-sezzlee-revision on path ${endpoint.path}`,
+      },
+    ],
+    operation: [
+      {
+        value: configured.operations[endpoint.key],
+        by: `revision.operations["${endpoint.key}"]`,
+      },
+      {
+        value: declared?.operation,
+        by: `x-sezzlee-revision on ${endpoint.key}`,
+      },
+    ],
   };
 }
 

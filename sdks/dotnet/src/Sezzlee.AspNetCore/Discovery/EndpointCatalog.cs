@@ -60,7 +60,9 @@ internal static partial class EndpointCatalog
         string? refDescription = null,
         ToolFamilyOptions? families = null,
         IReadOnlyDictionary<string, FamilyLoad>? familyLoads = null,
-        Func<string, IReadOnlyList<string>?>? containerSearchTerms = null)
+        Func<string, IReadOnlyList<string>?>? containerSearchTerms = null,
+        int? catalogRevision = null,
+        Func<string, int?>? containerRevision = null)
     {
         ArgumentNullException.ThrowIfNull(apiDescriptions);
         severityOf ??= DiagnosticCodes.SeverityOf;
@@ -76,6 +78,8 @@ internal static partial class EndpointCatalog
         }
 
         List<CatalogDiagnostic> diagnostics = [];
+        int? catalog = DeclaredRevision(
+            "The catalog", "catalog", diagnostics, (catalogRevision, "options.Revision"));
         List<(Endpoint? Endpoint, EndpointDescriptor Descriptor)> candidates = [];
         int discovered = 0;
         int selected = 0;
@@ -135,7 +139,11 @@ internal static partial class EndpointCatalog
                     dropped += 1;
                     continue;
                 }
-                descriptor = descriptor with { Annotations = OverridesFor(action, metadata) };
+                descriptor = descriptor with
+                {
+                    Annotations = OverridesFor(action, metadata),
+                    Revision = RevisionFor(action, metadata, api, catalog, containerRevision, diagnostics),
+                };
                 if (FamilyOf(action, metadata) is { } declaration)
                 {
                     FamilyResolution resolution = FamilyReader.Resolve(
@@ -731,6 +739,78 @@ internal static partial class EndpointCatalog
             order.Add(entry);
         }
         return order;
+    }
+
+    // Guard: the levels are read apart and never replace one another. Each enters the tool version
+    // on its own, so raising a controller's revision still reaches an action that declares its own.
+    private static Revision? RevisionFor(
+        ActionDescriptor action,
+        IReadOnlyList<object> metadata,
+        ApiDescription api,
+        int? catalog,
+        Func<string, int?>? containerRevision,
+        List<CatalogDiagnostic> diagnostics)
+    {
+        string owner = OwnerOf(action, api);
+        int? container = null;
+        int? operation;
+        if (action is ControllerActionDescriptor controller)
+        {
+            string name = controller.ControllerTypeInfo.FullName ?? controller.ControllerName;
+            container = DeclaredRevision(
+                owner, "container", diagnostics,
+                (AttributeRevision(controller.ControllerTypeInfo.GetCustomAttribute<McpToolAttribute>(inherit: true)),
+                    $"[McpTool(Revision)] on {name}"),
+                (containerRevision?.Invoke(name), "options.ContainerRevision"));
+            operation = DeclaredRevision(
+                owner, "operation", diagnostics,
+                (AttributeRevision(controller.MethodInfo.GetCustomAttribute<McpToolAttribute>(inherit: true)),
+                    $"[McpTool(Revision)] on {owner}"));
+        }
+        else
+        {
+            operation = DeclaredRevision(
+                owner, "operation", diagnostics,
+                (AttributeRevision(metadata.OfType<McpToolAttribute>().LastOrDefault(marker => marker.Revision != 0)),
+                    $"[McpTool(Revision)] on {owner}"));
+        }
+        return catalog is null && container is null && operation is null
+            ? null
+            : new Revision { Catalog = catalog, Container = container, Operation = operation };
+    }
+
+    private static int? AttributeRevision(McpToolAttribute? marker) =>
+        marker is null || marker.Revision == 0 ? null : marker.Revision;
+
+    // Guard: within one level the first declaration wins, and a later one is reported rather than
+    // dropped in silence: raising it would change nothing, which is the failure a revision exists to prevent.
+    private static int? DeclaredRevision(
+        string owner, string level, List<CatalogDiagnostic> diagnostics, params (int? Value, string By)[] declarations)
+    {
+        (int Value, string By)? kept = null;
+        foreach ((int? value, string by) in declarations)
+        {
+            if (value is not { } declared)
+            {
+                continue;
+            }
+            if (declared < 1)
+            {
+                diagnostics.Add(new CatalogDiagnostic(
+                    DiagnosticCodes.InvalidRevision,
+                    $"{owner}: {by} declares the {level} revision {declared}; a revision is a whole number from 1, so it was ignored."));
+                continue;
+            }
+            if (kept is { } first)
+            {
+                diagnostics.Add(new CatalogDiagnostic(
+                    DiagnosticCodes.RevisionOverridden,
+                    $"{owner}: {first.By} sets the {level} revision to {first.Value}, so {by} ({declared}) has no effect; raising it will not change the tool version."));
+                continue;
+            }
+            kept = (declared, by);
+        }
+        return kept?.Value;
     }
 
     private static string? PrefixFor(

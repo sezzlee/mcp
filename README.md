@@ -100,7 +100,9 @@ Every package is published from CI with npm provenance; the tarballs are checked
 3. `invoke_tool` composes an HTTP request from the arguments and replays it through your pipeline
    as the caller. The response is mapped to a fixed error vocabulary and a size budget before it
    reaches the agent. A call that passes `version` back is refused with `tool_changed` if the
-   server answering it holds a different definition, as can happen mid-deploy.
+   server answering it holds a different definition, as can happen mid-deploy. A behaviour change
+   behind an unchanged schema is caught the same way once you declare it as a revision, on the
+   operation, its controller or the whole catalog.
 
 The rules for each step are in the [spec](packages/http/spec/README.md), and the
 [conformance corpus](packages/http/conformance) pins them so the TypeScript and C#

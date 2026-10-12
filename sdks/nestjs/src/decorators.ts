@@ -127,6 +127,13 @@ export interface McpToolOptions {
    */
   readonly searchTerms?: readonly string[];
   /**
+   * The behaviour revision at the level the decorator sits on: a method's covers that operation,
+   * a controller's every operation in it. Raised when behaviour changes behind an unchanged
+   * schema, it changes the tool version and nothing the agent reads ([metadata-contract.md]).
+   * The two levels never replace one another.
+   */
+  readonly revision?: number;
+  /**
    * The body's media type, replacing the one discovery chooses. It is the host's own claim that a
    * parser for it is registered; when `@ApiConsumes` also lists types, it must be one of them.
    */
