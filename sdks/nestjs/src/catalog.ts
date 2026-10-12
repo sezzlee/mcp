@@ -17,6 +17,8 @@ import {
   combineMarkers,
   declareRevision,
   matchesRoute,
+  openApiExtensions,
+  operationKeyOf,
   SezzleeTemplateError,
   textMediaType,
   urlEncodedMediaType,
@@ -26,6 +28,8 @@ import {
   type DiagnosticReporter,
   type EndpointDescriptor,
   type FileOptions,
+  type OpenApiExtensions,
+  type OperationDecision,
   type ToolAnnotations,
   type ToolRanker,
   type ToolVariant,
@@ -172,6 +176,14 @@ export class SezzleeCatalog implements OnApplicationBootstrap {
 
   ensureValid(): void {
     assertCatalogValid(this.current.fatal);
+  }
+
+  /**
+   * The current catalog as `x-sezzlee` extensions, for an OpenAPI gateway to rebuild it from; write
+   * them into a document with `annotateOpenApiDocument`.
+   */
+  openApiExtensions(): OpenApiExtensions {
+    return openApiExtensions(this.current.operations);
   }
 
   /**
@@ -385,7 +397,11 @@ export class SezzleeCatalog implements OnApplicationBootstrap {
       },
     );
 
-    return { ...built, discovered: discovered.length };
+    return {
+      ...built,
+      operations: withUnpublished(built.operations, discovered),
+      discovered: discovered.length,
+    };
   }
 
   private checkMetadataPath(
@@ -457,6 +473,26 @@ export class SezzleeCatalog implements OnApplicationBootstrap {
     }
     return toCuration(Object.fromEntries(merged));
   }
+}
+
+/**
+ * Guard: an endpoint dropped before the catalog saw it (the MCP route, a refused family) is still
+ * an operation of the backend's OpenAPI document. Without a decision it would carry no `x-sezzlee`
+ * marker, and a gateway including by default would publish it, a refused family as its uncurated
+ * dispatcher.
+ */
+function withUnpublished(
+  operations: ReadonlyMap<string, OperationDecision>,
+  discovered: readonly DiscoveredEndpoint[],
+): ReadonlyMap<string, OperationDecision> {
+  const all = new Map(operations);
+  for (const endpoint of discovered) {
+    const key = operationKeyOf(endpoint.descriptor);
+    if (!all.has(key)) {
+      all.set(key, {});
+    }
+  }
+  return all;
 }
 
 function markersOf(endpoint: DiscoveredEndpoint) {

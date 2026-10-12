@@ -16,6 +16,7 @@ const schemas = [
   "invoke-result.schema.json",
   "type-shape.schema.json",
   "fixture.schema.json",
+  "openapi-extension.schema.json",
 ];
 
 await mkdir(outDir, { recursive: true });

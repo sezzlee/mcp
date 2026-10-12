@@ -21,6 +21,8 @@ import { upgradeSwagger2 } from "./parse/swagger2.js";
  * @param hoistPathPrefix a leading path segment moved from every route into the base URL
  * @param requestBodyRequired `always` treats an undeclared `requestBody.required` as true, for a
  * generator that omits it although the backend rejects an empty body
+ * @param operations `x-sezzlee` fields laid over the document's, keyed by `METHOD /path` as the
+ * document writes the path; a key that names no operation is fatal
  */
 export interface IngestOptions {
   readonly documentUrl?: string;
@@ -33,6 +35,7 @@ export interface IngestOptions {
   readonly outputSchema?: "document" | "omit";
   readonly hoistPathPrefix?: string;
   readonly requestBodyRequired?: "document" | "always";
+  readonly operations?: Readonly<Record<string, JsonObject>>;
 }
 
 export interface IngestionResult {
@@ -104,6 +107,9 @@ export async function ingest(
     ...(options.hoistPathPrefix === undefined
       ? {}
       : { hoistPathPrefix: options.hoistPathPrefix }),
+    ...(options.operations === undefined
+      ? {}
+      : { operations: options.operations }),
   };
   const endpoints = lowerOperations(context, security, operationOptions);
   const rootBaseUrl = serverOf(

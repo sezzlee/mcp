@@ -156,9 +156,13 @@ internal static partial class FamilyRules
 
     private static bool Dispatchable(Parameter parameter) =>
         !string.Equals(parameter.In, "querystring", StringComparison.Ordinal)
-        && parameter.Schema["type"] is JsonValue type
-        && type.TryGetValue(out string? name)
-        && ScalarTypes.Contains(name);
+        && parameter.Schema["type"] switch
+        {
+            JsonValue type => type.TryGetValue(out string? name) && ScalarTypes.Contains(name),
+            JsonArray types => types.Count > 0 && types.All(type =>
+                type is JsonValue value && value.TryGetValue(out string? name) && ScalarTypes.Contains(name)),
+            _ => false,
+        };
 
     private static ArgumentCuration? RecordFor(EndpointDescriptor operation, ToolVariant variant, string name) =>
         variant.Arguments?.FirstOrDefault(r => string.Equals(r.Name, name, StringComparison.Ordinal))

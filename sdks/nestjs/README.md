@@ -269,6 +269,33 @@ the input side, read-only members are kept: they are what a response is made of.
 
 Full guide: the docs site's _How to tell the agent what a tool returns_.
 
+## 3d. Serving the same catalog through the OpenAPI gateway
+
+The decorators above can also reach an agent through `@sezzlee/openapi-mcp`, the gateway that
+builds its catalog from an OpenAPI document. `SezzleeCatalog.openApiExtensions()` describes the
+catalog as `x-sezzlee` extensions: one per operation, keyed by `METHOD /path`, with the published
+tool name, selection, hints, argument curation, variants and family members.
+`annotateOpenApiDocument` writes them into the document `@nestjs/swagger` builds:
+
+```ts
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import { annotateOpenApiDocument, SezzleeCatalog } from "@sezzlee/sdk-nestjs";
+
+const document = SwaggerModule.createDocument(
+  app,
+  new DocumentBuilder().build(),
+);
+annotateOpenApiDocument(document, app.get(SezzleeCatalog).openApiExtensions());
+SwaggerModule.setup("openapi", app, document);
+```
+
+Point the gateway's `source` at the served JSON. The same `operations` map is a valid `operations`
+block of the gateway's own configuration, for a document that cannot be changed.
+
+A gateway has no value providers, so an argument hidden with `hidden.from(...)` reaches it as a
+`deferred` fill it refuses (`unknown_fill_source`); only constants and omitted values travel.
+Visibility does not travel either: a document cannot say which caller may make a call.
+
 ## 4. Visibility and guards
 
 This is the SDK's defining behaviour, and the thing most likely to surprise you.

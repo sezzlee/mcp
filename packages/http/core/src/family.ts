@@ -26,10 +26,15 @@ const scalarTypes: ReadonlySet<string> = new Set([
   "boolean",
 ]);
 
-const dispatchable = (parameter: Parameter): boolean =>
-  parameter.in !== "querystring" &&
-  typeof parameter.schema.type === "string" &&
-  scalarTypes.has(parameter.schema.type);
+const dispatchable = (parameter: Parameter): boolean => {
+  const type = parameter.schema.type;
+  const types = typeof type === "string" ? [type] : (type ?? []);
+  return (
+    parameter.in !== "querystring" &&
+    types.length > 0 &&
+    types.every((name) => scalarTypes.has(name))
+  );
+};
 
 const isFamilyKey = (value: unknown): value is FamilyKey =>
   typeof value === "string" ||

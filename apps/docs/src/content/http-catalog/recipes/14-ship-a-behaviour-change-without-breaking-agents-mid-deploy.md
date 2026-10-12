@@ -96,20 +96,22 @@ When a controller declaration and a central rule both name a container, the decl
 
 ## Declare it on an OpenAPI gateway
 
-`openapi-mcp` reads the same three levels from the document's `x-sezzlee-revision`: the document root is the catalog, a path item covers every operation under it, and an operation covers itself.
+`openapi-mcp` reads the same three levels from the document's `x-sezzlee` extension: the document root is the catalog, a path item covers every operation under it, and an operation covers itself.
 
 ```json
 {
   "openapi": "3.0.3",
-  "x-sezzlee-revision": 1,
+  "x-sezzlee": { "revision": 1 },
   "paths": {
     "/orders": {
-      "x-sezzlee-revision": 4,
-      "post": { "operationId": "createOrder", "x-sezzlee-revision": 2 }
+      "x-sezzlee": { "revision": 4 },
+      "post": { "operationId": "createOrder", "x-sezzlee": { "revision": 2 } }
     }
   }
 }
 ```
+
+A path item or the document root may carry only a revision; any other field there stops every operation beneath it from being published. The older `x-sezzlee-revision` spelling is still read, and when both spellings disagree neither is carried (`extension_conflict`).
 
 If you cannot edit the document, declare the levels in the gateway configuration. Paths and operations are keyed as the document writes them:
 

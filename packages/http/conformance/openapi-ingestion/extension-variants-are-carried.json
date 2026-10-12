@@ -1,0 +1,165 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "x-sezzlee.variants her varyanti kendi adi, kurasyonu ve govdesiyle tasir; govdedeki ref cozulur",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "components": {
+        "schemas": {
+          "SalesQuery": {
+            "type": "object",
+            "properties": {
+              "year": {
+                "type": "integer"
+              }
+            },
+            "required": ["year"]
+          }
+        }
+      },
+      "paths": {
+        "/reports": {
+          "post": {
+            "operationId": "runReport",
+            "parameters": [
+              {
+                "name": "format",
+                "in": "query",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "variants": [
+                {
+                  "name": "sales_report_csv",
+                  "description": "Runs the sales report as CSV.",
+                  "arguments": [
+                    {
+                      "name": "format",
+                      "hidden": {
+                        "kind": "constant",
+                        "value": "csv"
+                      }
+                    }
+                  ],
+                  "requestBody": {
+                    "schema": {
+                      "$ref": "#/components/schemas/SalesQuery"
+                    },
+                    "required": true
+                  },
+                  "annotations": {
+                    "readOnlyHint": true
+                  }
+                },
+                {
+                  "name": "sales_report",
+                  "description": "Runs the sales report in a chosen format."
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "POST /reports",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "runReport",
+          "method": "POST",
+          "route": "/reports",
+          "parameters": [
+            {
+              "name": "format",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "schema": {
+              "type": "object"
+            },
+            "required": false
+          },
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          },
+          "variants": [
+            {
+              "name": "sales_report_csv",
+              "description": "Runs the sales report as CSV.",
+              "arguments": [
+                {
+                  "name": "format",
+                  "hidden": {
+                    "kind": "constant",
+                    "value": "csv"
+                  }
+                }
+              ],
+              "requestBody": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "year": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": ["year"]
+                },
+                "required": true
+              },
+              "annotations": {
+                "readOnlyHint": true
+              }
+            },
+            {
+              "name": "sales_report",
+              "description": "Runs the sales report in a chosen format."
+            }
+          ]
+        }
+      }
+    ],
+    "diagnostics": []
+  }
+}

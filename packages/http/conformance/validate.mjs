@@ -17,6 +17,7 @@ ajv.addSchema(
 ajv.addSchema(readJson(path.join(schemasDir, "tool-definition.schema.json")));
 ajv.addSchema(readJson(path.join(schemasDir, "invoke-result.schema.json")));
 ajv.addSchema(readJson(path.join(schemasDir, "type-shape.schema.json")));
+ajv.addSchema(readJson(path.join(schemasDir, "openapi-extension.schema.json")));
 const validate = ajv.compile(
   readJson(path.join(schemasDir, "fixture.schema.json")),
 );

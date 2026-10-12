@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openapi-extension.schema.json",
+  "title": "OpenApiExtension",
+  "description": "The value of an x-sezzlee extension. An operation carries an OperationExtension; a path item or the document root carries a ScopeExtension. A gateway config's operations entry is an OperationExtension too, laid over the document's field by field.",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/OperationExtension"
+    },
+    {
+      "$ref": "#/$defs/ScopeExtension"
+    }
+  ],
+  "$defs": {
+    "OperationExtension": {
+      "title": "OperationExtension",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "type": "boolean",
+          "description": "Operation-level selection marker: true includes the operation, false excludes it. It outranks every config selection rule."
+        },
+        "toolName": {
+          "$ref": "endpoint-descriptor.schema.json#/properties/toolName"
+        },
+        "containerPrefix": {
+          "$ref": "endpoint-descriptor.schema.json#/properties/containerPrefix"
+        },
+        "annotations": {
+          "$ref": "tool-definition.schema.json#/$defs/ToolAnnotations"
+        },
+        "arguments": {
+          "$ref": "endpoint-descriptor.schema.json#/properties/arguments"
+        },
+        "variants": {
+          "$ref": "endpoint-descriptor.schema.json#/properties/variants"
+        },
+        "family": {
+          "$ref": "#/$defs/FamilyDeclaration"
+        },
+        "searchTerms": {
+          "$ref": "endpoint-descriptor.schema.json#/properties/searchTerms"
+        },
+        "revision": {
+          "$ref": "endpoint-descriptor.schema.json#/$defs/Revision/properties/operation"
+        }
+      }
+    },
+    "ScopeExtension": {
+      "title": "ScopeExtension",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision"],
+      "properties": {
+        "revision": {
+          "$ref": "endpoint-descriptor.schema.json#/$defs/Revision/properties/operation"
+        }
+      }
+    },
+    "FamilyDeclaration": {
+      "title": "FamilyDeclaration",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parameter", "members"],
+      "properties": {
+        "parameter": {
+          "$ref": "endpoint-descriptor.schema.json#/$defs/ToolFamily/properties/parameter"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FamilyMember"
+          }
+        }
+      }
+    },
+    "FamilyMember": {
+      "title": "FamilyMember",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "description"],
+      "description": "A ToolVariant plus the key it dispatches to. The key becomes a hidden constant on the family's parameter, so a member cannot be written without one.",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/FamilyKey"
+        },
+        "name": {
+          "$ref": "endpoint-descriptor.schema.json#/$defs/ToolVariant/properties/name"
+        },
+        "description": {
+          "$ref": "endpoint-descriptor.schema.json#/$defs/ToolVariant/properties/description"
+        },
+        "arguments": {
+          "$ref": "endpoint-descriptor.schema.json#/$defs/ToolVariant/properties/arguments"
+        },
+        "requestBody": {
+          "$ref": "endpoint-descriptor.schema.json#/$defs/VariantRequestBody"
+        },
+        "annotations": {
+          "$ref": "tool-definition.schema.json#/$defs/ToolAnnotations"
+        }
+      }
+    },
+    "FamilyKey": {
+      "title": "FamilyKey",
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "integer"
+        }
+      ]
+    }
+  }
+}

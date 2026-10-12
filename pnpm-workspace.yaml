@@ -4,6 +4,7 @@ packages:
   - "sdks/*"
   - "sdks/*/samples/*"
 allowBuilds:
+  "@scarf/scarf": false
   "@swc/core": true
   esbuild: true
   workerd: true

@@ -1,0 +1,151 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "Uye kendi arguman kurasyonunu dispatch sabitinden sonra tasir; dispatch parametresini kurasyonlayan uye tek basina duser",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/methods/{methodId}": {
+          "post": {
+            "operationId": "invokeMethod",
+            "parameters": [
+              {
+                "name": "methodId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              {
+                "name": "tenant",
+                "in": "query",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "family": {
+                "parameter": "methodId",
+                "members": [
+                  {
+                    "key": "7",
+                    "name": "list_customers",
+                    "description": "Lists customers.",
+                    "arguments": [
+                      {
+                        "name": "tenant",
+                        "hidden": {
+                          "kind": "constant",
+                          "value": "acme"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "key": 8,
+                    "name": "override_dispatch",
+                    "description": "Tries to curate the dispatch parameter.",
+                    "arguments": [
+                      {
+                        "name": "methodId",
+                        "as": "id"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "POST /methods/{methodId}",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "invokeMethod",
+          "method": "POST",
+          "route": "/methods/{methodId}",
+          "parameters": [
+            {
+              "name": "methodId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer"
+              }
+            },
+            {
+              "name": "tenant",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          },
+          "family": {
+            "parameter": "methodId"
+          },
+          "variants": [
+            {
+              "name": "list_customers",
+              "description": "Lists customers.",
+              "arguments": [
+                {
+                  "name": "methodId",
+                  "hidden": {
+                    "kind": "constant",
+                    "value": "7"
+                  }
+                },
+                {
+                  "name": "tenant",
+                  "hidden": {
+                    "kind": "constant",
+                    "value": "acme"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "diagnostics": [
+      {
+        "code": "family_member_rejected",
+        "at": "/paths/~1methods~1{methodId}/post/x-sezzlee/family/members/1/arguments"
+      }
+    ]
+  }
+}

@@ -1,0 +1,174 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "Config operations alani alan alan dokumanin x-sezzlee'sinin ustune yazilir; eski yazilisi da ezilir, farkli olan her deger raporlanir; config govdesi dokumanin components'ine ref verebilir",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/api/orders": {
+          "post": {
+            "operationId": "createOrder",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object"
+                  }
+                }
+              }
+            },
+            "x-sezzlee-search-terms": ["siparis"],
+            "x-sezzlee": {
+              "toolName": "create_order",
+              "revision": 2
+            }
+          }
+        },
+        "/api/health": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            }
+          }
+        }
+      },
+      "components": {
+        "schemas": {
+          "NewOrder": {
+            "type": "object",
+            "properties": {
+              "item": {
+                "type": "string"
+              }
+            },
+            "required": ["item"]
+          }
+        }
+      }
+    },
+    "options": {
+      "hoistPathPrefix": "/api",
+      "operations": {
+        "POST /api/orders": {
+          "toolName": "place_order",
+          "searchTerms": ["order"],
+          "revision": 2,
+          "variants": [
+            {
+              "name": "place_order_for_item",
+              "description": "Places an order for one item.",
+              "requestBody": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewOrder"
+                },
+                "required": true
+              }
+            }
+          ]
+        },
+        "GET /api/health": {
+          "tool": false
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "POST /api/orders",
+        "baseUrl": "https://api.test/api",
+        "descriptor": {
+          "operationId": "createOrder",
+          "method": "POST",
+          "route": "/orders",
+          "requestBody": {
+            "schema": {
+              "type": "object"
+            },
+            "required": false
+          },
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          },
+          "revision": {
+            "operation": 2
+          },
+          "toolName": "place_order",
+          "searchTerms": ["order"],
+          "variants": [
+            {
+              "name": "place_order_for_item",
+              "description": "Places an order for one item.",
+              "requestBody": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "item": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["item"]
+                },
+                "required": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "GET /api/health",
+        "baseUrl": "https://api.test/api",
+        "selection": "exclude",
+        "descriptor": {
+          "operationId": "health",
+          "method": "GET",
+          "route": "/health",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      }
+    ],
+    "diagnostics": [
+      {
+        "code": "extension_overridden",
+        "at": "/paths/~1api~1orders/post/x-sezzlee/toolName"
+      },
+      {
+        "code": "extension_overridden",
+        "at": "/paths/~1api~1orders/post/x-sezzlee-search-terms"
+      }
+    ]
+  }
+}

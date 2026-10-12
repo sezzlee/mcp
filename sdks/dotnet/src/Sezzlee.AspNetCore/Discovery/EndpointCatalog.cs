@@ -38,6 +38,23 @@ internal sealed record CatalogBuildResult
     public required int Discovered { get; init; }
     public required int Selected { get; init; }
     public int Dropped { get; init; }
+
+    /// <summary>
+    /// Every discovered operation keyed by <c>METHOD /route</c>: the descriptor it was published
+    /// from, or <c>null</c> when it was not selected, was dropped, or folded into another route.
+    /// </summary>
+    /// <remarks>
+    /// An operation is recorded before any skip, the reserved MCP route included: a skipped
+    /// operation is still in the backend's OpenAPI document, and without a decision it would carry
+    /// no x-sezzlee marker, so a gateway including by default would publish it.
+    /// </remarks>
+    public IReadOnlyDictionary<string, EndpointDescriptor?> Operations { get; init; } =
+        new Dictionary<string, EndpointDescriptor?>();
+
+    public int? CatalogRevision { get; init; }
+
+    public IReadOnlyDictionary<string, string> ToolNames { get; init; } =
+        new Dictionary<string, string>();
 }
 
 internal static partial class EndpointCatalog
@@ -81,6 +98,7 @@ internal static partial class EndpointCatalog
         int? catalog = DeclaredRevision(
             "The catalog", "catalog", diagnostics, (catalogRevision, "options.Revision"));
         List<(Endpoint? Endpoint, EndpointDescriptor Descriptor)> candidates = [];
+        Dictionary<string, EndpointDescriptor?> declared = new(StringComparer.Ordinal);
         int discovered = 0;
         int selected = 0;
 
@@ -90,6 +108,11 @@ internal static partial class EndpointCatalog
             {
                 discovered += 1;
                 string route = NormalizeRoute(api.RelativePath);
+                string target = $"{api.HttpMethod} {route}";
+                if (!string.IsNullOrEmpty(api.HttpMethod))
+                {
+                    declared[target] = null;
+                }
                 if (reservedRoutePrefix is not null
                     && route.StartsWith(reservedRoutePrefix, StringComparison.OrdinalIgnoreCase))
                 {
@@ -102,7 +125,6 @@ internal static partial class EndpointCatalog
                     ? [.. endpoint.Metadata]
                     : [.. action.EndpointMetadata ?? []];
 
-                string target = $"{api.HttpMethod} {route}";
                 bool include;
                 try
                 {
@@ -164,11 +186,13 @@ internal static partial class EndpointCatalog
                     };
                 }
                 candidates.Add((endpoint, descriptor));
+                declared[target] = descriptor;
             }
         }
 
         List<CatalogEntry> entries = [];
         Dictionary<string, EndpointDescriptor> claimed = new(StringComparer.Ordinal);
+        Dictionary<string, string> toolNames = new(StringComparer.Ordinal);
 
         Dictionary<string, IReadOnlyList<string>> alternates = new(StringComparer.Ordinal);
         List<(Endpoint? Endpoint, EndpointDescriptor Descriptor)> operations =
@@ -176,6 +200,10 @@ internal static partial class EndpointCatalog
             {
                 string[] routes = [.. folded.Select(f => f.Descriptor.Route)];
                 alternates[FoldKey(kept.Descriptor)] = routes;
+                foreach ((_, EndpointDescriptor alternate) in folded)
+                {
+                    declared[$"{alternate.Method} {alternate.Route}"] = null;
+                }
                 diagnostics.Add(new CatalogDiagnostic(
                     DiagnosticCodes.RouteFolded,
                     $"{kept.Descriptor.Method} {kept.Descriptor.Route} is also mounted at {string.Join(", ", routes)}; "
@@ -293,6 +321,10 @@ internal static partial class EndpointCatalog
                     }
                 }
 
+                if (variant is null)
+                {
+                    toolNames[$"{operation.Method} {operation.Route}"] = name;
+                }
                 entries.Add(new CatalogEntry
                 {
                     Tool = tool,
@@ -313,6 +345,9 @@ internal static partial class EndpointCatalog
             Discovered = discovered,
             Selected = selected,
             Dropped = dropped,
+            Operations = declared,
+            CatalogRevision = catalog,
+            ToolNames = toolNames,
         };
     }
 

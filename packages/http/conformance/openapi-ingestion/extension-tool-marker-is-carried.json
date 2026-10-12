@@ -1,0 +1,120 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "x-sezzlee.tool operasyon seviyesinde secim isaretidir; true include, false exclude, yoksa isaret tasinmaz",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/included": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "tool": true
+            }
+          }
+        },
+        "/excluded": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "tool": false
+            }
+          }
+        },
+        "/unmarked": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "GET /included",
+        "baseUrl": "https://api.test",
+        "selection": "include",
+        "descriptor": {
+          "operationId": "health",
+          "method": "GET",
+          "route": "/included",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      },
+      {
+        "key": "GET /excluded",
+        "baseUrl": "https://api.test",
+        "selection": "exclude",
+        "descriptor": {
+          "operationId": "health",
+          "method": "GET",
+          "route": "/excluded",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      },
+      {
+        "key": "GET /unmarked",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "health",
+          "method": "GET",
+          "route": "/unmarked",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      }
+    ],
+    "diagnostics": []
+  }
+}

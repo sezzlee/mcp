@@ -1,0 +1,59 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "Bilinmeyen bir x-sezzlee-* anahtari, ornegin kaldirilan x-sezzlee-family, operasyonu dusurur; dispatcher kurasyonsuz yayinlanmaz",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/methods/{methodId}": {
+          "post": {
+            "operationId": "invokeMethod",
+            "parameters": [
+              {
+                "name": "methodId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee-family": {
+              "parameter": "methodId",
+              "members": [
+                {
+                  "key": 1,
+                  "name": "get_customer",
+                  "description": "Reads a customer."
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [],
+    "diagnostics": [
+      {
+        "code": "extension_invalid",
+        "at": "/paths/~1methods~1{methodId}/post/x-sezzlee-family"
+      }
+    ]
+  }
+}

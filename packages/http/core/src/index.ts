@@ -19,6 +19,20 @@ export type {
   ToolDefinition,
 } from "./generated/tool-definition.js";
 export type { Fixture } from "./generated/fixture.js";
+export type {
+  FamilyDeclaration,
+  FamilyKey,
+  FamilyMember,
+  OpenApiExtension,
+  OperationExtension,
+  ScopeExtension,
+} from "./generated/openapi-extension.js";
+export {
+  annotateOpenApiDocument,
+  openApiExtensionKey,
+  openApiExtensions,
+} from "./openapi-extension.js";
+export type { OpenApiExtensions } from "./openapi-extension.js";
 export {
   SezzleeTemplateError,
   SezzleeArgumentError,
@@ -288,9 +302,11 @@ export {
   buildCatalog,
   cleanSearchTerms,
   cleanTags,
+  operationKeyOf,
 } from "./catalog/pipeline.js";
 export type {
   CatalogBuild,
+  OperationDecision,
   CatalogCandidate,
   CatalogEntry,
   CatalogPipelineOptions,

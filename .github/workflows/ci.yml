@@ -163,6 +163,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node packages/http/conformance/validate.mjs
       - run: pnpm turbo run test --filter=@sezzlee/sdk-dotnet
+      # The SDK writes its catalog and its x-sezzlee-annotated OpenAPI document, and the gateway
+      # must rebuild the same tools from that document; parity.spec.ts fails when they drift.
+      - run: dotnet test sdks/dotnet/tests/Sezzlee.Tests -f net10.0 --filter "FullyQualifiedName~OpenApiParityDump"
+        env:
+          SEZZLEE_PARITY_DIR: ${{ runner.temp }}/parity
+      - run: pnpm turbo run test --filter=@sezzlee/openapi-mcp -- test/parity.spec.ts
+        env:
+          SEZZLEE_PARITY_DIR: ${{ runner.temp }}/parity
 
   # Packs what a publish can release: the HTTP catalog packages and the NuGet
   # package always, the file packages only when the native matrix built their

@@ -35,6 +35,8 @@ const dotnetPackages = [
   "@sezzlee/sdk-dotnet",
   "@sezzlee/conformance",
   "@sezzlee/spec",
+  "@sezzlee/openapi",
+  "@sezzlee/openapi-mcp",
 ];
 const wholeRepo = [
   /^\.github\//,

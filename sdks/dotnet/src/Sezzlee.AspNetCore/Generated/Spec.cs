@@ -271,3 +271,37 @@ public sealed record Constraints
     public string? Pattern { get; init; }
     public string? Format { get; init; }
 }
+
+public sealed record OperationExtension
+{
+    public bool? Tool { get; init; }
+    public string? ToolName { get; init; }
+    public string? ContainerPrefix { get; init; }
+    public ToolAnnotations? Annotations { get; init; }
+    public IReadOnlyList<ArgumentCuration>? Arguments { get; init; }
+    public IReadOnlyList<ToolVariant>? Variants { get; init; }
+    public FamilyDeclaration? Family { get; init; }
+    public IReadOnlyList<string>? SearchTerms { get; init; }
+    public int? Revision { get; init; }
+}
+
+public sealed record ScopeExtension
+{
+    public required int Revision { get; init; }
+}
+
+public sealed record FamilyDeclaration
+{
+    public required string Parameter { get; init; }
+    public required IReadOnlyList<FamilyMember> Members { get; init; }
+}
+
+public sealed record FamilyMember
+{
+    public required JsonNode Key { get; init; }
+    public required string Name { get; init; }
+    public required string Description { get; init; }
+    public IReadOnlyList<ArgumentCuration>? Arguments { get; init; }
+    public VariantRequestBody? RequestBody { get; init; }
+    public ToolAnnotations? Annotations { get; init; }
+}

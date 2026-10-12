@@ -1,0 +1,202 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "aciklamasiz, anahtari tekrar eden, adi gecersiz veya nesne olmayan uye tek basina duser; kardesleri yayinda kalir",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/methods/{methodId}": {
+          "post": {
+            "operationId": "invokeMethod",
+            "parameters": [
+              {
+                "name": "methodId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            ],
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "family": {
+                "parameter": "methodId",
+                "members": [
+                  {
+                    "key": 12,
+                    "name": "get_customer",
+                    "description": "Reads one customer by id.",
+                    "requestBody": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "customerId": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "key": 13,
+                    "name": "delete_customer",
+                    "description": "  ",
+                    "requestBody": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "customerId": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "key": 12,
+                    "name": "get_customer_again",
+                    "description": "Reads one customer again.",
+                    "requestBody": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "customerId": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "key": 14,
+                    "name": "Bad-Name",
+                    "description": "Has an ill-formed name.",
+                    "requestBody": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "customerId": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "not-a-member"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "POST /methods/{methodId}",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "invokeMethod",
+          "method": "POST",
+          "route": "/methods/{methodId}",
+          "parameters": [
+            {
+              "name": "methodId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer"
+              }
+            }
+          ],
+          "requestBody": {
+            "schema": {
+              "type": "object"
+            },
+            "required": false
+          },
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          },
+          "family": {
+            "parameter": "methodId"
+          },
+          "variants": [
+            {
+              "name": "get_customer",
+              "description": "Reads one customer by id.",
+              "arguments": [
+                {
+                  "name": "methodId",
+                  "hidden": {
+                    "kind": "constant",
+                    "value": 12
+                  }
+                }
+              ],
+              "requestBody": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "customerId": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "diagnostics": [
+      {
+        "code": "family_member_rejected",
+        "at": "/paths/~1methods~1{methodId}/post/x-sezzlee/family/members/1/description"
+      },
+      {
+        "code": "family_member_rejected",
+        "at": "/paths/~1methods~1{methodId}/post/x-sezzlee/family/members/2"
+      },
+      {
+        "code": "family_member_rejected",
+        "at": "/paths/~1methods~1{methodId}/post/x-sezzlee/family/members/3/name"
+      },
+      {
+        "code": "family_member_rejected",
+        "at": "/paths/~1methods~1{methodId}/post/x-sezzlee/family/members/4"
+      }
+    ]
+  }
+}

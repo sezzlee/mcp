@@ -28,8 +28,10 @@ spec, a guard comment or the package README.
   warning by default and fatal under `strict`.
 - **A wider parity test.** `packages/servers/openapi-mcp/test/parity.spec.ts` compares argument
   name, location, required-ness and body media type between the SDK catalog and the document
-  catalog of the .NET test controllers. It does not compare argument schemas, and it does not yet run
-  against a real backend that embeds the SDK.
+  catalog of the .NET test controllers, and rebuilds the SDK's tools from the document its
+  `x-sezzlee` extensions annotate, comparing names, argument names and hints; the NestJS SDK runs
+  the same rebuild in `sdks/nestjs/test/openapi-extension.spec.ts`. It does not compare
+  argument schemas, and it does not yet run against a real backend that embeds the SDK.
 - **Tests for the gateway's config refusals.** Plain HTTP without token exchange bound to a
   non-loopback host, token exchange on stdio (`token_exchange_requires_http`), and the choice
   between security alternatives have no tests.
@@ -37,10 +39,6 @@ spec, a guard comment or the package README.
   [credentials.md](packages/http/spec/credentials.md).
 - **A route-normalisation conformance corpus.** Each SDK pins its own route folding with unit tests
   ([selection-hierarchy.md](packages/http/spec/selection-hierarchy.md), Known limits).
-- **Tool families from an OpenAPI document.** Ingestion never produces `family`
-  ([tool-families.md](packages/http/spec/tool-families.md)), so `openapi-mcp` publishes a
-  dispatching endpoint as one opaque tool. An `x-sezzlee-family` extension, or a member list the
-  gateway config names, would lower it the way the SDKs do.
 - **Per-caller family membership.** Members are global: a caller who may not run a method still
   sees it. Filtering members per caller needs a caller-dependent published schema, which the catalog
   snapshot, the generation stamp and `listChanged` all rule out today

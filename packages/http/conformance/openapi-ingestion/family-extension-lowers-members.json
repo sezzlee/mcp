@@ -1,0 +1,204 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "x-sezzlee.family her uyeyi dispatch parametresini gizli sabitle dolduran bir varyanta indirir; uye govdesindeki ref cozulur",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/methods/{methodId}": {
+          "post": {
+            "operationId": "invokeMethod",
+            "summary": "Runs a server method.",
+            "parameters": [
+              {
+                "name": "methodId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            ],
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "family": {
+                "parameter": "methodId",
+                "members": [
+                  {
+                    "key": 12,
+                    "name": "get_customer",
+                    "description": "Reads one customer by id.",
+                    "annotations": {
+                      "readOnlyHint": true
+                    },
+                    "requestBody": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "customerId": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": ["customerId"]
+                      },
+                      "required": true
+                    }
+                  },
+                  {
+                    "key": 13,
+                    "name": "create_order",
+                    "description": "Creates an order for a customer.",
+                    "requestBody": {
+                      "schema": {
+                        "$ref": "#/components/schemas/NewOrder"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "components": {
+        "schemas": {
+          "NewOrder": {
+            "type": "object",
+            "properties": {
+              "customerId": {
+                "type": "integer"
+              },
+              "item": {
+                "type": "string"
+              }
+            },
+            "required": ["customerId", "item"]
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "POST /methods/{methodId}",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "invokeMethod",
+          "method": "POST",
+          "route": "/methods/{methodId}",
+          "description": "Runs a server method.",
+          "parameters": [
+            {
+              "name": "methodId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer"
+              }
+            }
+          ],
+          "requestBody": {
+            "schema": {
+              "type": "object"
+            },
+            "required": false
+          },
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          },
+          "family": {
+            "parameter": "methodId"
+          },
+          "variants": [
+            {
+              "name": "get_customer",
+              "description": "Reads one customer by id.",
+              "arguments": [
+                {
+                  "name": "methodId",
+                  "hidden": {
+                    "kind": "constant",
+                    "value": 12
+                  }
+                }
+              ],
+              "requestBody": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "customerId": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": ["customerId"]
+                },
+                "required": true
+              },
+              "annotations": {
+                "readOnlyHint": true
+              }
+            },
+            {
+              "name": "create_order",
+              "description": "Creates an order for a customer.",
+              "arguments": [
+                {
+                  "name": "methodId",
+                  "hidden": {
+                    "kind": "constant",
+                    "value": 13
+                  }
+                }
+              ],
+              "requestBody": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "customerId": {
+                      "type": "integer"
+                    },
+                    "item": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["customerId", "item"]
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "diagnostics": []
+  }
+}

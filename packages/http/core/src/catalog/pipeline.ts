@@ -103,8 +103,22 @@ export interface CatalogPipelineOptions<Source extends object = object> {
   ) => void;
 }
 
+/**
+ * What the catalog decided about one candidate operation.
+ *
+ * @param descriptor the declared descriptor it was published from; absent when it was not
+ * selected, was refused, or folded into another route
+ * @param toolName the name its tool was published under, for an operation without variants
+ */
+export interface OperationDecision {
+  readonly descriptor?: EndpointDescriptor;
+  readonly toolName?: string;
+}
+
 export interface CatalogBuild<Source extends object = object> {
   readonly entries: readonly CatalogEntry<Source>[];
+  /** Every candidate operation, keyed by `METHOD /route`. */
+  readonly operations: ReadonlyMap<string, OperationDecision>;
   readonly byName: ReadonlyMap<string, CatalogEntry<Source>>;
   readonly index: ToolIndex;
   readonly rankCatalog: RankCatalog;
@@ -122,6 +136,10 @@ const groupedParametersOf = (
       .filter((parameter) => parameter.style === "deepObject")
       .map((parameter) => parameter.name),
   );
+
+/** The `METHOD /route` key `CatalogBuild.operations` uses. */
+export const operationKeyOf = (descriptor: EndpointDescriptor): string =>
+  `${descriptor.method} ${descriptor.route}`;
 
 export function buildCatalog<Source extends object>(
   candidates: readonly CatalogCandidate<Source>[],
@@ -218,10 +236,14 @@ export function buildCatalog<Source extends object>(
     }
   });
 
+  const decisions = new Map<string, OperationDecision>(
+    candidates.map((candidate) => [operationKeyOf(candidate.descriptor), {}]),
+  );
   const productions: ToolProduction[] = [];
   for (const declared of declaredList) {
     try {
       productions.push(...productionsOf(declared));
+      decisions.set(operationKeyOf(declared), { descriptor: declared });
     } catch (error) {
       report({
         code: (error as SezzleeTemplateError).code,
@@ -327,6 +349,12 @@ export function buildCatalog<Source extends object>(
     } as CatalogEntry<Source>;
     entries.push(entry);
     byName.set(name, entry);
+    if (variant === undefined) {
+      decisions.set(operationKeyOf(production.operation), {
+        descriptor: production.operation,
+        toolName: name,
+      });
+    }
   }
 
   options.inspect?.(entries, report);
@@ -367,6 +395,7 @@ export function buildCatalog<Source extends object>(
 
   return {
     entries,
+    operations: decisions,
     byName,
     index: new ToolIndex(documents),
     rankCatalog: rankCatalogOf(documents),

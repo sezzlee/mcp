@@ -40,6 +40,9 @@ describe("conformance: openapi-ingestion", () => {
           ...(endpoint.baseUrl === undefined
             ? {}
             : { baseUrl: endpoint.baseUrl }),
+          ...(endpoint.selection === undefined
+            ? {}
+            : { selection: endpoint.selection }),
           descriptor: endpoint.descriptor,
         })),
       ).toEqual(fixture.expected.endpoints);

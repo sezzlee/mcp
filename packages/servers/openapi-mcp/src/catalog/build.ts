@@ -68,6 +68,7 @@ export async function buildGatewayCatalog(
     ...(config.hoistPathPrefix === undefined
       ? {}
       : { hoistPathPrefix: config.hoistPathPrefix }),
+    operations: config.operations,
   });
   const allowedHosts = new Set(configuredHosts.map((host) => asciiLower(host)));
   if (result.rootBaseUrl !== undefined) {
@@ -108,6 +109,9 @@ export async function buildGatewayCatalog(
       {
         source: { endpoint, baseUrl: endpoint.baseUrl, credentials: chosen },
         owner: endpoint.key,
+        ...(endpoint.selection === undefined
+          ? {}
+          : { operation: endpoint.selection }),
         descriptor,
         ...(descriptor.tags === undefined ? {} : { tags: descriptor.tags }),
         ...(searchTerms === undefined ? {} : { searchTerms }),
@@ -151,7 +155,7 @@ function revisionDeclarations(
   return {
     catalog: [
       { value: configured.catalog, by: "revision.catalog" },
-      { value: declared?.catalog, by: "the document's x-sezzlee-revision" },
+      { value: declared?.catalog, by: "the document's x-sezzlee revision" },
     ],
     container: [
       {
@@ -160,7 +164,7 @@ function revisionDeclarations(
       },
       {
         value: declared?.container,
-        by: `x-sezzlee-revision on path ${endpoint.path}`,
+        by: `the x-sezzlee revision on path ${endpoint.path}`,
       },
     ],
     operation: [
@@ -170,7 +174,7 @@ function revisionDeclarations(
       },
       {
         value: declared?.operation,
-        by: `x-sezzlee-revision on ${endpoint.key}`,
+        by: `the x-sezzlee revision on ${endpoint.key}`,
       },
     ],
   };

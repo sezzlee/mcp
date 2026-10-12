@@ -19,9 +19,10 @@ const sources = [
   "tool-definition.schema.json",
   "invoke-result.schema.json",
   "type-shape.schema.json",
+  "openapi-extension.schema.json",
 ];
 
-const inlineTypes = { JsonSchemaObject: "JsonObject" };
+const inlineTypes = { JsonSchemaObject: "JsonObject", FamilyKey: "JsonNode" };
 
 const readSchema = (file) =>
   JSON.parse(readFileSync(path.join(schemasDir, file), "utf8"));
@@ -44,8 +45,32 @@ function refTypeName(ref, currentFile) {
   return def.title ?? key;
 }
 
+/**
+ * A reference into a definition's properties (`#/properties/toolName`) names a field, not a type,
+ * so the field's own schema is emitted in its place, resolved against the file it lives in.
+ */
+function fieldTarget(ref, currentFile) {
+  const [file, pointer] = ref.split("#");
+  const target = file === "" ? currentFile : file;
+  if (!pointer || /^\/\$defs\/[^/]+$/.test(pointer)) {
+    return undefined;
+  }
+  const node = pointer
+    .split("/")
+    .slice(1)
+    .reduce((parent, segment) => parent?.[segment], schemas.get(target));
+  if (node === undefined) {
+    throw new Error(`Unresolvable reference ${ref} in ${currentFile}`);
+  }
+  return { node, file: target };
+}
+
 function csharpType(schema, currentFile) {
   if (schema.$ref) {
+    const field = fieldTarget(schema.$ref, currentFile);
+    if (field !== undefined) {
+      return csharpType(field.node, field.file);
+    }
     const name = refTypeName(schema.$ref, currentFile);
     return inlineTypes[name] ?? name;
   }

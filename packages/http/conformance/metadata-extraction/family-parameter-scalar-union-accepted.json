@@ -1,0 +1,191 @@
+{
+  "kind": "metadata-extraction",
+  "description": "A dispatch parameter whose type is a union of scalar types is still one scalar slot: a generator that writes an integer as [integer, string] keeps its family",
+  "input": {
+    "operationId": "InvokeDynamicMethod",
+    "container": "DynamicMethodController",
+    "method": "POST",
+    "route": "/Rest/InvokeDynamicMethod/{methodId}",
+    "description": "Invokes a server method by its id.",
+    "parameters": [
+      {
+        "name": "methodId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": ["integer", "string"],
+          "format": "int64",
+          "pattern": "^-?(?:0|[1-9]\\d*)$"
+        }
+      }
+    ],
+    "requestBody": {
+      "schema": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "family": {
+      "parameter": "methodId"
+    },
+    "variants": [
+      {
+        "name": "list_customer_balances",
+        "description": "Lists customer balances, optionally above a minimum.",
+        "arguments": [
+          {
+            "name": "methodId",
+            "hidden": {
+              "kind": "constant",
+              "value": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "minBalance": {
+                "type": "number",
+                "description": "Lowest balance to include."
+              }
+            },
+            "required": []
+          }
+        }
+      },
+      {
+        "name": "list_delayed_orders",
+        "description": "Lists orders delivered later than promised.",
+        "arguments": [
+          {
+            "name": "methodId",
+            "hidden": {
+              "kind": "constant",
+              "value": 2
+            }
+          }
+        ],
+        "requestBody": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "days": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": ["days"]
+          }
+        }
+      },
+      {
+        "name": "assign_courier",
+        "description": "Assigns a courier to an order.",
+        "arguments": [
+          {
+            "name": "methodId",
+            "hidden": {
+              "kind": "constant",
+              "value": 3
+            }
+          }
+        ],
+        "requestBody": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "orderNumber": {
+                "type": "string"
+              },
+              "courierCode": {
+                "type": "string"
+              }
+            },
+            "required": ["orderNumber", "courierCode"]
+          }
+        }
+      }
+    ],
+    "auth": {
+      "anonymous": "no",
+      "policies": [],
+      "imperative": false
+    }
+  },
+  "expected": {
+    "tools": [
+      {
+        "name": "list_customer_balances",
+        "description": "Lists customer balances, optionally above a minimum.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "minBalance": {
+              "type": "number",
+              "description": "Lowest balance to include."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "destructiveHint": false
+        },
+        "auth": {
+          "anonymous": "no",
+          "policies": [],
+          "imperative": false
+        }
+      },
+      {
+        "name": "list_delayed_orders",
+        "description": "Lists orders delivered later than promised.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "days": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": ["days"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "destructiveHint": false
+        },
+        "auth": {
+          "anonymous": "no",
+          "policies": [],
+          "imperative": false
+        }
+      },
+      {
+        "name": "assign_courier",
+        "description": "Assigns a courier to an order.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "orderNumber": {
+              "type": "string"
+            },
+            "courierCode": {
+              "type": "string"
+            }
+          },
+          "required": ["orderNumber", "courierCode"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "destructiveHint": false
+        },
+        "auth": {
+          "anonymous": "no",
+          "policies": [],
+          "imperative": false
+        }
+      }
+    ]
+  }
+}

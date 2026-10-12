@@ -1,0 +1,97 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "Eski x-sezzlee-search-terms ve x-sezzlee.searchTerms ayni degeri soylerse tasinir, celisirse hicbiri tasinmaz",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/agree": {
+          "get": {
+            "operationId": "agree",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee-search-terms": ["siparis"],
+            "x-sezzlee": {
+              "searchTerms": ["siparis"]
+            }
+          }
+        },
+        "/disagree": {
+          "get": {
+            "operationId": "disagree",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee-revision": 2,
+            "x-sezzlee": {
+              "revision": 3
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "GET /agree",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "agree",
+          "method": "GET",
+          "route": "/agree",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          },
+          "searchTerms": ["siparis"]
+        }
+      },
+      {
+        "key": "GET /disagree",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "disagree",
+          "method": "GET",
+          "route": "/disagree",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      }
+    ],
+    "diagnostics": [
+      {
+        "code": "extension_conflict",
+        "at": "/paths/~1disagree/get/x-sezzlee-revision"
+      }
+    ]
+  }
+}

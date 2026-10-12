@@ -1,0 +1,196 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "x-sezzlee ad, prefix, ipuclari, arguman kurasyonu, arama terimleri ve revizyonu descriptor'a tasir",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/orders/{orderId}": {
+          "get": {
+            "operationId": "getOrder",
+            "tags": ["Orders"],
+            "parameters": [
+              {
+                "name": "orderId",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              {
+                "name": "tenant",
+                "in": "query",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              {
+                "name": "verbose",
+                "in": "query",
+                "schema": {
+                  "type": "boolean"
+                }
+              },
+              {
+                "name": "region",
+                "in": "query",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "toolName": "read_order",
+              "containerPrefix": "sales",
+              "annotations": {
+                "readOnlyHint": true,
+                "idempotentHint": true
+              },
+              "arguments": [
+                {
+                  "name": "orderId",
+                  "as": "id",
+                  "description": "The order number."
+                },
+                {
+                  "name": "tenant",
+                  "hidden": {
+                    "kind": "constant",
+                    "value": "acme"
+                  }
+                },
+                {
+                  "name": "verbose",
+                  "hidden": {
+                    "kind": "omit"
+                  }
+                },
+                {
+                  "name": "region",
+                  "hidden": {
+                    "kind": "deferred",
+                    "source": "callerRegion"
+                  }
+                }
+              ],
+              "searchTerms": ["siparis", "order lookup"],
+              "revision": 3
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "GET /orders/{orderId}",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "getOrder",
+          "container": "Orders",
+          "method": "GET",
+          "route": "/orders/{orderId}",
+          "parameters": [
+            {
+              "name": "orderId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer"
+              }
+            },
+            {
+              "name": "tenant",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string"
+              }
+            },
+            {
+              "name": "verbose",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "boolean"
+              }
+            },
+            {
+              "name": "region",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          },
+          "tags": ["Orders"],
+          "revision": {
+            "operation": 3
+          },
+          "toolName": "read_order",
+          "containerPrefix": "sales",
+          "annotations": {
+            "readOnlyHint": true,
+            "idempotentHint": true
+          },
+          "arguments": [
+            {
+              "name": "orderId",
+              "as": "id",
+              "description": "The order number."
+            },
+            {
+              "name": "tenant",
+              "hidden": {
+                "kind": "constant",
+                "value": "acme"
+              }
+            },
+            {
+              "name": "verbose",
+              "hidden": {
+                "kind": "omit"
+              }
+            },
+            {
+              "name": "region",
+              "hidden": {
+                "kind": "deferred",
+                "source": "callerRegion"
+              }
+            }
+          ],
+          "searchTerms": ["siparis", "order lookup"]
+        }
+      }
+    ],
+    "diagnostics": []
+  }
+}
