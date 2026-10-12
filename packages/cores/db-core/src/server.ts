@@ -12,6 +12,16 @@ import { createHandlers } from "./tools/handlers.js";
 export interface DbServerOptions {
   /** Where a driver error no normalizer classified is reported; stderr when absent. */
   readonly report?: UnexpectedErrorReporter;
+  /**
+   * Which tools refuse a principal `queryPermitted` rejects: `run_query` alone
+   * (the default), or every tool that reads the database.
+   *
+   * Guard: a standalone server's operator may browse a schema with an
+   * administrator login on purpose, so only `run_query` is gated by default.
+   * A host that admits read-only logins alone passes `every_read`, so a grant
+   * added after it checked the login stops the catalogue tools as well.
+   */
+  readonly principalGate?: "query" | "every_read";
 }
 
 /**
@@ -30,7 +40,7 @@ export function createDbMcpServer<TConfig>(
   const server = createMcpSourceServer(
     identity,
     toolDefinitions,
-    createHandlers(source, normalize, options.report),
+    createHandlers(source, normalize, options),
   );
   const close = server.close.bind(server);
   server.close = async () => {

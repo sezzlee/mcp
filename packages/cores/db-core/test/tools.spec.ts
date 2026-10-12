@@ -705,6 +705,43 @@ describe("run_query", () => {
     },
   );
 
+  it.each([
+    [undefined, false],
+    ["every_read", true],
+  ] as const)(
+    "with the principal gate %s, refuses the catalogue tools to a writable principal: %s",
+    async (principalGate, refused) => {
+      const { source } = build((spec) =>
+        spec.sql === "principal"
+          ? rows([column("posture", 0)], [["writable"]])
+          : catalogOnly(spec),
+      );
+      const server = createDbMcpServer(
+        { name: "probe-db", version: "9.9.9" },
+        source,
+        normalize,
+        principalGate === undefined ? {} : { principalGate },
+      );
+      const local = new Client({ name: "db-spec", version: "0.0.0" });
+      const [a, b] = InMemoryTransport.createLinkedPair();
+      await Promise.all([local.connect(a), server.connect(b)]);
+
+      for (const [name, args] of [
+        ["search_catalog", { query: "Orders" }],
+        ["describe_table", { schema: "dbo", table: "Orders" }],
+      ] as const) {
+        const result = (await local.callTool({
+          name,
+          arguments: args,
+        })) as TextResult;
+        expect(
+          result.isError === true &&
+            body(result)["error"] === "write_not_permitted",
+        ).toBe(refused);
+      }
+    },
+  );
+
   it("marks the page truncated when the driver stopped at maxRows", async () => {
     await connect((spec) =>
       spec.sql === "select 1"
