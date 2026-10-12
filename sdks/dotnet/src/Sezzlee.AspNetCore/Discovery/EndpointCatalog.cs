@@ -43,6 +43,11 @@ internal sealed record CatalogBuildResult
     /// Every discovered operation keyed by <c>METHOD /route</c>: the descriptor it was published
     /// from, or <c>null</c> when it was not selected, was dropped, or folded into another route.
     /// </summary>
+    /// <remarks>
+    /// An operation is recorded before any skip, the reserved MCP route included: a skipped
+    /// operation is still in the backend's OpenAPI document, and without a decision it would carry
+    /// no x-sezzlee marker, so a gateway including by default would publish it.
+    /// </remarks>
     public IReadOnlyDictionary<string, EndpointDescriptor?> Operations { get; init; } =
         new Dictionary<string, EndpointDescriptor?>();
 
@@ -103,6 +108,11 @@ internal static partial class EndpointCatalog
             {
                 discovered += 1;
                 string route = NormalizeRoute(api.RelativePath);
+                string target = $"{api.HttpMethod} {route}";
+                if (!string.IsNullOrEmpty(api.HttpMethod))
+                {
+                    declared[target] = null;
+                }
                 if (reservedRoutePrefix is not null
                     && route.StartsWith(reservedRoutePrefix, StringComparison.OrdinalIgnoreCase))
                 {
@@ -115,7 +125,6 @@ internal static partial class EndpointCatalog
                     ? [.. endpoint.Metadata]
                     : [.. action.EndpointMetadata ?? []];
 
-                string target = $"{api.HttpMethod} {route}";
                 bool include;
                 try
                 {
@@ -128,10 +137,6 @@ internal static partial class EndpointCatalog
                 {
                     diagnostics.Add(new CatalogDiagnostic(ex.Code, ex.Message));
                     continue;
-                }
-                if (!string.IsNullOrEmpty(api.HttpMethod))
-                {
-                    declared[target] = null;
                 }
                 if (!include)
                 {

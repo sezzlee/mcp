@@ -137,7 +137,8 @@ const groupedParametersOf = (
       .map((parameter) => parameter.name),
   );
 
-const operationKeyOf = (descriptor: EndpointDescriptor): string =>
+/** The `METHOD /route` key `CatalogBuild.operations` uses. */
+export const operationKeyOf = (descriptor: EndpointDescriptor): string =>
   `${descriptor.method} ${descriptor.route}`;
 
 export function buildCatalog<Source extends object>(

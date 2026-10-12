@@ -302,6 +302,7 @@ export {
   buildCatalog,
   cleanSearchTerms,
   cleanTags,
+  operationKeyOf,
 } from "./catalog/pipeline.js";
 export type {
   CatalogBuild,

@@ -100,6 +100,15 @@ class MethodsController {
   @UseGuards(AnonymousGuard)
   runStatic(@Param("methodId") _methodId: string): void {}
 
+  @Post("legacy/:methodId")
+  @McpTool({ description: "Runs a legacy method by its id." })
+  @McpToolFamily({ parameter: "methodId", source: "unregistered" })
+  @UseGuards(AnonymousGuard)
+  runLegacy(
+    @Param("methodId") _methodId: string,
+    @Body() _body: Record<string, unknown>,
+  ): void {}
+
   @Post("dynamic/:methodId")
   @McpTool({ description: "Runs a method by its id." })
   @McpToolFamily({ parameter: "methodId", source: "methods" })
@@ -150,7 +159,7 @@ afterAll(async () => {
 });
 
 describe("x-sezzlee from the NestJS catalog", () => {
-  it("lets the gateway rebuild every tool from the document it annotates", async () => {
+  it("lets the gateway rebuild every tool from the document it annotates, even including by default", async () => {
     const catalog = app.get(SezzleeCatalog);
     const document = SwaggerModule.createDocument(
       app,
@@ -160,7 +169,11 @@ describe("x-sezzlee from the NestJS catalog", () => {
 
     const gateway = await buildGatewayCatalog(
       JSON.stringify(document),
-      configSchema.parse({ source: "inline", baseUrl: "http://localhost" }),
+      configSchema.parse({
+        source: "inline",
+        baseUrl: "http://localhost",
+        selection: { default: "include" },
+      }),
       new Map(),
       [],
       undefined,

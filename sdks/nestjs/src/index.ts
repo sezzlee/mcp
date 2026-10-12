@@ -39,10 +39,7 @@ export type {
   McpCaller,
   VerifiedToken,
 } from "./options.js";
-export {
-  annotateOpenApiDocument,
-  openApiExtensionKey,
-} from "@sezzlee/core";
+export { annotateOpenApiDocument, openApiExtensionKey } from "@sezzlee/core";
 export type { OpenApiExtensions } from "@sezzlee/core";
 export type {
   RankCatalog,

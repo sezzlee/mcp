@@ -148,9 +148,11 @@ is.
 }
 ```
 
-Every operation carries `tool: true` or `tool: false`, so the gateway publishes exactly what the SDK
-publishes whatever its own default is. Each read of the document reflects the latest catalog, so
-members from `Families.Provide` reach the gateway on its next reload.
+Every operation the SDK knows of carries `tool: true` or `tool: false`, so the gateway publishes
+exactly what the SDK publishes, a refused family included. Keep `selection.default` at `exclude`: an
+operation outside the SDK's discovery carries no marker, and the default decides it. Each read of
+the document reflects the latest catalog, so members from `Families.Provide` reach the gateway on
+its next reload.
 
 :::details[What does not travel]
 

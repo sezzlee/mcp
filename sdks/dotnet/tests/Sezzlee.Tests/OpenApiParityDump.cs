@@ -65,6 +65,11 @@ public sealed class OpenApiParityDump
         [McpArgument("methodId", Variant = "parity_run_beta", Hidden = true, Value = "beta")]
         public IActionResult Run(string methodId) => Ok();
 
+        [HttpPost("legacy/{methodId}")]
+        [McpTool]
+        [McpToolFamily("methodId", Source = "unregistered")]
+        public IActionResult Legacy(long methodId, [FromBody] JsonElement body) => Ok();
+
         [HttpPost("dynamic/{methodId}")]
         [McpTool]
         [McpToolFamily("methodId", Source = "parity-methods")]

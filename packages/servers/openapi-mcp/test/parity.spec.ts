@@ -144,6 +144,7 @@ describe.skipIf(directory === undefined || directory === "")(
           source: "inline",
           baseUrl: "http://localhost",
           requestBodyRequired: "always",
+          selection: { default: "include" },
         }),
         new Map(),
         [],

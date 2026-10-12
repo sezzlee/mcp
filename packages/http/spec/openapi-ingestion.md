@@ -155,12 +155,14 @@ Description and tags are OpenAPI's own fields and stay there. Visibility has no 
 
 An SDK MAY publish its built catalog as `x-sezzlee` extensions, so that a gateway reading the document rebuilds the same tools. Such a publication:
 
-- MUST write `tool` on every operation the SDK considered: `true` when it published a tool from it, `false` when the operation was not selected, was refused, or folded into another route. The gateway then publishes the same set whatever its own selection default is.
+- MUST write `tool` on every operation the framework documents: `true` when the SDK published a tool from it, `false` otherwise, including an operation skipped before the catalog was built (the SDK's own MCP route, a refused family). An operation without a marker falls to the gateway's selection default, and a gateway that includes by default would publish a refused family as its uncurated dispatcher.
 - MUST write the published tool name as `toolName` for an operation without variants, prefix included, rather than the declarations it came from. A generator writes no `operationId` for most handlers, so a name the gateway derived would come from the route where the SDK read the handler.
 - MUST write a family as its members, each with the key its dispatch parameter's hidden constant carries; a variant without such a constant is left out, since the SDK refuses it too.
 - writes the operation-level revision on the operation, the container level on a path item only when every operation under it agrees, and the catalog level on the document root.
 
-Both SDKs pass the same check: the gateway rebuilds the SDK's tools from the annotated document with the same names, arguments and hints (`packages/servers/openapi-mcp/test/parity.spec.ts` for ASP.NET Core, `sdks/nestjs/test/openapi-extension.spec.ts` for NestJS).
+An operation the SDK never saw, such as a route its framework documents outside the SDK's discovery, carries no extension; a gateway reading an SDK's document SHOULD keep its selection default at `exclude` so such an operation stays unpublished.
+
+Both SDKs pass the same check, with the gateway including by default so that a missing marker shows as an extra tool: the gateway rebuilds the SDK's tools from the annotated document with the same names, arguments and hints (`packages/servers/openapi-mcp/test/parity.spec.ts` for ASP.NET Core, `sdks/nestjs/test/openapi-extension.spec.ts` for NestJS).
 
 ### Configured overrides
 
