@@ -200,6 +200,7 @@ export type {
   VisibilityDecision,
 } from "./visibility.js";
 export type { Auth } from "./generated/endpoint-descriptor.js";
+export type { Revision } from "./generated/endpoint-descriptor.js";
 export {
   builtInRecognizers,
   codeFor,
@@ -295,6 +296,16 @@ export type {
   CatalogPipelineOptions,
   DiagnosticReporter,
 } from "./catalog/pipeline.js";
+export {
+  declareRevision,
+  isRevisionNumber,
+  revisionLevels,
+} from "./catalog/revision.js";
+export type {
+  RevisionDeclaration,
+  RevisionDeclarations,
+  RevisionLevel,
+} from "./catalog/revision.js";
 export {
   armDeadline,
   SezzleeDispatchAborted,

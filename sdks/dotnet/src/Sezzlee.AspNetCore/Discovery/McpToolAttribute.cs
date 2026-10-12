@@ -48,6 +48,15 @@ public sealed class McpToolAttribute : Attribute, IMcpSelectionMetadata
     /// <remarks>Written <c>SearchTerms = new[] { "sipariş" }</c>, for the reason given on <see cref="Tags"/>.</remarks>
     public string[]? SearchTerms { get; set; }
 
+    /// <summary>
+    /// The behaviour revision at the level the attribute sits on: a method's covers that operation,
+    /// a controller's every operation in it. Raised when behaviour changes behind an unchanged
+    /// schema, it changes the tool version and nothing the agent reads. The two levels never
+    /// replace one another.
+    /// </summary>
+    /// <remarks><c>0</c> declares nothing, because an attribute property cannot be nullable.</remarks>
+    public int Revision { get; set; }
+
     /// <summary>The body's media type, replacing the one discovery chooses.</summary>
     /// <remarks>It must be one the endpoint accepts; a declaration the backend would answer with 415 drops the endpoint.</remarks>
     public string? Consumes { get; set; }

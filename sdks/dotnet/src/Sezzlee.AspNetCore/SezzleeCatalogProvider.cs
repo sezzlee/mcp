@@ -257,7 +257,9 @@ internal sealed class SezzleeCatalogProvider(
             groupQueryObjects: options.Value.Query.Grouping == QueryObjectGrouping.Group,
             refDescription: fileResolver?.RefDescription,
             families: options.Value.Families,
-            familyLoads: familyLoads);
+            familyLoads: familyLoads,
+            catalogRevision: options.Value.Revision,
+            containerRevision: options.Value.ContainerRevision);
         if (schemaNotes.Count > 0)
         {
             result = result with { Diagnostics = [.. schemaNotes, .. result.Diagnostics] };

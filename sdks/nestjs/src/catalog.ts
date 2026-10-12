@@ -15,6 +15,7 @@ import {
   assertCatalogValid,
   buildCatalog,
   combineMarkers,
+  declareRevision,
   matchesRoute,
   SezzleeTemplateError,
   textMediaType,
@@ -312,23 +313,47 @@ export class SezzleeCatalog implements OnApplicationBootstrap {
       return true;
     });
 
+    const catalogRevision = declareRevision(
+      "The catalog",
+      { catalog: [{ value: this.options.revision, by: "options.revision" }] },
+      report,
+    )?.catalog;
     const built = buildCatalog<NestSource>(
       routed.map((endpoint) => {
-        const tags =
-          endpoint.hints.tags ?? this.options.tags?.(endpoint.controller.name);
+        const container = endpoint.controller.name;
+        const owner = `${container}.${endpoint.handlerName}`;
+        const tags = endpoint.hints.tags ?? this.options.tags?.(container);
         const searchTerms =
-          endpoint.hints.searchTerms ??
-          this.options.searchTerms?.(endpoint.controller.name);
+          endpoint.hints.searchTerms ?? this.options.searchTerms?.(container);
         return {
           source: {
             controller: endpoint.controller,
             handlerName: endpoint.handlerName,
           },
-          owner: `${endpoint.controller.name}.${endpoint.handlerName}`,
+          owner,
           descriptor: endpoint.descriptor,
           ...markersOf(endpoint),
           ...(tags === undefined ? {} : { tags }),
           ...(searchTerms === undefined ? {} : { searchTerms }),
+          revision: {
+            catalog: [{ value: catalogRevision, by: "options.revision" }],
+            container: [
+              {
+                value: endpoint.revisions.container,
+                by: `@McpTool({ revision }) on ${container}`,
+              },
+              {
+                value: this.options.containerRevision?.(container),
+                by: "options.containerRevision",
+              },
+            ],
+            operation: [
+              {
+                value: endpoint.revisions.operation,
+                by: `@McpTool({ revision }) on ${owner}`,
+              },
+            ],
+          },
           declare: (cleaned) =>
             declaredDescriptor(
               endpoint,

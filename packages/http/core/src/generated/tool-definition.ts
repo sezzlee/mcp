@@ -8,6 +8,7 @@ export interface ToolDefinition {
   outputSchema?: JsonSchemaObject;
   annotations: ToolAnnotations;
   auth: Auth;
+  revision?: Revision;
 }
 export interface JsonSchemaObject {
   type?:
@@ -70,4 +71,9 @@ export interface Auth {
 export interface IdentityCarrier {
   in: "header" | "query" | "cookie";
   name: string;
+}
+export interface Revision {
+  catalog?: number;
+  container?: number;
+  operation?: number;
 }

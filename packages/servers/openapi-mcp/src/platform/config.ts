@@ -44,6 +44,8 @@ const tokenExchange = z
   })
   .strict();
 
+const revisionNumber = z.number().int().min(1);
+
 export const configSchema = z
   .object({
     transport: transport.default({ kind: "stdio" }),
@@ -66,6 +68,14 @@ export const configSchema = z
       .record(z.string(), z.string().regex(/^[a-z][a-z0-9_]{0,255}$/))
       .default({}),
     searchTerms: z.record(z.string(), z.array(z.string())).default({}),
+    revision: z
+      .object({
+        catalog: revisionNumber.optional(),
+        paths: z.record(z.string(), revisionNumber).default({}),
+        operations: z.record(z.string(), revisionNumber).default({}),
+      })
+      .strict()
+      .default({ paths: {}, operations: {} }),
     credentials: z.record(z.string(), credential).default({}),
     allowHosts: z.array(z.string().min(1)).default([]),
     /**

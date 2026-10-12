@@ -41,6 +41,15 @@ public sealed class SezzleeOptions
     /// sits below a <c>[McpTool(SearchTerms = ...)]</c> declaration; there is no default.
     /// </summary>
     public Func<string, IReadOnlyList<string>?>? SearchTerms { get; set; }
+
+    /// <summary>The behaviour revision of the whole catalog; raising it changes every tool version.</summary>
+    public int? Revision { get; set; }
+
+    /// <summary>
+    /// A behaviour revision for a container the host cannot decorate, keyed like <see cref="Tags"/>.
+    /// It sits below a <c>[McpTool(Revision = ...)]</c> on that container.
+    /// </summary>
+    public Func<string, int?>? ContainerRevision { get; set; }
 }
 
 /// <summary>What a per-endpoint budget or timeout override sees.</summary>

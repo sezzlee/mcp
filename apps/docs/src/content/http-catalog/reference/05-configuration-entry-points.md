@@ -31,12 +31,15 @@ It throws at startup if `UseSezzleeCapture()` was never registered.
 Selection markers:
 
 ```csharp
-[McpTool]      // Name, Prefix, ReadOnly, Destructive, Idempotent
+[McpTool]      // Name, Prefix, ReadOnly, Destructive, Idempotent, Revision
 [McpIgnore]
 interface IMcpSelectionMetadata { bool Include { get; } }
 ```
 
 `IMcpSelectionMetadata` is public, so a host can attach selection through its own metadata type.
+`[McpTool(Revision = n)]` on a controller or an action, `options.Revision` and
+`options.ContainerRevision` declare behaviour revisions; see
+[shipping a behaviour change mid-deploy](/docs/http-catalog/ship-a-behaviour-change-without-breaking-agents-mid-deploy).
 `[McpTool(Consumes = "...")]` names a body media type discovery would not choose.
 
 File resolution is a service, not an option: register an `ISezzleeFileResolver` and file arguments
@@ -145,9 +148,13 @@ Selection markers:
   consumes?: string;
   files?: Record<string, { multiple?; required?; description?; mediaType? }>;
   readOnly?: boolean; destructive?: boolean; idempotent?: boolean;
+  revision?: number;
 })
 @McpIgnore()
 ```
+
+`options.revision` and `options.containerRevision` declare the catalog and container revisions
+that `@McpTool({ revision })` declares on a class or a method.
 
 Guard declaration, read once at catalog build time:
 

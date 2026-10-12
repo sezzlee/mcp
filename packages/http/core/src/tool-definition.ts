@@ -538,5 +538,6 @@ export function createToolDefinition(
     ...(endpoint.deprecated === true ? { deprecated: true } : {}),
     annotations: annotate(endpoint, variant),
     auth: endpoint.auth,
+    ...(endpoint.revision === undefined ? {} : { revision: endpoint.revision }),
   };
 }

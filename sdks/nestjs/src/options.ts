@@ -344,6 +344,10 @@ export class SezzleeOptions {
   tags?: (container: string) => readonly string[] | undefined;
   /** Search vocabulary for a container the host cannot decorate, below a `@McpTool({ searchTerms })`. */
   searchTerms?: (container: string) => readonly string[] | undefined;
+  /** The behaviour revision of the whole catalog; raising it changes every tool version. */
+  revision?: number;
+  /** A behaviour revision for a container the host cannot decorate, below a `@McpTool({ revision })`. */
+  containerRevision?: (container: string) => number | undefined;
   schema?: TypeShapeBinderOptions;
   resourceServer?: SezzleeResourceServerOptions;
 }

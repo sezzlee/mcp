@@ -1,0 +1,44 @@
+{
+  "kind": "metadata-extraction",
+  "description": "revision seviyeleri birbirini ezmeden arac tanimina aynen tasinir",
+  "input": {
+    "operationId": "ListOrders",
+    "method": "GET",
+    "route": "/orders",
+    "description": "Lists orders.",
+    "auth": {
+      "anonymous": "yes",
+      "policies": [],
+      "imperative": false
+    },
+    "revision": {
+      "catalog": 1,
+      "container": 4,
+      "operation": 2
+    }
+  },
+  "expected": {
+    "name": "list_orders",
+    "description": "Lists orders.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "idempotentHint": true
+    },
+    "auth": {
+      "anonymous": "yes",
+      "policies": [],
+      "imperative": false
+    },
+    "revision": {
+      "catalog": 1,
+      "container": 4,
+      "operation": 2
+    }
+  }
+}

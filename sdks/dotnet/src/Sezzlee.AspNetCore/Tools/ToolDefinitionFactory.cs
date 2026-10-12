@@ -28,6 +28,7 @@ internal static partial class ToolDefinitionFactory
             Deprecated = endpoint.Deprecated == true ? true : null,
             Annotations = Annotate(endpoint, variant),
             Auth = endpoint.Auth,
+            Revision = endpoint.Revision,
         };
     }
 

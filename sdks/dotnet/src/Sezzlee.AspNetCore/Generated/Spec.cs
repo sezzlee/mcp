@@ -33,6 +33,7 @@ public sealed record EndpointDescriptor
     public required Auth Auth { get; init; }
     public IReadOnlyList<string>? Tags { get; init; }
     public IReadOnlyList<string>? SearchTerms { get; init; }
+    public Revision? Revision { get; init; }
     public IReadOnlyList<ArgumentCuration>? Arguments { get; init; }
     public IReadOnlyList<ToolVariant>? Variants { get; init; }
     public ToolFamily? Family { get; init; }
@@ -106,6 +107,13 @@ public sealed record VariantRequestBody
     public string? Description { get; init; }
 }
 
+public sealed record Revision
+{
+    public int? Catalog { get; init; }
+    public int? Container { get; init; }
+    public int? Operation { get; init; }
+}
+
 public sealed record Auth
 {
     public required Anonymity Anonymous { get; init; }
@@ -131,6 +139,7 @@ public sealed record ToolDefinition
     public JsonObject? OutputSchema { get; init; }
     public required ToolAnnotations Annotations { get; init; }
     public required Auth Auth { get; init; }
+    public Revision? Revision { get; init; }
 }
 
 public sealed record ToolAnnotations

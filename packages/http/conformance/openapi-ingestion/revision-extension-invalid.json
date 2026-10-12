@@ -1,0 +1,97 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "1'den kucuk ya da tam sayi olmayan x-sezzlee-revision her konumda bir kez uyarilir ve tasinmaz; operasyon dusmez",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "x-sezzlee-revision": "1",
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/orders": {
+          "x-sezzlee-revision": 0,
+          "get": {
+            "operationId": "listOrders",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            }
+          },
+          "post": {
+            "operationId": "createOrder",
+            "x-sezzlee-revision": 1.5,
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "GET /orders",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "listOrders",
+          "method": "GET",
+          "route": "/orders",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      },
+      {
+        "key": "POST /orders",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "createOrder",
+          "method": "POST",
+          "route": "/orders",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      }
+    ],
+    "diagnostics": [
+      {
+        "code": "revision_invalid",
+        "at": "/x-sezzlee-revision"
+      },
+      {
+        "code": "revision_invalid",
+        "at": "/paths/~1orders/x-sezzlee-revision"
+      },
+      {
+        "code": "revision_invalid",
+        "at": "/paths/~1orders/post/x-sezzlee-revision"
+      }
+    ]
+  }
+}

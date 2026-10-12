@@ -28,6 +28,9 @@
     },
     "auth": {
       "$ref": "endpoint-descriptor.schema.json#/$defs/Auth"
+    },
+    "revision": {
+      "$ref": "endpoint-descriptor.schema.json#/$defs/Revision"
     }
   },
   "$defs": {

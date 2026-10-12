@@ -68,6 +68,19 @@ class OrdersWithExpandController {
   }
 }
 
+function revisedOrdersController(): new (...args: never[]) => unknown {
+  @Controller()
+  @McpTool({ revision: 2 })
+  class OrdersController {
+    @Get("orders/:id")
+    getOrder(@Param("id", ParseIntPipe) id: number): { id: number } {
+      dispatched.push("orders-revised");
+      return { id };
+    }
+  }
+  return OrdersController;
+}
+
 @Controller()
 class ReplicaMcpController {
   private readonly serve: SezzleeRequestHandler;
@@ -164,15 +177,17 @@ describe("nest tool version across replicas", () => {
   let loadedFrom: Replica;
   let sameBuild: Replica;
   let nextBuild: Replica;
+  let revised: Replica;
 
   beforeAll(async () => {
     loadedFrom = await startReplica([OrdersController, PingController]);
     sameBuild = await startReplica([PingController, OrdersController]);
     nextBuild = await startReplica([OrdersWithExpandController]);
+    revised = await startReplica([revisedOrdersController()]);
   });
 
   afterAll(async () => {
-    for (const replica of [loadedFrom, sameBuild, nextBuild]) {
+    for (const replica of [loadedFrom, sameBuild, nextBuild, revised]) {
       await replica.client.close();
       await replica.app.close();
     }
@@ -214,6 +229,22 @@ describe("nest tool version across replicas", () => {
       message: `The tool '${nextBuild.orderTool}' changed after it was loaded, so the call was refused before reaching the backend. Load it again with load_tool and retry with the new version.`,
       retryable: false,
     });
+    expect(dispatched).toEqual([]);
+  });
+
+  it("refuses a call pinned before a controller's revision was raised behind an unchanged schema", async () => {
+    const version = await versionOn(loadedFrom);
+    dispatched.length = 0;
+
+    const { parsed, isError } = await call(revised, "invoke_tool", {
+      name: revised.orderTool,
+      arguments: { id: 7 },
+      version,
+    });
+
+    expect(revised.orderTool).toBe(loadedFrom.orderTool);
+    expect(isError).toBe(true);
+    expect(parsed["error"]).toBe("tool_changed");
     expect(dispatched).toEqual([]);
   });
 

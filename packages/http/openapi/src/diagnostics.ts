@@ -29,6 +29,7 @@ export const ingestionSeverities = {
   request_media_type_alternative_ignored: "warning",
   operation_id_unusable: "warning",
   search_terms_invalid: "warning",
+  revision_invalid: "warning",
   callbacks_ignored: "warning",
   links_ignored: "warning",
   webhooks_ignored: "warning",

@@ -239,6 +239,7 @@ export interface EndpointDescriptor {
   auth: Auth;
   tags?: string[];
   searchTerms?: string[];
+  revision?: Revision;
   arguments?: ArgumentCuration[];
   variants?: [ToolVariant, ...ToolVariant[]];
   family?: ToolFamily;
@@ -333,6 +334,11 @@ export interface IdentityCarrier {
   in: "header" | "query" | "cookie";
   name: string;
 }
+export interface Revision {
+  catalog?: number;
+  container?: number;
+  operation?: number;
+}
 export interface ToolVariant {
   name: string;
   description: string;
@@ -361,6 +367,7 @@ export interface ToolDefinition {
   outputSchema?: JsonSchemaObject;
   annotations: ToolAnnotations;
   auth: Auth;
+  revision?: Revision;
 }
 export interface MetadataExtractionExpectedTools {
   tools: [ToolDefinition, ...ToolDefinition[]];

@@ -125,6 +125,10 @@ export interface DiscoveredEndpoint {
   readonly containerMarkers: readonly boolean[];
   readonly operationMarkers: readonly boolean[];
   readonly hints: McpToolOptions;
+  readonly revisions: {
+    readonly container: number | undefined;
+    readonly operation: number | undefined;
+  };
 }
 
 const methodNames: Partial<
@@ -251,6 +255,10 @@ function fromController(
         containerMarkers: containerMarkers.map((marker) => marker.include),
         operationMarkers: operationMarkers.map((marker) => marker.include),
         hints,
+        revisions: {
+          container: declaredRevision(containerMarkers),
+          operation: declaredRevision(operationMarkers),
+        },
       });
     }
   }
@@ -1011,12 +1019,24 @@ function argumentsOf(
     {}) as Record<string, ArgumentEntry>;
 }
 
+function declaredRevision(
+  markers: ReturnType<typeof markersOf>,
+): number | undefined {
+  let revision: number | undefined;
+  for (const marker of markers) {
+    revision = marker.options.revision ?? revision;
+  }
+  return revision;
+}
+
 /**
- * Flat last-wins merge, except for curation.
+ * Flat last-wins merge, except for curation and the revision.
  *
  * `arguments` merges per argument and per field so a container-level rule that hides a tenant
  * identifier survives a method-level rule that only renames something else. A flat replacement
- * would silently unhide it.
+ * would silently unhide it. `revision` is kept out entirely: its levels are read apart
+ * ({@link declaredRevision}), because a method's revision replacing its controller's would hide a
+ * raised controller revision from that method's tool version.
  */
 function mergeHints(
   container: ReturnType<typeof markersOf>,
@@ -1027,7 +1047,7 @@ function mergeHints(
   const variants: McpVariantOptions[] = [];
   for (const marker of [...container, ...operation]) {
     for (const [key, value] of Object.entries(marker.options)) {
-      if (value === undefined) {
+      if (value === undefined || key === "revision") {
         continue;
       }
       if (key === "arguments") {

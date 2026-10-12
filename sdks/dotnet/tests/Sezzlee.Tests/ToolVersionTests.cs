@@ -76,6 +76,14 @@ public sealed class ToolVersionTests
             })
             .WithMetadata(new McpToolAttribute { Name = "get_order" });
 
+    private static void MapOrdersRevised(WebApplication app, List<string> dispatched) =>
+        app.MapGet("/orders/{id}", (int id) =>
+            {
+                dispatched.Add("orders-revised");
+                return new { id };
+            })
+            .WithMetadata(new McpToolAttribute { Name = "get_order", Revision = 2 });
+
     private static JsonElement Parse(CallToolResult result) =>
         JsonDocument.Parse(((TextContentBlock)result.Content[0]).Text).RootElement.Clone();
 
@@ -127,6 +135,19 @@ public sealed class ToolVersionTests
             envelope.GetProperty("message").GetString());
         Assert.False(envelope.GetProperty("retryable").GetBoolean());
         Assert.Empty(nextBuild.Dispatched);
+    }
+
+    [Fact]
+    public async Task V5_BehaviourRevisedBehindAnUnchangedSchema_IsRefusedBeforeDispatch()
+    {
+        await using Replica loadedFrom = await StartAsync((app, seen) => MapOrders(app, seen));
+        await using Replica revised = await StartAsync((app, seen) => MapOrdersRevised(app, seen));
+
+        CallToolResult result = await InvokeAsync(revised, "get_order", await VersionOnAsync(loadedFrom));
+
+        Assert.True(result.IsError);
+        Assert.Equal("tool_changed", Parse(result).GetProperty("error").GetString());
+        Assert.Empty(revised.Dispatched);
     }
 
     [Fact]

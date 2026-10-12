@@ -4,7 +4,7 @@ MCP server that exposes an OpenAPI (Swagger 2.0 / OpenAPI 3.0–3.2) document as
 search-first tool catalog — `search_tools`, `load_tool`, `invoke_tool` — over a **remote**
 backend, calling it with `fetch`.
 
-> Status: `0.2.0`, alpha. Install with `npm install -g @sezzlee/openapi-mcp` or run it with
+> Status: `0.2.2`, alpha. Install with `npm install -g @sezzlee/openapi-mcp` or run it with
 > `npx -y @sezzlee/openapi-mcp`; the binary is `sezzlee-openapi`.
 
 ## How this differs from the embedded SDKs
@@ -86,6 +86,9 @@ schema (`src/platform/config.ts`) that rejects unknown keys.
 | `selection.default`              | `"include"` \| `"exclude"`                 | `"exclude"`    | Whether an operation is exposed when no rule matches it (opt-in by default)                                                                                                    |
 | `selection.rules`                | array of `{ route?, method?, decision }`   | `[]`           | `route`/`method` are matched the same way the embedded SDKs match a controller route                                                                                           |
 | `names`                          | record\<operation key, string\>            | `{}`           | Overrides a tool's name; the value must match `^[a-z][a-z0-9_]{0,255}$`                                                                                                        |
+| `revision.catalog`               | integer ≥ 1                                | not configured | Behaviour revision of every tool; comes before the document root's `x-sezzlee-revision`                                                                                        |
+| `revision.paths`                 | record\<document path, integer ≥ 1\>       | `{}`           | Behaviour revision of every operation under that path item; comes before the path item's `x-sezzlee-revision`                                                                  |
+| `revision.operations`            | record\<operation key, integer ≥ 1\>       | `{}`           | Behaviour revision of one operation; comes before its `x-sezzlee-revision`. The levels add up rather than replacing one another                                                |
 | `credentials`                    | record\<security scheme name, credential\> | `{}`           | Either `{ "value": { "fromEnv": "..." } }` or `{ "username": { "fromEnv": "..." }, "password": { "fromEnv": "..." } }`; see [credentials.md](../../http/spec/credentials.md)   |
 | `allowHosts`                     | array of string                            | `[]`           | Hosts a backend operation may be served from, beyond the document's own root server                                                                                            |
 | `refHosts`                       | array of string                            | `[]`           | Hosts an external `$ref` may be fetched from, beyond the document's own host. Kept apart from `allowHosts`, so allowing a schema host never lets calls or credentials go there |

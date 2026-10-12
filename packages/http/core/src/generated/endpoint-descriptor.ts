@@ -40,6 +40,7 @@ export interface EndpointDescriptor {
   auth: Auth;
   tags?: string[];
   searchTerms?: string[];
+  revision?: Revision;
   arguments?: ArgumentCuration[];
   variants?: [ToolVariant, ...ToolVariant[]];
   family?: ToolFamily;
@@ -133,6 +134,11 @@ export interface Auth {
 export interface IdentityCarrier {
   in: "header" | "query" | "cookie";
   name: string;
+}
+export interface Revision {
+  catalog?: number;
+  container?: number;
+  operation?: number;
 }
 export interface ArgumentCuration {
   name: string;

@@ -1,4 +1,9 @@
-import { snakeCase, type EndpointDescriptor } from "@sezzlee/core";
+import {
+  isRevisionNumber,
+  snakeCase,
+  type EndpointDescriptor,
+  type Revision,
+} from "@sezzlee/core";
 import { OperationDropped, type DiagnosticSink } from "../diagnostics.js";
 import {
   childPointer,
@@ -31,6 +36,8 @@ import { serverOf, type ServerOptions } from "./servers.js";
 
 export interface SourcedEndpoint {
   readonly key: OperationKey;
+  /** The path as the document writes it, before any hoisted prefix is removed. */
+  readonly path: string;
   readonly at: JsonPointer;
   readonly descriptor: EndpointDescriptor;
   /** The base URL the route is appended to, with any hoisted prefix; `undefined` when unresolvable. */
@@ -190,11 +197,34 @@ function searchTermsOf(
   return terms.length === 0 ? undefined : terms;
 }
 
+const revisionExtension = "x-sezzlee-revision";
+
+function revisionOf(
+  context: SchemaContext,
+  holder: JsonObject,
+  at: JsonPointer,
+): number | undefined {
+  const declared = holder[revisionExtension];
+  if (declared === undefined) {
+    return undefined;
+  }
+  if (!isRevisionNumber(declared)) {
+    context.diagnostics.report(
+      "revision_invalid",
+      childPointer(at, revisionExtension),
+      `${revisionExtension} must be a whole number from 1; it is not carried.`,
+    );
+    return undefined;
+  }
+  return declared;
+}
+
 function lowerOperation(
   context: SchemaContext,
   site: OperationSite,
   schemes: SecurityModel,
   options: OperationOptions,
+  inherited: Pick<Revision, "catalog" | "container">,
 ): SourcedEndpoint | undefined {
   const { operation, at, method } = site;
   if (operation["x-sezzlee-dropped"] === true) {
@@ -261,6 +291,16 @@ function lowerOperation(
     .map(stringOf)
     .filter((tag): tag is string => tag !== undefined && tag.trim() !== "");
   const searchTerms = searchTermsOf(context, operation, at);
+  const operationRevision = revisionOf(context, operation, at);
+  const revision: Revision = {
+    ...(inherited.catalog === undefined ? {} : { catalog: inherited.catalog }),
+    ...(inherited.container === undefined
+      ? {}
+      : { container: inherited.container }),
+    ...(operationRevision === undefined
+      ? {}
+      : { operation: operationRevision }),
+  };
   const { route, prefix } = hoisted(site.path, options.hoistPathPrefix);
   const description = descriptionOf(operation);
   const carriers = [...credentialSlots, ...lowered.carriers];
@@ -279,6 +319,7 @@ function lowerOperation(
     auth: authOf(security, carriers),
     ...(tags.length === 0 ? {} : { tags }),
     ...(searchTerms === undefined ? {} : { searchTerms }),
+    ...(Object.keys(revision).length === 0 ? {} : { revision }),
   };
   const server = serverOf(
     [
@@ -297,6 +338,7 @@ function lowerOperation(
   );
   return {
     key: operationKey(method, site.path),
+    path: site.path,
     at,
     descriptor,
     baseUrl: server === undefined ? undefined : `${server}${prefix}`,
@@ -316,10 +358,19 @@ export function lowerOperations(
       "Webhooks are requests the backend makes, not operations the agent calls; they are not carried.",
     );
   }
+  const catalog = revisionOf(context, context.document, rootPointer);
+  const containers = new Map<JsonPointer, number | undefined>();
   const endpoints: SourcedEndpoint[] = [];
   for (const site of sitesOf(context.document, context.diagnostics)) {
+    if (!containers.has(site.itemAt)) {
+      containers.set(site.itemAt, revisionOf(context, site.item, site.itemAt));
+    }
+    const container = containers.get(site.itemAt);
     try {
-      const endpoint = lowerOperation(context, site, schemes, options);
+      const endpoint = lowerOperation(context, site, schemes, options, {
+        ...(catalog === undefined ? {} : { catalog }),
+        ...(container === undefined ? {} : { container }),
+      });
       if (endpoint !== undefined) {
         endpoints.push(endpoint);
       }
