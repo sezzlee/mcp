@@ -10,7 +10,18 @@ spec, a guard comment or the package README.
   ([search-semantics.md](packages/http/spec/search-semantics.md), Replaceable ranker), but the
   `sezzlee-openapi` CLI has no way to bind one: loading a module would cross the gateway's file
   boundary, and calling a remote ranker by URL would be a second network egress beside
-  `src/net/fetch.ts`. Either needs its own allowlist rule before it lands.
+  `src/net/fetch.ts`. The intended shape is declarative, never a module path: an `embedding` block
+  (an OpenAI-compatible endpoint, its model and a `fromEnv` key), a `store` block (in memory first,
+  then an external vector store), fusion with BM25 by reciprocal rank and `onFailure: fallback`.
+  Before it lands it needs its own egress rule (the embedding and store hosts named in the config,
+  HTTPS only, no redirect, no backend credential), an operator opt-in for sending the catalog to a
+  third party, per-tool re-embedding keyed by a digest of its text so a reload re-embeds only what
+  changed, and a recall measurement against BM25 on a real document with Turkish and English
+  queries.
+- **A richer document for the ranker.** `RankDocument` carries the seven BM25 fields only. An
+  embedding ranker would gain from the operation `summary`, nested body and response field names
+  and generated example queries, none of which reaches it today; adding them changes the ranker
+  contract, and a hidden argument must stay out of every one of them.
 - **Whole-document validation.** Ingestion validates by point checks on the constructs it lowers
   ([openapi-ingestion.md](packages/http/spec/openapi-ingestion.md), pipeline step 3). A defect in a
   part nothing reads produces no diagnostic. Validate against the version's own meta-schema, still
@@ -44,11 +55,6 @@ spec, a guard comment or the package README.
   skips a missing provider at invoke time instead.
 - **Member bodies on `[McpToolVariant]`.** A NestJS `@McpVariant` can carry a family member's body,
   so a fixed family needs no source; on ASP.NET Core a member with its own body comes from a source.
-- **Re-reading the gateway's document.** `openapi-mcp` ingests its `source` once at startup, so a
-  backend deploy that renames or moves routes leaves the catalog stale until the gateway restarts.
-  Re-fetch an `http(s)` source on an interval or when its `ETag` changes, rebuild the catalog,
-  keep the current one when the new one has a fatal diagnostic, and announce the change with
-  `listChanged` the way the SDKs do on reload.
 
 ## Source servers
 

@@ -46,11 +46,20 @@ const tokenExchange = z
 
 const revisionNumber = z.number().int().min(1);
 
+const minimumReloadSeconds = 10;
+
 export const configSchema = z
   .object({
     transport: transport.default({ kind: "stdio" }),
     tokenExchange: tokenExchange.optional(),
     source: z.string().min(1),
+    reload: z
+      .object({
+        intervalSeconds: z.number().int().min(minimumReloadSeconds).optional(),
+        onSignal: z.boolean().default(true),
+      })
+      .strict()
+      .optional(),
     baseUrl: z.url().optional(),
     serverVariables: z.record(z.string(), z.string()).optional(),
     hoistPathPrefix: z.string().startsWith("/").optional(),

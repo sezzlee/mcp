@@ -3,7 +3,19 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import type { DocumentLoader } from "@sezzlee/openapi";
-import { buildGatewayCatalog, summarize } from "./catalog/build.js";
+import {
+  buildGatewayCatalog,
+  hasFatal,
+  summarize,
+  type GatewayCatalog,
+} from "./catalog/build.js";
+import {
+  createCatalogReloader,
+  type DocumentRead,
+  type DocumentValidators,
+  type ReloadOutcome,
+} from "./catalog/reload.js";
+import { fetchDocument } from "./catalog/source.js";
 import { createBoundedFetch, HostNotAllowed } from "./net/fetch.js";
 import { asciiLower } from "./platform/ascii.js";
 import { readConfig } from "./platform/config.js";
@@ -64,55 +76,76 @@ const documentFetch = createBoundedFetch(
 );
 const documentLimit = 64 * 1024 * 1024;
 
+const readHttp = (
+  url: URL,
+  validators: DocumentValidators,
+): Promise<DocumentRead> =>
+  fetchDocument({
+    fetch: documentFetch,
+    url,
+    validators,
+    timeoutMs: config.limits.timeoutMs,
+    maxBytes: documentLimit,
+  });
+
 async function readDocument(url: URL): Promise<string> {
   if (url.protocol === "file:") {
     return readWithin(directoryOf(sourcePath ?? "."), fileURLToPath(url));
   }
-  const response = await documentFetch(
-    {
-      method: "GET",
-      url,
-      headers: {
-        accept: "application/json, application/yaml;q=0.9, */*;q=0.1",
-      },
-    },
-    AbortSignal.timeout(config.limits.timeoutMs),
-    documentLimit,
-  );
-  if (response.status !== 200 || response.body === undefined) {
-    throw new Error(
-      `sezzlee-openapi: ${url.href} answered ${String(response.status)}.`,
-    );
+  const read = await readHttp(url, {});
+  if (read.kind === "unchanged") {
+    throw new Error(`sezzlee-openapi: ${url.href} answered 304.`);
   }
-  return response.body;
+  return read.text;
 }
 
 const loader: DocumentLoader = readDocument;
 
-let text: string;
-try {
-  text = isUrl
-    ? await readDocument(new URL(config.source))
-    : await readText(sourcePath ?? "");
-} catch (error) {
-  stop(
-    `sezzlee-openapi cannot read the document: ${(error as Error).message}`,
-    2,
-  );
+async function readSource(
+  validators: DocumentValidators,
+): Promise<DocumentRead> {
+  if (isUrl) {
+    return readHttp(new URL(config.source), validators);
+  }
+  return {
+    kind: "document",
+    text: await readText(sourcePath ?? ""),
+    validators: {},
+  };
 }
 
-const gateway = await buildGatewayCatalog(
-  text,
-  config,
-  credentials,
-  config.allowHosts,
-  documentUrl,
-  loader,
-).catch((error: unknown) =>
+const build = (text: string): Promise<GatewayCatalog> =>
+  buildGatewayCatalog(
+    text,
+    config,
+    credentials,
+    config.allowHosts,
+    documentUrl,
+    loader,
+  );
+
+function describe(error: unknown): string {
+  if (error instanceof HostNotAllowed) {
+    return `the document references a schema on '${error.host}', which is not a reference host; add it to "refHosts" in the config to allow it.`;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+let first: DocumentRead;
+try {
+  first = await readSource({});
+} catch (error) {
+  stop(`sezzlee-openapi cannot read the document: ${describe(error)}`, 2);
+}
+if (first.kind === "unchanged") {
+  stop("sezzlee-openapi cannot read the document: it answered 304.", 2);
+}
+
+const gateway = await build(first.text).catch((error: unknown) =>
   stop(
     error instanceof HostNotAllowed
-      ? `sezzlee-openapi: the document references a schema on '${error.host}', which is not a reference host; add it to "refHosts" in the config to allow it.`
-      : `sezzlee-openapi cannot resolve the document: ${(error as Error).message}`,
+      ? `sezzlee-openapi: ${describe(error)}`
+      : `sezzlee-openapi cannot resolve the document: ${describe(error)}`,
     2,
   ),
 );
@@ -122,15 +155,80 @@ for (const line of summarize(gateway.ingestion, gateway.catalog.diagnostics)) {
 process.stderr.write(
   `sezzlee-openapi: ${String(gateway.catalog.entries.length)} tool(s) from ${String(gateway.catalog.selected)} selected operation(s).\n`,
 );
-if (
-  gateway.catalog.fatal.length > 0 ||
-  gateway.ingestion.some((d) => d.severity === "fatal")
-) {
+if (hasFatal(gateway)) {
   stop("sezzlee-openapi: the catalog has fatal diagnostics; see above.", 1);
 }
 
+const reloader = createCatalogReloader({
+  initial: gateway,
+  text: first.text,
+  validators: first.validators,
+  read: readSource,
+  build,
+  describe,
+});
 const fetcher = createBoundedFetch(gateway.allowedHosts);
-const factory = () => createOpenApiMcpServer(gateway, fetcher, config.limits);
+const factory = (announce: boolean) => () =>
+  createOpenApiMcpServer(reloader, fetcher, config.limits, { announce });
+
+function report(outcome: ReloadOutcome): void {
+  switch (outcome.kind) {
+    case "unchanged":
+      return;
+    case "reloaded": {
+      for (const line of outcome.diagnostics) {
+        process.stderr.write(`${line}\n`);
+      }
+      process.stderr.write(
+        `sezzlee-openapi: reloaded the document; generation ${String(outcome.snapshot.generation)}, ${String(outcome.snapshot.gateway.catalog.entries.length)} tool(s).\n`,
+      );
+      return;
+    }
+    case "kept": {
+      process.stderr.write(
+        `sezzlee-openapi: kept the current catalog (${outcome.reason}).\n`,
+      );
+      for (const line of outcome.details) {
+        process.stderr.write(`${line}\n`);
+      }
+      return;
+    }
+    default: {
+      const _exhaustive: never = outcome;
+      return _exhaustive;
+    }
+  }
+}
+
+/**
+ * Guard: the interval timer is unref'd. On stdio the process must exit once the client closes
+ * stdin, and a pending timer would keep it alive with no client left to serve.
+ */
+function watchSource(): void {
+  const settings = config.reload;
+  if (settings === undefined) {
+    return;
+  }
+  const run = (): Promise<void> => reloader.reload().then(report);
+  if (settings.onSignal) {
+    process.on("SIGHUP", () => {
+      void run();
+    });
+  }
+  const seconds = settings.intervalSeconds;
+  if (seconds === undefined) {
+    return;
+  }
+  const tick = (): void => {
+    const delay = seconds * 1000 * (1 + Math.random() * 0.1);
+    setTimeout(() => {
+      void run().finally(tick);
+    }, delay).unref();
+  };
+  tick();
+}
+
+watchSource();
 
 if (config.transport.kind === "http") {
   const exchangeConfig = config.tokenExchange;
@@ -145,12 +243,15 @@ if (config.transport.kind === "http") {
           ),
           config.limits.timeoutMs,
         );
-  const listening = await serveHttp(factory, exchange, config.transport);
+  const listening = await serveHttp(factory(false), exchange, config.transport);
+  reloader.onChange(() => {
+    listening.notifyToolsChanged();
+  });
   process.stderr.write(
     `sezzlee-openapi: listening on http://${config.transport.host}:${String(config.transport.port)}${config.transport.path}\n`,
   );
   const close = (): void => {
-    listening.close();
+    listening.server.close();
   };
   process.once("SIGINT", close);
   process.once("SIGTERM", close);
@@ -159,7 +260,7 @@ if (config.transport.kind === "http") {
 }
 
 function serveOverStdio(): void {
-  const handle = serveStdio(factory, {
+  const handle = serveStdio(factory(true), {
     onerror: (error) => {
       process.stderr.write(`${error.message}\n`);
     },

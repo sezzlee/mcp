@@ -1,7 +1,8 @@
 import { createRequire } from "node:module";
-import { McpServer } from "@modelcontextprotocol/server";
+import { McpServer, type RegisteredTool } from "@modelcontextprotocol/server";
 import {
   assertCatalogValid,
+  catalogGenerationMetaKey,
   checkPinnedVersion,
   createLoadedTool,
   defaultSearchLimit,
@@ -29,6 +30,7 @@ import {
 import { z } from "zod";
 import type { GatewaySource } from "./catalog/build.js";
 import type { GatewayCatalog } from "./catalog/build.js";
+import { fixedCatalog, type CatalogState } from "./catalog/reload.js";
 import { invokeEntry, type InvokeLimits } from "./invoke/invoke.js";
 import type { BoundedFetch } from "./net/fetch.js";
 
@@ -67,25 +69,37 @@ const visible = (decision: VisibilityDecision): boolean => decision !== "deny";
 
 /**
  * @param options.ranker a host ranker for `search_tools`, for an embedder; the CLI binds none
+ * @param options.announce re-stamp the catalog generation and send `tools/list_changed` from this
+ * instance whenever the state changes; for one instance that outlives a reload, as on stdio. The
+ * subscription lasts as long as the state does
  */
 export interface OpenApiMcpServerOptions {
   readonly ranker?: SearchRankerOptions;
+  readonly announce?: boolean;
 }
 
+/**
+ * @param gateway a built catalog, or a state whose current catalog every call reads
+ */
 export function createOpenApiMcpServer(
-  gateway: GatewayCatalog,
+  gateway: GatewayCatalog | CatalogState,
   fetcher: BoundedFetch,
   limits: InvokeLimits,
   options: OpenApiMcpServerOptions = {},
 ): McpServer {
-  const { catalog } = gateway;
+  const state = "current" in gateway ? gateway : fixedCatalog(gateway);
+  const catalogNow = () => state.current().gateway.catalog;
+  const generationMeta = (): Record<string, unknown> => ({
+    [catalogGenerationMetaKey]: state.current().generation,
+  });
   const budget = (): number => limits.maxResponseBytes;
   const server = new McpServer({ name: "sezzlee-openapi", version });
 
-  server.registerTool(
+  const search = server.registerTool(
     "search_tools",
     {
       description: searchDescription,
+      _meta: generationMeta(),
       inputSchema: z.object({
         query: z.string().default("").describe(searchQueryDescription),
         limit: z
@@ -107,6 +121,7 @@ export function createOpenApiMcpServer(
     },
     async ({ query, limit, detail, tags }, ctx) =>
       emitGuarded(budget, async () => {
+        const catalog = catalogNow();
         assertCatalogValid(catalog.fatal);
         const signal = (ctx as ToolContext | undefined)?.mcpReq?.signal;
         return searchCatalog({
@@ -123,10 +138,11 @@ export function createOpenApiMcpServer(
       }),
   );
 
-  server.registerTool(
+  const load = server.registerTool(
     "load_tool",
     {
       description: loadDescription,
+      _meta: generationMeta(),
       inputSchema: z
         .object({ name: namedArgument(operationNameDescription) })
         .meta({ required: ["name"] }),
@@ -139,6 +155,7 @@ export function createOpenApiMcpServer(
         if (typeof name !== "string") {
           return wrongArgumentType("load_tool", "name", name);
         }
+        const catalog = catalogNow();
         assertCatalogValid(catalog.fatal);
         const entry = catalog.byName.get(name);
         const decision = entry === undefined ? "deny" : decide(entry);
@@ -149,10 +166,11 @@ export function createOpenApiMcpServer(
       }),
   );
 
-  server.registerTool(
+  const invoke = server.registerTool(
     "invoke_tool",
     {
       description: invokeDescription,
+      _meta: generationMeta(),
       inputSchema: z
         .object({
           name: namedArgument(operationNameDescription),
@@ -176,6 +194,7 @@ export function createOpenApiMcpServer(
         if (typeof name !== "string") {
           return wrongArgumentType("invoke_tool", "name", name);
         }
+        const catalog = catalogNow();
         assertCatalogValid(catalog.fatal);
         const entry = catalog.byName.get(name);
         if (entry === undefined) {
@@ -198,5 +217,28 @@ export function createOpenApiMcpServer(
       }),
   );
 
+  if (options.announce === true) {
+    announceChanges(server, state, [search, load, invoke], generationMeta);
+  }
   return server;
+}
+
+/**
+ * Guard: the stamps are assigned and one notification is sent, rather than calling each tool's
+ * `update`, because `update` sends its own `tools/list_changed` and a reload would announce itself
+ * once per meta-tool.
+ */
+function announceChanges(
+  server: McpServer,
+  state: CatalogState,
+  tools: readonly RegisteredTool[],
+  generationMeta: () => Record<string, unknown>,
+): void {
+  state.onChange(() => {
+    const meta = generationMeta();
+    for (const tool of tools) {
+      tool._meta = meta;
+    }
+    server.sendToolListChanged();
+  });
 }

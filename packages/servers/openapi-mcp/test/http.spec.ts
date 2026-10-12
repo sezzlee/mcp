@@ -118,7 +118,7 @@ beforeAll(async () => {
     createBoundedFetch(new Set([new URL(asOrigin).host])),
     2000,
   );
-  gateway = await serveHttp(
+  ({ server: gateway } = await serveHttp(
     () =>
       createOpenApiMcpServer(
         catalog,
@@ -134,7 +134,7 @@ beforeAll(async () => {
       authorizationServers: [asOrigin],
       allowedHostnames: [],
     },
-  );
+  ));
   mcpUrl = `http://127.0.0.1:${String((gateway.address() as AddressInfo).port)}/mcp`;
 });
 

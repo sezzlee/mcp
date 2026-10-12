@@ -4,7 +4,7 @@ MCP server that exposes an OpenAPI (Swagger 2.0 / OpenAPI 3.0–3.2) document as
 search-first tool catalog — `search_tools`, `load_tool`, `invoke_tool` — over a **remote**
 backend, calling it with `fetch`.
 
-> Status: `0.2.2`, alpha. Install with `npm install -g @sezzlee/openapi-mcp` or run it with
+> Status: `0.2.3`, alpha. Install with `npm install -g @sezzlee/openapi-mcp` or run it with
 > `npx -y @sezzlee/openapi-mcp`; the binary is `sezzlee-openapi`.
 
 ## How this differs from the embedded SDKs
@@ -77,6 +77,8 @@ schema (`src/platform/config.ts`) that rejects unknown keys.
 | `tokenExchange.scope`            | string                                     | not sent       | —                                                                                                                                                                              |
 | `tokenExchange.schemes`          | array of string, min 1                     | required       | The security scheme names the exchanged token satisfies                                                                                                                        |
 | `source`                         | string, non-empty                          | required       | A local file path (relative to the config file) or an `http(s)://` URL to the OpenAPI document                                                                                 |
+| `reload.intervalSeconds`         | integer ≥ 10                               | not set        | Re-reads `source` this often, plus up to 10% jitter. Conditional on the last `ETag`/`Last-Modified` for an `http(s)` source; a body identical to the served one is ignored     |
+| `reload.onSignal`                | boolean                                    | `true`         | `SIGHUP` re-reads `source`. Without a `reload` block the document is read once at startup and `SIGHUP` keeps its default action                                                |
 | `baseUrl`                        | url                                        | not set        | Replaces the document's root `servers`                                                                                                                                         |
 | `serverVariables`                | record\<string, string\>                   | not set        | Overrides for the document's server variable defaults                                                                                                                          |
 | `hoistPathPrefix`                | string starting with `/`                   | not set        | A leading path segment moved from every route into the base URL                                                                                                                |
@@ -121,6 +123,14 @@ and shared.
   would be reachable from the network. Configuring `tokenExchange` on the `stdio` transport is
   likewise refused (`token_exchange_requires_http`) — there is no caller token on `stdio` to
   exchange.
+- **A reload never widens egress.** `reload` re-reads only the document, never the config, and the
+  hosts the first catalog may call are the ceiling for every later one: a document whose servers
+  move to a host outside it, from https to plain http, or that sends a credential to a plain-http origin
+  that did not carry it before, is refused (`widens_egress`). A refused document, one with a fatal
+  diagnostic, or one that cannot be read keeps the running catalog. A committed reload advances the
+  catalog generation stamped on every meta-tool and sends `tools/list_changed`. A tool loaded
+  before a reload answers `unknown_tool` if it is gone and `tool_changed` to a call pinned to its
+  old version.
 - Visibility is not enforcement: an operation's `security` says which credential a call needs, not
   which caller may make it, so the catalog reports every operation's identity as `unknown` unless
   its document says `security: []`.
