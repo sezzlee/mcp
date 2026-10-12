@@ -16,6 +16,7 @@ import {
   type ReloadOutcome,
 } from "./catalog/reload.js";
 import { fetchDocument } from "./catalog/source.js";
+import { watchSource } from "./catalog/watch.js";
 import { createBoundedFetch, HostNotAllowed } from "./net/fetch.js";
 import { asciiLower } from "./platform/ascii.js";
 import { readConfig } from "./platform/config.js";
@@ -200,35 +201,10 @@ function report(outcome: ReloadOutcome): void {
   }
 }
 
-/**
- * Guard: the interval timer is unref'd. On stdio the process must exit once the client closes
- * stdin, and a pending timer would keep it alive with no client left to serve.
- */
-function watchSource(): void {
-  const settings = config.reload;
-  if (settings === undefined) {
-    return;
-  }
-  const run = (): Promise<void> => reloader.reload().then(report);
-  if (settings.onSignal) {
-    process.on("SIGHUP", () => {
-      void run();
-    });
-  }
-  const seconds = settings.intervalSeconds;
-  if (seconds === undefined) {
-    return;
-  }
-  const tick = (): void => {
-    const delay = seconds * 1000 * (1 + Math.random() * 0.1);
-    setTimeout(() => {
-      void run().finally(tick);
-    }, delay).unref();
-  };
-  tick();
-}
-
-watchSource();
+const stopWatching =
+  config.reload === undefined
+    ? () => undefined
+    : watchSource(config.reload, () => reloader.reload().then(report));
 
 if (config.transport.kind === "http") {
   const exchangeConfig = config.tokenExchange;
@@ -251,6 +227,7 @@ if (config.transport.kind === "http") {
     `sezzlee-openapi: listening on http://${config.transport.host}:${String(config.transport.port)}${config.transport.path}\n`,
   );
   const close = (): void => {
+    stopWatching();
     listening.server.close();
   };
   process.once("SIGINT", close);
@@ -266,6 +243,7 @@ function serveOverStdio(): void {
     },
   });
   const shutdown = (): void => {
+    stopWatching();
     void handle.close();
   };
   process.once("SIGINT", shutdown);
