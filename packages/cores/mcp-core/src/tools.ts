@@ -163,6 +163,22 @@ export interface GuardContext<K extends string> extends ErrorContext {
    */
   readonly fail: ErrorFactory<"resource_limit">;
   readonly maxBytes?: number;
+  /**
+   * Receives a thrown error no normalizer classified.
+   *
+   * Guard: injected for the same reason as `ErrorContext.redact` — only the
+   * host knows whether a driver's stack may reach its log. Absent, the stack
+   * goes to stderr, where a standalone server's operator reads it.
+   */
+  readonly report?: UnexpectedErrorReporter;
+}
+
+export type UnexpectedErrorReporter = (tool: string, error: unknown) => void;
+
+function reportToStderr(tool: string, error: unknown): void {
+  const raw =
+    error instanceof Error ? (error.stack ?? error.message) : String(error);
+  process.stderr.write(`${tool}: ${raw}\n`);
 }
 
 /**
@@ -191,13 +207,8 @@ export function guard<D extends ToolCatalog, K extends ToolNameOf<D>>(
     try {
       result = await handler(args, context.tool, extra?.signal);
     } catch (error) {
-      if (!(error instanceof McpSourceError)) {
-        const raw =
-          error instanceof Error
-            ? (error.stack ?? error.message)
-            : String(error);
-        process.stderr.write(`${context.tool}: ${raw}\n`);
-      }
+      if (!(error instanceof McpSourceError))
+        (context.report ?? reportToStderr)(context.tool, error);
       return toToolError(normalize(error, context), context, maxBytes);
     }
     const size = payloadBytes(result);

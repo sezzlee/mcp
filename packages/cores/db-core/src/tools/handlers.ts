@@ -6,6 +6,7 @@ import {
   json,
   measureJson,
   type ErrorNormalizer,
+  type UnexpectedErrorReporter,
 } from "@sezzlee/mcp-core";
 import { introspect, introspectOne } from "../catalog/introspect.js";
 import type { SnapshotObject } from "../catalog/snapshot.js";
@@ -73,6 +74,7 @@ interface RowPage {
 export function createHandlers<TConfig>(
   source: DbSource<TConfig>,
   normalize: ErrorNormalizer,
+  report?: UnexpectedErrorReporter,
 ): ToolHandlers {
   const { dialect, vocabulary, fail, limits, runner, redact } = source;
 
@@ -84,7 +86,7 @@ export function createHandlers<TConfig>(
     ) => Promise<CallToolResult>,
   ) =>
     guard<Definitions, K>(
-      { tool, fail, redact },
+      { tool, fail, redact, ...(report === undefined ? {} : { report }) },
       async (args, _tool, signal) => handler(args, signal),
       normalize,
     );

@@ -4,6 +4,7 @@ import {
   connectionSecret,
   createDbMcpServer,
   createDbSource,
+  type DbServerOptions,
   type DbSource,
 } from "@sezzlee/db-core";
 import { createMssqlDialect } from "./dialect/index.js";
@@ -53,10 +54,14 @@ export function createMssqlSource(
   );
 }
 
-export function createMssqlMcpServer(source: DbSource<MssqlConfig>): McpServer {
+export function createMssqlMcpServer(
+  source: DbSource<MssqlConfig>,
+  options: DbServerOptions = {},
+): McpServer {
   return createDbMcpServer(
     { name: "sezzlee-mssql", version: manifest.version },
     source,
     asMssqlError,
+    options,
   );
 }

@@ -157,4 +157,4 @@ export {
   type ToolName,
 } from "./tools/definitions.js";
 export { createHandlers, queryPermitted } from "./tools/handlers.js";
-export { createDbMcpServer } from "./server.js";
+export { createDbMcpServer, type DbServerOptions } from "./server.js";

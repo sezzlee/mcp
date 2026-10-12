@@ -41,6 +41,10 @@ is what makes the `mcpCoreLimits.maxPayloadBytes` response budget unbypassable.
 - **Redaction is injected, never chosen here.** `ErrorContext.redact` strips whatever a source
   must never disclose — a file root, a connection secret. The core cannot know what is sensitive,
   so it does not decide.
+- **Where an unexpected error is logged is injected too.** `GuardContext.report` receives a thrown
+  error no normalizer classified. Absent, `guard()` writes its stack to stderr, which a standalone
+  server's operator reads; a host that must not log driver detail (a hostname, a login, a value)
+  passes its own reporter.
 - **Error instances come from the injected `ErrorFactory`.** The package never calls
   `new McpSourceError(...)` in its own code paths, which keeps a consumer's own error class and
   `instanceof` checks intact.
