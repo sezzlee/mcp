@@ -33,6 +33,14 @@ export interface GatewayCatalog {
   readonly dropped: readonly CatalogDiagnostic[];
 }
 
+/** Whether ingestion or the catalog build reported a fatal diagnostic; such a catalog is never served. */
+export function hasFatal(gateway: GatewayCatalog): boolean {
+  return (
+    gateway.catalog.fatal.length > 0 ||
+    gateway.ingestion.some((diagnostic) => diagnostic.severity === "fatal")
+  );
+}
+
 /**
  * @param document the parsed document, or its text
  * @param configuredHosts hosts the operator allows beyond the root server; an operation whose

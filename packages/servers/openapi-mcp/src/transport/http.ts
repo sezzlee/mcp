@@ -26,6 +26,12 @@ export interface HttpTransportOptions {
   readonly allowedHostnames: readonly string[];
 }
 
+export interface ServingHttp {
+  readonly server: Server;
+  /** Publishes `tools/list_changed` on every `subscriptions/listen` stream a client opened. */
+  readonly notifyToolsChanged: () => void;
+}
+
 /**
  * Serves the gateway over streamable HTTP, behind a bearer gate when token exchange is configured.
  * Without it the server has no caller to authenticate; the config then only accepts a loopback
@@ -36,12 +42,16 @@ export interface HttpTransportOptions {
  * exchanging it; a refused exchange is `invalid_token`, so the client is told to re-authorize
  * rather than handed a tool error it cannot act on. The caller's token never leaves this process
  * except to that authorization server.
+ *
+ * Guard: the handler is built once and its notifier is what `notifyToolsChanged` calls. Each
+ * request gets a fresh server from the factory, gone before the next reload, so a change can only
+ * reach a listening client through the handler's bus.
  */
 export function serveHttp(
   factory: () => McpServer,
   exchange: TokenExchange | undefined,
   options: HttpTransportOptions,
-): Promise<Server> {
+): Promise<ServingHttp> {
   const resource = new URL(options.resource);
   const metadataUrl = getOAuthProtectedResourceMetadataUrl(resource);
   const metadataPath = new URL(metadataUrl).pathname;
@@ -116,6 +126,13 @@ export function serveHttp(
     void node(req, res);
   });
   return new Promise((resolve) => {
-    server.listen(options.port, options.host, () => resolve(server));
+    server.listen(options.port, options.host, () =>
+      resolve({
+        server,
+        notifyToolsChanged: () => {
+          handler.notify.toolsChanged();
+        },
+      }),
+    );
   });
 }
