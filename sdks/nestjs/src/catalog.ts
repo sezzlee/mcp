@@ -17,6 +17,7 @@ import {
   combineMarkers,
   declareRevision,
   matchesRoute,
+  openApiExtensions,
   SezzleeTemplateError,
   textMediaType,
   urlEncodedMediaType,
@@ -26,6 +27,7 @@ import {
   type DiagnosticReporter,
   type EndpointDescriptor,
   type FileOptions,
+  type OpenApiExtensions,
   type ToolAnnotations,
   type ToolRanker,
   type ToolVariant,
@@ -172,6 +174,14 @@ export class SezzleeCatalog implements OnApplicationBootstrap {
 
   ensureValid(): void {
     assertCatalogValid(this.current.fatal);
+  }
+
+  /**
+   * The current catalog as `x-sezzlee` extensions, for an OpenAPI gateway to rebuild it from; write
+   * them into a document with `annotateOpenApiDocument`.
+   */
+  openApiExtensions(): OpenApiExtensions {
+    return openApiExtensions(this.current.operations);
   }
 
   /**

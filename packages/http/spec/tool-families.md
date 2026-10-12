@@ -1,6 +1,6 @@
 # Tool Families
 
-> Status: **normative, two implementations.** Both SDKs pass the family corpus in [conformance/metadata-extraction/](../conformance/metadata-extraction/) (`family-*`, `variant-body-*`, `*-annotations-*`), [conformance/naming/](../conformance/naming/) (`variant-name-*`), [conformance/argument-mapping/](../conformance/argument-mapping/) (`family-*`) and [conformance/search/](../conformance/search/) (`family-*`).
+> Status: **normative, two implementations.** Both SDKs pass the family corpus in [conformance/metadata-extraction/](../conformance/metadata-extraction/) (`family-*`, `variant-body-*`, `*-annotations-*`), [conformance/naming/](../conformance/naming/) (`variant-name-*`), [conformance/argument-mapping/](../conformance/argument-mapping/) (`family-*`) and [conformance/search/](../conformance/search/) (`family-*`). OpenAPI ingestion lowers `x-sezzlee.family` into the same form ([conformance/openapi-ingestion/](../conformance/openapi-ingestion/) `family-*`).
 
 Defines how one operation that **dispatches on a parameter** becomes one tool per capability it dispatches to. The machine-readable counterpart is `ToolFamily`, `VariantRequestBody` and the `requestBody` and `annotations` fields of `ToolVariant` in [schemas/endpoint-descriptor.schema.json](schemas/endpoint-descriptor.schema.json).
 
@@ -22,7 +22,7 @@ Where members come from is an SDK concern ([Membership](#membership)). The descr
 
 ## The lowered form
 
-- `family.parameter` MUST name a declared parameter whose schema has a single scalar `type` (`string`, `integer`, `number` or `boolean`), in any location except `querystring`. Otherwise the endpoint is dropped with `family_parameter_unresolved`. A dispatch key inside the body is out of scope.
+- `family.parameter` MUST name a declared parameter whose schema `type` is a scalar type (`string`, `integer`, `number` or `boolean`) or an array of scalar types only, in any location except `querystring`. A union of scalars is still one value: .NET 10 writes every integer as `["integer", "string"]`. Otherwise the endpoint is dropped with `family_parameter_unresolved`. A dispatch key inside the body is out of scope.
 - A family with no member produces **no tool at all** and is dropped with `family_without_members`. The uncurated dispatcher is never published in its place: it would hand the agent every capability behind one name, which is the exposure the family exists to remove.
 - For every member, the record for the dispatch parameter — resolved by the variant merge of [argument-curation.md](argument-curation.md), whole-record replacement per wire name — MUST be hidden with `kind: "constant"` and a JSON string, number or boolean value. A member that leaves the parameter visible, omits it, or fills it from a `deferred` source is `family_key_unfilled`, and the endpoint is dropped: such a member can reach every other member's capability through its own name.
 - Keys MUST be pairwise distinct under JSON value equality; `"1"` and `1` are different keys. Two members with one key are `family_key_duplicate`.
@@ -68,6 +68,8 @@ A reload with a family source MUST follow this order: load members, build the ca
 
 A source failure is not a build failure. The members it last returned stay published, and an SDK reports that they are stale; a source that has never returned leaves its families without members, which drops them.
 
+A remote gateway has no host process to register a source in, so for an OpenAPI document the document itself is the source: the backend lists the members in the dispatching operation's `x-sezzlee.family` ([openapi-ingestion.md](openapi-ingestion.md) §Families). A reload re-reads the document and follows the same order; a document that cannot be read keeps the running catalog, members included. A member the extension cannot carry is `family_member_rejected`, the same warning an SDK reports.
+
 ## Diagnostics
 
 Wire codes, pinned by fixtures in every implementation:
@@ -98,4 +100,3 @@ Reused rather than added: a key that does not fit the dispatch parameter is `inv
 - **Per-caller membership.** The published schema MUST be caller-independent ([argument-curation.md](argument-curation.md)). A caller who may not invoke a member still sees it; the backend refuses the call.
 - **A dispatch key in the body.** A JSON-RPC-style `{"method": ..., "params": ...}` body would need the key to shape the body it lives in.
 - **Per-member tags.** Tags belong to the operation, like `auth`.
-- **Families from an OpenAPI document.** Ingestion never produces `family` ([openapi-ingestion.md](openapi-ingestion.md)); see [ROADMAP.md](../../../ROADMAP.md).

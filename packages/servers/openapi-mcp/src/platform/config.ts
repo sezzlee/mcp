@@ -46,6 +46,10 @@ const tokenExchange = z
 
 const revisionNumber = z.number().int().min(1);
 
+const operationKey = z
+  .string()
+  .regex(/^[A-Z]+ \//, "an operation key is METHOD /path");
+
 const minimumReloadSeconds = 10;
 
 export const configSchema = z
@@ -77,6 +81,9 @@ export const configSchema = z
       .record(z.string(), z.string().regex(/^[a-z][a-z0-9_]{0,255}$/))
       .default({}),
     searchTerms: z.record(z.string(), z.array(z.string())).default({}),
+    operations: z
+      .record(operationKey, z.record(z.string(), z.json()))
+      .default({}),
     revision: z
       .object({
         catalog: revisionNumber.optional(),
@@ -143,6 +150,28 @@ export type ConfigOutcome =
     }
   | { readonly kind: "invalid"; readonly reason: string };
 
+function duplicatedDeclarations(config: GatewayConfig): string[] {
+  const older = [
+    { field: "toolName", by: "names", values: config.names },
+    { field: "searchTerms", by: "searchTerms", values: config.searchTerms },
+    {
+      field: "revision",
+      by: "revision.operations",
+      values: config.revision.operations,
+    },
+  ];
+  return Object.entries(config.operations).flatMap(([key, entry]) =>
+    older
+      .filter(
+        ({ field, values }) =>
+          entry[field] !== undefined && values[key] !== undefined,
+      )
+      .map(
+        ({ field, by }) => `${by}["${key}"] and operations["${key}"].${field}`,
+      ),
+  );
+}
+
 /**
  * Parses the config and resolves every secret it names.
  *
@@ -158,6 +187,13 @@ export function readConfig(
     return {
       kind: "invalid",
       reason: `The config is invalid: ${parsed.error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`).join("; ")}`,
+    };
+  }
+  const duplicated = duplicatedDeclarations(parsed.data);
+  if (duplicated.length > 0) {
+    return {
+      kind: "invalid",
+      reason: `The config declares the same field twice: ${duplicated.join("; ")}. Keep the operations entry and remove the other.`,
     };
   }
   const credentials = new Map<string, ResolvedCredential>();

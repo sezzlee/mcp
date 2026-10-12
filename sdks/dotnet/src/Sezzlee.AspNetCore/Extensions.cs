@@ -43,6 +43,7 @@ public static class SezzleeServiceCollectionExtensions
         services.TryAddSingleton<SezzleeDispatcher>();
         services.TryAddSingleton<SezzleeCatalogProvider>();
         services.TryAddSingleton<ISezzleeCatalogChangeSource>(p => p.GetRequiredService<SezzleeCatalogProvider>());
+        services.TryAddSingleton(p => new SezzleeOpenApiExtensions(p.GetRequiredService<SezzleeCatalogProvider>()));
         services.TryAddSingleton<IVisibilityEvaluator, DeclarativeVisibilityEvaluator>();
         services.TryAddSingleton<IProbeEvaluator, ProbeEvaluator>();
         services.TryAddSingleton<ICallerScopeResolver, CarrierHashCallerScopeResolver>();

@@ -164,6 +164,89 @@ read-only members are kept: a get-only property is exactly what a response repor
 
 Full guide: the docs site's _How to tell the agent what a tool returns_.
 
+## 3d. Serving the same catalog through the OpenAPI gateway
+
+The attributes above can also reach an agent through `@sezzlee/openapi-mcp`, the gateway that
+builds its catalog from an OpenAPI document. `SezzleeOpenApiExtensions.Current` describes the
+catalog as `x-sezzlee` extensions: one per operation, keyed by `METHOD /path`, with the published
+tool name, selection, hints, argument curation, variants and family members. With
+`Microsoft.AspNetCore.OpenApi` (.NET 10), a document transformer writes them into the document:
+
+```csharp
+builder.Services.AddOpenApi("sezzlee", options => options.AddDocumentTransformer((document, context, _) =>
+{
+    SezzleeOpenApiSnapshot sezzlee =
+        context.ApplicationServices.GetRequiredService<SezzleeOpenApiExtensions>().Current;
+    foreach ((string path, IOpenApiPathItem item) in document.Paths)
+    {
+        foreach ((HttpMethod method, OpenApiOperation operation) in item.Operations ?? [])
+        {
+            if (sezzlee.Operations.TryGetValue($"{method.Method} {path}", out JsonObject? extension))
+            {
+                operation.Extensions ??= new Dictionary<string, IOpenApiExtension>();
+                operation.Extensions[SezzleeOpenApiSnapshot.Key] = new JsonNodeExtension(extension.DeepClone());
+            }
+        }
+    }
+    return Task.CompletedTask;
+}));
+```
+
+Swashbuckle 6 builds on Microsoft.OpenApi 1, whose extension values are `IOpenApiAny` trees rather
+than JSON, so its document filter converts each extension first:
+
+```csharp
+builder.Services.AddSwaggerGen(options => options.DocumentFilter<SezzleeDocumentFilter>());
+
+public sealed class SezzleeDocumentFilter(SezzleeOpenApiExtensions sezzlee) : IDocumentFilter
+{
+    public void Apply(OpenApiDocument document, DocumentFilterContext context)
+    {
+        SezzleeOpenApiSnapshot current = sezzlee.Current;
+        foreach ((string path, OpenApiPathItem item) in document.Paths)
+        {
+            foreach ((OperationType type, OpenApiOperation operation) in item.Operations)
+            {
+                if (current.Operations.TryGetValue($"{type.ToString().ToUpperInvariant()} {path}", out JsonObject? extension))
+                {
+                    operation.Extensions[SezzleeOpenApiSnapshot.Key] = SezzleeOpenApiAny.From(extension);
+                }
+            }
+        }
+    }
+}
+
+public static class SezzleeOpenApiAny
+{
+    public static IOpenApiAny From(JsonNode? node) => node switch
+    {
+        JsonObject json => json.Aggregate(new OpenApiObject(), (target, member) =>
+        {
+            target[member.Key] = From(member.Value);
+            return target;
+        }),
+        JsonArray json => json.Aggregate(new OpenApiArray(), (target, item) =>
+        {
+            target.Add(From(item));
+            return target;
+        }),
+        JsonValue value when value.TryGetValue(out bool flag) => new OpenApiBoolean(flag),
+        JsonValue value when value.TryGetValue(out long number) => new OpenApiLong(number),
+        JsonValue value when value.TryGetValue(out double number) => new OpenApiDouble(number),
+        JsonValue value => new OpenApiString(value.GetValue<string>()),
+        null => new OpenApiNull(),
+    };
+}
+```
+
+Point the gateway's `source` at `/openapi/sezzlee.json` (or the Swashbuckle document). Every read reflects the latest catalog, so
+family members from `Families.Provide` follow a gateway reload. The same `Operations` map is a valid
+`operations` block of the gateway's own configuration, for a document that cannot be changed.
+
+A gateway has no value providers, so a `ValueFrom` argument reaches it as a `deferred` fill it
+refuses (`unknown_fill_source`); only constants and omitted values travel. Visibility does not
+travel either: a document cannot say which caller may make a call.
+
 ## 4. Connecting an MCP client
 
 The endpoint speaks Streamable HTTP. `tools/list` returns only three meta-tools:

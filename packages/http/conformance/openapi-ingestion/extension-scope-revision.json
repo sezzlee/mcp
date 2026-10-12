@@ -1,0 +1,90 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "Kok ve path item uzerindeki x-sezzlee yalniz revizyon tasir; baska bir alan tasiyan path item'in operasyonlari duser",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "x-sezzlee": {
+        "revision": 1
+      },
+      "paths": {
+        "/orders": {
+          "x-sezzlee": {
+            "revision": 4
+          },
+          "get": {
+            "operationId": "listOrders",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            }
+          }
+        },
+        "/admin": {
+          "x-sezzlee": {
+            "tool": false
+          },
+          "get": {
+            "operationId": "adminPanel",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            }
+          },
+          "post": {
+            "operationId": "adminAction",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "GET /orders",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "listOrders",
+          "method": "GET",
+          "route": "/orders",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          },
+          "revision": {
+            "catalog": 1,
+            "container": 4
+          }
+        }
+      }
+    ],
+    "diagnostics": [
+      {
+        "code": "extension_invalid",
+        "at": "/paths/~1admin/x-sezzlee"
+      }
+    ]
+  }
+}

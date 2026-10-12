@@ -1470,6 +1470,13 @@
                 "requestBodyRequired": {
                   "type": "string",
                   "enum": ["document", "always"]
+                },
+                "operations": {
+                  "type": "object",
+                  "description": "The gateway config's operations: x-sezzlee fields keyed by METHOD /path, laid over the document's.",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
                 }
               }
             }
@@ -1493,6 +1500,11 @@
                   },
                   "baseUrl": {
                     "type": "string"
+                  },
+                  "selection": {
+                    "type": "string",
+                    "enum": ["include", "exclude"],
+                    "description": "The operation-level selection marker the document's x-sezzlee tool field declares; absent when it declares none."
                   },
                   "descriptor": {
                     "$ref": "endpoint-descriptor.schema.json"

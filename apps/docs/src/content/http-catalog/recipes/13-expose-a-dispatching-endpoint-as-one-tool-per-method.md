@@ -119,6 +119,10 @@ await app.get(SezzleeCatalog).reload();
 
 A reload advances the catalog generation and sends `tools/list_changed`. It is refused, and the current catalog kept, when the new members would make the catalog fatal. If the source fails, the members it last returned stay published and `family_source_stale` is reported.
 
+## Serve it through an OpenAPI gateway
+
+The family travels in the operation's `x-sezzlee` extension, members and dispatch keys included, and `@sezzlee/openapi-mcp` publishes the same member tools from it. See [Serve the catalog through an OpenAPI gateway](/docs/http-catalog/serve-the-catalog-through-an-openapi-gateway).
+
 ## See it work
 
 Both demos carry the same three members. Drive one with the [agent-client](https://github.com/sezzlee/mcp/tree/main/sdks/nestjs/samples/agent-client):

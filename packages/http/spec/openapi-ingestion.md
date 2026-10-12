@@ -104,10 +104,93 @@ A host MAY configure the output schema as omitted for a backend whose responses 
 
 - `operationId` becomes the descriptor's `operationId`. One whose snake_case form cannot satisfy the tool-name pattern is not passed on (`operation_id_unusable`, warning), and route-based naming applies.
 - The operation's **first tag** becomes its `container`; every tag becomes a descriptor tag. An operation without tags has no container and no prefix.
-- An operation's `x-sezzlee-search-terms` becomes the descriptor's `searchTerms` ([metadata-contract.md](metadata-contract.md)). It MUST be an array of strings; any other value is `search_terms_invalid` (warning) and nothing is carried, and a blank entry is dropped the way a blank tag is. The extension is the document author's declaration; a host that cannot edit the document declares the same vocabulary in its own configuration, which replaces the extension for that operation.
-- `x-sezzlee-revision` declares the descriptor's `revision` ([metadata-contract.md](metadata-contract.md)) on three levels: at the document root it is the `catalog` level, on a path item the `container` level for every operation under it, and on an operation the `operation` level. The revision's container is the path item and not the naming container above: a tag may be shared by many operations and an operation may carry many tags, so a tag cannot say which revision one operation inherits. The levels are carried side by side and never replace one another. Each value MUST be a whole number from 1; any other value is `revision_invalid` (warning), reported once at its own location, and that level is not carried. A host that cannot edit the document declares the same levels in its own configuration, which comes first at each level; the extension it hides is reported as `revision_overridden`.
-- Duplicate `operationId`s, and route-derived names that collide, reach the existing fatal `name_collision` ([naming.md](naming.md)). The host resolves them with a `names` override. Nothing is renamed automatically.
+- Duplicate `operationId`s, and route-derived names that collide, reach the existing fatal `name_collision` ([naming.md](naming.md)). The host resolves them with `x-sezzlee.toolName` or a configured override. Nothing is renamed automatically.
 - A host MAY hoist a common path prefix into the server base (`/Rest` in `/Rest/Tasks/{id}`), so that it does not become a segment of every derived name. Hoisting is a declaration and is applied to every operation whose path starts with the prefix; an operation that does not start with it keeps its full path.
+
+## The `x-sezzlee` extension
+
+Everything an SDK host declares in code, a document declares in one extension, `x-sezzlee`, and a host that cannot edit the document declares in its configuration. The three are one shape: the value is defined once, in [schemas/openapi-extension.schema.json](schemas/openapi-extension.schema.json), and every field is a field of the endpoint descriptor ([metadata-contract.md](metadata-contract.md)).
+
+| Declaration           | .NET SDK                                        | NestJS SDK                              | `x-sezzlee` field | Descriptor field                 |
+| --------------------- | ----------------------------------------------- | --------------------------------------- | ----------------- | -------------------------------- |
+| Select or exclude     | `[McpTool]` / `[McpIgnore]`                     | `@McpTool()` / `@McpIgnore()`           | `tool`            | (operation selection marker)     |
+| Absolute tool name    | `Name`                                          | `name`                                  | `toolName`        | `toolName`                       |
+| Container prefix      | `Prefix`                                        | `prefix`                                | `containerPrefix` | `containerPrefix`                |
+| Behaviour hints       | `ReadOnly`, `Destructive`, `Idempotent`         | `readOnly`, `destructive`, `idempotent` | `annotations`     | `annotations`                    |
+| Argument curation     | `[McpArgument]`                                 | `arguments`                             | `arguments`       | `arguments`                      |
+| Variants              | `[McpToolVariant]`                              | `@McpVariant()`                         | `variants`        | `variants`                       |
+| Family                | `[McpToolFamily]` and `Families.Provide`        | `@McpToolFamily()` and `families`       | `family`          | `family` and `variants`          |
+| Search vocabulary     | `SearchTerms`                                   | `searchTerms`                           | `searchTerms`     | `searchTerms`                    |
+| Behaviour revision    | `Revision`                                      | `revision`                              | `revision`        | `revision` (three levels, below) |
+| Description           | `Description`, `[Description]`                  | `description`                           | (none)            | `summary` and `description`      |
+| Tags                  | `Tags`                                          | `tags`                                  | (none)            | `tags`                           |
+| Visibility and policy | `[Authorize]`, `[AllowAnonymous]`, auth filters | guards                                  | (none)            | `auth`                           |
+
+Description and tags are OpenAPI's own fields and stay there. Visibility has no field by design: a document says which credential a call needs, never which caller may make it (§Security).
+
+```json
+"x-sezzlee": {
+  "tool": true,
+  "toolName": "read_order",
+  "annotations": { "readOnlyHint": true },
+  "arguments": [
+    { "name": "orderId", "as": "id", "description": "The order number." },
+    { "name": "tenant", "hidden": { "kind": "constant", "value": "acme" } }
+  ],
+  "searchTerms": ["siparis"],
+  "revision": 3
+}
+```
+
+- **Placement.** An operation carries the fields above. A path item and the document root carry `{ "revision": n }` only, which is the `container` and `catalog` level of the descriptor's `revision`; the revision's container is the path item and not the naming container, because a tag may be shared by many operations and an operation may carry many tags. The levels are carried side by side and never replace one another.
+- **Selection.** `tool: true` includes the operation and `tool: false` excludes it. It is the operation-level marker of [selection-hierarchy.md](selection-hierarchy.md) and outranks every configured rule and the default.
+- **Narrowing fields fail closed.** `tool`, `toolName`, `containerPrefix`, `annotations`, `arguments`, `variants` and `family` narrow or rename what is published. When one cannot be carried, the operation is dropped as `extension_invalid` (endpointDropped) at the pointer of the offending value: publishing it without the declaration would expose what the author meant to hide or split. The same holds for an `x-sezzlee` that is not an object, a field the schema does not define, and `variants` beside `family`.
+- **Vocabulary fields degrade.** An invalid `searchTerms` is `search_terms_invalid` and an invalid `revision` is `revision_invalid` (both warnings); only that field is not carried. A blank search term is dropped the way a blank tag is. A revision is a whole number from 1.
+- **Unknown spellings.** An `x-sezzlee-*` key other than `x-sezzlee` and the two legacy spellings below drops the operation, or every operation under a path item or the root that carries it, as `extension_invalid`. A document still written for a removed or misspelled extension would otherwise publish the operation uncurated.
+- **Legacy spellings.** `x-sezzlee-search-terms` and `x-sezzlee-revision` remain accepted for `searchTerms` and `revision` at every level. When both spellings are present and agree, the value is carried; when they disagree, neither is carried and the legacy key is reported as `extension_conflict` (warning).
+- **Schema Objects.** A `requestBody.schema` inside `variants` or a family member is a Schema Object of the document and is normalized exactly like a request body's schema, so a `$ref` into `components` resolves the same way.
+- **Hidden fills.** `constant` and `omit` are carried as written. A `deferred` fill names a value provider; a remote gateway registers none, so the catalog reports `unknown_fill_source` for it ([argument-curation.md](argument-curation.md)). A hidden argument is curation, not enforcement: the backend still validates the value it receives.
+
+### Publishing from an SDK
+
+An SDK MAY publish its built catalog as `x-sezzlee` extensions, so that a gateway reading the document rebuilds the same tools. Such a publication:
+
+- MUST write `tool` on every operation the SDK considered: `true` when it published a tool from it, `false` when the operation was not selected, was refused, or folded into another route. The gateway then publishes the same set whatever its own selection default is.
+- MUST write the published tool name as `toolName` for an operation without variants, prefix included, rather than the declarations it came from. A generator writes no `operationId` for most handlers, so a name the gateway derived would come from the route where the SDK read the handler.
+- MUST write a family as its members, each with the key its dispatch parameter's hidden constant carries; a variant without such a constant is left out, since the SDK refuses it too.
+- writes the operation-level revision on the operation, the container level on a path item only when every operation under it agrees, and the catalog level on the document root.
+
+Both SDKs pass the same check: the gateway rebuilds the SDK's tools from the annotated document with the same names, arguments and hints (`packages/servers/openapi-mcp/test/parity.spec.ts` for ASP.NET Core, `sdks/nestjs/test/openapi-extension.spec.ts` for NestJS).
+
+### Configured overrides
+
+A host that cannot edit the document declares the same fields in its configuration, keyed by operation: `"METHOD /path"`, with the path as the document writes it, before any hoisting. The configured entry is laid over the operation's `x-sezzlee` field by field: a field it names replaces the document's whole value, legacy spelling included, and each replaced value that differed is reported as `extension_overridden` (warning). The merged extension is then validated as one, so a configured body schema may reference the document's components. A key that names no operation of the document is `extension_target_unknown` (fatal): a misspelled key would otherwise leave an operation the host meant to exclude published.
+
+### Families
+
+`family` declares an operation that dispatches on one parameter ([tool-families.md](tool-families.md)). The document is the member source: a backend that writes its OpenAPI document from its own data lists the members there, and a gateway reload picks up the members a later document lists.
+
+```json
+"x-sezzlee": {
+  "family": {
+    "parameter": "methodId",
+    "members": [
+      {
+        "key": 12,
+        "name": "get_customer",
+        "description": "Reads one customer by id.",
+        "requestBody": { "schema": { "$ref": "#/components/schemas/CustomerQuery" }, "required": true },
+        "annotations": { "readOnlyHint": true }
+      }
+    ]
+  }
+}
+```
+
+- `parameter` becomes `family.parameter`. A declaration without a non-empty `parameter` and a `members` array is `extension_invalid`, and the operation is dropped: the uncurated dispatcher would hand the agent every member's capability behind one name.
+- A member is a variant plus its `key`, a non-empty string or an integer. It becomes one variant whose arguments start with a record that hides `parameter` as a `constant` of that key, followed by the member's own `arguments`.
+- A member is dropped alone, as `family_member_rejected` (warning) at the pointer of the offending value, when it is not an object, its key, name, description, arguments, request body or annotations cannot be carried, its `arguments` curate the dispatch parameter, or its name or key repeats an earlier member's. Members are host data; one bad row does not take its siblings offline.
+- Every remaining rule is the core catalog's and applies unchanged: the dispatch parameter's resolution, a key that does not fit its schema, a family left without members, and member names colliding with other tools ([tool-families.md](tool-families.md) §Diagnostics, [naming.md](naming.md)).
 
 ## Servers
 
@@ -133,6 +216,7 @@ How a requirement is satisfied at invocation time is [credentials.md](credential
 | `external_ref_blocked`                                   | fatal                          |
 | `server_variable_invalid`                                | fatal                          |
 | `server_url_unresolvable`                                | fatal                          |
+| `extension_target_unknown`                               | fatal                          |
 | `circular_component_ref`                                 | endpointDropped                |
 | `recursive_parameter_schema`                             | endpointDropped                |
 | `unsupported_method`                                     | endpointDropped                |
@@ -143,6 +227,8 @@ How a requirement is satisfied at invocation time is [credentials.md](credential
 | `streaming_response_unsupported`                         | endpointDropped                |
 | `server_host_not_allowed`                                | endpointDropped                |
 | `security_unsatisfiable`                                 | endpointDropped                |
+| `extension_invalid`                                      | endpointDropped                |
+| `family_member_rejected`                                 | warning                        |
 | `security_scheme_unsupported`                            | warning                        |
 | `ref_siblings_ignored`                                   | warning                        |
 | `annotation_removed`                                     | warning                        |
@@ -155,6 +241,8 @@ How a requirement is satisfied at invocation time is [credentials.md](credential
 | `operation_id_unusable`                                  | warning                        |
 | `search_terms_invalid`                                   | warning                        |
 | `revision_invalid`                                       | warning                        |
+| `extension_conflict`                                     | warning                        |
+| `extension_overridden`                                   | warning                        |
 | `callbacks_ignored`, `links_ignored`, `webhooks_ignored` | warning                        |
 
 Template-production codes of the core catalog (`unsupported_array_style`, `identity_carrier_parameter`, …) keep their own severities; ingestion does not re-grade them.

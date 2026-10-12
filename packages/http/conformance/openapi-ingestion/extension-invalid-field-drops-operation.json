@@ -1,0 +1,241 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "Yayinlanani daraltan bir x-sezzlee alani tasinamazsa operasyon duser; isaretci tam alani gosterir",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/unknown-field": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "visibility": "admin"
+            }
+          }
+        },
+        "/tool-not-boolean": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "tool": "false"
+            }
+          }
+        },
+        "/bad-annotation": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "annotations": {
+                "readOnlyHint": "yes"
+              }
+            }
+          }
+        },
+        "/bad-alias": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "arguments": [
+                {
+                  "name": "q",
+                  "as": "two words"
+                }
+              ]
+            }
+          }
+        },
+        "/duplicate-argument": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "arguments": [
+                {
+                  "name": "q"
+                },
+                {
+                  "name": "q",
+                  "description": "Again."
+                }
+              ]
+            }
+          }
+        },
+        "/constant-without-value": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "arguments": [
+                {
+                  "name": "q",
+                  "hidden": {
+                    "kind": "constant"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "/variants-and-family": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "variants": [
+                {
+                  "name": "a_tool",
+                  "description": "A."
+                }
+              ],
+              "family": {
+                "parameter": "q",
+                "members": []
+              }
+            }
+          }
+        },
+        "/bad-tool-name": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "toolName": "Read-Order"
+            }
+          }
+        },
+        "/not-an-object": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": ["tool"]
+          }
+        },
+        "/kept": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "tool": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "GET /kept",
+        "baseUrl": "https://api.test",
+        "selection": "include",
+        "descriptor": {
+          "operationId": "health",
+          "method": "GET",
+          "route": "/kept",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      }
+    ],
+    "diagnostics": [
+      {
+        "code": "extension_invalid",
+        "at": "/paths/~1unknown-field/get/x-sezzlee/visibility"
+      },
+      {
+        "code": "extension_invalid",
+        "at": "/paths/~1tool-not-boolean/get/x-sezzlee/tool"
+      },
+      {
+        "code": "extension_invalid",
+        "at": "/paths/~1bad-annotation/get/x-sezzlee/annotations/readOnlyHint"
+      },
+      {
+        "code": "extension_invalid",
+        "at": "/paths/~1bad-alias/get/x-sezzlee/arguments/0/as"
+      },
+      {
+        "code": "extension_invalid",
+        "at": "/paths/~1duplicate-argument/get/x-sezzlee/arguments/1/name"
+      },
+      {
+        "code": "extension_invalid",
+        "at": "/paths/~1constant-without-value/get/x-sezzlee/arguments/0/hidden"
+      },
+      {
+        "code": "extension_invalid",
+        "at": "/paths/~1variants-and-family/get/x-sezzlee"
+      },
+      {
+        "code": "extension_invalid",
+        "at": "/paths/~1bad-tool-name/get/x-sezzlee/toolName"
+      },
+      {
+        "code": "extension_invalid",
+        "at": "/paths/~1not-an-object/get/x-sezzlee"
+      }
+    ]
+  }
+}

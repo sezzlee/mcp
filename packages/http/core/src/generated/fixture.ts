@@ -765,12 +765,16 @@ export interface OpenApiIngestionFixture {
       outputSchema?: "document" | "omit";
       hoistPathPrefix?: string;
       requestBodyRequired?: "document" | "always";
+      operations?: {
+        [k: string]: {};
+      };
     };
   };
   expected: {
     endpoints: {
       key: string;
       baseUrl?: string;
+      selection?: "include" | "exclude";
       descriptor: EndpointDescriptor;
     }[];
     diagnostics: {

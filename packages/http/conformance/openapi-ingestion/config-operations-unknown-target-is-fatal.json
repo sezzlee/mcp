@@ -1,0 +1,84 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "Dokumanda olmayan bir operasyonu adlandiran config operations anahtari olumculdur; bir yazim hatasi gizlenmek istenen bir operasyonu yayinlamaz",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/api/orders": {
+          "post": {
+            "operationId": "createOrder",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object"
+                  }
+                }
+              }
+            },
+            "x-sezzlee-search-terms": ["siparis"],
+            "x-sezzlee": {
+              "toolName": "create_order",
+              "revision": 2
+            }
+          }
+        },
+        "/api/health": {
+          "get": {
+            "operationId": "health",
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            }
+          }
+        }
+      },
+      "components": {
+        "schemas": {
+          "NewOrder": {
+            "type": "object",
+            "properties": {
+              "item": {
+                "type": "string"
+              }
+            },
+            "required": ["item"]
+          }
+        }
+      }
+    },
+    "options": {
+      "hoistPathPrefix": "/api",
+      "operations": {
+        "GET /health": {
+          "tool": false
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [],
+    "diagnostics": [
+      {
+        "code": "extension_target_unknown",
+        "at": ""
+      }
+    ]
+  }
+}

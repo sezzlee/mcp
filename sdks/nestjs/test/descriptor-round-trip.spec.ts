@@ -1040,6 +1040,8 @@ const hosts: Record<string, HostCase> = {
 };
 
 const unproducible: Record<string, string> = {
+  "family-parameter-scalar-union-accepted.json":
+    "Nest discovery derives a parameter's type from its TypeScript metadata, which names one type, so it never emits the [integer, string] union a generator such as .NET 10's writes; the core rule Nest calls is pinned by the core corpus run.",
   "family-parameter-not-scalar-rejected.json":
     "An array-valued named @Query parameter reaches discovery with its element type erased, so Nest cannot emit the array-of-string parameter the fixture pins; family-parameter-unresolved.json covers the same code through a Nest host.",
   "allow-reserved-outside-query-rejected.json":

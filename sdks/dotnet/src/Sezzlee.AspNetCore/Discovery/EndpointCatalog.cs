@@ -38,6 +38,18 @@ internal sealed record CatalogBuildResult
     public required int Discovered { get; init; }
     public required int Selected { get; init; }
     public int Dropped { get; init; }
+
+    /// <summary>
+    /// Every discovered operation keyed by <c>METHOD /route</c>: the descriptor it was published
+    /// from, or <c>null</c> when it was not selected, was dropped, or folded into another route.
+    /// </summary>
+    public IReadOnlyDictionary<string, EndpointDescriptor?> Operations { get; init; } =
+        new Dictionary<string, EndpointDescriptor?>();
+
+    public int? CatalogRevision { get; init; }
+
+    public IReadOnlyDictionary<string, string> ToolNames { get; init; } =
+        new Dictionary<string, string>();
 }
 
 internal static partial class EndpointCatalog
@@ -81,6 +93,7 @@ internal static partial class EndpointCatalog
         int? catalog = DeclaredRevision(
             "The catalog", "catalog", diagnostics, (catalogRevision, "options.Revision"));
         List<(Endpoint? Endpoint, EndpointDescriptor Descriptor)> candidates = [];
+        Dictionary<string, EndpointDescriptor?> declared = new(StringComparer.Ordinal);
         int discovered = 0;
         int selected = 0;
 
@@ -115,6 +128,10 @@ internal static partial class EndpointCatalog
                 {
                     diagnostics.Add(new CatalogDiagnostic(ex.Code, ex.Message));
                     continue;
+                }
+                if (!string.IsNullOrEmpty(api.HttpMethod))
+                {
+                    declared[target] = null;
                 }
                 if (!include)
                 {
@@ -164,11 +181,13 @@ internal static partial class EndpointCatalog
                     };
                 }
                 candidates.Add((endpoint, descriptor));
+                declared[target] = descriptor;
             }
         }
 
         List<CatalogEntry> entries = [];
         Dictionary<string, EndpointDescriptor> claimed = new(StringComparer.Ordinal);
+        Dictionary<string, string> toolNames = new(StringComparer.Ordinal);
 
         Dictionary<string, IReadOnlyList<string>> alternates = new(StringComparer.Ordinal);
         List<(Endpoint? Endpoint, EndpointDescriptor Descriptor)> operations =
@@ -176,6 +195,10 @@ internal static partial class EndpointCatalog
             {
                 string[] routes = [.. folded.Select(f => f.Descriptor.Route)];
                 alternates[FoldKey(kept.Descriptor)] = routes;
+                foreach ((_, EndpointDescriptor alternate) in folded)
+                {
+                    declared[$"{alternate.Method} {alternate.Route}"] = null;
+                }
                 diagnostics.Add(new CatalogDiagnostic(
                     DiagnosticCodes.RouteFolded,
                     $"{kept.Descriptor.Method} {kept.Descriptor.Route} is also mounted at {string.Join(", ", routes)}; "
@@ -293,6 +316,10 @@ internal static partial class EndpointCatalog
                     }
                 }
 
+                if (variant is null)
+                {
+                    toolNames[$"{operation.Method} {operation.Route}"] = name;
+                }
                 entries.Add(new CatalogEntry
                 {
                     Tool = tool,
@@ -313,6 +340,9 @@ internal static partial class EndpointCatalog
             Discovered = discovered,
             Selected = selected,
             Dropped = dropped,
+            Operations = declared,
+            CatalogRevision = catalog,
+            ToolNames = toolNames,
         };
     }
 

@@ -1,8 +1,8 @@
 import {
-  isRevisionNumber,
   snakeCase,
   type EndpointDescriptor,
   type Revision,
+  type SelectionDecision,
 } from "@sezzlee/core";
 import { OperationDropped, type DiagnosticSink } from "../diagnostics.js";
 import {
@@ -23,6 +23,11 @@ import {
 import { resolveComponent } from "../normalize/refs.js";
 import type { SchemaContext } from "../normalize/schema.js";
 import { lowerRequestBody } from "./body.js";
+import {
+  lowerExtension,
+  overlayExtension,
+  scopeRevisionOf,
+} from "./extension.js";
 import { lowerParameters } from "./parameters.js";
 import { lowerResponses } from "./responses.js";
 import {
@@ -43,6 +48,8 @@ export interface SourcedEndpoint {
   /** The base URL the route is appended to, with any hoisted prefix; `undefined` when unresolvable. */
   readonly baseUrl: string | undefined;
   readonly security: readonly SecurityRequirement[] | undefined;
+  /** The operation-level marker `x-sezzlee.tool` declares; absent when it declares none. */
+  readonly selection?: SelectionDecision;
 }
 
 export interface OperationOptions extends ServerOptions {
@@ -50,6 +57,7 @@ export interface OperationOptions extends ServerOptions {
   readonly outputSchema: "document" | "omit";
   readonly requestBodyRequired: "document" | "always";
   readonly hoistPathPrefix?: string;
+  readonly operations?: Readonly<Record<string, JsonObject>>;
 }
 
 const methodKeys = {
@@ -173,52 +181,6 @@ function sitesOf(
   return sites;
 }
 
-function searchTermsOf(
-  context: SchemaContext,
-  operation: Record<string, unknown>,
-  at: JsonPointer,
-): string[] | undefined {
-  const declared = operation["x-sezzlee-search-terms"];
-  if (declared === undefined) {
-    return undefined;
-  }
-  if (
-    !Array.isArray(declared) ||
-    !declared.every((term: unknown) => typeof term === "string")
-  ) {
-    context.diagnostics.report(
-      "search_terms_invalid",
-      childPointer(at, "x-sezzlee-search-terms"),
-      "x-sezzlee-search-terms must be an array of strings; the operation carries no search terms.",
-    );
-    return undefined;
-  }
-  const terms = declared.filter((term) => term.trim() !== "");
-  return terms.length === 0 ? undefined : terms;
-}
-
-const revisionExtension = "x-sezzlee-revision";
-
-function revisionOf(
-  context: SchemaContext,
-  holder: JsonObject,
-  at: JsonPointer,
-): number | undefined {
-  const declared = holder[revisionExtension];
-  if (declared === undefined) {
-    return undefined;
-  }
-  if (!isRevisionNumber(declared)) {
-    context.diagnostics.report(
-      "revision_invalid",
-      childPointer(at, revisionExtension),
-      `${revisionExtension} must be a whole number from 1; it is not carried.`,
-    );
-    return undefined;
-  }
-  return declared;
-}
-
 function lowerOperation(
   context: SchemaContext,
   site: OperationSite,
@@ -290,8 +252,8 @@ function lowerOperation(
   const tags = arrayOf(operation["tags"])
     .map(stringOf)
     .filter((tag): tag is string => tag !== undefined && tag.trim() !== "");
-  const searchTerms = searchTermsOf(context, operation, at);
-  const operationRevision = revisionOf(context, operation, at);
+  const extension = lowerExtension(context, operation, at);
+  const operationRevision = extension.revision;
   const revision: Revision = {
     ...(inherited.catalog === undefined ? {} : { catalog: inherited.catalog }),
     ...(inherited.container === undefined
@@ -318,8 +280,8 @@ function lowerOperation(
     ...(responses === undefined ? {} : { responses }),
     auth: authOf(security, carriers),
     ...(tags.length === 0 ? {} : { tags }),
-    ...(searchTerms === undefined ? {} : { searchTerms }),
     ...(Object.keys(revision).length === 0 ? {} : { revision }),
+    ...extension.curation,
   };
   const server = serverOf(
     [
@@ -343,7 +305,28 @@ function lowerOperation(
     descriptor,
     baseUrl: server === undefined ? undefined : `${server}${prefix}`,
     security,
+    ...(extension.selection === undefined
+      ? {}
+      : { selection: extension.selection }),
   };
+}
+
+type ScopeRevision = number | undefined | "dropped";
+
+function scopeOf(
+  context: SchemaContext,
+  holder: JsonObject,
+  at: JsonPointer,
+): ScopeRevision {
+  try {
+    return scopeRevisionOf(context, holder, at);
+  } catch (error) {
+    if (!(error instanceof OperationDropped)) {
+      throw error;
+    }
+    context.diagnostics.report(error.code, error.at, error.message);
+    return "dropped";
+  }
 }
 
 export function lowerOperations(
@@ -358,14 +341,47 @@ export function lowerOperations(
       "Webhooks are requests the backend makes, not operations the agent calls; they are not carried.",
     );
   }
-  const catalog = revisionOf(context, context.document, rootPointer);
-  const containers = new Map<JsonPointer, number | undefined>();
+  const catalog = scopeOf(context, context.document, rootPointer);
+  if (catalog === "dropped") {
+    return [];
+  }
+  const containers = new Map<JsonPointer, ScopeRevision>();
   const endpoints: SourcedEndpoint[] = [];
-  for (const site of sitesOf(context.document, context.diagnostics)) {
+  const sites = sitesOf(context.document, context.diagnostics);
+  const keys = new Set<string>(
+    sites.map((site) => operationKey(site.method, site.path)),
+  );
+  for (const key of Object.keys(options.operations ?? {})) {
+    if (!keys.has(key)) {
+      context.diagnostics.report(
+        "extension_target_unknown",
+        rootPointer,
+        `The config's operations["${key}"] names no operation of the document; check the method and the path as the document writes it, before any hoisting.`,
+      );
+    }
+  }
+  for (const listed of sites) {
+    const overlay =
+      options.operations?.[operationKey(listed.method, listed.path)];
+    const site =
+      overlay === undefined
+        ? listed
+        : {
+            ...listed,
+            operation: overlayExtension(
+              context,
+              listed.operation,
+              listed.at,
+              overlay,
+            ),
+          };
     if (!containers.has(site.itemAt)) {
-      containers.set(site.itemAt, revisionOf(context, site.item, site.itemAt));
+      containers.set(site.itemAt, scopeOf(context, site.item, site.itemAt));
     }
     const container = containers.get(site.itemAt);
+    if (container === "dropped") {
+      continue;
+    }
     try {
       const endpoint = lowerOperation(context, site, schemes, options, {
         ...(catalog === undefined ? {} : { catalog }),
