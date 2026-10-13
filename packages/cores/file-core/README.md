@@ -55,8 +55,7 @@ envelope carrying an absolute path. `parseServerArgv` reads the single positiona
 
 `cli.ts` (`parseServerArgv`) and `fingerprint(realPath, mtimeMs, size)` stay in this package
 rather than in `mcp-core`: the single positional root argument and an identity built from file
-metadata are file concepts. A database server takes its connection from the environment, because a
-connection secret must never be in `argv`. The generic `fingerprintFromDigest` and
+metadata are file concepts. The generic `fingerprintFromDigest` and
 `contentFingerprint` are in `mcp-core`.
 
 ## Development

@@ -21,15 +21,6 @@
     "why-a-scanned-page-is-never-shown-as-empty": "find-text-in-a-document",
     "why-ocr-is-a-plug-in-and-off-by-default": "read-scanned-pages-with-ocr"
   },
-  "mssql-mcp": {
-    "introduction": "quickstart",
-    "querying-your-first-database": "quickstart",
-    "connect-the-server-to-your-mcp-client": "quickstart",
-    "why-the-statement-check-is-not-the-security-boundary": "create-a-read-only-login-for-the-server",
-    "how-catalogue-search-finds-a-table": "find-tables-by-what-they-hold",
-    "how-a-slow-query-is-stopped": "set-a-deadline-for-a-slow-query",
-    "why-a-value-can-be-marked-lossy": "read-exact-numbers-dates-and-ids"
-  },
   "xml-mcp": {
     "introduction": "quickstart",
     "reading-your-first-xml-document": "quickstart",

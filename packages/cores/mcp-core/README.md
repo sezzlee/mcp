@@ -2,7 +2,7 @@
 
 Source-agnostic machinery for read-only MCP servers: tool typing, the response budget, the error
 envelope, the cursor codec and a stdio server. `@sezzlee/file-core` (file sources) and
-`@sezzlee/db-core` (SQL sources) are both built on top of it.
+`@sezzlee/llm-mcp` (a local model) are both built on top of it.
 
 This package is **not `@sezzlee/core`** and does not depend on it in either direction.
 `@sezzlee/core` is the spec's HTTP catalog reference implementation; this package is the shared
@@ -54,7 +54,7 @@ is what makes the `mcpCoreLimits.maxPayloadBytes` response budget unbypassable.
 - **A tool that writes output is registered only through `createMcpOutputServer`.**
   `ToolDefinitions` and `createMcpSourceServer` stay read-only; `ownOutput`,
   `OwnOutputToolDefinition`, `ToolCatalog` and `createMcpOutputServer` are never re-exported by
-  `file-core` or `db-core`. The rules for writing to disk (one folder, `wx`, the server picks the
+  `file-core`. The rules for writing to disk (one folder, `wx`, the server picks the
   name) belong to the consumer.
 - **Every input schema is closed, and every argument failure is an envelope.** The SDK is handed a
   schema that publishes the tool's schema with `additionalProperties: false` but validates nothing;
@@ -69,14 +69,14 @@ is what makes the `mcpCoreLimits.maxPayloadBytes` response budget unbypassable.
 
 ## Design decisions
 
-**Why a separate package.** `file-core` held this machinery before a SQL server needed it. Three
-options were weighed:
+**Why a separate package.** A server whose source is not a file needs the response budget, the
+error envelope and the stdio server without the file layer. Three options were weighed:
 
-- _Copy it into `db-core`._ About 430 lines, so a fix to the response budget would have to land
-  twice. That is a fork, not a shared primitive.
-- _Depend on `file-core`._ `ErrorFactory` is contravariant in its code parameter, so `DbErrorCode`
-  would have had to widen to carry `path_outside_root` and `file_too_large`; `Vocabulary` would
-  have forced `rootLabel` and `readableLabel` on a SQL server; and a pure-JS database server would
+- _Copy it into each such server._ About 430 lines, so a fix to the response budget would have to
+  land in every copy. That is a fork, not a shared primitive.
+- _Depend on `file-core`._ `ErrorFactory` is contravariant in its code parameter, so the server's
+  error codes would have had to widen to carry `path_outside_root` and `file_too_large`;
+  `Vocabulary` would have forced `rootLabel` and `readableLabel` on it; and a pure-JS server would
   have shipped `file-core-native`'s C++ prebuilds.
 - _Rename `file-core`._ The file layer (sandbox, listing, document cache, native access) is real
   and large; leaving it inside the core would still ship the prebuilds to every consumer.

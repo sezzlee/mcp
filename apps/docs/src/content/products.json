@@ -12,18 +12,6 @@
     "tagline": "A read-only MCP server that lets an agent read and search the PDF documents in one folder, with optional OCR for scanned pages."
   },
   {
-    "id": "mssql-mcp",
-    "label": "SQL Server MCP",
-    "goal": "SQL Server",
-    "tagline": "A read-only MCP server that lets an agent find, describe and query the tables of one SQL Server database."
-  },
-  {
-    "id": "postgres-mcp",
-    "label": "PostgreSQL MCP",
-    "goal": "PostgreSQL",
-    "tagline": "A read-only MCP server that lets an agent find, describe and query the tables of one PostgreSQL database, every query inside a read-only transaction."
-  },
-  {
     "id": "xml-mcp",
     "label": "XML MCP",
     "goal": "XML documents",

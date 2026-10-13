@@ -70,22 +70,6 @@ const products = {
     ollama: true,
     requires: ["SEZZLEE_LLM_MODEL"],
   },
-  "mssql-mcp": {
-    bins: { "sezzlee-mssql": "packages/servers/mssql-mcp/dist/cli.js" },
-    secrets: { "sezzlee-mssql.json": "SEZZLEE_DOCS_MSSQL_CONFIG" },
-    preamble: `sql() {
-  npx -y @modelcontextprotocol/inspector --cli --config ~/sezzlee-mssql.json --server shop \\
-    --method tools/call --tool-name "$@" | jq '.content[0].text | fromjson'
-}`,
-  },
-  "postgres-mcp": {
-    bins: { "sezzlee-postgres": "packages/servers/postgres-mcp/dist/cli.js" },
-    secrets: { "sezzlee-postgres.json": "SEZZLEE_DOCS_POSTGRES_CONFIG" },
-    preamble: `sql() {
-  npx -y @modelcontextprotocol/inspector --cli --config ~/sezzlee-postgres.json --server shop \\
-    --method tools/call --tool-name "$@" | jq '.content[0].text | fromjson'
-}`,
-  },
 };
 
 const ollama = process.env.SEZZLEE_DOCS_OLLAMA;

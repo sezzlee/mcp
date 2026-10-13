@@ -23,7 +23,7 @@ const inspectorPackages = ["@firecrawl/pdf-inspector"];
 /**
  * Guard: this server never opens a socket. OCR reaches a model through the
  * injected OcrProvider, so the decision to leave the machine belongs to whoever
- * binds that port — the stance db-core takes towards a database driver. The ban
+ * binds that port. The ban
  * is folded into every layer's rule rather than declared once, because a later
  * override replaces no-restricted-imports outright instead of merging with it;
  * a standalone override would silently stop applying to every folder that
