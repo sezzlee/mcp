@@ -82,7 +82,7 @@ job.
 
 ### Server products: generated reference and runnable examples
 
-A server product (`excel-mcp`, `xml-mcp`, later `pdf-mcp`, `mssql-mcp`, `llm-mcp`) gets its
+A server product (`excel-mcp`, `xml-mcp`, `pdf-mcp`, `llm-mcp`) gets its
 `reference/` pages from `scripts/gen-reference.mjs` — **never hand-edit them**:
 
 - `01-tools.md` from the built server's own `tools/list` answer, so every argument and description
@@ -115,12 +115,10 @@ allow-list and the page's binding uses the default address. Without it the page 
 
 Variables a product's pages need are listed under `requires` and skip the page when unset:
 `llm-mcp` needs `SEZZLEE_LLM_MODEL`, the model the outputs were produced with (the pages name it).
-A product whose server needs credentials names them under `secrets`: `mssql-mcp` pages run only when
-`SEZZLEE_DOCS_MSSQL_CONFIG` points at an Inspector configuration file (an `mcpServers.shop` entry
-with the `SEZZLEE_MSSQL_*` variables in `env`), which the script copies into the sandbox as
-`~/sezzlee-mssql.json` with mode 600 and deletes with it. Pages never contain a connection value, and
-their outputs show only the `sezzlee_shop` sample schema (`public/samples/mssql-mcp/sezzlee-shop.sql`),
-filtered with `schema=sezzlee_shop` and `jq` so the database and login names stay out.
+A product whose server needs credentials names them under `secrets`, each a file name in the sandbox
+home mapped to the variable that points at it: its pages run only when every variable is set, and the
+script copies each file into the sandbox with mode 600 and deletes it with the sandbox. Pages never
+contain a credential value.
 
 `scripts/make-samples.mjs` (Excel) and `scripts/make-pdf-samples.mjs` (PDF, whose scanned page is
 drawn with `@napi-rs/canvas` from `@sezzlee/pdf-raster-pdfjs`'s dependencies) write the downloadable

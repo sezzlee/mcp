@@ -17,7 +17,7 @@ import appCss from "../styles/app.css?url";
 import { theme } from "../theme";
 
 const siteDescription =
-  "Connect spreadsheets, PDFs, XML, SQL Server and your own API to any MCP agent with Sezzlee's open-source servers.";
+  "Connect spreadsheets, PDFs, XML and your own API to any MCP agent with Sezzlee's open-source servers.";
 
 export const Route = createRootRoute({
   head: () => ({

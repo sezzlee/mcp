@@ -130,8 +130,8 @@ export function createMcpSourceServer<D extends ToolDefinitions>(
  * output.
  *
  * Guard: this is the only way such a tool reaches a server. `createMcpSourceServer` keeps its
- * read-only constraint and `file-core` and `db-core` do not re-export this function, so a server
- * built on either of them cannot register a writing tool.
+ * read-only constraint and `file-core` does not re-export this function, so a server built on it
+ * cannot register a writing tool.
  */
 export function createMcpOutputServer<D extends ToolCatalog>(
   identity: ServerIdentity,

@@ -72,8 +72,7 @@ Programmatic (`createPdfMcpServer(root, options)`):
 ## OCR
 
 The server does not perform OCR; it supports it. Two ports are injected — neither the raster
-library nor the model client is a dependency of this package, the same stance `db-core` takes
-toward a database driver.
+library nor the model client is a dependency of this package.
 
 ```ts
 interface PageRasterizer {

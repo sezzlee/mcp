@@ -2,7 +2,6 @@ import {
   IconApi,
   IconBox,
   IconCpu,
-  IconDatabase,
   IconFileCode,
   IconFileText,
   IconTable,
@@ -12,8 +11,6 @@ import {
 const ICONS: Readonly<Record<string, Icon>> = {
   "excel-mcp": IconTable,
   "pdf-mcp": IconFileText,
-  "mssql-mcp": IconDatabase,
-  "postgres-mcp": IconDatabase,
   "xml-mcp": IconFileCode,
   "http-catalog": IconApi,
   "llm-mcp": IconCpu,

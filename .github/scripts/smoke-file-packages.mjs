@@ -42,9 +42,6 @@ try {
         "@modelcontextprotocol/client": "^2.0.0",
         "@sezzlee/file-core-native": archive("sezzlee-file-core-native-"),
         "@sezzlee/mcp-core": archive("sezzlee-mcp-core-"),
-        "@sezzlee/db-core": archive("sezzlee-db-core-"),
-        "@sezzlee/mssql-mcp": archive("sezzlee-mssql-mcp-"),
-        "@sezzlee/postgres-mcp": archive("sezzlee-postgres-mcp-"),
         "@sezzlee/llm-mcp": archive("sezzlee-llm-mcp-"),
         "@sezzlee/file-core": archive("sezzlee-file-core-0"),
         "@sezzlee/ooxml-core": archive("sezzlee-ooxml-core-"),
@@ -57,7 +54,6 @@ try {
       overrides: {
         "@sezzlee/file-core-native": "$@sezzlee/file-core-native",
         "@sezzlee/mcp-core": "$@sezzlee/mcp-core",
-        "@sezzlee/db-core": "$@sezzlee/db-core",
         "@sezzlee/file-core": "$@sezzlee/file-core",
         "@sezzlee/ooxml-core": "$@sezzlee/ooxml-core",
       },

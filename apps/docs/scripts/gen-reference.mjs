@@ -28,31 +28,6 @@ const servers = [
   { product: "xml-mcp", pkg: "@sezzlee/xml-mcp", dir: "xml-mcp", root: true },
   { product: "pdf-mcp", pkg: "@sezzlee/pdf-mcp", dir: "pdf-mcp", root: true },
   {
-    product: "mssql-mcp",
-    pkg: "@sezzlee/mssql-mcp",
-    dir: "mssql-mcp",
-    env: {
-      SEZZLEE_MSSQL_SERVER: "127.0.0.1",
-      SEZZLEE_MSSQL_DATABASE: "docs",
-      SEZZLEE_MSSQL_USER: "docs",
-      SEZZLEE_MSSQL_PASSWORD: "docs",
-    },
-  },
-  {
-    product: "postgres-mcp",
-    pkg: "@sezzlee/postgres-mcp",
-    dir: "postgres-mcp",
-    env: {
-      SEZZLEE_POSTGRES_SERVER: "127.0.0.1",
-      SEZZLEE_POSTGRES_PORT: "9",
-      SEZZLEE_POSTGRES_DATABASE: "docs",
-      SEZZLEE_POSTGRES_USER: "docs",
-      SEZZLEE_POSTGRES_PASSWORD: "docs",
-      SEZZLEE_POSTGRES_SSL_MODE: "disable",
-      SEZZLEE_POSTGRES_CONNECT_TIMEOUT_MS: "2000",
-    },
-  },
-  {
     product: "llm-mcp",
     pkg: "@sezzlee/llm-mcp",
     dir: "llm-mcp",

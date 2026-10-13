@@ -13,9 +13,6 @@ import { spawnSync } from "node:child_process";
 const nativePackages = [
   "@sezzlee/file-core-native",
   "@sezzlee/mcp-core",
-  "@sezzlee/db-core",
-  "@sezzlee/mssql-mcp",
-  "@sezzlee/postgres-mcp",
   "@sezzlee/file-core",
   "@sezzlee/ooxml-core",
   "@sezzlee/excel-mcp",

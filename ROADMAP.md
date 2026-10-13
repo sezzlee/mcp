@@ -56,7 +56,6 @@ spec, a guard comment or the package README.
 
 ## Source servers
 
-- **`pg-mcp`.** A PostgreSQL server over `@sezzlee/db-core`, which already names no driver.
 - **`docx-mcp` and `pptx-mcp`.** Further OOXML servers over `@sezzlee/ooxml-core`. Moving media
   selection from path prefixes to content types is the generalisation they need; `excel-mcp` keeps
   its prefix so its result set does not change.

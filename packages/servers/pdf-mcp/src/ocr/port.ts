@@ -21,7 +21,7 @@ export interface RenderJob {
 
 /**
  * Turns selected PDF pages into images. Injected: this server ships no
- * rasterizer and names none, the same way db-core names no driver.
+ * rasterizer and names none.
  */
 export interface PageRasterizer {
   render(job: RenderJob): Promise<readonly RenderedPage[]>;
