@@ -20,7 +20,6 @@ import {
   refuseTimedOutInvoke,
   refuseUnresolvedFile,
   resolveDeferred as resolveDeferredWith,
-  searchCatalog,
   searchDescription,
   searchDetailDescription,
   searchLimitDescription,
@@ -33,6 +32,7 @@ import {
   vocabularyOf,
   wrongArgumentType,
   defaultSearchLimit,
+  searchCatalog,
   describeRankerEvent,
   type CallerScope,
   type MetaResponse,
@@ -59,6 +59,7 @@ import type {
   VerifiedToken,
 } from "./options.js";
 import { currentOuterConnection } from "./outer-connection.js";
+import { toolInfoOf } from "./visibility/authorizer.js";
 import type { CallerVisibilityProvider } from "./visibility/provider.js";
 
 export interface MetaToolDependencies {
@@ -231,11 +232,14 @@ export function registerSezzleeTools(
     },
     async ({ query, limit, detail, tags }, ctx) =>
       emitGuarded(deps, async () => {
+        const started = performance.now();
         deps.catalog.ensureValid();
         const outer = outerFrom(ctx);
-        const decide = await decider(deps, outer);
+        const decide = await decider(deps, outer, deadlineFrom(ctx)?.signal);
         const visibility = deps.options.visibility;
-        return searchCatalog({
+        const signal = deadlineFrom(ctx)?.signal;
+        const scope = scopeFor(deps, outer);
+        const response = await searchCatalog({
           catalog: deps.catalog.current,
           query,
           limit,
@@ -245,18 +249,30 @@ export function registerSezzleeTools(
           visible: (decision) => deps.visibility.visible(decision),
           ...rankerFor(deps),
           ...deadlineFrom(ctx),
-          ...(visibility.tier === "probe"
+          ...(visibility.tier === "probe" && visibility.maxProbesPerSearch > 0
             ? {
                 probe: {
-                  budget: visibility.probeTopK,
+                  maxProbes: visibility.maxProbesPerSearch,
+                  concurrency: visibility.probeConcurrency,
                   canProbe: (entry: CatalogEntry) =>
                     deps.visibility.canProbe(entry),
+                  cached: (entry: CatalogEntry) =>
+                    deps.visibility.cachedProbe(scope, entry),
                   run: (entry: CatalogEntry) =>
-                    deps.visibility.probe(scopeFor(deps, outer), entry, outer),
+                    deps.visibility.probe(scope, entry, outer, signal),
+                  capReached: () => {
+                    logger.warn(
+                      `search_tools stopped probing at visibility.maxProbesPerSearch (${String(visibility.maxProbesPerSearch)}); the tools left unprobed follow visibility.onUnknown. Raise the cap or cover those tools with a toolAuthorizer.`,
+                    );
+                  },
                 },
               }
             : {}),
         });
+        logger.debug(
+          `search_tools answered in ${elapsedSince(started)} ms: ${describeCounts(response.payload)}`,
+        );
+        return response;
       }),
   );
 
@@ -277,27 +293,32 @@ export function registerSezzleeTools(
         if (typeof name !== "string") {
           return wrongArgumentType("load_tool", "name", name);
         }
+        const started = performance.now();
         deps.catalog.ensureValid();
         const entry = deps.catalog.find(name);
         if (entry === undefined) {
           return unknownTool(name);
         }
         const outer = outerFrom(ctx);
-        const decide = await decider(deps, outer);
+        const decide = await decider(deps, outer, deadlineFrom(ctx)?.signal);
         let decision = decide(entry);
         if (
           decision === "unknown" &&
           deps.options.visibility.tier === "probe" &&
-          deps.options.visibility.probeTopK > 0 &&
           deps.visibility.canProbe(entry)
         ) {
           decision = await deps.visibility.probe(
             scopeFor(deps, outer),
             entry,
             outer,
+            deadlineFrom(ctx)?.signal,
           );
         }
-        if (!deps.visibility.visible(decision)) {
+        const visible = deps.visibility.visible(decision);
+        logger.debug(
+          `load_tool answered in ${elapsedSince(started)} ms: ${visible ? "loaded" : "not visible"}`,
+        );
+        if (!visible) {
           return unknownTool(name);
         }
         return textResult(createLoadedTool(entry.tool, decision), false);
@@ -348,6 +369,7 @@ export function registerSezzleeTools(
         if (entry === undefined) {
           return unknownTool(name);
         }
+        const outer = outerFrom(ctx);
         const stale = checkPinnedVersion(entry.tool, version);
         if (stale !== undefined) {
           return stale;
@@ -355,7 +377,6 @@ export function registerSezzleeTools(
         if (entry.template === undefined) {
           return notInvocable(name);
         }
-        const outer = outerFrom(ctx);
         const normalized = normalizeInvokeArguments(args);
         if (normalized.unwrapped) {
           logger.warn(
@@ -439,17 +460,52 @@ export function registerSezzleeTools(
   );
 }
 
+/**
+ * An authorizer's `allow` or `deny` is final; `unknown` falls through to the declarative tier, and
+ * the probe tier after it. Decisions are held for the length of one call, so the host's `decide`
+ * runs once per tool although search reads each tool twice.
+ */
 async function decider(
   deps: MetaToolDependencies,
   outer: OuterRequest | undefined,
+  signal: AbortSignal | undefined,
 ): Promise<(entry: CatalogEntry) => VisibilityDecision> {
   const snapshot = deps.catalog.current;
-  const facts = await deps.visibility.facts(
-    scopeFor(deps, outer),
-    outer,
-    snapshot.policyNames,
-  );
-  return (entry) => deps.visibility.decide(entry.descriptor.auth, facts);
+  const scope = scopeFor(deps, outer);
+  const [facts, access] = await Promise.all([
+    deps.visibility.facts(scope, outer, snapshot.policyNames),
+    deps.visibility.access(scope, outer, signal),
+  ]);
+  if (access === undefined) {
+    return (entry) => deps.visibility.decide(entry.descriptor.auth, facts);
+  }
+  const decided = new Map<CatalogEntry, VisibilityDecision>();
+  return (entry) => {
+    const held = decided.get(entry);
+    if (held !== undefined) {
+      return held;
+    }
+    const own = access.decide(toolInfoOf(entry));
+    const decision =
+      own === "allow" || own === "deny"
+        ? own
+        : deps.visibility.decide(entry.descriptor.auth, facts);
+    decided.set(entry, decision);
+    return decision;
+  };
+}
+
+function elapsedSince(started: number): number {
+  return Math.round(performance.now() - started);
+}
+
+function describeCounts(payload: unknown): string {
+  if (typeof payload !== "object" || payload === null) {
+    return "no results";
+  }
+  const results: unknown = Reflect.get(payload, "results");
+  const total: unknown = Reflect.get(payload, "total");
+  return `${Array.isArray(results) ? results.length : 0} result(s) of ${typeof total === "number" ? total : "an unknown number of"} visible`;
 }
 
 function scopeFor(

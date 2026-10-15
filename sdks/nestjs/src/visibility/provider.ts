@@ -1,3 +1,4 @@
+import { Logger } from "@nestjs/common";
 import {
   evaluateVisibility,
   SingleFlight,
@@ -11,21 +12,114 @@ import type { CatalogEntry } from "../catalog.js";
 import type { OuterRequest, SezzleeOptions } from "../options.js";
 import type { ProbeEvaluator } from "./probe.js";
 import type { VisibilityEvaluator } from "./evaluator.js";
+import type { ToolAccess, ToolAuthorizer } from "./authorizer.js";
+
+interface HeldAccess {
+  readonly access: ToolAccess;
+  readonly expiresAt: number;
+}
 
 export class CallerVisibilityProvider {
+  private readonly logger = new Logger(CallerVisibilityProvider.name);
   private readonly factsFlight = new SingleFlight<string, CallerFacts>();
   private readonly probeFlight = new SingleFlight<string, VisibilityDecision>();
+  private readonly accessFlight = new SingleFlight<string, ToolAccess>();
+  private readonly accesses = new Map<string, HeldAccess>();
   private epoch = 0;
+  private accessEpoch = 0;
 
   constructor(
     private readonly evaluator: VisibilityEvaluator,
     private readonly prober: ProbeEvaluator,
     private readonly cache: SezzleeCache,
     private readonly options: SezzleeOptions,
+    private readonly authorizer: ToolAuthorizer | null = null,
   ) {}
+
+  get hasAuthorizer(): boolean {
+    return this.authorizer !== null;
+  }
 
   bump(): void {
     this.epoch += 1;
+  }
+
+  /**
+   * Forgets the resolved authorizer access of one caller scope, or of every scope.
+   *
+   * @param scope the scope to forget; omitted, all of them
+   */
+  invalidateAccess(scope?: CallerScope): void {
+    this.accessEpoch += 1;
+    if (scope === undefined) {
+      this.accesses.clear();
+    } else {
+      this.accesses.delete(String(scope.key));
+    }
+  }
+
+  /**
+   * Guard: an access is an object the host built from its own data, so it is held here in process
+   * memory for `cache.lifetimeMs` and never written to the shared `SezzleeCache`, which stores
+   * strings. A resolution that was invalidated while it ran is returned but not kept; without that
+   * a permission change racing a slow resolve would pin the old answer for a whole lifetime.
+   *
+   * @returns the caller's access, or `undefined` when no authorizer is bound
+   */
+  async access(
+    scope: CallerScope,
+    outer: OuterRequest | undefined,
+    signal?: AbortSignal,
+  ): Promise<ToolAccess | undefined> {
+    const authorizer = this.authorizer;
+    if (authorizer === null) {
+      return undefined;
+    }
+    const started = performance.now();
+    const { lifetimeMs, maxCallers } = this.options.cache;
+    if (lifetimeMs <= 0) {
+      const access = await authorizer.resolve(outer, signal);
+      this.logResolution(started, "uncached");
+      return access;
+    }
+    const key = String(scope.key);
+    const held = this.accesses.get(key);
+    if (held !== undefined && held.expiresAt > Date.now()) {
+      this.logResolution(started, "hit");
+      return held.access;
+    }
+    const observed = this.accessEpoch;
+    const access = await this.accessFlight.run(key, () =>
+      authorizer.resolve(outer, signal),
+    );
+    if (observed === this.accessEpoch) {
+      this.accesses.delete(key);
+      this.evictAccesses(maxCallers - 1);
+      this.accesses.set(key, { access, expiresAt: Date.now() + lifetimeMs });
+    }
+    this.logResolution(started, "miss");
+    return access;
+  }
+
+  private evictAccesses(room: number): void {
+    const now = Date.now();
+    for (const [key, held] of this.accesses) {
+      if (held.expiresAt <= now) {
+        this.accesses.delete(key);
+      }
+    }
+    for (const key of this.accesses.keys()) {
+      if (this.accesses.size <= room) {
+        return;
+      }
+      this.accesses.delete(key);
+    }
+  }
+
+  private logResolution(started: number, outcome: string): void {
+    this.logger.debug(
+      `authorizer access resolved in ${Math.round(performance.now() - started)} ms (${outcome})`,
+    );
   }
 
   canProbe(entry: CatalogEntry): boolean {
@@ -55,26 +149,43 @@ export class CallerVisibilityProvider {
     return resolved;
   }
 
+  /**
+   * @returns the verdict an earlier probe left in the shared cache for this scope and tool, or
+   * `undefined` when there is none
+   */
+  async cachedProbe(
+    scope: CallerScope,
+    entry: CatalogEntry,
+  ): Promise<VisibilityDecision | undefined> {
+    if (this.options.cache.lifetimeMs <= 0) {
+      return undefined;
+    }
+    const cached = await this.read({
+      scope,
+      kind: "probe",
+      subkey: entry.tool.name,
+    });
+    return cached === "A" ? "allow" : cached === "D" ? "deny" : undefined;
+  }
+
   async probe(
     scope: CallerScope,
     entry: CatalogEntry,
     outer: OuterRequest | undefined,
+    signal?: AbortSignal,
   ): Promise<VisibilityDecision> {
     const key: CacheKey = { scope, kind: "probe", subkey: entry.tool.name };
     if (this.options.cache.lifetimeMs <= 0) {
-      return this.prober.probe(entry, outer);
+      return this.prober.probe(entry, outer, signal);
     }
     const observed = this.epoch;
-    const cached = await this.read(key);
-    if (cached === "A") {
-      return "allow";
-    }
-    if (cached === "D") {
-      return "deny";
+    const cached = await this.cachedProbe(scope, entry);
+    if (cached !== undefined) {
+      return cached;
     }
     const decision = await this.probeFlight.run(
       `${scope.key}:${entry.tool.name}`,
-      () => this.prober.probe(entry, outer),
+      () => this.prober.probe(entry, outer, signal),
     );
     if (decision !== "unknown" && observed === this.epoch) {
       await this.write(key, decision === "allow" ? "A" : "D");
@@ -96,7 +207,10 @@ export class CallerVisibilityProvider {
     if (decision === "deny") {
       return false;
     }
-    return this.options.visibility.onUnknown === "show";
+    const onUnknown =
+      this.options.visibility.onUnknown ??
+      (this.authorizer === null ? "show" : "hide");
+    return onUnknown === "show";
   }
 
   private async read(key: CacheKey): Promise<string | undefined> {

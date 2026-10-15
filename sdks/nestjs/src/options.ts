@@ -295,10 +295,25 @@ export interface SezzleeSearchOptions {
 
 export type SezzleeVisibilityTier = "declarative" | "probe";
 
+export type SezzleeUnknownVisibility = "show" | "hide";
+
+export type SezzleeUncoveredPolicy = "report" | "fatal";
+
+/**
+ * @param onUnknown what a tool no tier decided becomes; unset, it is `"hide"` when a
+ * `toolAuthorizer` is bound and `"show"` otherwise
+ * @param onUncovered `"fatal"` makes a selected tool no tier can decide before a call fail the
+ * catalog as `visibility_uncovered`, and turns the check on without an authorizer
+ * @param maxProbesPerSearch the most probe requests one `search_tools` call sends while it fills
+ * its page; at the cap the page is returned as it stands and the tools left unprobed follow
+ * `onUnknown`. Zero stops search from probing, and counts the probe tier as unable to reach a tool
+ * in the coverage check. A verdict already cached does not count
+ */
 export interface SezzleeVisibilityOptions {
   tier: SezzleeVisibilityTier;
-  onUnknown: "show" | "hide";
-  probeTopK: number;
+  onUnknown?: SezzleeUnknownVisibility;
+  onUncovered: SezzleeUncoveredPolicy;
+  maxProbesPerSearch: number;
   probeConcurrency: number;
   readonly probeValues: Map<string, string>;
 }
@@ -320,8 +335,8 @@ export class SezzleeOptions {
   readonly families = new ToolFamilyOptions();
   readonly visibility: SezzleeVisibilityOptions = {
     tier: "declarative",
-    onUnknown: "show",
-    probeTopK: 25,
+    onUncovered: "report",
+    maxProbesPerSearch: 50,
     probeConcurrency: 4,
     probeValues: new Map<string, string>(),
   };
@@ -345,6 +360,18 @@ export class SezzleeOptions {
   tags?: (container: string) => readonly string[] | undefined;
   /** Search vocabulary for a container the host cannot decorate, below a `@McpTool({ searchTerms })`. */
   searchTerms?: (container: string) => readonly string[] | undefined;
+  /**
+   * Grouping labels decided per endpoint. It sits below a `@McpTool({ tags })` declaration and
+   * above `options.tags`; returning undefined keeps the next level.
+   */
+  endpointTags?: (endpoint: McpEndpointInfo) => readonly string[] | undefined;
+  /**
+   * Search vocabulary decided per endpoint. It sits below a `@McpTool({ searchTerms })` declaration
+   * and above `options.searchTerms`; returning undefined keeps the next level.
+   */
+  endpointSearchTerms?: (
+    endpoint: McpEndpointInfo,
+  ) => readonly string[] | undefined;
   /**
    * A description for an endpoint the host documents elsewhere. It sits below a
    * `@McpTool({ description })` declaration and above the endpoint's `@ApiOperation` text, which

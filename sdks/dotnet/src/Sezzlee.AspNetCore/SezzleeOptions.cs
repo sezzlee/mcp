@@ -43,6 +43,21 @@ public sealed class SezzleeOptions
     public Func<string, IReadOnlyList<string>?>? SearchTerms { get; set; }
 
     /// <summary>
+    /// Grouping labels decided per endpoint, for a host that derives them from something the
+    /// container name does not carry, such as an attribute on the action. It sits below a
+    /// <c>[McpTool(Tags = ...)]</c> declaration and above <see cref="Tags"/>; returning null defers to
+    /// the next level, and an empty list is a declaration of no tags.
+    /// </summary>
+    public Func<McpEndpointInfo, IReadOnlyList<string>?>? EndpointTags { get; set; }
+
+    /// <summary>
+    /// Search vocabulary decided per endpoint, like <see cref="EndpointTags"/>. It sits below a
+    /// <c>[McpTool(SearchTerms = ...)]</c> declaration and above <see cref="SearchTerms"/>; returning
+    /// null defers to the next level.
+    /// </summary>
+    public Func<McpEndpointInfo, IReadOnlyList<string>?>? EndpointSearchTerms { get; set; }
+
+    /// <summary>
     /// A description for an endpoint the host documents elsewhere, such as in generated code
     /// documentation. It sits below a <c>[McpTool(Description = ...)]</c> declaration and above the
     /// endpoint's description metadata, which it receives as <see cref="McpEndpointInfo.Declared"/>;
@@ -132,13 +147,37 @@ public sealed class CacheOptions
 
 public enum UnknownVisibility { Show, Hide }
 
+public enum UncoveredVisibility { Report, Fatal }
+
 public enum VisibilityTier { Declarative, Probe }
 
 public sealed class VisibilityOptions
 {
-    public UnknownVisibility OnUnknown { get; set; } = UnknownVisibility.Show;
+    /// <summary>
+    /// Whether a tool no tier could decide is listed. Left unset it is <see cref="UnknownVisibility.Hide"/>
+    /// when an <see cref="Visibility.IToolAuthorizer"/> is registered and <see cref="UnknownVisibility.Show"/>
+    /// otherwise; a host that sets it keeps its choice either way.
+    /// </summary>
+    public UnknownVisibility? OnUnknown { get; set; }
+
+    /// <summary>
+    /// What a catalog build does with tools whose visibility no tier can decide ahead of a call: the
+    /// authorizer does not cover them, their declarative facts are imperative or undeclared, and the probe
+    /// cannot reach them. The build always reports them as <c>visibility_uncovered</c> when an authorizer is
+    /// registered or this is <see cref="UncoveredVisibility.Fatal"/>, which fails the catalog.
+    /// </summary>
+    public UncoveredVisibility OnUncovered { get; set; } = UncoveredVisibility.Report;
     public VisibilityTier Tier { get; set; } = VisibilityTier.Declarative;
-    public int ProbeTopK { get; set; } = 25;
+
+    /// <summary>
+    /// The most probes one <c>search_tools</c> call spends walking the ranked candidates until its page
+    /// fills; a verdict served from the cache costs nothing. At the cap the page is returned as it
+    /// stands, a warning is logged, and the candidates still unprobed follow <see cref="OnUnknown"/>.
+    /// Zero stops <c>search_tools</c> from probing; <c>load_tool</c> still probes the one tool it is
+    /// asked about.
+    /// </summary>
+    public int MaxProbesPerSearch { get; set; } = 50;
+
     public int ProbeConcurrency { get; set; } = 4;
     public Dictionary<string, string> ProbeValues { get; } = new(StringComparer.OrdinalIgnoreCase);
 }

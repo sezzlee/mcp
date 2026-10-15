@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Sezzlee.AspNetCore.Naming;
 using Sezzlee.AspNetCore.Spec;
 using Microsoft.Extensions.DependencyInjection;
+using Sezzlee.AspNetCore.Visibility;
 
 namespace Sezzlee.AspNetCore.Discovery;
 
@@ -90,6 +91,44 @@ public sealed record McpFamilyMember(McpFamilyKey Key, string Name, string Descr
     public bool? ReadOnly { get; init; }
     public bool? Destructive { get; init; }
     public bool? Idempotent { get; init; }
+
+    /// <summary>
+    /// Descriptions keyed by parameter name, for a member whose body is a method's parameters. One here
+    /// wins over the parameter's <c>[Description]</c>; a blank one is ignored. Other bodies carry their own.
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? ParameterDescriptions { get; init; }
+
+    /// <remarks>
+    /// Guard: written by hand because the synthesized comparison would compare
+    /// <see cref="ParameterDescriptions"/> by reference. A source that builds a new dictionary on every
+    /// load would then look changed on every refresh, rebuild the catalog and signal a tool-list change
+    /// to every connected client each time.
+    /// </remarks>
+    public bool Equals(McpFamilyMember? other) =>
+        other is not null
+        && Key.Equals(other.Key)
+        && string.Equals(Name, other.Name, StringComparison.Ordinal)
+        && string.Equals(Description, other.Description, StringComparison.Ordinal)
+        && Equals(Body, other.Body)
+        && BodyRequired == other.BodyRequired
+        && ReadOnly == other.ReadOnly
+        && Destructive == other.Destructive
+        && Idempotent == other.Idempotent
+        && SameDescriptions(ParameterDescriptions, other.ParameterDescriptions);
+
+    public override int GetHashCode() => HashCode.Combine(Key, Name, Description, Body);
+
+    private static bool SameDescriptions(
+        IReadOnlyDictionary<string, string>? left, IReadOnlyDictionary<string, string>? right)
+    {
+        if (left is null || right is null)
+        {
+            return left is null && right is null;
+        }
+        return left.Count == right.Count
+            && left.All(pair => right.TryGetValue(pair.Key, out string? other)
+                && string.Equals(pair.Value, other, StringComparison.Ordinal));
+    }
 }
 
 /// <summary>Returns a family's members. It runs in its own service scope, outside any request.</summary>
@@ -160,7 +199,10 @@ internal abstract record FamilyLoad
 internal abstract record FamilyResolution
 {
     internal sealed record Members(
-        ToolFamily Family, IReadOnlyList<ToolVariant> Variants, IReadOnlyList<CatalogDiagnostic> Diagnostics)
+        ToolFamily Family,
+        IReadOnlyList<ToolVariant> Variants,
+        IReadOnlyList<CatalogDiagnostic> Diagnostics,
+        IReadOnlyDictionary<string, McpFamilyMemberInfo> Origins)
         : FamilyResolution;
 
     internal sealed record Refused(CatalogDiagnostic Diagnostic) : FamilyResolution;
@@ -246,7 +288,7 @@ internal static partial class FamilyReader
         ToolFamily family = new() { Parameter = declaration.Parameter };
         if (declaration.Source is null)
         {
-            return new FamilyResolution.Members(family, [], []);
+            return new FamilyResolution.Members(family, [], [], new Dictionary<string, McpFamilyMemberInfo>());
         }
         if (!options.Sources.ContainsKey(declaration.Source))
         {
@@ -283,6 +325,7 @@ internal static partial class FamilyReader
         HashSet<string> names = new((declared ?? []).Select(v => v.Name), StringComparer.Ordinal);
         HashSet<string> keys = new(StringComparer.Ordinal);
         List<ToolVariant> variants = [];
+        Dictionary<string, McpFamilyMemberInfo> origins = new(StringComparer.Ordinal);
         foreach (McpFamilyMember member in members)
         {
             string? problem = ProblemOf(member, names, keys);
@@ -301,8 +344,9 @@ internal static partial class FamilyReader
             names.Add(member.Name);
             keys.Add(member.Key.ToNode().ToJsonString());
             variants.Add(Lower(member, body, declaration.Parameter));
+            origins[member.Name] = new McpFamilyMemberInfo(declaration.Source, member.Key);
         }
-        return new FamilyResolution.Members(family, variants, diagnostics);
+        return new FamilyResolution.Members(family, variants, diagnostics, origins);
     }
 
     private static string? ProblemOf(McpFamilyMember member, HashSet<string> names, HashSet<string> keys)
@@ -337,7 +381,7 @@ internal static partial class FamilyReader
         {
             McpFamilyBody.JsonSchema declared => declared.Value,
             McpFamilyBody.ClrType clr => JsonSchemaMapper.Map(clr.Type, reporting),
-            McpFamilyBody.Parameters parameters => JsonSchemaMapper.Map(parameters.Values, reporting),
+            McpFamilyBody.Parameters parameters => JsonSchemaMapper.Map(parameters.Values, reporting, member.ParameterDescriptions),
             _ => null,
         };
         if (body is null)

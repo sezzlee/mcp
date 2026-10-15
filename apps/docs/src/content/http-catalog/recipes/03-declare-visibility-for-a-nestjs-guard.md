@@ -42,7 +42,7 @@ SezzleeModule.forRoot((options) => {
 
 A probe sends a synthetic request that runs your guards and stops before the handler. A `401` or `403` is `deny`. A short-circuit with a status below `400` is `allow`. Anything else is `unknown`, and that tool's probe disables itself.
 
-Probing is budgeted. `visibility.probeTopK` (default 25) caps probes per search and `visibility.probeConcurrency` (default 4) caps parallelism.
+Probing is budgeted. A search probes candidates in rank order only until its page is full; `visibility.maxProbesPerSearch` (default 50) caps probes per search and `visibility.probeConcurrency` (default 4) caps parallelism.
 
 ## Give the probe path parameters
 

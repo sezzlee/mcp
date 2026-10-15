@@ -15,6 +15,8 @@ using Sezzlee.AspNetCore.Caching;
 using Sezzlee.AspNetCore.Discovery;
 using Sezzlee.AspNetCore.Search;
 using Sezzlee.AspNetCore.Spec;
+using Sezzlee.AspNetCore.Visibility;
+using Sezzlee.AspNetCore.Visibility.Probe;
 
 namespace Sezzlee.AspNetCore;
 
@@ -25,10 +27,14 @@ internal sealed class SezzleeCatalogProvider(
     IOptions<MvcOptions> mvcOptions,
     ISezzleeCache cache,
     ILogger<SezzleeCatalogProvider> logger,
+    ToolAccessResolver access,
+    IServiceProvider services,
     IAuthorizationPolicyProvider? policyProvider = null,
     Files.ISezzleeFileResolver? fileResolver = null,
     IServiceScopeFactory? scopes = null) : ISezzleeCatalogChangeSource
 {
+    private const int UncoveredNamesListed = 20;
+
     private const string NewtonsoftInputFormatter =
         "Microsoft.AspNetCore.Mvc.Formatters.NewtonsoftJsonInputFormatter";
 
@@ -309,7 +315,7 @@ internal sealed class SezzleeCatalogProvider(
                 logger.LogInformation("sezzlee {Code}: {Message}", diagnostic.Code, diagnostic.Message);
                 continue;
             }
-            switch (options.Value.Diagnostics.SeverityOf(diagnostic.Code))
+            switch (SeverityOf(diagnostic.Code))
             {
                 case CatalogSeverity.Fatal:
                     logger.LogCritical("sezzlee {Code}: {Message}", diagnostic.Code, diagnostic.Message);
@@ -365,10 +371,16 @@ internal sealed class SezzleeCatalogProvider(
             familyLoads: familyLoads,
             catalogRevision: options.Value.Revision,
             containerRevision: options.Value.ContainerRevision,
-            endpointDescription: options.Value.Description);
+            endpointDescription: options.Value.Description,
+            endpointTags: options.Value.EndpointTags,
+            endpointSearchTerms: options.Value.EndpointSearchTerms);
         if (schemaNotes.Count > 0)
         {
             result = result with { Diagnostics = [.. schemaNotes, .. result.Diagnostics] };
+        }
+        if (ReportUncovered(result) is { } uncovered)
+        {
+            result = result with { Diagnostics = [.. result.Diagnostics, uncovered] };
         }
 
         Dictionary<string, CatalogEntry> byName = result.Entries
@@ -389,14 +401,57 @@ internal sealed class SezzleeCatalogProvider(
             e.Descriptor.SearchTerms)).ToArray();
         ToolIndex index = new(documents);
         CatalogDiagnostic[] fatal = result.Diagnostics
-            .Where(d => options.Value.Diagnostics.SeverityOf(d.Code)
-                >= options.Value.Diagnostics.FailOn)
+            .Where(d => SeverityOf(d.Code) >= options.Value.Diagnostics.FailOn)
             .ToArray();
         HashSet<string> policyNames = result.Entries
             .SelectMany(e => e.Descriptor.Auth.Policies)
             .ToHashSet(StringComparer.Ordinal);
 
         return new Snapshot(result, byName, index, Ranking.CatalogOf(documents), fatal, policyNames);
+    }
+
+    /// <remarks>
+    /// Guard: <see cref="UncoveredVisibility.Fatal"/> raises only this code, so the diagnostics options a
+    /// host already tunes by code keep their say for every other one.
+    /// </remarks>
+    private CatalogSeverity SeverityOf(string code) =>
+        code == DiagnosticCodes.VisibilityUncovered && options.Value.Visibility.OnUncovered == UncoveredVisibility.Fatal
+            ? CatalogSeverity.Fatal
+            : options.Value.Diagnostics.SeverityOf(code);
+
+    /// <summary>
+    /// Names the tools no tier can decide before a call: the authorizer does not cover them, their
+    /// declarative facts are imperative or undeclared, and the probe cannot reach them. Runs only for a
+    /// host that registered an authorizer or asked for <see cref="UncoveredVisibility.Fatal"/>; any other
+    /// host never opted in to deciding visibility per tool, so reporting would only add noise.
+    /// </summary>
+    private CatalogDiagnostic? ReportUncovered(CatalogBuildResult result)
+    {
+        VisibilityOptions visibility = options.Value.Visibility;
+        if (!access.HasAuthorizer && visibility.OnUncovered != UncoveredVisibility.Fatal)
+        {
+            return null;
+        }
+        IProbeEvaluator? probe = visibility.Tier == VisibilityTier.Probe
+            ? services.GetService<IProbeEvaluator>()
+            : null;
+        string[] uncovered = access.WithCoverage(covers => result.Entries
+            .Where(entry => !covers(entry.Info)
+                && (entry.Descriptor.Auth.Imperative || entry.Descriptor.Auth.Anonymous == Anonymity.Unknown)
+                && probe?.CanProbe(entry) != true)
+            .Select(entry => entry.Tool.Name)
+            .ToArray());
+        if (uncovered.Length == 0)
+        {
+            return null;
+        }
+        logger.LogDebug("sezzlee visibility_uncovered tools: {Tools}", string.Join(", ", uncovered));
+        string listed = string.Join(", ", uncovered.Take(UncoveredNamesListed));
+        string more = uncovered.Length > UncoveredNamesListed ? $", and {uncovered.Length - UncoveredNamesListed} more" : string.Empty;
+        return new CatalogDiagnostic(
+            DiagnosticCodes.VisibilityUncovered,
+            $"{uncovered.Length} tool(s) have no visibility decision before a call: the authorizer does not cover them, "
+            + $"their declared authorization is imperative or absent, and no probe reaches them ({listed}{more}).");
     }
 
     private (SchemaMapperOptions, IReadOnlyList<CatalogDiagnostic>) ResolveSchemaBinding()

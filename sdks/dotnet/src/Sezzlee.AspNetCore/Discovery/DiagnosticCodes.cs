@@ -42,6 +42,7 @@ public static class DiagnosticCodes
     public const string UnboundQueryObject = "unbound_query_object";
     public const string UnflattenableBodyRoot = "unflattenable_body_root";
     public const string UnsupportedDictionaryKey = "unsupported_dictionary_key";
+    public const string VisibilityUncovered = "visibility_uncovered";
     public const string VariantIndistinguishable = "variant_indistinguishable";
     public const string UnknownFamilySource = "unknown_family_source";
     public const string FamilySourceFailed = "family_source_failed";

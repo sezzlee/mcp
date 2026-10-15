@@ -23,8 +23,20 @@ export function collectConfigurationFailures(
   if (options.cache.maxCallers < 1) {
     failures.push("cache.maxCallers must be at least 1.");
   }
-  if (options.visibility.probeTopK < 0) {
-    failures.push("visibility.probeTopK must be zero or positive.");
+  const { onUnknown, onUncovered } = options.visibility;
+  if (onUnknown !== undefined && !["show", "hide"].includes(onUnknown)) {
+    failures.push('visibility.onUnknown must be "show" or "hide" when set.');
+  }
+  if (!["report", "fatal"].includes(onUncovered)) {
+    failures.push('visibility.onUncovered must be "report" or "fatal".');
+  }
+  if (
+    !Number.isInteger(options.visibility.maxProbesPerSearch) ||
+    options.visibility.maxProbesPerSearch < 0
+  ) {
+    failures.push(
+      "visibility.maxProbesPerSearch must be zero or a positive integer.",
+    );
   }
   if (options.visibility.probeConcurrency < 1) {
     failures.push("visibility.probeConcurrency must be at least 1.");

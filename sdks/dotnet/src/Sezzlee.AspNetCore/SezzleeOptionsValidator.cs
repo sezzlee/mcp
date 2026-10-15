@@ -18,9 +18,17 @@ internal sealed class SezzleeOptionsValidator : IValidateOptions<SezzleeOptions>
         {
             failures.Add("Cache.MaxCallers must be at least 1.");
         }
-        if (options.Visibility.ProbeTopK < 0)
+        if (options.Visibility.OnUnknown is { } onUnknown && !Enum.IsDefined(onUnknown))
         {
-            failures.Add("Visibility.ProbeTopK must be zero or positive.");
+            failures.Add("Visibility.OnUnknown must be Show or Hide.");
+        }
+        if (!Enum.IsDefined(options.Visibility.OnUncovered))
+        {
+            failures.Add("Visibility.OnUncovered must be Report or Fatal.");
+        }
+        if (options.Visibility.MaxProbesPerSearch < 0)
+        {
+            failures.Add("Visibility.MaxProbesPerSearch must be zero or positive.");
         }
         if (options.Visibility.ProbeConcurrency < 1)
         {

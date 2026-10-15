@@ -48,6 +48,7 @@ public static class SezzleeServiceCollectionExtensions
         services.TryAddSingleton<IVisibilityEvaluator, DeclarativeVisibilityEvaluator>();
         services.TryAddSingleton<IProbeEvaluator, ProbeEvaluator>();
         services.TryAddSingleton<ICallerScopeResolver, CarrierHashCallerScopeResolver>();
+        services.TryAddSingleton<ToolAccessResolver>();
         services.TryAddSingleton<ISezzleeCache, MemorySezzleeCache>();
         services.TryAddSingleton<CallerVisibilityProvider>();
         services.TryAddSingleton<ISezzleeCacheInvalidator, SezzleeCacheInvalidator>();

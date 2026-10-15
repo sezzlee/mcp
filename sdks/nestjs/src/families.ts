@@ -222,6 +222,7 @@ export type FamilyResolution =
       readonly kind: "members";
       readonly family: ToolFamily;
       readonly variants: readonly ToolVariant[];
+      readonly keys: ReadonlyMap<string, string | number>;
       readonly diagnostics: readonly CatalogDiagnostic[];
     }
   | { readonly kind: "refused"; readonly diagnostic: CatalogDiagnostic };
@@ -281,6 +282,7 @@ export function resolveFamily(
       kind: "members",
       family: lowered,
       variants: [],
+      keys: new Map(),
       diagnostics: [],
     };
   }
@@ -315,6 +317,7 @@ export function resolveFamily(
   const names = new Set(declared.map((variant) => variant.name));
   const keys = new Set<string>();
   const variants: ToolVariant[] = [];
+  const memberKeys = new Map<string, string | number>();
   for (const member of load.members) {
     const body =
       memberProblem(member, names, keys) ??
@@ -330,9 +333,16 @@ export function resolveFamily(
     }
     names.add(member.name);
     keys.add(JSON.stringify(member.key));
+    memberKeys.set(member.name, member.key);
     variants.push(lower(member, body, family.parameter));
   }
-  return { kind: "members", family: lowered, variants, diagnostics };
+  return {
+    kind: "members",
+    family: lowered,
+    variants,
+    keys: memberKeys,
+    diagnostics,
+  };
 }
 
 function memberProblem(

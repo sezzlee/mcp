@@ -360,6 +360,7 @@ export {
   vocabularyOf,
   wrongArgumentType,
 } from "./meta-tools/meta-tools.js";
+export type { ProbeOptions } from "./meta-tools/probe-walk.js";
 export type {
   MetaResponse,
   SearchRequest,

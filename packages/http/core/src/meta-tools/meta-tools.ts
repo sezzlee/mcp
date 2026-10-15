@@ -25,6 +25,7 @@ import {
   type SearchRankerOptions,
 } from "../ranker.js";
 import { foldToken } from "../search.js";
+import { ProbeWalk, type ProbeOptions } from "./probe-walk.js";
 import { createLoadedTool, toolVersion } from "../tool-version.js";
 import type { VisibilityDecision } from "../visibility.js";
 
@@ -206,8 +207,8 @@ export async function emitGuarded<Target>(
 
 /**
  * @param decide the declarative visibility decision for one entry
- * @param probe resolves an `unknown` decision for at most `budget` ranked entries; absent means
- * declarative visibility only
+ * @param probe resolves a decision the cheaper tiers left `unknown`, on demand, while the page
+ * fills; absent means the cheaper tiers only
  */
 export interface SearchRequest<Source extends object> {
   readonly catalog: CatalogBuild<Source>;
@@ -217,11 +218,7 @@ export interface SearchRequest<Source extends object> {
   readonly tags: readonly string[] | undefined;
   readonly decide: (entry: CatalogEntry<Source>) => VisibilityDecision;
   readonly visible: (decision: VisibilityDecision) => boolean;
-  readonly probe?: {
-    readonly budget: number;
-    canProbe(entry: CatalogEntry<Source>): boolean;
-    run(entry: CatalogEntry<Source>): Promise<VisibilityDecision>;
-  };
+  readonly probe?: ProbeOptions<Source>;
   readonly ranker?: SearchRankerOptions;
   readonly signal?: AbortSignal;
 }
@@ -298,41 +295,28 @@ export async function searchCatalog<Source extends object>(
   }
   const ranked = ranking.names;
 
-  const declarative = new Map<string, VisibilityDecision>();
+  const candidates: CatalogEntry<Source>[] = [];
+  const decisions = new Map<CatalogEntry<Source>, VisibilityDecision>();
   for (const name of ranked) {
     const entry = catalog.byName.get(name);
     if (entry !== undefined) {
-      declarative.set(name, decide(entry));
+      candidates.push(entry);
+      decisions.set(entry, decide(entry));
     }
   }
 
-  const resolved = new Map(declarative);
-  const probe = request.probe;
-  if (probe !== undefined) {
-    const queue = ranked.filter((name) => {
-      const entry = catalog.byName.get(name);
-      return (
-        entry !== undefined &&
-        declarative.get(name) === "unknown" &&
-        probe.canProbe(entry)
-      );
-    });
-    for (const name of queue.slice(0, Math.max(probe.budget, 0))) {
-      const entry = catalog.byName.get(name);
-      if (entry === undefined) {
-        continue;
-      }
-      resolved.set(name, await probe.run(entry));
-    }
-  }
-
+  const walk = new ProbeWalk(
+    request.probe,
+    candidates,
+    decisions,
+    visible,
+    capped,
+    request.signal,
+  );
   const results: unknown[] = [];
-  for (const name of ranked) {
-    const entry = catalog.byName.get(name);
-    if (entry === undefined) {
-      continue;
-    }
-    const decision = resolved.get(name) ?? "unknown";
+  for (let index = 0; index < candidates.length; index += 1) {
+    const entry = candidates[index] as CatalogEntry<Source>;
+    const decision = await walk.decisionAt(index, results.length);
     if (!visible(decision)) {
       continue;
     }

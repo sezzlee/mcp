@@ -29,7 +29,11 @@ internal sealed class TypeShapeBinder
     }
 
     /// <summary>Binds a method's parameters as the members of one object, keyed by parameter name.</summary>
-    public static TypeShape Bind(IReadOnlyList<ParameterInfo> parameters, TypeShapeBinderOptions options)
+    /// <param name="descriptions">Descriptions by parameter name; one wins over the parameter's own annotation.</param>
+    public static TypeShape Bind(
+        IReadOnlyList<ParameterInfo> parameters,
+        TypeShapeBinderOptions options,
+        IReadOnlyDictionary<string, string>? descriptions = null)
     {
         TypeShapeBinder binder = new(options);
         const string key = "(parameters)";
@@ -37,14 +41,19 @@ internal sealed class TypeShapeBinder
         List<Member> members = [];
         foreach (ParameterInfo parameter in parameters)
         {
+            string name = parameter.Name ?? $"arg{parameter.Position}";
             members.Add(new Member
             {
-                Name = parameter.Name ?? $"arg{parameter.Position}",
+                Name = name,
                 Type = binder.Node(parameter.ParameterType, null),
                 Required = Annotation<RequiredAttribute>(null, parameter) is not null || IsRequired(parameter),
                 ReadOnly = false,
                 ConstructorBound = false,
-                Description = DescriptionOf(null, parameter),
+                Description = descriptions is not null
+                    && descriptions.TryGetValue(name, out string? declared)
+                    && !string.IsNullOrWhiteSpace(declared)
+                        ? declared
+                        : DescriptionOf(null, parameter),
                 Constraints = ConstraintsOf(null, parameter),
             });
         }

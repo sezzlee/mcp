@@ -37,7 +37,11 @@ import {
   type ToolRanker,
   type ToolVariant,
 } from "@sezzlee/core";
-import { severityOf, type CatalogDiagnostic } from "./discovery/diagnostics.js";
+import {
+  severityOf,
+  type CatalogDiagnostic,
+  type CatalogSeverity,
+} from "./discovery/diagnostics.js";
 import {
   bodyFor,
   createRoutePaths,
@@ -45,6 +49,7 @@ import {
   modulePathOf,
   normalizeRoute,
   type DiscoveredEndpoint,
+  type McpEndpointInfo,
 } from "./discovery/endpoint-discovery.js";
 import type { ArgumentRule, McpVariantOptions } from "./decorators.js";
 import {
@@ -62,6 +67,7 @@ import {
   type SezzleeOptions,
 } from "./options.js";
 import { extensionTokens } from "./extension-points.js";
+import { toolInfoOf, type ToolAuthorizer } from "./visibility/authorizer.js";
 import { protectedResourceMetadataPath } from "./transport/protected-resource-metadata.js";
 
 export { cleanTags } from "@sezzlee/core";
@@ -69,6 +75,11 @@ export { cleanTags } from "@sezzlee/core";
 export interface NestSource {
   readonly controller: NewableFunction;
   readonly handlerName: string;
+  readonly handler: (...args: never[]) => unknown;
+  readonly family?: {
+    readonly source: string;
+    readonly keys: ReadonlyMap<string, string | number>;
+  };
 }
 
 export type CatalogEntry = CoreCatalogEntry<NestSource>;
@@ -80,6 +91,9 @@ export interface CatalogSnapshot extends CatalogBuild<NestSource> {
 type LoweredFamily = Extract<FamilyResolution, { kind: "members" }>;
 
 const logger = new Logger("Sezzlee");
+
+const uncoveredCode = "visibility_uncovered";
+const uncoveredListed = 20;
 
 @Injectable()
 export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
@@ -100,10 +114,17 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
     @Optional()
     @Inject(extensionTokens.toolRanker)
     private readonly toolRanker: ToolRanker | null = null,
+    @Optional()
+    @Inject(extensionTokens.toolAuthorizer)
+    private readonly toolAuthorizer: ToolAuthorizer | null = null,
   ) {}
 
   get ranker(): ToolRanker | null {
     return this.toolRanker;
+  }
+
+  get authorizer(): ToolAuthorizer | null {
+    return this.toolAuthorizer;
   }
 
   get generation(): number {
@@ -412,7 +433,7 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
       ...(versioningOptions === undefined ? {} : { versioningOptions }),
       globalPrefix,
       routePaths,
-      severity: (code) => severityOf(code, this.options.diagnostics),
+      severity: (code) => this.severityFor(code),
       queryGrouping: this.options.query.grouping,
       ...(this.options.description === undefined
         ? {}
@@ -467,13 +488,25 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
       routed.map((endpoint) => {
         const container = endpoint.controller.name;
         const owner = `${container}.${endpoint.handlerName}`;
-        const tags = endpoint.hints.tags ?? this.options.tags?.(container);
+        const info = endpointInfoOf(endpoint);
+        const tags =
+          endpoint.hints.tags ??
+          this.options.endpointTags?.(info) ??
+          this.options.tags?.(container);
         const searchTerms =
-          endpoint.hints.searchTerms ?? this.options.searchTerms?.(container);
+          endpoint.hints.searchTerms ??
+          this.options.endpointSearchTerms?.(info) ??
+          this.options.searchTerms?.(container);
+        const lowered = families.get(endpoint);
+        const familySource = endpoint.hints.family?.source;
         return {
           source: {
             controller: endpoint.controller,
             handlerName: endpoint.handlerName,
+            handler: endpoint.handler,
+            ...(lowered === undefined || familySource === undefined
+              ? {}
+              : { family: { source: familySource, keys: lowered.keys } }),
           },
           owner,
           descriptor: endpoint.descriptor,
@@ -513,7 +546,7 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
         prefixMode: this.options.naming.prefixMode,
         ...(files === undefined ? {} : { files }),
         providers: this.options.arguments.providers,
-        severity: (code) => severityOf(code, this.options.diagnostics),
+        severity: (code) => this.severityFor(code),
         failOn: this.options.diagnostics.failOn ?? "fatal",
         prior,
         admit: (descriptor, name) => {
@@ -525,8 +558,10 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
                 message: `Tool '${name}' sends a ${descriptor.requestBody?.contentType ?? ""} body, but this application registers no ${missingParser}; the handler would receive no body. Register the parser with app.useBodyParser(), or declare another media type.`,
               };
         },
-        inspect: (entries, inspectReport) =>
-          this.reportUnparsedBrackets(entries, inspectReport),
+        inspect: (entries, inspectReport) => {
+          this.reportUnparsedBrackets(entries, inspectReport);
+          this.reportUncovered(entries, inspectReport);
+        },
       },
     );
 
@@ -535,6 +570,53 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
       operations: withUnpublished(built.operations, discovered),
       discovered: discovered.length,
     };
+  }
+
+  private severityFor(code: string): CatalogSeverity {
+    return code === uncoveredCode &&
+      this.options.visibility.onUncovered === "fatal"
+      ? "fatal"
+      : severityOf(code, this.options.diagnostics);
+  }
+
+  /**
+   * Guard: without an authorizer the check stays off unless `visibility.onUncovered` is `"fatal"`,
+   * because every existing host has tools no tier decides and would gain a warning it never asked
+   * for. A probe-tier tool counts as reachable when it has a request template, the condition
+   * `canProbe` starts from, and `maxProbesPerSearch` leaves search room to probe; the injected
+   * prober is not available to the catalog.
+   */
+  private reportUncovered(
+    entries: readonly CatalogEntry[],
+    report: DiagnosticReporter,
+  ): void {
+    const authorizer = this.toolAuthorizer;
+    const { tier, maxProbesPerSearch, onUncovered } = this.options.visibility;
+    if (authorizer === null && onUncovered !== "fatal") {
+      return;
+    }
+    const probed = tier === "probe" && maxProbesPerSearch > 0;
+    const names = entries
+      .filter((entry) => {
+        if (authorizer?.covers(toolInfoOf(entry)) === true) {
+          return false;
+        }
+        const auth = entry.descriptor.auth;
+        if (!auth.imperative && auth.anonymous !== "unknown") {
+          return false;
+        }
+        return !(probed && entry.template !== undefined);
+      })
+      .map((entry) => entry.tool.name);
+    if (names.length === 0) {
+      return;
+    }
+    const listed = names.slice(0, uncoveredListed).join(", ");
+    const rest = names.length - uncoveredListed;
+    const message = `${String(names.length)} selected tool(s) have a visibility no tier can decide before a call: ${listed}${rest > 0 ? `, and ${String(rest)} more` : ""}. Cover them in the authorizer, declare their guards, or use the probe tier.`;
+    report({ code: uncoveredCode, message });
+    logger.warn(message);
+    logger.debug(`sezzlee uncovered tools: ${names.join(", ")}`);
   }
 
   private checkMetadataPath(
@@ -626,6 +708,16 @@ function withUnpublished(
     }
   }
   return all;
+}
+
+function endpointInfoOf(endpoint: DiscoveredEndpoint): McpEndpointInfo {
+  return {
+    method: endpoint.descriptor.method,
+    route: endpoint.descriptor.route,
+    container: endpoint.controller.name,
+    handler: endpoint.handler,
+    declared: endpoint.descriptor.description,
+  };
 }
 
 function markersOf(endpoint: DiscoveredEndpoint) {

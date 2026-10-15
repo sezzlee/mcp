@@ -303,9 +303,9 @@ public sealed class VisibilityTests
     }
 
     [Fact]
-    public async Task V19_ProbeBudgetZero_LeavesEverythingUncertain()
+    public async Task V19_MaxProbesPerSearchZero_LeavesEverythingUncertain()
     {
-        await using Harness host = await ProbeHostAsync(o => o.Visibility.ProbeTopK = 0);
+        await using Harness host = await ProbeHostAsync(o => o.Visibility.MaxProbesPerSearch = 0);
         (HashSet<string> names, HashSet<string> uncertain, _, _) = await SearchAsync(host.ToolsFor(Mint("alice")));
 
         Assert.Contains("vis_assert", names);

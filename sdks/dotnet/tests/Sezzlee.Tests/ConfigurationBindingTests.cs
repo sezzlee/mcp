@@ -81,4 +81,42 @@ public sealed class ConfigurationBindingTests
 
         Assert.Contains(refused.Failures, f => f.Contains("Families.OnFailure", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void CB5_VisibilityBindsTheUncoveredPolicy_AndLeavesOnUnknownUnsetByDefault()
+    {
+        SezzleeOptions unset = Bind(new());
+        SezzleeOptions bound = Bind(new()
+        {
+            ["Visibility:OnUncovered"] = "Fatal",
+            ["Visibility:OnUnknown"] = "Show",
+        });
+
+        Assert.Null(unset.Visibility.OnUnknown);
+        Assert.Equal(UncoveredVisibility.Report, unset.Visibility.OnUncovered);
+        Assert.Equal(UncoveredVisibility.Fatal, bound.Visibility.OnUncovered);
+        Assert.Equal(UnknownVisibility.Show, bound.Visibility.OnUnknown);
+    }
+
+    [Fact]
+    public void CB6_MaxProbesPerSearchBindsFromConfiguration_AndDefaultsToFifty()
+    {
+        SezzleeOptions unset = Bind(new());
+        SezzleeOptions bound = Bind(new()
+        {
+            ["Visibility:MaxProbesPerSearch"] = "7",
+        });
+
+        Assert.Equal(50, unset.Visibility.MaxProbesPerSearch);
+        Assert.Equal(7, bound.Visibility.MaxProbesPerSearch);
+    }
+
+    [Fact]
+    public void CB7_ANegativeMaxProbesPerSearch_IsRefused()
+    {
+        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
+            () => Bind(new() { ["Visibility:MaxProbesPerSearch"] = "-1" }));
+
+        Assert.Contains(refused.Failures, f => f.Contains("Visibility.MaxProbesPerSearch", StringComparison.Ordinal));
+    }
 }

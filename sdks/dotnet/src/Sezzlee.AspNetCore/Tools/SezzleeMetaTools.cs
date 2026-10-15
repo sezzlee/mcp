@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -47,6 +48,9 @@ internal sealed class SezzleeMetaTools(
 
     private sealed record DecisionContext(Func<CatalogEntry, VisibilityDecision> Decide, CallerScope Scope, HttpRequest? Outer);
 
+    private UnknownVisibility OnUnknown =>
+        options.Value.Visibility.OnUnknown ?? (visibility.HasAuthorizer ? UnknownVisibility.Hide : UnknownVisibility.Show);
+
     /// <remarks>
     /// Guard: <c>detail</c> is a string carrying <see cref="AllowedValuesAttribute"/> rather than a CLR
     /// enum. An enum parameter is deserialized during argument binding, so an unrecognised value would
@@ -69,71 +73,21 @@ internal sealed class SezzleeMetaTools(
         string[] tags = null!,
         CancellationToken cancellationToken = default)
     {
+        long started = Stopwatch.GetTimestamp();
         bool wantsSchema = string.Equals(detail, "schema", StringComparison.Ordinal);
         catalog.EnsureValid();
         DecisionContext context = await DecideAsync(cancellationToken);
         int capped = Math.Clamp(limit, 1, MaxLimit);
         int everything = Math.Max(1, catalog.Result.Entries.Count);
-        int probeBudget = options.Value.Visibility.Tier == VisibilityTier.Probe
-            ? Math.Max(0, options.Value.Visibility.ProbeTopK)
-            : 0;
-
         IReadOnlyList<CatalogEntry>? ordered = await RankedAsync(query, everything, tags, cancellationToken);
         if (ordered is null)
         {
             return Respond(SdkErrors.RefuseRankerUnavailable(), isError: true);
         }
-        List<CatalogEntry> ranked = [.. ordered];
-        Dictionary<string, VisibilityDecision> decisions = new(StringComparer.Ordinal);
-        List<CatalogEntry> probeQueue = [];
-        foreach (CatalogEntry entry in ranked)
-        {
-            VisibilityDecision decision = context.Decide(entry);
-            decisions[entry.Tool.Name] = decision;
-            if (decision == VisibilityDecision.Unknown && probeBudget > 0 && visibility.CanProbe(entry))
-            {
-                probeBudget -= 1;
-                probeQueue.Add(entry);
-            }
-        }
-
-        if (probeQueue.Count > 0)
-        {
-            int concurrency = Math.Max(1, options.Value.Visibility.ProbeConcurrency);
-            using SemaphoreSlim gate = new(concurrency);
-            VisibilityDecision[] probed = new VisibilityDecision[probeQueue.Count];
-            await Task.WhenAll(probeQueue.Select(async (entry, index) =>
-            {
-                await gate.WaitAsync(cancellationToken);
-                try
-                {
-                    probed[index] = await visibility.ProbeAsync(context.Scope, context.Outer, entry, cancellationToken);
-                }
-                finally
-                {
-                    gate.Release();
-                }
-            }));
-            for (int index = 0; index < probeQueue.Count; index++)
-            {
-                decisions[probeQueue[index].Tool.Name] = probed[index];
-            }
-        }
-
-        List<object> results = [];
-        foreach (CatalogEntry entry in ranked)
-        {
-            VisibilityDecision decision = decisions[entry.Tool.Name];
-            if (!IsVisible(decision))
-            {
-                continue;
-            }
-            results.Add(wantsSchema ? Loaded(entry, decision) : Card(entry, decision));
-            if (results.Count == capped)
-            {
-                break;
-            }
-        }
+        List<(CatalogEntry Entry, VisibilityDecision Decision)> page =
+            await FillPageAsync(ordered, capped, context, cancellationToken);
+        List<object> results = [.. page.Select(visible =>
+            wantsSchema ? Loaded(visible.Entry, visible.Decision) : Card(visible.Entry, visible.Decision))];
         int total = 0;
         HashSet<string> vocabulary = new(StringComparer.Ordinal);
         foreach (CatalogEntry entry in catalog.Result.Entries)
@@ -151,6 +105,9 @@ internal sealed class SezzleeMetaTools(
         string[]? known = vocabulary.Count is 0 or > MaxTagVocabulary
             ? null
             : [.. vocabulary.Order(StringComparer.Ordinal)];
+        logger.LogDebug(
+            "search_tools returned {Results} of {Total} visible tools in {Elapsed} ms",
+            results.Count, total, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
 
         return Respond(
             new { total, results, tags = known },
@@ -164,26 +121,19 @@ internal sealed class SezzleeMetaTools(
         string name,
         CancellationToken cancellationToken = default)
     {
+        long started = Stopwatch.GetTimestamp();
         catalog.EnsureValid();
         CatalogEntry? entry = catalog.Find(name);
         if (entry is null)
         {
             return UnknownTool(name);
         }
-        DecisionContext context = await DecideAsync(cancellationToken);
-        VisibilityDecision decision = context.Decide(entry);
-        if (decision == VisibilityDecision.Unknown
-            && options.Value.Visibility.Tier == VisibilityTier.Probe
-            && options.Value.Visibility.ProbeTopK > 0
-            && visibility.CanProbe(entry))
-        {
-            decision = await visibility.ProbeAsync(context.Scope, context.Outer, entry, cancellationToken);
-        }
-        if (!IsVisible(decision))
-        {
-            return UnknownTool(name);
-        }
-        return Respond(Loaded(entry, decision), isError: false);
+        VisibilityDecision decision = await DecideOneAsync(entry, cancellationToken);
+        bool visible = IsVisible(decision);
+        logger.LogDebug(
+            "load_tool answered '{Tool}' as {Outcome} in {Elapsed} ms",
+            name, visible ? "loaded" : "unknown", (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        return visible ? Respond(Loaded(entry, decision), isError: false) : UnknownTool(name);
     }
 
     [McpServerTool(Name = "invoke_tool")]
@@ -270,6 +220,80 @@ internal sealed class SezzleeMetaTools(
         }
     }
 
+    private async Task<List<(CatalogEntry Entry, VisibilityDecision Decision)>> FillPageAsync(
+        IReadOnlyList<CatalogEntry> ranked, int limit, DecisionContext context, CancellationToken cancellationToken)
+    {
+        VisibilityOptions settings = options.Value.Visibility;
+        int cap = settings.Tier == VisibilityTier.Probe ? Math.Max(0, settings.MaxProbesPerSearch) : 0;
+        int window = Math.Max(1, settings.ProbeConcurrency);
+        ProbeBudget budget = new(cap);
+        Dictionary<int, Task<VisibilityDecision?>> pending = [];
+        List<(CatalogEntry Entry, VisibilityDecision Decision)> page = [];
+        int scanned = 0;
+        bool capReached = false;
+
+        void Prefetch(int from)
+        {
+            for (scanned = Math.Max(scanned, from); scanned < ranked.Count && pending.Count < window && !budget.Exhausted; scanned++)
+            {
+                CatalogEntry candidate = ranked[scanned];
+                if (context.Decide(candidate) == VisibilityDecision.Unknown && visibility.CanProbe(candidate))
+                {
+                    pending[scanned] = visibility.ProbeAsync(context.Scope, context.Outer, candidate, budget, cancellationToken);
+                }
+            }
+        }
+
+        for (int index = 0; index < ranked.Count && page.Count < limit; index++)
+        {
+            CatalogEntry entry = ranked[index];
+            VisibilityDecision decision = context.Decide(entry);
+            if (decision == VisibilityDecision.Unknown && cap > 0 && visibility.CanProbe(entry))
+            {
+                Prefetch(index);
+                if (pending.Remove(index, out Task<VisibilityDecision?>? probing))
+                {
+                    VisibilityDecision? verdict = await probing;
+                    capReached |= verdict is null;
+                    decision = verdict ?? VisibilityDecision.Unknown;
+                }
+                else
+                {
+                    capReached = true;
+                }
+                Prefetch(index + 1);
+            }
+            if (IsVisible(decision))
+            {
+                page.Add((entry, decision));
+            }
+        }
+
+        await SettleAsync(pending.Values);
+        if (capReached)
+        {
+            logger.LogWarning(
+                "search_tools reached Visibility.MaxProbesPerSearch ({Cap}) before the page was full; the tools left unprobed follow Visibility.OnUnknown ({OnUnknown}).",
+                cap, OnUnknown);
+        }
+        return page;
+    }
+
+    private async Task SettleAsync(IEnumerable<Task<VisibilityDecision?>> probes)
+    {
+        foreach (Task<VisibilityDecision?> probing in probes)
+        {
+            try
+            {
+                await probing;
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "a probe started ahead of a full page failed");
+            }
+        }
+    }
+
     /// <returns><see langword="null"/> when the ranker failed and the host chose to refuse.</returns>
     private async Task<IReadOnlyList<CatalogEntry>?> RankedAsync(
         string query, int everything, IReadOnlyList<string>? tags, CancellationToken cancellationToken)
@@ -328,14 +352,48 @@ internal sealed class SezzleeMetaTools(
     {
         HttpRequest? outer = httpContextAccessor.HttpContext?.Request;
         CallerScope scope = scopeResolver.Resolve(outer);
+        IToolAccess? access = await visibility.AccessAsync(scope, outer, cancellationToken);
         CallerFacts facts = await visibility.FactsAsync(scope, outer, catalog.PolicyNames, cancellationToken);
-        return new DecisionContext(entry => VisibilityCombiner.Evaluate(entry.Descriptor.Auth, facts), scope, outer);
+        Dictionary<string, VisibilityDecision> memo = new(StringComparer.Ordinal);
+        return new DecisionContext(
+            entry =>
+            {
+                if (!memo.TryGetValue(entry.Tool.Name, out VisibilityDecision decision))
+                {
+                    decision = Decide(entry, access, facts);
+                    memo[entry.Tool.Name] = decision;
+                }
+                return decision;
+            },
+            scope,
+            outer);
+    }
+
+    private static VisibilityDecision Decide(CatalogEntry entry, IToolAccess? access, CallerFacts facts)
+    {
+        VisibilityDecision decision = access?.Decide(entry.Info) ?? VisibilityDecision.Unknown;
+        return decision != VisibilityDecision.Unknown
+            ? decision
+            : VisibilityCombiner.Evaluate(entry.Descriptor.Auth, facts);
+    }
+
+    private async Task<VisibilityDecision> DecideOneAsync(CatalogEntry entry, CancellationToken cancellationToken)
+    {
+        DecisionContext context = await DecideAsync(cancellationToken);
+        VisibilityDecision decision = context.Decide(entry);
+        if (decision == VisibilityDecision.Unknown
+            && options.Value.Visibility.Tier == VisibilityTier.Probe
+            && visibility.CanProbe(entry))
+        {
+            decision = await visibility.ProbeAsync(context.Scope, context.Outer, entry, cancellationToken);
+        }
+        return decision;
     }
 
     private bool IsVisible(VisibilityDecision decision) => decision switch
     {
         VisibilityDecision.Allow => true,
-        VisibilityDecision.Unknown => options.Value.Visibility.OnUnknown == UnknownVisibility.Show,
+        VisibilityDecision.Unknown => OnUnknown == UnknownVisibility.Show,
         _ => false,
     };
 

@@ -17,6 +17,7 @@ internal sealed class SezzleeCacheInvalidator(ISezzleeCache cache, CallerVisibil
     {
         ArgumentNullException.ThrowIfNull(scope);
         visibility.Bump();
+        visibility.ForgetCaller(scope);
         return cache.RemoveScopeAsync(scope.Key, cancellationToken);
     }
 
@@ -24,12 +25,14 @@ internal sealed class SezzleeCacheInvalidator(ISezzleeCache cache, CallerVisibil
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tag);
         visibility.Bump();
+        visibility.ForgetAllCallers();
         return cache.RemoveTagAsync(tag, cancellationToken);
     }
 
     public ValueTask InvalidateAllAsync(CancellationToken cancellationToken = default)
     {
         visibility.Bump();
+        visibility.ForgetAllCallers();
         return cache.ClearAsync(cancellationToken);
     }
 }
