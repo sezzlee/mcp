@@ -56,6 +56,23 @@ export function collectConfigurationFailures(
   ) {
     failures.push("families.loadTimeoutMs must be a positive integer.");
   }
+  const { loadMode, onFailure, refreshIntervalMs } = options.families;
+  if (!Number.isInteger(refreshIntervalMs) || refreshIntervalMs < 0) {
+    failures.push(
+      "families.refreshIntervalMs must be zero or a positive integer.",
+    );
+  }
+  if (!["blocking", "background"].includes(loadMode)) {
+    failures.push('families.loadMode must be "blocking" or "background".');
+  }
+  if (!["drop", "fatal"].includes(onFailure)) {
+    failures.push('families.onFailure must be "drop" or "fatal".');
+  }
+  if (onFailure === "fatal" && loadMode === "background") {
+    failures.push(
+      'families.onFailure "fatal" requires families.loadMode "blocking": a background load ends after startup, when there is nothing left to stop.',
+    );
+  }
   const refDescription = options.files.resolver?.refDescription;
   if (refDescription !== undefined && refDescription.trim() === "") {
     failures.push(

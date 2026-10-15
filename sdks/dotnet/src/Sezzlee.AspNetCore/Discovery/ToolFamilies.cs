@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Sezzlee.AspNetCore.Naming;
@@ -32,10 +33,59 @@ public readonly record struct McpFamilyKey
         _number?.ToString(CultureInfo.InvariantCulture) ?? _text ?? string.Empty;
 }
 
+/// <summary>
+/// A family member's request body: a JSON Schema the host wrote, or a CLR shape the SDK maps the
+/// same way it maps an action's body, through <c>options.Schema</c>.
+/// </summary>
+public abstract record McpFamilyBody
+{
+    private McpFamilyBody()
+    {
+    }
+
+    public sealed record JsonSchema(JsonObject Value) : McpFamilyBody
+    {
+        public bool Equals(JsonSchema? other) =>
+            other is not null && JsonNode.DeepEquals(Value, other.Value);
+
+        public override int GetHashCode() => Value.ToJsonString().GetHashCode(StringComparison.Ordinal);
+    }
+
+    /// <summary>The body is one instance of <paramref name="Type"/>.</summary>
+    public sealed record ClrType(Type Type) : McpFamilyBody;
+
+    /// <summary>The body is an object with one property per parameter, named as declared.</summary>
+    public sealed record Parameters(IReadOnlyList<ParameterInfo> Values) : McpFamilyBody
+    {
+        public bool Equals(Parameters? other) =>
+            other is not null
+            && Values.Count == other.Values.Count
+            && Values.Zip(other.Values).All(pair =>
+                pair.First.Member == pair.Second.Member && pair.First.Position == pair.Second.Position);
+
+        public override int GetHashCode() => Values.Count;
+    }
+
+    public static implicit operator McpFamilyBody(JsonObject schema) =>
+        new JsonSchema(schema ?? throw new ArgumentNullException(nameof(schema)));
+}
+
 /// <summary>One capability behind a dispatching operation, as a host's member source returns it.</summary>
 /// <param name="Body">The member's own request body, published as its input schema.</param>
-public sealed record McpFamilyMember(McpFamilyKey Key, string Name, string Description, JsonObject Body)
+public sealed record McpFamilyMember(McpFamilyKey Key, string Name, string Description, McpFamilyBody Body)
 {
+    /// <summary>A member whose body is one instance of <paramref name="body"/>.</summary>
+    public McpFamilyMember(McpFamilyKey key, string name, string description, Type body)
+        : this(key, name, description, new McpFamilyBody.ClrType(body ?? throw new ArgumentNullException(nameof(body))))
+    {
+    }
+
+    /// <summary>A member whose body carries <paramref name="body"/> as properties, such as a method's parameters.</summary>
+    public McpFamilyMember(McpFamilyKey key, string name, string description, IReadOnlyList<ParameterInfo> body)
+        : this(key, name, description, new McpFamilyBody.Parameters(body ?? throw new ArgumentNullException(nameof(body))))
+    {
+    }
+
     public bool? BodyRequired { get; init; }
     public bool? ReadOnly { get; init; }
     public bool? Destructive { get; init; }
@@ -46,6 +96,24 @@ public sealed record McpFamilyMember(McpFamilyKey Key, string Name, string Descr
 public delegate ValueTask<IReadOnlyList<McpFamilyMember>> McpFamilySource(
     IServiceProvider services, CancellationToken cancellationToken);
 
+public enum FamilyLoadMode
+{
+    /// <summary>Startup waits for the first load.</summary>
+    Blocking,
+
+    /// <summary>Startup does not wait; family operations join the catalog when their source returns.</summary>
+    Background,
+}
+
+public enum FamilyLoadFailure
+{
+    /// <summary>A source that never returned drops its families and startup goes on.</summary>
+    Drop,
+
+    /// <summary>A source whose first load fails stops startup. Requires <see cref="FamilyLoadMode.Blocking"/>.</summary>
+    Fatal,
+}
+
 public sealed class ToolFamilyOptions
 {
     private readonly Dictionary<string, McpFamilySource> _sources = new(StringComparer.Ordinal);
@@ -53,6 +121,16 @@ public sealed class ToolFamilyOptions
     public IReadOnlyDictionary<string, McpFamilySource> Sources => _sources;
 
     public TimeSpan LoadTimeout { get; set; } = TimeSpan.FromSeconds(10);
+
+    public FamilyLoadMode LoadMode { get; set; } = FamilyLoadMode.Blocking;
+
+    /// <summary>
+    /// How often sources are loaded again after the first load. <see cref="TimeSpan.Zero"/> loads
+    /// them once. A refresh whose members equal the published ones changes nothing.
+    /// </summary>
+    public TimeSpan RefreshInterval { get; set; } = TimeSpan.Zero;
+
+    public FamilyLoadFailure OnFailure { get; set; } = FamilyLoadFailure.Drop;
 
     public ToolFamilyOptions Provide(string name, McpFamilySource source)
     {
@@ -70,6 +148,13 @@ internal abstract record FamilyLoad
     internal sealed record Stale(IReadOnlyList<McpFamilyMember> Members, Exception Error) : FamilyLoad;
 
     internal sealed record Failed(Exception Error) : FamilyLoad;
+
+    internal IReadOnlyList<McpFamilyMember>? Published => this switch
+    {
+        Loaded loaded => loaded.Members,
+        Stale stale => stale.Members,
+        _ => null,
+    };
 }
 
 internal abstract record FamilyResolution
@@ -85,6 +170,9 @@ internal static partial class FamilyReader
 {
     /// <summary>Loads every registered source once.</summary>
     /// <remarks>
+    /// Guard: a source runs on the thread pool because a source that does its work synchronously
+    /// before returning would otherwise hold the caller past <see cref="ToolFamilyOptions.LoadTimeout"/>,
+    /// and hold startup in <see cref="FamilyLoadMode.Background"/>.
     /// A failing source keeps the members it last returned: dropping a family because its source
     /// was briefly unreachable would take working tools offline on every transient error.
     /// </remarks>
@@ -101,9 +189,20 @@ internal static partial class FamilyReader
                 using CancellationTokenSource deadline =
                     CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 deadline.CancelAfter(options.LoadTimeout);
-                IReadOnlyList<McpFamilyMember> members = await LoadOneAsync(
-                    entry.Value, scopes, deadline.Token).WaitAsync(deadline.Token);
-                return (entry.Key, (FamilyLoad)new FamilyLoad.Loaded(members));
+                try
+                {
+                    IReadOnlyList<McpFamilyMember> members = await Task.Run(
+                        () => LoadOneAsync(entry.Value, scopes, deadline.Token), deadline.Token)
+                        .WaitAsync(deadline.Token);
+                    return (entry.Key, (FamilyLoad)new FamilyLoad.Loaded(members ?? []));
+                }
+                catch (OperationCanceledException canceled)
+                    when (deadline.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+                {
+                    throw new TimeoutException(
+                        $"timeout: source '{entry.Key}' did not return within Families.LoadTimeout ({options.LoadTimeout}); raise options.Families.LoadTimeout or set options.Families.LoadMode to Background",
+                        canceled);
+                }
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
@@ -141,7 +240,8 @@ internal static partial class FamilyReader
         string owner,
         IReadOnlyList<ToolVariant>? declared,
         ToolFamilyOptions options,
-        IReadOnlyDictionary<string, FamilyLoad>? loads)
+        IReadOnlyDictionary<string, FamilyLoad>? loads,
+        SchemaMapperOptions schema)
     {
         ToolFamily family = new() { Parameter = declaration.Parameter };
         if (declaration.Source is null)
@@ -186,7 +286,12 @@ internal static partial class FamilyReader
         foreach (McpFamilyMember member in members)
         {
             string? problem = ProblemOf(member, names, keys);
-            if (problem is not null)
+            JsonObject? body = null;
+            if (problem is null)
+            {
+                (body, problem) = BodyOf(member, owner, schema, diagnostics);
+            }
+            if (problem is not null || body is null)
             {
                 diagnostics.Add(new CatalogDiagnostic(
                     DiagnosticCodes.FamilyMemberRejected,
@@ -195,7 +300,7 @@ internal static partial class FamilyReader
             }
             names.Add(member.Name);
             keys.Add(member.Key.ToNode().ToJsonString());
-            variants.Add(Lower(member, declaration.Parameter));
+            variants.Add(Lower(member, body, declaration.Parameter));
         }
         return new FamilyResolution.Members(family, variants, diagnostics);
     }
@@ -218,15 +323,32 @@ internal static partial class FamilyReader
         {
             return "its key repeats another member's";
         }
-        if (member.Body is null)
-        {
-            return "its body is not a JSON Schema object";
-        }
-        string? invalid = FamilyRules.DeclaredSchemaProblem(member.Body);
-        return invalid is null ? null : $"its body {invalid}";
+        return null;
     }
 
-    private static ToolVariant Lower(McpFamilyMember member, string parameter)
+    private static (JsonObject? Body, string? Problem) BodyOf(
+        McpFamilyMember member, string owner, SchemaMapperOptions schema, List<CatalogDiagnostic> diagnostics)
+    {
+        SchemaMapperOptions reporting = schema with
+        {
+            Report = note => diagnostics.Add(note with { Message = $"{owner} member '{member.Name}': {note.Message}" }),
+        };
+        JsonObject? body = member.Body switch
+        {
+            McpFamilyBody.JsonSchema declared => declared.Value,
+            McpFamilyBody.ClrType clr => JsonSchemaMapper.Map(clr.Type, reporting),
+            McpFamilyBody.Parameters parameters => JsonSchemaMapper.Map(parameters.Values, reporting),
+            _ => null,
+        };
+        if (body is null)
+        {
+            return (null, "its body is not a JSON Schema object");
+        }
+        string? invalid = FamilyRules.DeclaredSchemaProblem(body);
+        return invalid is null ? (body, null) : (null, $"its body {invalid}");
+    }
+
+    private static ToolVariant Lower(McpFamilyMember member, JsonObject body, string parameter)
     {
         bool annotated = member.ReadOnly is not null || member.Destructive is not null || member.Idempotent is not null;
         return new ToolVariant
@@ -243,8 +365,11 @@ internal static partial class FamilyReader
             ],
             RequestBody = new VariantRequestBody
             {
-                Schema = (JsonObject)member.Body.DeepClone(),
-                Required = member.BodyRequired,
+                Schema = (JsonObject)body.DeepClone(),
+                Required = member.BodyRequired
+                    ?? (member.Body is McpFamilyBody.Parameters
+                        ? body["required"] is JsonArray { Count: > 0 }
+                        : null),
             },
             Annotations = annotated
                 ? new ToolAnnotations

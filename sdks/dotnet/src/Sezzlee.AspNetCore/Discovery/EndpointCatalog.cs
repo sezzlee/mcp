@@ -79,7 +79,8 @@ internal static partial class EndpointCatalog
         IReadOnlyDictionary<string, FamilyLoad>? familyLoads = null,
         Func<string, IReadOnlyList<string>?>? containerSearchTerms = null,
         int? catalogRevision = null,
-        Func<string, int?>? containerRevision = null)
+        Func<string, int?>? containerRevision = null,
+        Func<McpEndpointInfo, string?>? endpointDescription = null)
     {
         ArgumentNullException.ThrowIfNull(apiDescriptions);
         severityOf ??= DiagnosticCodes.SeverityOf;
@@ -155,7 +156,7 @@ internal static partial class EndpointCatalog
                 EndpointDescriptor? descriptor = Describe(
                     api, route, action, metadata, useOperationIds, schema, hasFallbackPolicy,
                     containerPrefix, containerTags, containerSearchTerms, diagnostics,
-                    curation ?? new ArgumentCurationOptions(), groupQueryObjects);
+                    curation ?? new ArgumentCurationOptions(), groupQueryObjects, endpointDescription);
                 if (descriptor is null)
                 {
                     dropped += 1;
@@ -169,7 +170,8 @@ internal static partial class EndpointCatalog
                 if (FamilyOf(action, metadata) is { } declaration)
                 {
                     FamilyResolution resolution = FamilyReader.Resolve(
-                        declaration, target, descriptor.Variants, families ?? new ToolFamilyOptions(), familyLoads);
+                        declaration, target, descriptor.Variants, families ?? new ToolFamilyOptions(), familyLoads,
+                        schema ?? new SchemaMapperOptions { PropertyName = property => property.Name });
                     if (resolution is FamilyResolution.Refused refused)
                     {
                         diagnostics.Add(refused.Diagnostic);
@@ -395,7 +397,8 @@ internal static partial class EndpointCatalog
         Func<string, IReadOnlyList<string>?>? containerSearchTerms,
         List<CatalogDiagnostic> diagnostics,
         ArgumentCurationOptions curation,
-        bool groupQueryObjects)
+        bool groupQueryObjects,
+        Func<McpEndpointInfo, string?>? endpointDescription)
     {
         List<Parameter> parameters = [];
         RequestBody? body = null;
@@ -537,7 +540,7 @@ internal static partial class EndpointCatalog
             Method = api.HttpMethod!.ToUpperInvariant(),
             Route = route,
             Description = SelectionAttribute(action, metadata, operationOnly: true)?.Description
-                ?? DescriptionOf(metadata),
+                ?? DescribedBy(endpointDescription, api, route, action, metadata),
             Arguments = CurationReader.Read(
                 action, metadata, null, curation,
                 api.HttpMethod!.ToUpperInvariant(), route),
@@ -607,6 +610,29 @@ internal static partial class EndpointCatalog
         {
             policies.Add(name);
         }
+    }
+
+    private static string? DescribedBy(
+        Func<McpEndpointInfo, string?>? rule,
+        ApiDescription api,
+        string route,
+        ActionDescriptor action,
+        IReadOnlyList<object> metadata)
+    {
+        string? declared = DescriptionOf(metadata);
+        if (rule is null)
+        {
+            return declared;
+        }
+        ControllerActionDescriptor? controller = action as ControllerActionDescriptor;
+        string? described = rule(new McpEndpointInfo(
+            api.HttpMethod!.ToUpperInvariant(),
+            route,
+            controller?.ControllerTypeInfo.FullName,
+            controller?.MethodInfo,
+            metadata,
+            declared));
+        return string.IsNullOrWhiteSpace(described) ? declared : described;
     }
 
     private static string? DescriptionOf(IReadOnlyList<object> metadata)

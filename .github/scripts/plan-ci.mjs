@@ -120,19 +120,25 @@ async function unpublished(publicPackages) {
       throw new Error(`npm answered ${response.status} for ${name}@${version}`);
     }
   }
-  const project = await readFile(
-    "sdks/dotnet/src/Sezzlee.AspNetCore/Sezzlee.AspNetCore.csproj",
-    "utf8",
-  );
-  const nugetVersion = /<VersionPrefix>([^<]+)<\/VersionPrefix>/.exec(
-    project,
-  )?.[1];
-  const nuget = await fetch(
-    "https://api.nuget.org/v3-flatcontainer/sezzlee.aspnetcore/index.json",
-  );
-  const published = nuget.ok ? (await nuget.json()).versions : [];
-  if (nugetVersion === undefined || !published.includes(nugetVersion)) {
-    missing.push("@sezzlee/sdk-dotnet");
+  for (const nugetPackage of [
+    "Sezzlee.AspNetCore",
+    "Sezzlee.AspNetCore.NewtonsoftJson",
+  ]) {
+    const project = await readFile(
+      `sdks/dotnet/src/${nugetPackage}/${nugetPackage}.csproj`,
+      "utf8",
+    );
+    const nugetVersion = /<VersionPrefix>([^<]+)<\/VersionPrefix>/.exec(
+      project,
+    )?.[1];
+    const nuget = await fetch(
+      `https://api.nuget.org/v3-flatcontainer/${nugetPackage.toLowerCase()}/index.json`,
+    );
+    const published = nuget.ok ? (await nuget.json()).versions : [];
+    if (nugetVersion === undefined || !published.includes(nugetVersion)) {
+      missing.push("@sezzlee/sdk-dotnet");
+      break;
+    }
   }
   return missing;
 }

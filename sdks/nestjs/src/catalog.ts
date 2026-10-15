@@ -1,9 +1,11 @@
 import {
   Inject,
   Injectable,
+  Logger,
   Optional,
   RequestMethod,
   type OnApplicationBootstrap,
+  type OnModuleDestroy,
 } from "@nestjs/common";
 import {
   ApplicationConfig,
@@ -19,6 +21,7 @@ import {
   matchesRoute,
   openApiExtensions,
   operationKeyOf,
+  SezzleeCatalogError,
   SezzleeTemplateError,
   textMediaType,
   urlEncodedMediaType,
@@ -36,6 +39,7 @@ import {
 } from "@sezzlee/core";
 import { severityOf, type CatalogDiagnostic } from "./discovery/diagnostics.js";
 import {
+  bodyFor,
   createRoutePaths,
   discoverEndpoints,
   modulePathOf,
@@ -45,7 +49,10 @@ import {
 import type { ArgumentRule, McpVariantOptions } from "./decorators.js";
 import {
   loadFamilies,
+  membersChanged,
+  reasonOf,
   resolveFamily,
+  type FamilyBodyMapper,
   type FamilyLoads,
   type FamilyResolution,
 } from "./families.js";
@@ -72,13 +79,17 @@ export interface CatalogSnapshot extends CatalogBuild<NestSource> {
 
 type LoweredFamily = Extract<FamilyResolution, { kind: "members" }>;
 
+const logger = new Logger("Sezzlee");
+
 @Injectable()
-export class SezzleeCatalog implements OnApplicationBootstrap {
+export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
   private snapshot: CatalogSnapshot | undefined;
   private currentGeneration = 0;
   private readonly listeners = new Set<() => void>();
   private loads: FamilyLoads | undefined;
   private pending: Promise<void> = Promise.resolve();
+  private refreshTimer: NodeJS.Timeout | undefined;
+  private stopped = false;
 
   constructor(
     private readonly discovery: DiscoveryService,
@@ -125,13 +136,32 @@ export class SezzleeCatalog implements OnApplicationBootstrap {
       return Promise.resolve();
     }
     return this.enqueue(async () => {
-      const loads = await loadFamilies(this.options.families, this.loads);
-      const candidate = this.build(loads);
-      if (candidate.fatal.length > 0 && this.current.fatal.length === 0) {
-        assertCatalogValid(candidate.fatal);
+      this.adopt(await this.loadAndReport());
+    });
+  }
+
+  /**
+   * Loads family members again and rebuilds the catalog only when a source's published members
+   * changed, so an unchanged refresh signals nothing to connected clients.
+   *
+   * @throws SezzleeCatalogError through the returned promise when the rebuild is refused; the
+   * current catalog is kept
+   */
+  refreshFamilies(): Promise<void> {
+    if (this.options.families.sources.size === 0) {
+      return Promise.resolve();
+    }
+    return this.enqueue(async () => {
+      const previous = this.loads;
+      const loads = await this.loadAndReport();
+      if (previous !== undefined && !membersChanged(previous, loads)) {
+        this.loads = loads;
+        return;
       }
-      this.loads = loads;
-      this.commit(candidate);
+      this.adopt(loads);
+      logger.log(
+        `sezzlee catalog rebuilt with family members: ${this.current.byName.size} tools`,
+      );
     });
   }
 
@@ -139,17 +169,109 @@ export class SezzleeCatalog implements OnApplicationBootstrap {
    * Loads family members once the application's own providers are ready, since a source usually
    * reads from one of them. A catalog built earlier carries `family_not_loaded` and is rebuilt
    * here, which signals `listChanged`.
+   *
+   * With `families.loadMode` `"background"` the load is started and not awaited.
+   *
+   * @throws SezzleeCatalogError `family_source_failed` when `families.onFailure` is `"fatal"` and a
+   * source never returned
    */
   async onApplicationBootstrap(): Promise<void> {
-    if (this.options.families.sources.size === 0) {
+    const families = this.options.families;
+    if (families.sources.size === 0) {
       return;
     }
-    await this.enqueue(async () => {
-      this.loads = await loadFamilies(this.options.families, this.loads);
-      if (this.snapshot !== undefined) {
-        this.commit(this.build(this.loads));
+    const first = this.enqueue(() => this.loadFirst());
+    if (families.loadMode === "background") {
+      first
+        .catch((error: unknown) => {
+          logger.error(`sezzlee family load failed: ${reasonOf(error)}`);
+        })
+        .finally(() => this.scheduleRefresh());
+      return;
+    }
+    await first;
+    this.scheduleRefresh();
+  }
+
+  onModuleDestroy(): void {
+    this.stopped = true;
+    clearTimeout(this.refreshTimer);
+  }
+
+  private async loadFirst(): Promise<void> {
+    const loads = await this.loadAndReport();
+    if (this.options.families.onFailure === "fatal") {
+      for (const [source, load] of loads) {
+        if (load.state === "failed") {
+          throw new SezzleeCatalogError(
+            "family_source_failed",
+            `sezzlee family source '${source}' failed and families.onFailure is "fatal": ${reasonOf(load.error)}`,
+          );
+        }
       }
-    });
+    }
+    this.loads = loads;
+    if (this.snapshot !== undefined) {
+      this.commit(this.build(loads));
+      logger.log(
+        `sezzlee catalog rebuilt with family members: ${this.current.byName.size} tools`,
+      );
+    }
+  }
+
+  private adopt(loads: FamilyLoads): void {
+    const candidate = this.build(loads);
+    if (candidate.fatal.length > 0 && this.current.fatal.length === 0) {
+      assertCatalogValid(candidate.fatal);
+    }
+    this.loads = loads;
+    this.commit(candidate);
+  }
+
+  private async loadAndReport(): Promise<FamilyLoads> {
+    const started = performance.now();
+    const loads = await loadFamilies(this.options.families, this.loads);
+    const elapsed = Math.round(performance.now() - started);
+    for (const [source, load] of loads) {
+      switch (load.state) {
+        case "loaded":
+          logger.log(
+            `sezzlee family source '${source}' returned ${load.members.length} member(s) in ${elapsed} ms`,
+          );
+          break;
+        case "stale":
+          logger.warn(
+            `sezzlee family source '${source}' failed; the ${load.members.length} member(s) it last returned stay published: ${reasonOf(load.error)}`,
+          );
+          break;
+        case "failed":
+          logger.error(
+            `sezzlee family source '${source}' failed and has never returned members; the operations it feeds are dropped: ${reasonOf(load.error)}`,
+          );
+          break;
+      }
+    }
+    return loads;
+  }
+
+  /**
+   * Guard: each tick waits for the previous refresh to finish before arming the next, so a source
+   * that takes the whole `loadTimeoutMs` cannot pile refreshes up behind itself, and the timer is
+   * unref'd so a refresh schedule alone never keeps the process alive.
+   */
+  private scheduleRefresh(): void {
+    const interval = this.options.families.refreshIntervalMs;
+    if (interval <= 0 || this.stopped) {
+      return;
+    }
+    this.refreshTimer = setTimeout(() => {
+      this.refreshFamilies()
+        .catch((error: unknown) => {
+          logger.warn(`sezzlee family refresh failed: ${reasonOf(error)}`);
+        })
+        .finally(() => this.scheduleRefresh());
+    }, interval);
+    this.refreshTimer.unref();
   }
 
   private enqueue(task: () => Promise<void>): Promise<void> {
@@ -292,9 +414,19 @@ export class SezzleeCatalog implements OnApplicationBootstrap {
       routePaths,
       severity: (code) => severityOf(code, this.options.diagnostics),
       queryGrouping: this.options.query.grouping,
+      ...(this.options.description === undefined
+        ? {}
+        : { description: this.options.description }),
       report,
     });
 
+    const mapBody: FamilyBodyMapper = (bodyType, reportNote) =>
+      bodyFor(bodyType, {
+        ...(this.options.schema === undefined
+          ? {}
+          : { schema: this.options.schema }),
+        report: reportNote,
+      });
     const reserved = routePaths
       .create({ globalPrefix, methodPath: mcpPath }, RequestMethod.ALL)
       .map(normalizeRoute);
@@ -313,6 +445,7 @@ export class SezzleeCatalog implements OnApplicationBootstrap {
         endpoint.hints.variants ?? [],
         this.options.families,
         loads,
+        mapBody,
       );
       if (resolution.kind === "refused") {
         report(resolution.diagnostic);

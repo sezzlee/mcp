@@ -107,6 +107,15 @@ export interface VisibilityDeclaration {
   readonly policies?: readonly string[];
 }
 
+/** What `options.description` sees: the handler's identity and the description its metadata declares. */
+export interface McpEndpointInfo {
+  readonly method: string;
+  readonly route: string;
+  readonly container: string;
+  readonly handler: (...args: never[]) => unknown;
+  readonly declared: string | undefined;
+}
+
 export interface DiscoveryOptions {
   readonly globalPrefix?: string;
   readonly versioningOptions?: unknown;
@@ -116,6 +125,7 @@ export interface DiscoveryOptions {
   readonly severity?: (code: string) => CatalogSeverity;
   readonly report?: (diagnostic: DiscoveryDiagnostic) => void;
   readonly queryGrouping?: "flatten" | "group";
+  readonly description?: (endpoint: McpEndpointInfo) => string | undefined;
 }
 
 export interface DiscoveredEndpoint {
@@ -516,7 +526,14 @@ function describe(
     ...(responses === undefined ? {} : { responses }),
   };
 
-  const description = descriptionOf(handler, hints);
+  const description = descriptionOf(
+    controller,
+    handler,
+    method,
+    route,
+    hints,
+    options,
+  );
   return description === undefined
     ? descriptor
     : { ...descriptor, description };
@@ -588,16 +605,28 @@ function guardsOn(target: object | NewableFunction): unknown[] {
 }
 
 function descriptionOf(
+  controller: NewableFunction,
   handler: (...args: never[]) => unknown,
+  method: EndpointDescriptor["method"],
+  route: string,
   hints: McpToolOptions,
+  options: DiscoveryOptions,
 ): string | undefined {
   if (hints.description !== undefined && hints.description.length > 0) {
     return hints.description;
   }
   const operation = Reflect.getMetadata("swagger/apiOperation", handler) as
     { description?: string; summary?: string } | undefined;
-  const declared = operation?.description ?? operation?.summary;
-  return declared !== undefined && declared.length > 0 ? declared : undefined;
+  const text = operation?.description ?? operation?.summary;
+  const declared = text !== undefined && text.length > 0 ? text : undefined;
+  const supplied = options.description?.({
+    method,
+    route,
+    container: controller.name,
+    handler,
+    declared,
+  });
+  return supplied !== undefined && supplied.trim() !== "" ? supplied : declared;
 }
 
 /**
@@ -788,7 +817,7 @@ function shapeOf(
   return { schema, diagnostics: collected };
 }
 
-function bodyFor(
+export function bodyFor(
   declaredType: unknown,
   options: DiscoveryOptions,
 ): JsonSchemaObject {

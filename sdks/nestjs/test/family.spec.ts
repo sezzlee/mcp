@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Logger,
   Param,
   Post,
   UseGuards,
@@ -10,13 +11,15 @@ import {
 } from "@nestjs/common";
 import { Test, type TestingModule } from "@nestjs/testing";
 import { SezzleeArgumentError, SezzleeCatalogError } from "@sezzlee/core";
-import { afterEach, describe, expect, it } from "vitest";
+import { IsInt, IsOptional, IsString } from "class-validator";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SezzleeCatalog } from "../src/catalog.js";
 import { McpTool, McpToolFamily } from "../src/decorators.js";
 import { SezzleeDispatcher } from "../src/dispatcher.js";
 import type { McpFamilyMember, McpFamilySource } from "../src/families.js";
 import { SezzleeModule } from "../src/sezzlee.module.js";
 import type { SezzleeOptions } from "../src/options.js";
+import { SezzleeConfigurationError } from "../src/options-validation.js";
 import type { VisibilityDeclaration } from "../src/index.js";
 
 class AnonymousGuard {
@@ -87,6 +90,22 @@ const delayed: McpFamilyMember = {
     properties: { days: { type: "integer" } },
     required: ["days"],
   },
+};
+
+class DelayedOrdersFilter {
+  @IsInt()
+  days!: number;
+
+  @IsOptional()
+  @IsString()
+  region?: string;
+}
+
+const delayedByClass: McpFamilyMember = {
+  key: "c91d0e72-3a55-4b18-8f6e-5a2f4d7b9e03",
+  name: "list_delayed_orders_by_class",
+  description: "Gecikmiş siparişleri sınıftan listeler.",
+  bodyType: DelayedOrdersFilter,
 };
 
 const sequence =
@@ -285,5 +304,233 @@ describe("tool families", () => {
 
     expect(namesOf(catalog)).toContain("list_customer_balances");
     expect(catalog.generation).toBe(generation + 1);
+  });
+
+  it("names the setting to raise when a source outlives its timeout", async () => {
+    const { catalog } = await start(
+      () => new Promise<never>(() => {}),
+      (options) => {
+        options.families.loadTimeoutMs = 20;
+      },
+    );
+
+    const message = catalog.current.diagnostics.find(
+      (diagnostic) => diagnostic.code === "family_source_failed",
+    )?.message;
+    expect(message).toContain(
+      `timeout: source 'methods' did not return within families.loadTimeoutMs (20 ms); raise options.families.loadTimeoutMs or set options.families.loadMode to "background"`,
+    );
+  });
+
+  it("words a timeout the same when the source rejects with the abort reason", async () => {
+    const { catalog } = await start(
+      ({ signal }) =>
+        new Promise<never>((_, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason));
+        }),
+      (options) => {
+        options.families.loadTimeoutMs = 20;
+      },
+    );
+
+    expect(
+      catalog.current.diagnostics.some((diagnostic) =>
+        diagnostic.message.includes(
+          "timeout: source 'methods' did not return within families.loadTimeoutMs (20 ms)",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("stops startup when a source never returns and onFailure is fatal", async () => {
+    const { app } = await compile((options) => {
+      options.families.provide("methods", () => {
+        throw new Error("database unreachable");
+      });
+      options.families.onFailure = "fatal";
+    });
+
+    const failure: unknown = await app.init().then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect(failure).toBeInstanceOf(SezzleeCatalogError);
+    expect(failure).toMatchObject({
+      code: "family_source_failed",
+      message: expect.stringContaining(
+        "source 'methods' failed and families.onFailure is \"fatal\": database unreachable",
+      ) as string,
+    });
+  });
+
+  it("refuses fatal with a background load and a refresh interval that is not a whole number", () => {
+    const configure = (options: SezzleeOptions): void => {
+      options.families.onFailure = "fatal";
+      options.families.loadMode = "background";
+      options.families.refreshIntervalMs = 1.5;
+    };
+
+    let failure: unknown;
+    try {
+      SezzleeModule.forRoot(configure);
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(SezzleeConfigurationError);
+    expect((failure as SezzleeConfigurationError).failures).toEqual([
+      "families.refreshIntervalMs must be zero or a positive integer.",
+      'families.onFailure "fatal" requires families.loadMode "blocking": a background load ends after startup, when there is nothing left to stop.',
+    ]);
+  });
+
+  it("starts without waiting for a background source and joins its members when it returns", async () => {
+    let release: (members: readonly McpFamilyMember[]) => void = () => {};
+    const gate = new Promise<readonly McpFamilyMember[]>((resolve) => {
+      release = resolve;
+    });
+    const { moduleRef, app } = await compile((options) => {
+      options.families.provide("methods", () => gate);
+      options.families.loadMode = "background";
+    });
+    const catalog = moduleRef.get(SezzleeCatalog);
+    expect(codesOf(catalog)).toContain("family_not_loaded");
+    let notified = 0;
+    catalog.onChange(() => {
+      notified += 1;
+    });
+
+    await app.init();
+    expect(namesOf(catalog)).toEqual(["list_orders"]);
+    expect(notified).toBe(0);
+
+    release([balances]);
+    await vi.waitFor(() => {
+      expect(namesOf(catalog)).toContain("list_customer_balances");
+    });
+    expect(notified).toBe(1);
+  });
+
+  it("leaves the catalog and its listeners alone when a refresh returns the same members", async () => {
+    const { catalog } = await start(
+      sequence(
+        [balances],
+        [{ ...balances, body: structuredClone(balances.body) }],
+        [balances, delayed],
+      )(),
+    );
+    let notified = 0;
+    catalog.onChange(() => {
+      notified += 1;
+    });
+    const generation = catalog.generation;
+
+    await catalog.refreshFamilies();
+    expect(catalog.generation).toBe(generation);
+    expect(notified).toBe(0);
+
+    await catalog.refreshFamilies();
+    expect(namesOf(catalog)).toContain("list_delayed_orders");
+    expect(catalog.generation).toBe(generation + 1);
+    expect(notified).toBe(1);
+  });
+
+  it("refuses a refresh that would turn a valid catalog fatal and keeps the current one", async () => {
+    const { catalog } = await start(
+      sequence([balances], [{ ...delayed, name: "list_orders" }])(),
+    );
+    const generation = catalog.generation;
+
+    await expect(catalog.refreshFamilies()).rejects.toBeInstanceOf(
+      SezzleeCatalogError,
+    );
+
+    expect(namesOf(catalog)).toEqual(["list_customer_balances", "list_orders"]);
+    expect(catalog.generation).toBe(generation);
+  });
+
+  it("refreshes on its interval and stops when the application closes", async () => {
+    const answer = vi.fn(sequence([balances], [balances, delayed])());
+    const { catalog } = await start(answer, (options) => {
+      options.families.refreshIntervalMs = 10;
+    });
+
+    await vi.waitFor(() => {
+      expect(namesOf(catalog)).toContain("list_delayed_orders");
+    });
+    await open?.close();
+    open = undefined;
+    const calls = answer.mock.calls.length;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(answer.mock.calls.length).toBe(calls);
+  });
+
+  it("logs each source's outcome", async () => {
+    const info = vi.spyOn(Logger.prototype, "log");
+    const warn = vi.spyOn(Logger.prototype, "warn");
+    const error = vi.spyOn(Logger.prototype, "error");
+    try {
+      const { catalog } = await start(
+        sequence([balances], new Error("database unreachable"))(),
+        (options) => {
+          options.families.provide("legacy", () => {
+            throw new Error("boom");
+          });
+        },
+      );
+      await catalog.reload();
+
+      expect(info).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /^sezzlee family source 'methods' returned 1 member\(s\) in \d+ ms$/,
+        ),
+      );
+      expect(error).toHaveBeenCalledWith(
+        "sezzlee family source 'legacy' failed and has never returned members; the operations it feeds are dropped: boom",
+      );
+      expect(warn).toHaveBeenCalledWith(
+        "sezzlee family source 'methods' failed; the 1 member(s) it last returned stay published: database unreachable",
+      );
+    } finally {
+      info.mockRestore();
+      warn.mockRestore();
+      error.mockRestore();
+    }
+  });
+
+  it("maps a member's bodyType the way an @Body() class is mapped", async () => {
+    const { catalog } = await start(() => [delayedByClass]);
+
+    const tool = catalog.find("list_delayed_orders_by_class")?.tool;
+
+    expect(tool?.inputSchema).toMatchObject({
+      type: "object",
+      properties: { days: { type: "integer" }, region: { type: "string" } },
+      required: ["days"],
+    });
+  });
+
+  it("reports what mapping a bodyType says, prefixed with the member", async () => {
+    const { catalog } = await start(() => [
+      { ...delayedByClass, bodyType: Object as never },
+    ]);
+
+    const prefixed = catalog.current.diagnostics.filter((diagnostic) =>
+      diagnostic.message.startsWith(
+        "DynamicMethodController.invoke member 'list_delayed_orders_by_class': ",
+      ),
+    );
+    expect(prefixed.length).toBeGreaterThan(0);
+  });
+
+  it("drops a member that sets both body and bodyType", async () => {
+    const { catalog } = await start(() => [
+      { ...delayedByClass, body: { type: "object" } } as never,
+    ]);
+
+    expect(codesOf(catalog)).toContain("family_member_rejected");
+    expect(namesOf(catalog)).toEqual(["list_orders"]);
   });
 });

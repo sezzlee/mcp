@@ -3,8 +3,7 @@
 Signatures only: what you call, what it returns, and where the options themselves are defined.
 There are no output examples on this page by design — nothing here produces output.
 
-Verified against `Sezzlee.AspNetCore` `0.1.0-alpha.1` and `@sezzlee/sdk-nestjs` at the current
-workspace version. This surface has no generator, so it is hand-maintained and may lag a release.
+Verified against `Sezzlee.AspNetCore` `1.0.0` and `@sezzlee/sdk-nestjs` `1.0.0`. This surface has no generator, so it is hand-maintained and may lag a release.
 
 ## ASP.NET Core
 
@@ -12,13 +11,16 @@ Three calls, in this order.
 
 ```csharp
 IServiceCollection AddSezzlee(this IServiceCollection services, Action<SezzleeOptions>? configure = null)
+IServiceCollection AddSezzlee(this IServiceCollection services, IConfiguration configuration, Action<SezzleeOptions>? configure = null)
 IApplicationBuilder UseSezzleeCapture(this IApplicationBuilder app)
 IEndpointConventionBuilder MapSezzlee(this IEndpointRouteBuilder endpoints, string pattern = "/mcp")
 ```
 
 `AddSezzlee` also registers `AddEndpointsApiExplorer()`, decorates the authorization result handler
 so probes can short-circuit, and calls `AddMcpServer().WithHttpTransport()`. Options are validated
-at startup.
+at startup. The `IConfiguration` overload binds `SezzleeOptions` first and runs `configure` after it;
+a key that names no option fails startup. A backend on Newtonsoft.Json adds
+`services.AddSezzleeNewtonsoftJson()` from the `Sezzlee.AspNetCore.NewtonsoftJson` package.
 
 `MapSezzlee` returns `IEndpointConventionBuilder`, which is why endpoint conventions compose:
 
@@ -60,8 +62,9 @@ Curation markers:
 [McpToolFamily("methodId", Source = "...")]                 // one tool per method behind a dispatcher
 ```
 
-`options.Families.Provide(name, source)` registers a family's member source, and
-`Families.LoadTimeout` bounds each load; see
+`options.Families.Provide(name, source)` registers a family's member source;
+`Families.LoadTimeout`, `LoadMode`, `RefreshInterval` and `OnFailure` govern its loads.
+`options.Description` describes an endpoint below `[McpTool(Description = ...)]`; see
 [how to expose a dispatching endpoint as one tool per method](/docs/http-catalog/expose-a-dispatching-endpoint-as-one-tool-per-method).
 
 `McpArgumentAttribute` also targets a parameter or a DTO property, where the member names the
@@ -113,7 +116,9 @@ function curate<T>(rules: ArgumentRules<T>): ArgumentRules<T>;
 
 `curate<T>()` key-checks the record against a DTO's own keys at compile time; `arguments` accepts a
 plain record without it. `options.arguments` carries `provide`, `curate`, `everywhere` and `seal`.
-`options.families` carries `provide` and `loadTimeoutMs`; the member shape is `McpFamilyMember`.
+`options.families` carries `provide`, `loadTimeoutMs`, `loadMode`, `refreshIntervalMs` and
+`onFailure`; the member shape is `McpFamilyMember`. `options.description` describes an endpoint
+below `@McpTool({ description })`.
 
 `options.query.grouping` (`"flatten"` by default, `"group"` to opt in) and its ASP.NET twin
 `options.Query.Grouping` decide whether a whole-object query binding stays one argument or is

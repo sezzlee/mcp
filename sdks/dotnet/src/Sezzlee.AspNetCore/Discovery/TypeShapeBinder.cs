@@ -17,6 +17,7 @@ internal sealed class TypeShapeBinder
     private readonly TypeShapeBinderOptions options;
     private readonly Dictionary<string, ObjectType> types = new(StringComparer.Ordinal);
     private readonly Dictionary<Type, string> keys = [];
+    private HashSet<Type> unfolding = [];
 
     private TypeShapeBinder(TypeShapeBinderOptions options) => this.options = options;
 
@@ -25,6 +26,56 @@ internal sealed class TypeShapeBinder
         TypeShapeBinder binder = new(options);
         TypeNode root = binder.Node(type, null);
         return new TypeShape { Root = root, Types = binder.types };
+    }
+
+    /// <summary>Binds a method's parameters as the members of one object, keyed by parameter name.</summary>
+    public static TypeShape Bind(IReadOnlyList<ParameterInfo> parameters, TypeShapeBinderOptions options)
+    {
+        TypeShapeBinder binder = new(options);
+        const string key = "(parameters)";
+        binder.types[key] = new ObjectType { Name = "Parameters", Members = [] };
+        List<Member> members = [];
+        foreach (ParameterInfo parameter in parameters)
+        {
+            members.Add(new Member
+            {
+                Name = parameter.Name ?? $"arg{parameter.Position}",
+                Type = binder.Node(parameter.ParameterType, null),
+                Required = Annotation<RequiredAttribute>(null, parameter) is not null || IsRequired(parameter),
+                ReadOnly = false,
+                ConstructorBound = false,
+                Description = DescriptionOf(null, parameter),
+                Constraints = ConstraintsOf(null, parameter),
+            });
+        }
+        binder.types[key] = new ObjectType { Name = "Parameters", Members = members };
+        return new TypeShape { Root = new TypeNode { Kind = TypeKind.Ref, Ref = key }, Types = binder.types };
+    }
+
+    /// <remarks>
+    /// A parameter is required unless its signature lets a caller leave it out: a default value,
+    /// <see cref="Nullable{T}"/>, or a nullable annotation. Without annotations the signature says
+    /// nothing, so the rule follows what callers of such code do (measured on a backend with 1436
+    /// dynamic methods): an object or a collection is required, because 355 methods would otherwise
+    /// publish their only DTO argument as optional and receive null; a string is optional, because
+    /// 60 of the 67 unannotated strings were search filters the backend's own client sends as null.
+    /// </remarks>
+    private static bool IsRequired(ParameterInfo parameter)
+    {
+        if (parameter.HasDefaultValue || parameter.IsOptional)
+        {
+            return false;
+        }
+        if (parameter.ParameterType.IsValueType)
+        {
+            return Nullable.GetUnderlyingType(parameter.ParameterType) is null;
+        }
+        return new NullabilityInfoContext().Create(parameter).WriteState switch
+        {
+            NullabilityState.NotNull => true,
+            NullabilityState.Nullable => false,
+            _ => parameter.ParameterType != typeof(string),
+        };
     }
 
     private TypeNode Node(Type type, PropertyInfo? owner)
@@ -63,16 +114,38 @@ internal sealed class TypeShapeBinder
         }
         if (MapDescriptor(resolved) is { } shape)
         {
-            return new TypeNode
+            if (!unfolding.Add(resolved))
             {
-                Kind = TypeKind.Map,
-                Keys = KeyOf(shape.Key),
-                Values = Node(shape.Value, null),
-            };
+                return SelfContaining(resolved);
+            }
+            try
+            {
+                return new TypeNode
+                {
+                    Kind = TypeKind.Map,
+                    Keys = KeyOf(shape.Key),
+                    Values = Node(shape.Value, null),
+                };
+            }
+            finally
+            {
+                unfolding.Remove(resolved);
+            }
         }
         if (ItemType(resolved) is { } item)
         {
-            return new TypeNode { Kind = TypeKind.Array, Items = Node(item, null) };
+            if ((item != typeof(object) && item.IsAssignableFrom(resolved)) || !unfolding.Add(resolved))
+            {
+                return SelfContaining(resolved);
+            }
+            try
+            {
+                return new TypeNode { Kind = TypeKind.Array, Items = Node(item, null) };
+            }
+            finally
+            {
+                unfolding.Remove(resolved);
+            }
         }
         if (resolved == typeof(object))
         {
@@ -85,6 +158,18 @@ internal sealed class TypeShapeBinder
         return new TypeNode { Kind = TypeKind.Ref, Ref = Declare(resolved) };
     }
 
+    /// <remarks>
+    /// Guard: a collection or map whose items lead back to itself without passing through an
+    /// object type (Newtonsoft's <c>JToken</c> enumerates <c>JToken</c>) has no finite shape, and
+    /// unfolding it overflows the stack, which no catch can stop. An object type ends the chain
+    /// because <see cref="Declare"/> registers its key before reading its members.
+    /// </remarks>
+    private static TypeNode SelfContaining(Type type) => new()
+    {
+        Kind = TypeKind.Unknown,
+        Reason = $"'{type.Name}' contains its own kind, so its shape cannot be read; any JSON value is accepted. Set options.Schema.TypeSchema to publish one.",
+    };
+
     private string Declare(Type type)
     {
         if (keys.TryGetValue(type, out string? existing))
@@ -96,23 +181,32 @@ internal sealed class TypeShapeBinder
         keys[type] = key;
         types[key] = new ObjectType { Name = SimpleName(type), Members = [] };
 
-        List<Member> members = [];
-        ConstructorInfo? primary = PrimaryConstructor(type);
-        foreach (PropertyInfo property in Declared(type))
+        HashSet<Type> outer = unfolding;
+        unfolding = [];
+        try
         {
-            ParameterInfo? parameter = Correlate(primary, property);
-            members.Add(new Member
+            List<Member> members = [];
+            ConstructorInfo? primary = PrimaryConstructor(type);
+            foreach (PropertyInfo property in Declared(type))
             {
-                Name = options.PropertyName(property),
-                Type = Node(property.PropertyType, property),
-                Required = IsRequired(property, parameter),
-                ReadOnly = !property.CanWrite,
-                ConstructorBound = parameter is not null,
-                Description = DescriptionOf(property, parameter),
-                Constraints = ConstraintsOf(property, parameter),
-            });
+                ParameterInfo? parameter = Correlate(primary, property);
+                members.Add(new Member
+                {
+                    Name = options.PropertyName(property),
+                    Type = Node(property.PropertyType, property),
+                    Required = IsRequired(property, parameter),
+                    ReadOnly = !property.CanWrite,
+                    ConstructorBound = parameter is not null,
+                    Description = DescriptionOf(property, parameter),
+                    Constraints = ConstraintsOf(property, parameter),
+                });
+            }
+            types[key] = new ObjectType { Name = SimpleName(type), Members = members };
         }
-        types[key] = new ObjectType { Name = SimpleName(type), Members = members };
+        finally
+        {
+            unfolding = outer;
+        }
         return key;
     }
 
@@ -154,7 +248,7 @@ internal sealed class TypeShapeBinder
         };
     }
 
-    private static Constraints? ConstraintsOf(PropertyInfo property, ParameterInfo? parameter)
+    private static Constraints? ConstraintsOf(PropertyInfo? property, ParameterInfo? parameter)
     {
         int? minSize = null;
         int? maxSize = null;
@@ -213,7 +307,7 @@ internal sealed class TypeShapeBinder
         };
     }
 
-    private static string? DescriptionOf(PropertyInfo property, ParameterInfo? parameter) =>
+    private static string? DescriptionOf(PropertyInfo? property, ParameterInfo? parameter) =>
         Annotation<DescriptionAttribute>(property, parameter) is { } described
         && !string.IsNullOrWhiteSpace(described.Description)
             ? described.Description
@@ -260,9 +354,9 @@ internal sealed class TypeShapeBinder
         primary?.GetParameters().FirstOrDefault(
             p => string.Equals(p.Name, property.Name, StringComparison.OrdinalIgnoreCase));
 
-    private static T? Annotation<T>(PropertyInfo property, ParameterInfo? parameter)
+    private static T? Annotation<T>(PropertyInfo? property, ParameterInfo? parameter)
         where T : Attribute =>
-        property.GetCustomAttribute<T>() ?? parameter?.GetCustomAttribute<T>();
+        property?.GetCustomAttribute<T>() ?? parameter?.GetCustomAttribute<T>();
 
     private static bool IsRequired(PropertyInfo property, ParameterInfo? parameter) =>
         Annotation<RequiredAttribute>(property, parameter) is not null

@@ -42,6 +42,14 @@ public sealed class SezzleeOptions
     /// </summary>
     public Func<string, IReadOnlyList<string>?>? SearchTerms { get; set; }
 
+    /// <summary>
+    /// A description for an endpoint the host documents elsewhere, such as in generated code
+    /// documentation. It sits below a <c>[McpTool(Description = ...)]</c> declaration and above the
+    /// endpoint's description metadata, which it receives as <see cref="McpEndpointInfo.Declared"/>;
+    /// returning null or blank keeps that.
+    /// </summary>
+    public Func<McpEndpointInfo, string?>? Description { get; set; }
+
     /// <summary>The behaviour revision of the whole catalog; raising it changes every tool version.</summary>
     public int? Revision { get; set; }
 
@@ -51,6 +59,20 @@ public sealed class SezzleeOptions
     /// </summary>
     public Func<string, int?>? ContainerRevision { get; set; }
 }
+
+/// <summary>What a per-endpoint catalog rule sees.</summary>
+/// <param name="Method">The upper-case HTTP method.</param>
+/// <param name="Route">The normalized route template.</param>
+/// <param name="Container">The controller's full type name; null for a minimal API endpoint.</param>
+/// <param name="Action">The controller action's method; null for a minimal API endpoint.</param>
+/// <param name="Declared">The description the endpoint's metadata declares, if any.</param>
+public sealed record McpEndpointInfo(
+    string Method,
+    string Route,
+    string? Container,
+    MethodInfo? Action,
+    IReadOnlyList<object> Metadata,
+    string? Declared);
 
 /// <summary>What a per-endpoint budget or timeout override sees.</summary>
 public readonly record struct InvokeTarget(string Tool, string Method, string Route);

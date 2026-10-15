@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -113,20 +114,30 @@ internal sealed class SezzleeCatalogProvider(
     }
 
     /// <summary>
-    /// Loads family members once, at startup. A catalog built earlier carries
+    /// Loads family members for the first time. A catalog built earlier carries
     /// <c>family_not_loaded</c> and is rebuilt here, which signals the change token.
     /// </summary>
+    /// <exception cref="SezzleeCatalogException">
+    /// A source failed and <see cref="ToolFamilyOptions.OnFailure"/> is <see cref="FamilyLoadFailure.Fatal"/>.
+    /// </exception>
     internal async Task LoadFamiliesAsync(CancellationToken cancellationToken)
     {
-        if (options.Value.Families.Sources.Count == 0)
+        ToolFamilyOptions families = options.Value.Families;
+        if (families.Sources.Count == 0)
         {
             return;
         }
         await _reloads.WaitAsync(cancellationToken);
         try
         {
-            IReadOnlyDictionary<string, FamilyLoad> loads = await FamilyReader.LoadAsync(
-                options.Value.Families, scopes, _familyLoads, cancellationToken);
+            IReadOnlyDictionary<string, FamilyLoad> loads = await LoadAndReportAsync(cancellationToken);
+            if (families.OnFailure == FamilyLoadFailure.Fatal
+                && loads.FirstOrDefault(l => l.Value is FamilyLoad.Failed) is { Value: FamilyLoad.Failed failed } entry)
+            {
+                throw new SezzleeCatalogException(
+                    DiagnosticCodes.FamilySourceFailed,
+                    $"sezzlee family source '{entry.Key}' failed and Families.OnFailure is Fatal: {failed.Error.Message}");
+            }
             bool built;
             lock (_gate)
             {
@@ -141,6 +152,9 @@ internal sealed class SezzleeCatalogProvider(
             if (built)
             {
                 await CommitAsync(cancellationToken);
+                logger.LogInformation(
+                    "sezzlee catalog rebuilt with family members: {Tools} tools",
+                    Current.Result.Entries.Count);
             }
         }
         finally
@@ -148,6 +162,91 @@ internal sealed class SezzleeCatalogProvider(
             _reloads.Release();
         }
     }
+
+    /// <summary>
+    /// Loads family members again and rebuilds the catalog only when a source's members changed,
+    /// so an unchanged refresh signals no change to connected clients.
+    /// </summary>
+    /// <exception cref="SezzleeCatalogException">The rebuild is refused; the current catalog is kept.</exception>
+    internal async Task RefreshFamiliesAsync(CancellationToken cancellationToken)
+    {
+        await _reloads.WaitAsync(cancellationToken);
+        try
+        {
+            IReadOnlyDictionary<string, FamilyLoad>? previous = _familyLoads;
+            IReadOnlyDictionary<string, FamilyLoad> loads = await LoadAndReportAsync(cancellationToken);
+            if (previous is not null && !MembersChanged(previous, loads))
+            {
+                _familyLoads = loads;
+                return;
+            }
+            lock (_gate)
+            {
+                Snapshot candidate = Build(loads);
+                if (candidate.Fatal.Count > 0 && Current.Fatal.Count == 0)
+                {
+                    throw new SezzleeCatalogException(
+                        candidate.Fatal[0].Code,
+                        "sezzlee catalog refresh refused; the current catalog is kept: "
+                        + string.Join(" | ", candidate.Fatal.Select(d => d.Message)));
+                }
+                _familyLoads = loads;
+                _snapshot = candidate;
+                Interlocked.Increment(ref _generation);
+            }
+            await CommitAsync(cancellationToken);
+            logger.LogInformation(
+                "sezzlee catalog rebuilt after a family refresh: {Tools} tools",
+                Current.Result.Entries.Count);
+        }
+        finally
+        {
+            _reloads.Release();
+        }
+    }
+
+    private async Task<IReadOnlyDictionary<string, FamilyLoad>> LoadAndReportAsync(CancellationToken cancellationToken)
+    {
+        long started = Stopwatch.GetTimestamp();
+        IReadOnlyDictionary<string, FamilyLoad> loads = await FamilyReader.LoadAsync(
+            options.Value.Families, scopes, _familyLoads, cancellationToken);
+        TimeSpan elapsed = Stopwatch.GetElapsedTime(started);
+        foreach ((string source, FamilyLoad load) in loads)
+        {
+            switch (load)
+            {
+                case FamilyLoad.Loaded loaded:
+                    logger.LogInformation(
+                        "sezzlee family source '{Source}' returned {Members} member(s) in {Elapsed} ms",
+                        source, loaded.Members.Count, (long)elapsed.TotalMilliseconds);
+                    break;
+                case FamilyLoad.Stale stale:
+                    logger.LogWarning(
+                        stale.Error,
+                        "sezzlee family source '{Source}' failed; the {Members} member(s) it last returned stay published: {Reason}",
+                        source, stale.Members.Count, stale.Error.Message);
+                    break;
+                case FamilyLoad.Failed failed:
+                    logger.LogError(
+                        failed.Error,
+                        "sezzlee family source '{Source}' failed and has never returned members; the operations it feeds are dropped: {Reason}",
+                        source, failed.Error.Message);
+                    break;
+            }
+        }
+        return loads;
+    }
+
+    private static bool MembersChanged(
+        IReadOnlyDictionary<string, FamilyLoad> previous, IReadOnlyDictionary<string, FamilyLoad> current) =>
+        current.Any(entry =>
+        {
+            IReadOnlyList<McpFamilyMember>? before = previous.GetValueOrDefault(entry.Key)?.Published;
+            IReadOnlyList<McpFamilyMember>? after = entry.Value.Published;
+            return before is null || after is null
+                ? before != after
+                : !before.SequenceEqual(after);
+        });
 
     private async ValueTask CommitAsync(CancellationToken cancellationToken)
     {
@@ -204,6 +303,12 @@ internal sealed class SezzleeCatalogProvider(
             snapshot.Result.Entries.Count, snapshot.Result.Diagnostics.Count);
         foreach (CatalogDiagnostic diagnostic in snapshot.Result.Diagnostics)
         {
+            if (diagnostic.Code == DiagnosticCodes.FamilyNotLoaded
+                && options.Value.Families.LoadMode == FamilyLoadMode.Background)
+            {
+                logger.LogInformation("sezzlee {Code}: {Message}", diagnostic.Code, diagnostic.Message);
+                continue;
+            }
             switch (options.Value.Diagnostics.SeverityOf(diagnostic.Code))
             {
                 case CatalogSeverity.Fatal:
@@ -259,7 +364,8 @@ internal sealed class SezzleeCatalogProvider(
             families: options.Value.Families,
             familyLoads: familyLoads,
             catalogRevision: options.Value.Revision,
-            containerRevision: options.Value.ContainerRevision);
+            containerRevision: options.Value.ContainerRevision,
+            endpointDescription: options.Value.Description);
         if (schemaNotes.Count > 0)
         {
             result = result with { Diagnostics = [.. schemaNotes, .. result.Diagnostics] };
@@ -310,7 +416,7 @@ internal sealed class SezzleeCatalogProvider(
             propertyName = property => property.Name;
             notes.Add(new CatalogDiagnostic(
                 "naming_policy_unresolved",
-                "Newtonsoft.Json input formatter detected; body property names use CLR names. Set options.Schema.PropertyName to mirror your ContractResolver if it renames properties."));
+                "Newtonsoft.Json input formatter detected; body property names use CLR names. Add Sezzlee.AspNetCore.NewtonsoftJson and call services.AddSezzleeNewtonsoftJson(), or set options.Schema.PropertyName to mirror your ContractResolver."));
         }
         else
         {
@@ -331,7 +437,7 @@ internal sealed class SezzleeCatalogProvider(
             enumShape = EnumWireFormat.Unresolved;
             notes.Add(new CatalogDiagnostic(
                 "enum_format_unresolved",
-                "Newtonsoft.Json input formatter detected; enum wire format cannot be read, so enums accept both the name and the number. Set options.Schema.EnumShape to pin one form."));
+                "Newtonsoft.Json input formatter detected; enum wire format cannot be read, so enums accept both the name and the number. Add Sezzlee.AspNetCore.NewtonsoftJson and call services.AddSezzleeNewtonsoftJson(), or set options.Schema.EnumShape to pin one form."));
         }
         else
         {

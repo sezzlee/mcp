@@ -103,6 +103,14 @@ new McpFamilyMember(
 
 A source is usually a query against the table your backend already dispatches from. It runs once at startup and again on every reload, never per request, and every caller sees the same members. On ASP.NET Core the delegate gets an `IServiceProvider` from its own scope, so it can resolve a `DbContext`, and there is no `HttpContext`. On NestJS it runs in `onApplicationBootstrap` and receives an `AbortSignal` that fires at `options.families.loadTimeoutMs`. Write the description for the agent, because search ranks the member by it.
 
+A member's body does not have to be written as JSON Schema. Give a type (`typeof(AssignCourier)`, or `bodyType: AssignCourierDto` on NestJS) and the SDK maps it the way it maps an endpoint's body, through the same schema options. On ASP.NET Core a method's parameters work too (`method.GetParameters()`): each becomes a property named as declared, required unless it has a default value or a nullable type (`int?`, `string?`). In code compiled without nullable annotations a `string` is optional and any other object or collection is required.
+
+:::details[A source that is slow, or changes while the backend runs]
+
+Startup waits for the first load by default, and a source that runs past `LoadTimeout` (`loadTimeoutMs`) fails with a message naming that setting; its family is dropped and the rest of the catalog is published. Set `LoadMode = Background` (`loadMode: "background"`) to start without waiting: family tools join when the source returns. Set `RefreshInterval` (`refreshIntervalMs`) to load again on a schedule; a load whose members are unchanged rebuilds nothing. Set `OnFailure = Fatal` (`onFailure: "fatal"`) to stop startup instead when a source never returns.
+
+:::
+
 ## Reload when the methods change
 
 :::tabs

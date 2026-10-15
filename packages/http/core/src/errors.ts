@@ -69,12 +69,19 @@ export class SezzleeArgumentError extends Error {
   }
 }
 
+/**
+ * A code a catalog build raises on its own. `diagnostics.escalate` can make any diagnostic fatal,
+ * so {@link SezzleeCatalogError.code} is any diagnostic code, not only these.
+ */
 export type SezzleeCatalogErrorCode =
-  "name_collision" | "invalid_name" | "ambiguous_selection";
+  | "name_collision"
+  | "invalid_name"
+  | "ambiguous_selection"
+  | "family_source_failed";
 
 export class SezzleeCatalogError extends Error {
   constructor(
-    readonly code: SezzleeCatalogErrorCode,
+    readonly code: SezzleeCatalogErrorCode | (string & {}),
     message: string,
   ) {
     super(message);
