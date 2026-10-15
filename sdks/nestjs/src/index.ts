@@ -23,7 +23,13 @@ export type {
   McpVariantOptions,
 } from "./decorators.js";
 export { ToolFamilyOptions } from "./families.js";
-export type { McpFamilyMember, McpFamilySource } from "./families.js";
+export type {
+  FamilyLoadFailure,
+  FamilyLoadMode,
+  McpFamilyMember,
+  McpFamilyMemberBody,
+  McpFamilySource,
+} from "./families.js";
 export { SezzleeFileRefused } from "./files.js";
 export type {
   FileResolution,
@@ -67,6 +73,7 @@ export {
 export type {
   DiscoveredEndpoint,
   DiscoveryOptions,
+  McpEndpointInfo,
   RoutePathMetadata,
   RoutePaths,
   VisibilityDeclaration,

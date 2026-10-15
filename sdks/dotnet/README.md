@@ -50,6 +50,31 @@ app.Run();
 Leave your existing `AddAuthentication`/`AddAuthorization` setup alone — Sezzlee installs no identity
 scheme of its own and uses yours.
 
+Settings that differ per environment can come from configuration. Code given to the same call runs
+after the binding, so it wins; a key that names no option fails startup instead of being ignored.
+Delegates (`Description`, `Tags`, `Schema.TypeSchema`, …) and family sources stay in code.
+
+```csharp
+builder.Services.AddSezzlee(builder.Configuration.GetSection("Sezzlee"), options =>
+    options.Families.Provide("dynamic-methods", DynamicMethods.LoadAsync));
+```
+
+```json
+{
+  "Sezzlee": {
+    "Selection": { "Default": "Include" },
+    "Invoke": { "Timeout": "00:00:45", "MaxResponseBytes": 200000 },
+    "Visibility": { "OnUnknown": "Hide" },
+    "Families": { "LoadMode": "Background", "RefreshInterval": "00:05:00" }
+  }
+}
+```
+
+A backend that binds JSON with `AddNewtonsoftJson()` adds the `Sezzlee.AspNetCore.NewtonsoftJson`
+package and calls `builder.Services.AddSezzleeNewtonsoftJson()`, so published schemas use the
+property names and enum forms its `SerializerSettings` produce. Without it Sezzlee reports
+`naming_policy_unresolved` and `enum_format_unresolved` and publishes CLR names.
+
 > **Order is critical.** `UseSezzleeCapture()` captures the pipeline **from that point onward** and
 > injects agent calls into it. Put it **before** `UseRouting`/`UseAuthentication`/`UseAuthorization`,
 > as early as you can. Placed after them, agent requests never see your authentication layer. Omit
@@ -135,9 +160,23 @@ arguments, because one description cannot honestly describe two differently cura
 
 `[McpToolFamily("methodId", Source = "...")]` publishes an action that dispatches on a parameter
 as one tool per method. `options.Families.Provide(name, source)` supplies the members — key, name,
-description, body schema — loaded at startup and on every `ReloadAsync`; the key is written into the
-route and never reaches the agent. Full guide: the docs site's _How to expose a dispatching endpoint
-as one tool per method_.
+description and body — loaded at startup and on every `ReloadAsync`; the key is written into the
+route and never reaches the agent. A member's body is a JSON Schema, a type
+(`new McpFamilyMember(key, name, description, typeof(AssignCourier))`) or a method's parameters
+(`..., method.GetParameters())`); a type or parameters are mapped like an action's body, through
+`options.Schema`. Parameters become properties named as declared, required unless they have a
+default value or a nullable type (`int?`, `string?`); without nullable annotations a `string` is
+optional and any other object or collection is required.
+
+| `options.Families` | Default    | Meaning                                                                                                                        |
+| ------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `LoadTimeout`      | 10 s       | How long one source may take; a source that runs past it fails with a `timeout` naming this option                             |
+| `LoadMode`         | `Blocking` | `Blocking` holds startup until the first load; `Background` starts without it, and family tools join when their source returns |
+| `RefreshInterval`  | zero       | How often sources load again; a refresh whose members are unchanged rebuilds nothing                                           |
+| `OnFailure`        | `Drop`     | `Drop` publishes the rest of the catalog without a failed source's tools; `Fatal` stops startup (`Blocking` only)              |
+
+Every load logs each source's member count or its failure. Full guide: the docs site's _How to
+expose a dispatching endpoint as one tool per method_.
 
 Full guide: the docs site's _How to curate the arguments an agent sees_.
 
@@ -270,7 +309,15 @@ is tagged with its controller name unless you say otherwise:
 ```
 
 A declaration replaces the controller-derived tag rather than adding to it, and `options.Tags` sets
-the same thing centrally for controllers you cannot decorate. Tags are search text too, so changing
+the same thing centrally for controllers you cannot decorate.
+
+A description kept outside the code, such as generated code documentation, comes in through
+`options.Description`. It is asked per endpoint, below `[McpTool(Description = ...)]` and above the
+endpoint's `[EndpointDescription]`, which it receives as `Declared`; returning null keeps that:
+
+```csharp
+options.Description = endpoint => endpoint.Action is { } action ? codeDocs.Find(action) : null;
+``` Tags are search text too, so changing
 them changes ranking — see the how-to on grouping operations.
 
 Words an agent may type that your operation's text does not contain go in `SearchTerms`
@@ -312,6 +359,8 @@ tokenization.
 | `search_tools` always empty                                   | `Selection.Default` defaults to `Exclude` and no `[McpTool]` was applied     | Add `[McpTool]`, or set `Selection.Default = Include`                                    |
 | Every request to `/mcp` returns 401                           | `.RequireAuthorization()` is on and the client sends no token                | Send a bearer token, or drop `.RequireAuthorization()` during development                |
 | Host will not start, fatal diagnostic                         | A catalog error such as `name_collision` / `invalid_name`                   | Read the code list in the log; downgrade a single code with `options.Diagnostics.Downgrade` |
+| Family tools missing, `family_source_failed` with `timeout`   | The source ran past `Families.LoadTimeout`                                  | Raise `Families.LoadTimeout`, or set `Families.LoadMode = Background`                   |
+| `unreadable_shape` naming a type that "contains its own kind" | A collection whose items are its own kind, such as Newtonsoft's `JToken`    | Publish a schema for it with `options.Schema.TypeSchema`                                |
 
 ## 6. What's next
 

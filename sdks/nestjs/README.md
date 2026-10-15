@@ -115,9 +115,12 @@ export class OrdersController {
 }
 ```
 
-NestJS has no equivalent of ASP.NET's description metadata, so `@McpTool({ description })` is how
-an agent gets something to search against. Input schemas come from your `class-validator` DTOs and
-your pipes: `ParseIntPipe` yields an integer, `@Min`/`@Max` become `minimum`/`maximum`.
+`@McpTool({ description })` is how an agent gets something to search against; an endpoint without
+one falls back to its `@ApiOperation` description or summary. `options.description` supplies the
+text for an endpoint the host documents elsewhere. It receives `{ method, route, container, handler,
+declared }`, sits below `@McpTool({ description })` and above `declared`, and returning `undefined`
+or a blank keeps `declared`. Input schemas come from your `class-validator` DTOs and your pipes:
+`ParseIntPipe` yields an integer, `@Min`/`@Max` become `minimum`/`maximum`.
 
 A whole-object query binding is expanded into one argument per member, so the agent sees the
 filters:
@@ -235,9 +238,38 @@ are required, because one description cannot honestly describe two differently c
 
 `@McpToolFamily({ parameter: "methodId", source: "..." })` publishes a handler that dispatches on a
 parameter as one tool per method. `options.families.provide(name, source)` supplies the members —
-key, name, description, body schema — loaded in `onApplicationBootstrap` and on every `reload()`,
-which now returns a promise; the key is written into the route and never reaches the agent. Full
-guide: the docs site's _How to expose a dispatching endpoint as one tool per method_.
+key, name, description and a body — loaded in `onApplicationBootstrap` and on every `reload()`,
+which now returns a promise; the key is written into the route and never reaches the agent. A
+member's body is either a JSON Schema (`body`) or a DTO class (`bodyType`), never both. A class is
+mapped the way an `@Body()` parameter is, through `options.schema`, and what the mapping reports
+reaches the catalog's diagnostics prefixed with `<Controller.handler> member '<name>': `.
+
+```ts
+options.families.provide("methods", async () => [
+  {
+    key: "3f2c9a1e",
+    name: "list_delayed_orders",
+    description: "Lists delayed orders.",
+    bodyType: DelayedOrdersFilter,
+    readOnly: true,
+  },
+]);
+```
+
+How and when sources load is configured on `options.families`:
+
+| Option              | Default      | Meaning                                                                                                                                                                               |
+| ------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loadTimeoutMs`     | `10000`      | How long one source may take. The stored error names this setting and `loadMode`.                                                                                                     |
+| `loadMode`          | `"blocking"` | `"blocking"` makes startup wait for the first load. `"background"` starts it and lets family operations join the catalog, with a `listChanged` notification, when the source returns. |
+| `onFailure`         | `"drop"`     | `"drop"` drops the families of a source that never returned and goes on. `"fatal"` stops startup with `SezzleeCatalogError` (`family_source_failed`); it requires `"blocking"`.       |
+| `refreshIntervalMs` | `0`          | Loads the sources again on this interval after the first load; `0` loads once. A refresh rebuilds the catalog only when a source's published members changed.                         |
+
+A source that fails after it returned keeps the members it last returned, and each load logs one
+line per source under the `Sezzlee` logger. A refresh whose rebuild would turn a valid catalog
+fatal is refused and the current catalog kept, as `reload()` does; the timer logs it as a warning.
+`catalog.refreshFamilies()` runs one refresh on demand. Full guide: the docs site's _How to expose
+a dispatching endpoint as one tool per method_.
 
 Full guide: the docs site's _How to curate the arguments an agent sees_.
 

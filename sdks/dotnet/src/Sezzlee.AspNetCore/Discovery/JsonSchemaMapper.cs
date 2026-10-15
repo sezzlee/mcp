@@ -13,4 +13,7 @@ internal static class JsonSchemaMapper
 
     public static JsonObject Map(Type type, SchemaMapperOptions options) =>
         new SchemaWriter(options.Writer()).Write(TypeShapeBinder.Bind(type, options.Binder()));
+
+    public static JsonObject Map(IReadOnlyList<ParameterInfo> parameters, SchemaMapperOptions options) =>
+        new SchemaWriter(options.Writer()).Write(TypeShapeBinder.Bind(parameters, options.Binder()));
 }

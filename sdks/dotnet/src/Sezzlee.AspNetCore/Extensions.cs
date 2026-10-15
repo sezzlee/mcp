@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -63,6 +64,20 @@ public static class SezzleeServiceCollectionExtensions
         services.Configure<MvcOptions>(mvc => mvc.Filters.Add<ProbeResourceFilter>(int.MinValue));
         services.AddMcpServer().WithHttpTransport().WithTools<SezzleeMetaTools>();
         return services;
+    }
+
+    /// <summary>
+    /// Binds <see cref="SezzleeOptions"/> from <paramref name="configuration"/>, then applies
+    /// <paramref name="configure"/>, so code wins over configuration. A key that names no option
+    /// fails startup instead of being ignored. Delegates and family sources are set in code.
+    /// </summary>
+    public static IServiceCollection AddSezzlee(
+        this IServiceCollection services, IConfiguration configuration, Action<SezzleeOptions>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        services.AddOptions<SezzleeOptions>()
+            .Bind(configuration, binder => binder.ErrorOnUnknownConfiguration = true);
+        return services.AddSezzlee(configure);
     }
 
     private static void DecorateAuthorizationResultHandler(IServiceCollection services)

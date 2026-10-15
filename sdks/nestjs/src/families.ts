@@ -9,18 +9,27 @@ import {
 import type { McpToolEffect, McpVariantOptions } from "./decorators.js";
 
 /**
+ * A member's request body: a JSON Schema the host wrote, or a DTO class the SDK maps the way it
+ * maps an `@Body()` parameter, through `options.schema`. Exactly one is set.
+ */
+export type McpFamilyMemberBody =
+  | { readonly body: JsonSchemaObject; readonly bodyType?: never }
+  | { readonly bodyType: NewableFunction; readonly body?: never };
+
+/**
  * One capability behind a dispatching operation, as a host's member source returns it.
  *
  * @param key the value written into the dispatch parameter; it never reaches the agent
  * @param body the member's own request body, published as its input schema
+ * @param bodyType a DTO class published as the input schema in place of `body`
  */
 export type McpFamilyMember = {
   readonly key: string | number;
   readonly name: string;
   readonly description: string;
-  readonly body: JsonSchemaObject;
   readonly bodyRequired?: boolean;
-} & McpToolEffect;
+} & McpFamilyMemberBody &
+  McpToolEffect;
 
 export type McpFamilySource = (context: {
   readonly signal: AbortSignal;
@@ -37,9 +46,28 @@ export type FamilyLoad =
 
 export type FamilyLoads = ReadonlyMap<string, FamilyLoad>;
 
+/**
+ * `blocking` makes startup wait for the first load; `background` starts it and lets family
+ * operations join the catalog when their source returns.
+ */
+export type FamilyLoadMode = "blocking" | "background";
+
+/**
+ * `drop` keeps starting when a source never returned and drops the families it feeds; `fatal`
+ * stops startup instead, and requires `loadMode: "blocking"`.
+ */
+export type FamilyLoadFailure = "drop" | "fatal";
+
 export class ToolFamilyOptions {
   private readonly registered = new Map<string, McpFamilySource>();
   loadTimeoutMs = 10_000;
+  loadMode: FamilyLoadMode = "blocking";
+  /**
+   * How often sources are loaded again after the first load, in whole milliseconds. Zero loads
+   * them once. A refresh whose members equal the published ones changes nothing.
+   */
+  refreshIntervalMs = 0;
+  onFailure: FamilyLoadFailure = "drop";
 
   get sources(): ReadonlyMap<string, McpFamilySource> {
     return this.registered;
@@ -51,7 +79,13 @@ export class ToolFamilyOptions {
   }
 }
 
+/**
+ * Guard: a source that honours its signal rejects with the abort reason while the race below
+ * rejects too, and which settles first is not specified. The stored error names the setting
+ * either way, because "signal timed out" tells the host nothing about what to change.
+ */
 async function loadOne(
+  name: string,
   source: McpFamilySource,
   timeoutMs: number,
 ): Promise<readonly McpFamilyMember[]> {
@@ -61,7 +95,17 @@ async function loadOne(
       once: true,
     });
   });
-  return Promise.race([Promise.resolve(source({ signal })), aborted]);
+  try {
+    return await Promise.race([Promise.resolve(source({ signal })), aborted]);
+  } catch (error) {
+    if (signal.aborted) {
+      throw new Error(
+        `timeout: source '${name}' did not return within families.loadTimeoutMs (${timeoutMs} ms); raise options.families.loadTimeoutMs or set options.families.loadMode to "background"`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 }
 
 /**
@@ -80,7 +124,7 @@ export async function loadFamilies(
     [...options.sources].map(
       async ([name, source]): Promise<[string, FamilyLoad]> => {
         try {
-          const members = await loadOne(source, options.loadTimeoutMs);
+          const members = await loadOne(name, source, options.loadTimeoutMs);
           return [name, { state: "loaded", members }];
         } catch (error) {
           const last = previous?.get(name);
@@ -95,6 +139,81 @@ export async function loadFamilies(
     ),
   );
   return new Map(entries);
+}
+
+const publishedOf = (
+  load: FamilyLoad,
+): readonly McpFamilyMember[] | undefined =>
+  load.state === "failed" ? undefined : load.members;
+
+function jsonEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) {
+    return true;
+  }
+  if (Array.isArray(a)) {
+    return (
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((item, index) => jsonEqual(item, b[index]))
+    );
+  }
+  if (
+    typeof a === "object" &&
+    a !== null &&
+    typeof b === "object" &&
+    b !== null &&
+    !Array.isArray(b)
+  ) {
+    const entries = Object.entries(a);
+    return (
+      entries.length === Object.keys(b).length &&
+      entries.every(
+        ([key, value]) =>
+          Object.hasOwn(b, key) && jsonEqual(value, Reflect.get(b, key)),
+      )
+    );
+  }
+  return false;
+}
+
+function sameMember(a: McpFamilyMember, b: McpFamilyMember): boolean {
+  return (
+    a.key === b.key &&
+    a.name === b.name &&
+    a.description === b.description &&
+    a.bodyRequired === b.bodyRequired &&
+    a.readOnly === b.readOnly &&
+    a.destructive === b.destructive &&
+    a.idempotent === b.idempotent &&
+    a.bodyType === b.bodyType &&
+    jsonEqual(a.body, b.body)
+  );
+}
+
+/**
+ * Whether any source publishes different members than it did, where published means the members
+ * of a `loaded` or `stale` source. A body given as a class compares by identity, a JSON Schema by
+ * structure.
+ */
+export function membersChanged(
+  previous: FamilyLoads,
+  current: FamilyLoads,
+): boolean {
+  return [...current].some(([name, load]) => {
+    const before = previous.get(name);
+    const prior = before === undefined ? undefined : publishedOf(before);
+    const now = publishedOf(load);
+    if (prior === undefined || now === undefined) {
+      return prior !== now;
+    }
+    return (
+      prior.length !== now.length ||
+      prior.some((member, index) => {
+        const next = now[index];
+        return next === undefined || !sameMember(member, next);
+      })
+    );
+  });
 }
 
 export type FamilyResolution =
@@ -124,8 +243,17 @@ const diagnostic = (
 
 const toolNamePattern = /^[a-z][a-z0-9_]{0,255}$/;
 
-const reasonOf = (error: unknown): string =>
+export const reasonOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+/**
+ * Maps a member's `bodyType` the way an `@Body()` parameter's class is mapped, honouring
+ * `options.schema`, and hands every diagnostic that mapping produces to `report`.
+ */
+export type FamilyBodyMapper = (
+  bodyType: NewableFunction,
+  report: (diagnostic: CatalogDiagnostic) => void,
+) => JsonSchemaObject;
 
 /**
  * Lowers one operation's family declaration into the variants its members become.
@@ -137,6 +265,7 @@ const reasonOf = (error: unknown): string =>
  * @param owner the operation's identity in diagnostics
  * @param declared the handler's own `@McpVariant`s; a member may not reuse their names
  * @param loads the member loads, or `undefined` when the sources have not loaded yet
+ * @param mapBody maps a member's `bodyType` to its input schema
  */
 export function resolveFamily(
   family: ToolFamily & { readonly source?: string },
@@ -144,6 +273,7 @@ export function resolveFamily(
   declared: readonly McpVariantOptions[],
   options: ToolFamilyOptions,
   loads: FamilyLoads | undefined,
+  mapBody: FamilyBodyMapper,
 ): FamilyResolution {
   const lowered = { parameter: family.parameter };
   if (family.source === undefined) {
@@ -186,19 +316,21 @@ export function resolveFamily(
   const keys = new Set<string>();
   const variants: ToolVariant[] = [];
   for (const member of load.members) {
-    const problem = memberProblem(member, names, keys);
-    if (problem !== undefined) {
+    const body =
+      memberProblem(member, names, keys) ??
+      bodyOf(member, owner, mapBody, diagnostics);
+    if (typeof body === "string") {
       diagnostics.push(
         diagnostic(
           "family_member_rejected",
-          `${owner} drops member '${String(member.name)}': ${problem}.`,
+          `${owner} drops member '${String(member.name)}': ${body}.`,
         ),
       );
       continue;
     }
     names.add(member.name);
     keys.add(JSON.stringify(member.key));
-    variants.push(lower(member, family.parameter));
+    variants.push(lower(member, body, family.parameter));
   }
   return { kind: "members", family: lowered, variants, diagnostics };
 }
@@ -226,15 +358,51 @@ function memberProblem(
   ) {
     return "its key is not a string or finite number, or repeats another member's";
   }
-  const schema: unknown = member.body;
-  if (typeof schema !== "object" || schema === null || Array.isArray(schema)) {
-    return "its body is not a JSON Schema object";
-  }
-  const invalid = declaredSchemaProblem(member.body);
-  return invalid === undefined ? undefined : `its body ${invalid}`;
+  return undefined;
 }
 
-function lower(member: McpFamilyMember, parameter: string): ToolVariant {
+/**
+ * @returns the member's input schema, or the reason it has none
+ */
+function bodyOf(
+  member: McpFamilyMember,
+  owner: string,
+  mapBody: FamilyBodyMapper,
+  diagnostics: CatalogDiagnostic[],
+): JsonSchemaObject | string {
+  if (member.body !== undefined && member.bodyType !== undefined) {
+    return "it sets both body and bodyType";
+  }
+  if (member.bodyType !== undefined && typeof member.bodyType !== "function") {
+    return "its bodyType is not a class";
+  }
+  const schema: JsonSchemaObject | undefined =
+    member.bodyType === undefined
+      ? member.body
+      : mapBody(member.bodyType, (note) =>
+          diagnostics.push({
+            code: note.code,
+            message: `${owner} member '${member.name}': ${note.message}`,
+          }),
+        );
+  const raw: unknown = schema;
+  if (
+    schema === undefined ||
+    typeof raw !== "object" ||
+    raw === null ||
+    Array.isArray(raw)
+  ) {
+    return "its body is not a JSON Schema object";
+  }
+  const invalid = declaredSchemaProblem(schema);
+  return invalid === undefined ? schema : `its body ${invalid}`;
+}
+
+function lower(
+  member: McpFamilyMember,
+  body: JsonSchemaObject,
+  parameter: string,
+): ToolVariant {
   const annotations = {
     ...(member.readOnly === undefined ? {} : { readOnlyHint: member.readOnly }),
     ...(member.destructive === undefined
@@ -251,7 +419,7 @@ function lower(member: McpFamilyMember, parameter: string): ToolVariant {
       { name: parameter, hidden: { kind: "constant", value: member.key } },
     ],
     requestBody: {
-      schema: member.body,
+      schema: body,
       ...(member.bodyRequired === undefined
         ? {}
         : { required: member.bodyRequired }),

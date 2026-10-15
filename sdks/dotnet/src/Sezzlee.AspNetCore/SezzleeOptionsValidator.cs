@@ -30,6 +30,23 @@ internal sealed class SezzleeOptionsValidator : IValidateOptions<SezzleeOptions>
         {
             failures.Add("Families.LoadTimeout must be positive.");
         }
+        if (options.Families.RefreshInterval < TimeSpan.Zero)
+        {
+            failures.Add("Families.RefreshInterval must be zero or positive.");
+        }
+        if (!Enum.IsDefined(options.Families.LoadMode))
+        {
+            failures.Add("Families.LoadMode must be Blocking or Background.");
+        }
+        if (!Enum.IsDefined(options.Families.OnFailure))
+        {
+            failures.Add("Families.OnFailure must be Drop or Fatal.");
+        }
+        if (options.Families.OnFailure == FamilyLoadFailure.Fatal
+            && options.Families.LoadMode == FamilyLoadMode.Background)
+        {
+            failures.Add("Families.OnFailure Fatal requires Families.LoadMode Blocking: a background load ends after startup, when there is nothing left to stop.");
+        }
         if (options.Invoke.MaxInlineFileBytes < 0)
         {
             failures.Add("Invoke.MaxInlineFileBytes must be zero or positive.");

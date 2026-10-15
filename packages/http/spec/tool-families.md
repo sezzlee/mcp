@@ -68,6 +68,10 @@ A reload with a family source MUST follow this order: load members, build the ca
 
 A source failure is not a build failure. The members it last returned stay published, and an SDK reports that they are stale; a source that has never returned leaves its families without members, which drops them.
 
+A host MAY opt in to failing startup when a source's first load fails (`Families.OnFailure = Fatal` / `families.onFailure: "fatal"`); a later failure never stops a running catalog. A source that runs past the host's load deadline fails with a message that says it timed out and names the deadline setting, because a bare cancellation does not tell an operator which knob to turn.
+
+Loading MAY happen after startup (`LoadMode = Background` / `loadMode: "background"`): the catalog is built without the members, reports `family_not_loaded`, and follows the reload order above when the load completes. Sources MAY be loaded again on an interval; a periodic load whose members equal the published ones MUST NOT commit, so a refresh that changes nothing does not signal `listChanged`.
+
 A remote gateway has no host process to register a source in, so for an OpenAPI document the document itself is the source: the backend lists the members in the dispatching operation's `x-sezzlee.family` ([openapi-ingestion.md](openapi-ingestion.md) §Families). A reload re-reads the document and follows the same order; a document that cannot be read keeps the running catalog, members included. A member the extension cannot carry is `family_member_rejected`, the same warning an SDK reports.
 
 ## Diagnostics

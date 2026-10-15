@@ -407,11 +407,12 @@ export function buildCatalog<Source extends object>(
 }
 
 export function assertCatalogValid(fatal: readonly CatalogDiagnostic[]): void {
-  if (fatal.length === 0) {
+  const [first] = fatal;
+  if (first === undefined) {
     return;
   }
   throw new SezzleeCatalogError(
-    fatal[0]?.code as "name_collision",
+    first.code,
     fatal.map((diagnostic) => diagnostic.message).join(" | "),
   );
 }

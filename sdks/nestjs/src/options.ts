@@ -9,6 +9,7 @@ import type {
 } from "@sezzlee/core";
 import type { ArgumentRule, JsonValue } from "./decorators.js";
 import type { CatalogSeverity } from "./discovery/diagnostics.js";
+import type { McpEndpointInfo } from "./discovery/endpoint-discovery.js";
 import type { TypeShapeBinderOptions } from "./discovery/type-shape.js";
 import { ToolFamilyOptions } from "./families.js";
 import type { SezzleeFileOptions } from "./files.js";
@@ -344,6 +345,12 @@ export class SezzleeOptions {
   tags?: (container: string) => readonly string[] | undefined;
   /** Search vocabulary for a container the host cannot decorate, below a `@McpTool({ searchTerms })`. */
   searchTerms?: (container: string) => readonly string[] | undefined;
+  /**
+   * A description for an endpoint the host documents elsewhere. It sits below a
+   * `@McpTool({ description })` declaration and above the endpoint's `@ApiOperation` text, which
+   * it receives as `declared`; returning undefined or blank keeps that.
+   */
+  description?: (endpoint: McpEndpointInfo) => string | undefined;
   /** The behaviour revision of the whole catalog; raising it changes every tool version. */
   revision?: number;
   /** A behaviour revision for a container the host cannot decorate, below a `@McpTool({ revision })`. */

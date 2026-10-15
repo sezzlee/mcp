@@ -54,15 +54,16 @@ Each package README has its own quick start, configuration and limits. To build 
 
 ### HTTP catalog
 
-| Package                                              | What it is                                                            | Status    |
-| ---------------------------------------------------- | --------------------------------------------------------------------- | --------- |
-| [Sezzlee.AspNetCore](sdks/dotnet)                    | ASP.NET Core SDK                                                      | alpha     |
-| [@sezzlee/sdk-nestjs](sdks/nestjs)                   | NestJS SDK                                                            | alpha     |
-| [@sezzlee/openapi-mcp](packages/servers/openapi-mcp) | Gateway: an OpenAPI document as a catalog over a remote backend       | alpha     |
-| [@sezzlee/openapi](packages/http/openapi)            | Swagger 2.0 / OpenAPI 3.0–3.2 ingestion                               | alpha     |
-| [@sezzlee/core](packages/http/core)                  | TypeScript reference implementation of the spec                       | alpha     |
-| [spec](packages/http/spec)                           | The normative spec and JSON Schemas — the single source of truth      | normative |
-| [conformance](packages/http/conformance)             | 480 JSON fixtures across 11 kinds that every implementation must pass | —         |
+| Package                                                                                | What it is                                                            | Status    |
+| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------- |
+| [Sezzlee.AspNetCore](sdks/dotnet)                                                      | ASP.NET Core SDK                                                      | alpha     |
+| [Sezzlee.AspNetCore.NewtonsoftJson](sdks/dotnet/src/Sezzlee.AspNetCore.NewtonsoftJson) | Newtonsoft.Json adapter for the ASP.NET Core SDK                      | alpha     |
+| [@sezzlee/sdk-nestjs](sdks/nestjs)                                                     | NestJS SDK                                                            | alpha     |
+| [@sezzlee/openapi-mcp](packages/servers/openapi-mcp)                                   | Gateway: an OpenAPI document as a catalog over a remote backend       | alpha     |
+| [@sezzlee/openapi](packages/http/openapi)                                              | Swagger 2.0 / OpenAPI 3.0–3.2 ingestion                               | alpha     |
+| [@sezzlee/core](packages/http/core)                                                    | TypeScript reference implementation of the spec                       | alpha     |
+| [spec](packages/http/spec)                                                             | The normative spec and JSON Schemas — the single source of truth      | normative |
+| [conformance](packages/http/conformance)                                               | 480 JSON fixtures across 11 kinds that every implementation must pass | —         |
 
 ### Source servers and their cores
 
