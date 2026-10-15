@@ -30,6 +30,11 @@ export type {
   McpFamilyMemberBody,
   McpFamilySource,
 } from "./families.js";
+export type {
+  McpSelectionEntry,
+  McpSelectionSource,
+  SelectionSourceSettings,
+} from "./selection-source.js";
 export { SezzleeFileRefused } from "./files.js";
 export type {
   FileResolution,
@@ -94,6 +99,12 @@ export {
 export type { ProbeEvaluator } from "./visibility/probe.js";
 export { CallerVisibilityProvider } from "./visibility/provider.js";
 export type {
+  McpFamilyMemberInfo,
+  McpToolInfo,
+  ToolAccess,
+  ToolAuthorizer,
+} from "./visibility/authorizer.js";
+export type {
   DispatchDeadline,
   DispatchResult,
   ProbeResult,
@@ -117,6 +128,8 @@ export type {
   SezzleeDiagnosticsOptions,
   SezzleeNamingOptions,
   SezzleeSelectionOptions,
+  SezzleeUncoveredPolicy,
+  SezzleeUnknownVisibility,
   SezzleeVisibilityOptions,
   SezzleeVisibilityTier,
 } from "./options.js";

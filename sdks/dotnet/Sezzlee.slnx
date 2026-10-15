@@ -6,6 +6,7 @@
   <Folder Name="/src/">
     <Project Path="src/Sezzlee.AspNetCore/Sezzlee.AspNetCore.csproj" />
     <Project Path="src/Sezzlee.AspNetCore.NewtonsoftJson/Sezzlee.AspNetCore.NewtonsoftJson.csproj" />
+    <Project Path="src/Sezzlee.AspNetCore.Testing/Sezzlee.AspNetCore.Testing.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Sezzlee.Tests/Sezzlee.Tests.csproj" />

@@ -1,10 +1,39 @@
 import type { SezzleeOptions } from "./options.js";
+import type { SourceLoadSettings } from "./source-loading.js";
 
 export class SezzleeConfigurationError extends Error {
   constructor(readonly failures: readonly string[]) {
     super(`sezzlee: invalid configuration.\n  ${failures.join("\n  ")}`);
     this.name = "SezzleeConfigurationError";
   }
+}
+
+function loadSettingFailures(
+  setting: string,
+  settings: SourceLoadSettings,
+): string[] {
+  const failures: string[] = [];
+  const { loadTimeoutMs, refreshIntervalMs, loadMode, onFailure } = settings;
+  if (!Number.isInteger(loadTimeoutMs) || loadTimeoutMs < 1) {
+    failures.push(`${setting}.loadTimeoutMs must be a positive integer.`);
+  }
+  if (!Number.isInteger(refreshIntervalMs) || refreshIntervalMs < 0) {
+    failures.push(
+      `${setting}.refreshIntervalMs must be zero or a positive integer.`,
+    );
+  }
+  if (!["blocking", "background"].includes(loadMode)) {
+    failures.push(`${setting}.loadMode must be "blocking" or "background".`);
+  }
+  if (!["drop", "fatal"].includes(onFailure)) {
+    failures.push(`${setting}.onFailure must be "drop" or "fatal".`);
+  }
+  if (onFailure === "fatal" && loadMode === "background") {
+    failures.push(
+      `${setting}.onFailure "fatal" requires ${setting}.loadMode "blocking": a background load ends after startup, when there is nothing left to stop.`,
+    );
+  }
+  return failures;
 }
 
 /**
@@ -23,8 +52,20 @@ export function collectConfigurationFailures(
   if (options.cache.maxCallers < 1) {
     failures.push("cache.maxCallers must be at least 1.");
   }
-  if (options.visibility.probeTopK < 0) {
-    failures.push("visibility.probeTopK must be zero or positive.");
+  const { onUnknown, onUncovered } = options.visibility;
+  if (onUnknown !== undefined && !["show", "hide"].includes(onUnknown)) {
+    failures.push('visibility.onUnknown must be "show" or "hide" when set.');
+  }
+  if (!["report", "fatal"].includes(onUncovered)) {
+    failures.push('visibility.onUncovered must be "report" or "fatal".');
+  }
+  if (
+    !Number.isInteger(options.visibility.maxProbesPerSearch) ||
+    options.visibility.maxProbesPerSearch < 0
+  ) {
+    failures.push(
+      "visibility.maxProbesPerSearch must be zero or a positive integer.",
+    );
   }
   if (options.visibility.probeConcurrency < 1) {
     failures.push("visibility.probeConcurrency must be at least 1.");
@@ -50,29 +91,10 @@ export function collectConfigurationFailures(
   if (!["fallback", "error"].includes(options.search.onRankerFailure)) {
     failures.push('search.onRankerFailure must be "fallback" or "error".');
   }
-  if (
-    !Number.isInteger(options.families.loadTimeoutMs) ||
-    options.families.loadTimeoutMs < 1
-  ) {
-    failures.push("families.loadTimeoutMs must be a positive integer.");
-  }
-  const { loadMode, onFailure, refreshIntervalMs } = options.families;
-  if (!Number.isInteger(refreshIntervalMs) || refreshIntervalMs < 0) {
-    failures.push(
-      "families.refreshIntervalMs must be zero or a positive integer.",
-    );
-  }
-  if (!["blocking", "background"].includes(loadMode)) {
-    failures.push('families.loadMode must be "blocking" or "background".');
-  }
-  if (!["drop", "fatal"].includes(onFailure)) {
-    failures.push('families.onFailure must be "drop" or "fatal".');
-  }
-  if (onFailure === "fatal" && loadMode === "background") {
-    failures.push(
-      'families.onFailure "fatal" requires families.loadMode "blocking": a background load ends after startup, when there is nothing left to stop.',
-    );
-  }
+  failures.push(...loadSettingFailures("families", options.families));
+  failures.push(
+    ...loadSettingFailures("selection.source", options.selection.source),
+  );
   const refDescription = options.files.resolver?.refDescription;
   if (refDescription !== undefined && refDescription.trim() === "") {
     failures.push(

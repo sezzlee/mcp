@@ -7,6 +7,7 @@ import {
 } from "@sezzlee/core";
 
 import { sdkFamilySeverities } from "../families.js";
+import { sdkSelectionSeverities } from "../selection-source.js";
 
 export { atLeast } from "@sezzlee/core";
 export type {
@@ -18,6 +19,7 @@ export type {
 const defaults: SeverityTable = {
   ...familySeverities,
   ...sdkFamilySeverities,
+  ...sdkSelectionSeverities,
   name_collision: "fatal",
   ambiguous_selection: "fatal",
   invalid_name: "fatal",
@@ -49,6 +51,7 @@ const defaults: SeverityTable = {
   curation_leaks_name_in_argument: "warning",
   curation_unused_on_kept_route: "warning",
   variant_indistinguishable: "warning",
+  visibility_uncovered: "warning",
   route_folded: "warning",
   optional_body_argument: "warning",
   synthetic_body_argument: "warning",

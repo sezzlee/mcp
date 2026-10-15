@@ -77,16 +77,41 @@ internal sealed class ProbeEvaluator : IProbeEvaluator
             return VisibilityDecision.Allow;
         }
 
-        string reason = outcome.Status == StatusCodes.Status404NotFound
-            ? "probe path did not route; declare a value in Visibility.ProbeValues for its route parameters"
-            : "response came back without the short-circuit marker, so the handler may have run";
-        if (_disabled.TryAdd(entry.Tool.Name, reason))
+        string? disabledBecause = DisabledReason(outcome);
+        if (disabledBecause is null)
+        {
+            _logger.LogDebug(
+                "sezzlee probe for '{Tool}' ({Method} {Path}) answered {Status}; treated as unknown and probed again next time",
+                entry.Tool.Name, entry.Descriptor.Method, path, outcome.Status);
+        }
+        else if (_disabled.TryAdd(entry.Tool.Name, disabledBecause))
         {
             _logger.LogWarning(
                 "sezzlee probe disabled for '{Tool}' ({Method} {Path} -> {Status}): {Reason}",
-                entry.Tool.Name, entry.Descriptor.Method, path, outcome.Status, reason);
+                entry.Tool.Name, entry.Descriptor.Method, path, outcome.Status, disabledBecause);
         }
         return VisibilityDecision.Unknown;
+    }
+
+    /// <remarks>
+    /// Guard: only an answer that proves this probe cannot work for the tool disables it until the
+    /// catalog changes: a path that did not route, or a response that carries no short-circuit marker yet
+    /// succeeded, which means the handler may have run. A 429, a 5xx or any other refusal says nothing
+    /// about the tool and the next search should ask again.
+    /// </remarks>
+    private static string? DisabledReason(ProbeOutcome outcome)
+    {
+        if (outcome.ShortCircuited)
+        {
+            return null;
+        }
+        if (outcome.Status == StatusCodes.Status404NotFound)
+        {
+            return "probe path did not route; declare a value in Visibility.ProbeValues for its route parameters";
+        }
+        return outcome.Status < StatusCodes.Status400BadRequest
+            ? "response came back without the short-circuit marker, so the handler may have run"
+            : null;
     }
 
     private static string ProbePath(

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import {
   createCallerScope,
   deriveCallerScopeKey,
@@ -8,6 +8,7 @@ import {
   type SezzleeCache,
 } from "@sezzlee/core";
 import { extensionTokens } from "./extension-points.js";
+import { CallerVisibilityProvider } from "./visibility/provider.js";
 import {
   SEZZLEE_OPTIONS,
   SezzleeOptions,
@@ -37,17 +38,28 @@ export const SEZZLEE_CACHE_INVALIDATOR = Symbol("SEZZLEE_CACHE_INVALIDATOR");
 export class SezzleeCacheInvalidator {
   constructor(
     @Inject(extensionTokens.cache) private readonly cache: SezzleeCache,
+    @Optional()
+    @Inject(CallerVisibilityProvider)
+    private readonly visibility: CallerVisibilityProvider | null = null,
   ) {}
 
   invalidateCaller(scope: CallerScope): Promise<void> {
+    this.visibility?.invalidateAccess(scope);
     return this.cache.removeScope(scope.key);
   }
 
+  /**
+   * Guard: a held authorizer access is not indexed by tag, so a tag invalidation drops every held
+   * access. Dropping none would leave a caller whose permissions changed under that tag seeing the
+   * old answer for a whole cache lifetime.
+   */
   invalidateTag(tag: CacheTag): Promise<void> {
+    this.visibility?.invalidateAccess();
     return this.cache.removeTag(tag);
   }
 
   invalidateAll(): Promise<void> {
+    this.visibility?.invalidateAccess();
     return this.cache.clear();
   }
 }

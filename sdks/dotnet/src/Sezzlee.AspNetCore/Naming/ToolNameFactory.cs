@@ -71,9 +71,11 @@ internal static partial class ToolNameFactory
             : Collapse($"{prefix}_{body}");
     }
 
+    public static bool IsValidName(string name) => ToolNamePattern().IsMatch(name);
+
     private static string Validate(string name, EndpointDescriptor endpoint)
     {
-        if (!ToolNamePattern().IsMatch(name))
+        if (!IsValidName(name))
         {
             throw new SezzleeCatalogException(
                 SezzleeCatalogException.InvalidName,

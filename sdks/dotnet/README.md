@@ -122,6 +122,49 @@ order, and two equally specific rules that disagree fail the catalog with `ambig
 rather than one quietly winning. An attribute always outranks a rule, so a carve-out inside an
 excluded subtree goes on the endpoint.
 
+When the list of exposed endpoints lives in data, such as a table an operator edits, supply it as a
+selection source. It loads like a family source and sits between the attributes and the rules:
+`operation > container > provided > rules > default`. An `[McpIgnore]` is never overruled by a row,
+and a row naming one endpoint outranks a rule's glob.
+
+```csharp
+builder.Services.AddSezzlee(options =>
+{
+    options.Selection.Provide(async (services, ct) =>
+    {
+        var rows = await services.GetRequiredService<ExposureStore>().LoadAsync(ct);
+        return [.. rows.Select(r => new McpSelectionEntry(r.Method, r.Route, r.Exposed
+            ? SelectionDefault.Include
+            : SelectionDefault.Exclude)
+        {
+            Name = r.ToolName,
+            Description = r.Description,
+            Tags = r.Tags,
+            SearchTerms = r.SearchTerms,
+        })];
+    });
+    options.Selection.Source.LoadMode = FamilyLoadMode.Background;
+    options.Selection.Source.RefreshInterval = TimeSpan.FromMinutes(1);
+});
+```
+
+A row targets one endpoint: the upper-case `Method` and the exact normalized route template, with
+no globs. `Name`, `Description`, `Tags` and `SearchTerms` are optional and sit below the matching
+`[McpTool(...)]` declaration and above the options hooks. A row naming no endpoint is reported as
+`selection_target_unknown` and ignored. Two rows for one target that disagree exclude it and report
+`selection_entry_conflict`; identical rows collapse. A row with a blank method or route or an
+undefined decision is rejected whole (`selection_entry_rejected`), and an invalid override, such as
+a name that fails the tool-name pattern, loses only itself and the decision stays.
+
+Until the source first returns, an endpoint without an attribute marker is not exposed, because the
+source may be the only thing excluding it; the catalog reports `selection_not_loaded` (logged at
+information in `Background` mode, otherwise at warning) and is rebuilt when the source returns.
+`options.Selection.Source` takes the same `LoadTimeout`, `LoadMode`, `RefreshInterval` and
+`OnFailure` as `options.Families`, binds from `Selection:Source:*`, and one hosted service loads
+both. With `OnFailure = Fatal` a first load that fails stops startup with `selection_source_failed`.
+The `x-sezzlee` markers published for an OpenAPI gateway carry the provided decisions, tool names
+and search terms.
+
 Visibility is **not** a security mechanism. A tool hidden from the catalog still runs only if your
 backend permits it; enforcement is always in your pipeline at invoke time.
 
@@ -286,12 +329,106 @@ A gateway has no value providers, so a `ValueFrom` argument reaches it as a `def
 refuses (`unknown_fill_source`); only constants and omitted values travel. Visibility does not
 travel either: a document cannot say which caller may make a call.
 
+## 3e. Per-tool visibility from your own authorization
+
+When access is decided by your own code, such as custom MVC filters or permission keys loaded from
+a database, neither the declarative facts nor the probe can say what a caller may use. Register an
+`IToolAuthorizer` and the answer comes from you:
+
+```csharp
+builder.Services.AddSingleton<IToolAuthorizer, PermissionAuthorizer>();
+
+public sealed class PermissionAuthorizer(IPermissions permissions) : IToolAuthorizer
+{
+    public bool Covers(McpToolInfo tool) => true;
+
+    public async ValueTask<IToolAccess> ResolveAsync(HttpRequest? outerRequest, CancellationToken ct) =>
+        new Access(await permissions.KeysOfAsync(outerRequest, ct));
+
+    private sealed class Access(IReadOnlySet<string> keys) : IToolAccess
+    {
+        public VisibilityDecision Decide(McpToolInfo tool) =>
+            tool.Member is { } member
+                ? keys.Contains(member.Key.ToString()) ? VisibilityDecision.Allow : VisibilityDecision.Deny
+                : VisibilityDecision.Unknown;
+    }
+}
+```
+
+`ResolveAsync` runs once per caller scope (see `ICallerScopeResolver`) for `Cache.Lifetime`, so
+`Decide` must be synchronous and cheap, and the access it returns must not hold the request or a
+service scope. `ISezzleeCacheInvalidator` drops a caller's access along with the rest of its cache.
+`McpToolInfo` carries the method, route, controller, action and endpoint metadata, and for a tool
+lowered from a family the source name and member key, so one dispatcher action can be decided per
+dynamic method. An exception from either method fails the call and nothing is cached.
+
+`Allow` and `Deny` are final. `Unknown` falls through to the declarative facts, then the probe.
+`Visibility.OnUnknown` decides what is still unknown: left unset it is `Hide` when an authorizer is
+registered and `Show` otherwise, and a value you set wins. A denied tool is absent from
+`search_tools`, never fills a page, contributes no tag to the vocabulary, and answers `load_tool`
+exactly like a name that does not exist. `invoke_tool` never consults visibility: a call for a tool the
+authorizer denies is still dispatched, and your backend pipeline decides. This is not enforcement.
+
+**Coverage check.** With an authorizer registered, each catalog build reports one
+`visibility_uncovered` warning naming (the first 20 of) the tools that no tier can decide before a
+call: `Covers` is false, the declarative facts are imperative or undeclared, and the probe does not
+reach them. Set `options.Visibility.OnUncovered = UncoveredVisibility.Fatal` (`Visibility:OnUncovered`
+in configuration) to fail the catalog instead; it also runs for a host that has no authorizer.
+
+**Hooks.** `options.EndpointTags` and `options.EndpointSearchTerms` take a `McpEndpointInfo` and
+return labels or search vocabulary per endpoint. Tags rank `[McpTool(Tags)]`, then `EndpointTags`,
+then `options.Tags`, then the controller name; search terms rank `[McpTool(SearchTerms)]`, then
+`EndpointSearchTerms`, then `options.SearchTerms`. A family member whose body is a method's parameters
+can set `ParameterDescriptions` (by parameter name) to override the parameters' `[Description]`.
+
+**Reloading.** Inject `ISezzleeCatalogChangeSource` and call `ReloadAsync()` when your endpoints or family
+members change outside the refresh interval.
+
+## 3f. Probing the real pipeline
+
+Without an authorizer, set `options.Visibility.Tier = VisibilityTier.Probe` and Sezzlee asks your own
+pipeline: it sends a synthetic request with the caller's identity to the tool's route, and your
+authorization policy, MVC filter or middleware answers before the handler runs. A `401` or `403` hides
+the tool; a request that reaches the end of authorization without being refused shows it.
+
+`search_tools` probes on demand. It walks the ranked candidates in order, decides each one (authorizer,
+then declarative facts, then probe) and keeps going until `limit` visible tools are collected, so tools a
+caller may not use never shrink a page. Up to `Visibility.ProbeConcurrency` probes run at once, and no
+new probe starts once the page is full. `Visibility.MaxProbesPerSearch` (default 50, `0` = never probe
+from a search) caps the probes one search spends; verdicts served from the cache cost nothing. At the cap
+the page is returned as it stands, one warning is logged, and the candidates still unprobed follow
+`Visibility.OnUnknown`. `load_tool` probes only the
+one tool it is asked about; `invoke_tool` never probes. `total` and the `tags` vocabulary are computed without probing, so a tool
+that only a probe can decide counts as `Visibility.OnUnknown` says.
+
+A caller's verdicts are cached for `Cache.Lifetime`, per caller scope, like the rest of the visibility facts.
+
+Only `401` and `403` deny. A `429`, any `5xx` or another refusal that your pipeline did not mark as a
+short circuit leaves the tool unknown and is asked again on the next search. A probe disables itself for
+a tool, until the catalog reloads, only when it cannot be trusted: the path did not route (`404`; declare
+route parameter values in `Visibility.ProbeValues`) or a `2xx`/`3xx` came back without the short-circuit
+marker, which means the handler may have run.
+
+**Skip side effects for probes.** A probe is not a user action. Check `HttpContext.IsSezzleeProbe()` in
+rate limiting, audit logging, last-seen updates and anything else that writes, and return early:
+
+```csharp
+app.Use(async (context, next) =>
+{
+    if (!context.IsSezzleeProbe())
+    {
+        await auditLog.RecordAsync(context);
+    }
+    await next();
+});
+```
+
 ## 4. Connecting an MCP client
 
 The endpoint speaks Streamable HTTP. `tools/list` returns only three meta-tools:
 
-| Tool           | Job                                             |
-| -------------- | ----------------------------------------------- |
+| Tool           | Job                                              |
+| -------------- | ------------------------------------------------ |
 | `search_tools` | Searches endpoints with a natural-language query |
 | `load_tool`    | Returns one tool's full schema                   |
 | `invoke_tool`  | Calls the tool                                   |
@@ -309,7 +446,8 @@ is tagged with its controller name unless you say otherwise:
 ```
 
 A declaration replaces the controller-derived tag rather than adding to it, and `options.Tags` sets
-the same thing centrally for controllers you cannot decorate.
+the same thing centrally for controllers you cannot decorate. Tags are search text too, so changing
+them changes ranking — see the how-to on grouping operations.
 
 A description kept outside the code, such as generated code documentation, comes in through
 `options.Description`. It is asked per endpoint, below `[McpTool(Description = ...)]` and above the
@@ -317,8 +455,7 @@ endpoint's `[EndpointDescription]`, which it receives as `Declared`; returning n
 
 ```csharp
 options.Description = endpoint => endpoint.Action is { } action ? codeDocs.Find(action) : null;
-``` Tags are search text too, so changing
-them changes ranking — see the how-to on grouping operations.
+```
 
 Words an agent may type that your operation's text does not contain go in `SearchTerms`
 (`[McpTool(SearchTerms = new[] { "sipariş" })]`, or `options.SearchTerms` centrally): indexed like
@@ -351,16 +488,17 @@ tokenization.
 
 ## 5. Troubleshooting
 
-| Symptom                                                       | Cause                                                                       | Fix                                                                                     |
-| ------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `MapSezzlee() requires app.UseSezzleeCapture()...` at startup     | Capture was never called                                                     | Add `app.UseSezzleeCapture()`, before routing                                             |
-| `sezzlee pipeline is not captured` on the first tool call      | Capture is registered but the host has not served a request yet              | Start the host; if it persists, check where capture sits                                 |
-| Tools work but authorization never runs                       | Capture is **after** `UseAuthentication`/`UseAuthorization`                  | Move capture to the top of the pipeline                                                  |
-| `search_tools` always empty                                   | `Selection.Default` defaults to `Exclude` and no `[McpTool]` was applied     | Add `[McpTool]`, or set `Selection.Default = Include`                                    |
-| Every request to `/mcp` returns 401                           | `.RequireAuthorization()` is on and the client sends no token                | Send a bearer token, or drop `.RequireAuthorization()` during development                |
-| Host will not start, fatal diagnostic                         | A catalog error such as `name_collision` / `invalid_name`                   | Read the code list in the log; downgrade a single code with `options.Diagnostics.Downgrade` |
-| Family tools missing, `family_source_failed` with `timeout`   | The source ran past `Families.LoadTimeout`                                  | Raise `Families.LoadTimeout`, or set `Families.LoadMode = Background`                   |
-| `unreadable_shape` naming a type that "contains its own kind" | A collection whose items are its own kind, such as Newtonsoft's `JToken`    | Publish a schema for it with `options.Schema.TypeSchema`                                |
+| Symptom                                                       | Cause                                                                    | Fix                                                                                         |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `MapSezzlee() requires app.UseSezzleeCapture()...` at startup | Capture was never called                                                 | Add `app.UseSezzleeCapture()`, before routing                                               |
+| `sezzlee pipeline is not captured` on the first tool call     | Capture is registered but the host has not served a request yet          | Start the host; if it persists, check where capture sits                                    |
+| Tools work but authorization never runs                       | Capture is **after** `UseAuthentication`/`UseAuthorization`              | Move capture to the top of the pipeline                                                     |
+| `search_tools` always empty                                   | `Selection.Default` defaults to `Exclude` and no `[McpTool]` was applied | Add `[McpTool]`, or set `Selection.Default = Include`                                       |
+| Every request to `/mcp` returns 401                           | `.RequireAuthorization()` is on and the client sends no token            | Send a bearer token, or drop `.RequireAuthorization()` during development                   |
+| Host will not start, fatal diagnostic                         | A catalog error such as `name_collision` / `invalid_name`                | Read the code list in the log; downgrade a single code with `options.Diagnostics.Downgrade` |
+| Family tools missing, `family_source_failed` with `timeout`   | The source ran past `Families.LoadTimeout`                               | Raise `Families.LoadTimeout`, or set `Families.LoadMode = Background`                       |
+| Endpoints missing, `selection_not_loaded` with `timeout`      | The selection source ran past `Selection.Source.LoadTimeout`             | Raise `Selection.Source.LoadTimeout`, or set `Selection.Source.LoadMode = Background`       |
+| `unreadable_shape` naming a type that "contains its own kind" | A collection whose items are its own kind, such as Newtonsoft's `JToken` | Publish a schema for it with `options.Schema.TypeSchema`                                    |
 
 ## 6. What's next
 

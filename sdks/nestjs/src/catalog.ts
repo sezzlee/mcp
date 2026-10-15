@@ -33,11 +33,16 @@ import {
   type FileOptions,
   type OpenApiExtensions,
   type OperationDecision,
+  type SelectionDecision,
   type ToolAnnotations,
   type ToolRanker,
   type ToolVariant,
 } from "@sezzlee/core";
-import { severityOf, type CatalogDiagnostic } from "./discovery/diagnostics.js";
+import {
+  severityOf,
+  type CatalogDiagnostic,
+  type CatalogSeverity,
+} from "./discovery/diagnostics.js";
 import {
   bodyFor,
   createRoutePaths,
@@ -45,23 +50,37 @@ import {
   modulePathOf,
   normalizeRoute,
   type DiscoveredEndpoint,
+  type McpEndpointInfo,
 } from "./discovery/endpoint-discovery.js";
 import type { ArgumentRule, McpVariantOptions } from "./decorators.js";
 import {
-  loadFamilies,
-  membersChanged,
-  reasonOf,
   resolveFamily,
+  sameMembers,
   type FamilyBodyMapper,
-  type FamilyLoads,
   type FamilyResolution,
+  type McpFamilyMember,
 } from "./families.js";
+import {
+  resolveSelection,
+  sameEntries,
+  selectionSourceName,
+  selectionTargetOf,
+  type McpSelectionEntry,
+  type ProvidedSelection,
+} from "./selection-source.js";
+import {
+  reasonOf,
+  SourceChannel,
+  type LoadChannel,
+  type PendingLoad,
+} from "./source-loading.js";
 import {
   SEZZLEE_OPTIONS,
   type CurationRule,
   type SezzleeOptions,
 } from "./options.js";
 import { extensionTokens } from "./extension-points.js";
+import { toolInfoOf, type ToolAuthorizer } from "./visibility/authorizer.js";
 import { protectedResourceMetadataPath } from "./transport/protected-resource-metadata.js";
 
 export { cleanTags } from "@sezzlee/core";
@@ -69,6 +88,11 @@ export { cleanTags } from "@sezzlee/core";
 export interface NestSource {
   readonly controller: NewableFunction;
   readonly handlerName: string;
+  readonly handler: (...args: never[]) => unknown;
+  readonly family?: {
+    readonly source: string;
+    readonly keys: ReadonlyMap<string, string | number>;
+  };
 }
 
 export type CatalogEntry = CoreCatalogEntry<NestSource>;
@@ -81,14 +105,19 @@ type LoweredFamily = Extract<FamilyResolution, { kind: "members" }>;
 
 const logger = new Logger("Sezzlee");
 
+const uncoveredCode = "visibility_uncovered";
+const uncoveredListed = 20;
+
 @Injectable()
 export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
   private snapshot: CatalogSnapshot | undefined;
   private currentGeneration = 0;
   private readonly listeners = new Set<() => void>();
-  private loads: FamilyLoads | undefined;
+  private readonly families: SourceChannel<readonly McpFamilyMember[]>;
+  private readonly selection: SourceChannel<readonly McpSelectionEntry[]>;
+  private readonly channels: readonly LoadChannel[];
   private pending: Promise<void> = Promise.resolve();
-  private refreshTimer: NodeJS.Timeout | undefined;
+  private readonly refreshTimers = new Map<LoadChannel, NodeJS.Timeout>();
   private stopped = false;
 
   constructor(
@@ -100,10 +129,60 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
     @Optional()
     @Inject(extensionTokens.toolRanker)
     private readonly toolRanker: ToolRanker | null = null,
-  ) {}
+    @Optional()
+    @Inject(extensionTokens.toolAuthorizer)
+    private readonly toolAuthorizer: ToolAuthorizer | null = null,
+  ) {
+    this.families = new SourceChannel({
+      label: "family",
+      setting: "families",
+      subject: "family members",
+      noun: "member(s)",
+      plural: "members",
+      drops: "the operations it feeds are dropped",
+      settings: options.families,
+      sources: () => options.families.sources,
+      size: (members) => members.length,
+      same: sameMembers,
+      failure: (name, error) =>
+        new SezzleeCatalogError(
+          "family_source_failed",
+          `sezzlee family source '${name}' failed and families.onFailure is "fatal": ${reasonOf(error)}`,
+        ),
+      logger,
+    });
+    this.selection = new SourceChannel({
+      label: "selection",
+      setting: "selection.source",
+      subject: "selection entries",
+      noun: "entry(ies)",
+      plural: "entries",
+      drops: "endpoints without a decorator stay unselected until it does",
+      settings: options.selection.source,
+      sources: () => {
+        const provider = options.selection.provider;
+        return provider === undefined
+          ? new Map()
+          : new Map([[selectionSourceName, provider]]);
+      },
+      size: (entries) => entries.length,
+      same: sameEntries,
+      failure: (name, error) =>
+        new SezzleeCatalogError(
+          "selection_source_failed",
+          `sezzlee selection source '${name}' failed and selection.source.onFailure is "fatal": ${reasonOf(error)}`,
+        ),
+      logger,
+    });
+    this.channels = [this.families, this.selection];
+  }
 
   get ranker(): ToolRanker | null {
     return this.toolRanker;
+  }
+
+  get authorizer(): ToolAuthorizer | null {
+    return this.toolAuthorizer;
   }
 
   get generation(): number {
@@ -111,7 +190,7 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   get current(): CatalogSnapshot {
-    this.snapshot ??= this.build(this.loads);
+    this.snapshot ??= this.build();
     return this.snapshot;
   }
 
@@ -121,7 +200,7 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   /**
-   * Rebuilds the catalog, loading family members first when any source is registered.
+   * Rebuilds the catalog, loading every registered source first.
    *
    * Without a source the rebuild happens before this returns, as it always has. With one, reloads
    * run one at a time, and a rebuild that would turn a valid catalog fatal is refused and the
@@ -131,12 +210,13 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
    * @throws SezzleeCatalogError through the returned promise when the rebuild is refused
    */
   reload(): Promise<void> {
-    if (this.options.families.sources.size === 0) {
-      this.commit(this.build(this.loads));
+    const active = this.channels.filter((channel) => channel.registered);
+    if (active.length === 0) {
+      this.commit(this.build());
       return Promise.resolve();
     }
     return this.enqueue(async () => {
-      this.adopt(await this.loadAndReport());
+      this.adopt(await Promise.all(active.map((channel) => channel.load())));
     });
   }
 
@@ -148,130 +228,126 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
    * current catalog is kept
    */
   refreshFamilies(): Promise<void> {
-    if (this.options.families.sources.size === 0) {
-      return Promise.resolve();
-    }
-    return this.enqueue(async () => {
-      const previous = this.loads;
-      const loads = await this.loadAndReport();
-      if (previous !== undefined && !membersChanged(previous, loads)) {
-        this.loads = loads;
-        return;
-      }
-      this.adopt(loads);
-      logger.log(
-        `sezzlee catalog rebuilt with family members: ${this.current.byName.size} tools`,
-      );
-    });
+    return this.refresh(this.families);
   }
 
   /**
-   * Loads family members once the application's own providers are ready, since a source usually
-   * reads from one of them. A catalog built earlier carries `family_not_loaded` and is rebuilt
-   * here, which signals `listChanged`.
+   * Loads the provided selection again and rebuilds the catalog only when its rows changed.
    *
-   * With `families.loadMode` `"background"` the load is started and not awaited.
+   * @throws SezzleeCatalogError through the returned promise when the rebuild is refused; the
+   * current catalog is kept
+   */
+  refreshSelection(): Promise<void> {
+    return this.refresh(this.selection);
+  }
+
+  /**
+   * Loads every source once the application's own providers are ready, since a source usually
+   * reads from one of them. A catalog built earlier carries `family_not_loaded` or
+   * `selection_not_loaded` and is rebuilt here, which signals `listChanged`.
    *
-   * @throws SezzleeCatalogError `family_source_failed` when `families.onFailure` is `"fatal"` and a
-   * source never returned
+   * A source whose load mode is `"background"` is started and not awaited; blocking sources load
+   * first, because loads run one at a time.
+   *
+   * @throws SezzleeCatalogError `family_source_failed` or `selection_source_failed` when the
+   * source's `onFailure` is `"fatal"` and it never returned
    */
   async onApplicationBootstrap(): Promise<void> {
-    const families = this.options.families;
-    if (families.sources.size === 0) {
-      return;
-    }
-    const first = this.enqueue(() => this.loadFirst());
-    if (families.loadMode === "background") {
-      first
+    const active = this.channels.filter((channel) => channel.registered);
+    const blocking = active.filter(
+      (channel) => channel.settings.loadMode !== "background",
+    );
+    const background = active.filter(
+      (channel) => channel.settings.loadMode === "background",
+    );
+    const waited = blocking.map((channel) =>
+      this.enqueue(() => this.loadFirst(channel)),
+    );
+    for (const channel of background) {
+      this.enqueue(() => this.loadFirst(channel))
         .catch((error: unknown) => {
-          logger.error(`sezzlee family load failed: ${reasonOf(error)}`);
+          logger.error(
+            `sezzlee ${channel.label} load failed: ${reasonOf(error)}`,
+          );
         })
-        .finally(() => this.scheduleRefresh());
-      return;
+        .finally(() => this.scheduleRefresh(channel));
     }
-    await first;
-    this.scheduleRefresh();
+    await Promise.all(waited);
+    blocking.forEach((channel) => this.scheduleRefresh(channel));
   }
 
   onModuleDestroy(): void {
     this.stopped = true;
-    clearTimeout(this.refreshTimer);
+    this.refreshTimers.forEach((timer) => clearTimeout(timer));
   }
 
-  private async loadFirst(): Promise<void> {
-    const loads = await this.loadAndReport();
-    if (this.options.families.onFailure === "fatal") {
-      for (const [source, load] of loads) {
-        if (load.state === "failed") {
-          throw new SezzleeCatalogError(
-            "family_source_failed",
-            `sezzlee family source '${source}' failed and families.onFailure is "fatal": ${reasonOf(load.error)}`,
-          );
-        }
-      }
-    }
-    this.loads = loads;
+  private async loadFirst(channel: LoadChannel): Promise<void> {
+    const pending = await channel.load();
+    pending.assertStartable();
+    pending.accept();
     if (this.snapshot !== undefined) {
-      this.commit(this.build(loads));
+      this.commit(this.build());
       logger.log(
-        `sezzlee catalog rebuilt with family members: ${this.current.byName.size} tools`,
+        `sezzlee catalog rebuilt with ${channel.subject}: ${this.current.byName.size} tools`,
       );
     }
   }
 
-  private adopt(loads: FamilyLoads): void {
-    const candidate = this.build(loads);
-    if (candidate.fatal.length > 0 && this.current.fatal.length === 0) {
-      assertCatalogValid(candidate.fatal);
+  private refresh(channel: LoadChannel): Promise<void> {
+    if (!channel.registered) {
+      return Promise.resolve();
     }
-    this.loads = loads;
-    this.commit(candidate);
+    return this.enqueue(async () => {
+      const pending = await channel.load();
+      if (!pending.changed) {
+        pending.accept();
+        return;
+      }
+      this.adopt([pending]);
+      logger.log(
+        `sezzlee catalog rebuilt with ${channel.subject}: ${this.current.byName.size} tools`,
+      );
+    });
   }
 
-  private async loadAndReport(): Promise<FamilyLoads> {
-    const started = performance.now();
-    const loads = await loadFamilies(this.options.families, this.loads);
-    const elapsed = Math.round(performance.now() - started);
-    for (const [source, load] of loads) {
-      switch (load.state) {
-        case "loaded":
-          logger.log(
-            `sezzlee family source '${source}' returned ${load.members.length} member(s) in ${elapsed} ms`,
-          );
-          break;
-        case "stale":
-          logger.warn(
-            `sezzlee family source '${source}' failed; the ${load.members.length} member(s) it last returned stay published: ${reasonOf(load.error)}`,
-          );
-          break;
-        case "failed":
-          logger.error(
-            `sezzlee family source '${source}' failed and has never returned members; the operations it feeds are dropped: ${reasonOf(load.error)}`,
-          );
-          break;
+  private adopt(loads: readonly PendingLoad[]): void {
+    const before = this.current;
+    const undo = loads.map((pending) => pending.stage());
+    let candidate: CatalogSnapshot;
+    try {
+      candidate = this.build();
+      if (candidate.fatal.length > 0 && before.fatal.length === 0) {
+        assertCatalogValid(candidate.fatal);
       }
+    } catch (error) {
+      undo.reverse().forEach((rollback) => rollback());
+      throw error;
     }
-    return loads;
+    this.commit(candidate);
   }
 
   /**
    * Guard: each tick waits for the previous refresh to finish before arming the next, so a source
    * that takes the whole `loadTimeoutMs` cannot pile refreshes up behind itself, and the timer is
-   * unref'd so a refresh schedule alone never keeps the process alive.
+   * unref'd so a refresh schedule alone never keeps the process alive. Families and the provided
+   * selection each keep their own interval, and their refreshes share one queue.
    */
-  private scheduleRefresh(): void {
-    const interval = this.options.families.refreshIntervalMs;
+  private scheduleRefresh(channel: LoadChannel): void {
+    const interval = channel.settings.refreshIntervalMs;
     if (interval <= 0 || this.stopped) {
       return;
     }
-    this.refreshTimer = setTimeout(() => {
-      this.refreshFamilies()
+    const timer = setTimeout(() => {
+      this.refresh(channel)
         .catch((error: unknown) => {
-          logger.warn(`sezzlee family refresh failed: ${reasonOf(error)}`);
+          logger.warn(
+            `sezzlee ${channel.label} refresh failed: ${reasonOf(error)}`,
+          );
         })
-        .finally(() => this.scheduleRefresh());
+        .finally(() => this.scheduleRefresh(channel));
     }, interval);
-    this.refreshTimer.unref();
+    timer.unref();
+    this.refreshTimers.set(channel, timer);
   }
 
   private enqueue(task: () => Promise<void>): Promise<void> {
@@ -378,7 +454,7 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
     return stack.some((layer) => layer.name === needed) ? undefined : needed;
   }
 
-  private build(loads: FamilyLoads | undefined): CatalogSnapshot {
+  private build(): CatalogSnapshot {
     const prior: CatalogDiagnostic[] = [];
     const report: DiagnosticReporter = (diagnostic) => {
       prior.push(diagnostic);
@@ -405,20 +481,22 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
         };
       });
 
-    const discovered = discoverEndpoints(controllers, {
+    const found = discoverEndpoints(controllers, {
       ...(this.options.schema === undefined
         ? {}
         : { schema: this.options.schema }),
       ...(versioningOptions === undefined ? {} : { versioningOptions }),
       globalPrefix,
       routePaths,
-      severity: (code) => severityOf(code, this.options.diagnostics),
+      severity: (code) => this.severityFor(code),
       queryGrouping: this.options.query.grouping,
       ...(this.options.description === undefined
         ? {}
         : { description: this.options.description }),
       report,
     });
+    const provided = new Map<DiscoveredEndpoint, SelectionDecision>();
+    const discovered = this.applyProvidedSelection(found, provided, report);
 
     const mapBody: FamilyBodyMapper = (bodyType, reportNote) =>
       bodyFor(bodyType, {
@@ -444,7 +522,7 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
         `${endpoint.controller.name}.${endpoint.handlerName}`,
         endpoint.hints.variants ?? [],
         this.options.families,
-        loads,
+        this.families.loads,
         mapBody,
       );
       if (resolution.kind === "refused") {
@@ -467,17 +545,32 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
       routed.map((endpoint) => {
         const container = endpoint.controller.name;
         const owner = `${container}.${endpoint.handlerName}`;
-        const tags = endpoint.hints.tags ?? this.options.tags?.(container);
+        const info = endpointInfoOf(endpoint);
+        const tags =
+          endpoint.hints.tags ??
+          this.options.endpointTags?.(info) ??
+          this.options.tags?.(container);
         const searchTerms =
-          endpoint.hints.searchTerms ?? this.options.searchTerms?.(container);
+          endpoint.hints.searchTerms ??
+          this.options.endpointSearchTerms?.(info) ??
+          this.options.searchTerms?.(container);
+        const lowered = families.get(endpoint);
+        const familySource = endpoint.hints.family?.source;
         return {
           source: {
             controller: endpoint.controller,
             handlerName: endpoint.handlerName,
+            handler: endpoint.handler,
+            ...(lowered === undefined || familySource === undefined
+              ? {}
+              : { family: { source: familySource, keys: lowered.keys } }),
           },
           owner,
           descriptor: endpoint.descriptor,
           ...markersOf(endpoint),
+          ...(provided.has(endpoint)
+            ? { provided: provided.get(endpoint) }
+            : {}),
           ...(tags === undefined ? {} : { tags }),
           ...(searchTerms === undefined ? {} : { searchTerms }),
           revision: {
@@ -513,7 +606,7 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
         prefixMode: this.options.naming.prefixMode,
         ...(files === undefined ? {} : { files }),
         providers: this.options.arguments.providers,
-        severity: (code) => severityOf(code, this.options.diagnostics),
+        severity: (code) => this.severityFor(code),
         failOn: this.options.diagnostics.failOn ?? "fatal",
         prior,
         admit: (descriptor, name) => {
@@ -525,8 +618,10 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
                 message: `Tool '${name}' sends a ${descriptor.requestBody?.contentType ?? ""} body, but this application registers no ${missingParser}; the handler would receive no body. Register the parser with app.useBodyParser(), or declare another media type.`,
               };
         },
-        inspect: (entries, inspectReport) =>
-          this.reportUnparsedBrackets(entries, inspectReport),
+        inspect: (entries, inspectReport) => {
+          this.reportUnparsedBrackets(entries, inspectReport);
+          this.reportUncovered(entries, inspectReport);
+        },
       },
     );
 
@@ -535,6 +630,109 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
       operations: withUnpublished(built.operations, discovered),
       discovered: discovered.length,
     };
+  }
+
+  /**
+   * Guard: until a provided source has returned, an endpoint without a decorator marker is
+   * excluded rather than left to the rules or the global default, because the source may be the one
+   * thing excluding it and falling through could publish it. Decorated endpoints are decided as
+   * usual.
+   */
+  private applyProvidedSelection(
+    discovered: readonly DiscoveredEndpoint[],
+    provided: Map<DiscoveredEndpoint, SelectionDecision>,
+    report: DiagnosticReporter,
+  ): DiscoveredEndpoint[] {
+    if (!this.selection.registered) {
+      return [...discovered];
+    }
+    const resolution = resolveSelection(
+      this.selection.loads,
+      new Set(
+        discovered.map((endpoint) => selectionTargetOf(endpoint.descriptor)),
+      ),
+    );
+    resolution.diagnostics.forEach(report);
+    if (!resolution.loaded) {
+      this.reportSelectionNotLoaded(report);
+    }
+    return discovered.map((endpoint) => {
+      const row = resolution.targets.get(
+        selectionTargetOf(endpoint.descriptor),
+      );
+      const decorated =
+        endpoint.containerMarkers.length > 0 ||
+        endpoint.operationMarkers.length > 0;
+      if (row === undefined) {
+        if (!resolution.loaded && !decorated) {
+          provided.set(endpoint, "exclude");
+        }
+        return endpoint;
+      }
+      const applied = withProvided(endpoint, row);
+      provided.set(applied, row.decision);
+      return applied;
+    });
+  }
+
+  private reportSelectionNotLoaded(report: DiagnosticReporter): void {
+    const background = this.options.selection.source.loadMode === "background";
+    const message = background
+      ? "The selection source has not returned yet; endpoints without a decorator stay unselected until it does."
+      : "The selection source has never returned; endpoints without a decorator stay unselected.";
+    report({ code: "selection_not_loaded", message });
+    if (background) {
+      logger.log(message);
+    } else {
+      logger.warn(message);
+    }
+  }
+
+  private severityFor(code: string): CatalogSeverity {
+    return code === uncoveredCode &&
+      this.options.visibility.onUncovered === "fatal"
+      ? "fatal"
+      : severityOf(code, this.options.diagnostics);
+  }
+
+  /**
+   * Guard: without an authorizer the check stays off unless `visibility.onUncovered` is `"fatal"`,
+   * because every existing host has tools no tier decides and would gain a warning it never asked
+   * for. A probe-tier tool counts as reachable when it has a request template, the condition
+   * `canProbe` starts from, and `maxProbesPerSearch` leaves search room to probe; the injected
+   * prober is not available to the catalog.
+   */
+  private reportUncovered(
+    entries: readonly CatalogEntry[],
+    report: DiagnosticReporter,
+  ): void {
+    const authorizer = this.toolAuthorizer;
+    const { tier, maxProbesPerSearch, onUncovered } = this.options.visibility;
+    if (authorizer === null && onUncovered !== "fatal") {
+      return;
+    }
+    const probed = tier === "probe" && maxProbesPerSearch > 0;
+    const names = entries
+      .filter((entry) => {
+        if (authorizer?.covers(toolInfoOf(entry)) === true) {
+          return false;
+        }
+        const auth = entry.descriptor.auth;
+        if (!auth.imperative && auth.anonymous !== "unknown") {
+          return false;
+        }
+        return !(probed && entry.template !== undefined);
+      })
+      .map((entry) => entry.tool.name);
+    if (names.length === 0) {
+      return;
+    }
+    const listed = names.slice(0, uncoveredListed).join(", ");
+    const rest = names.length - uncoveredListed;
+    const message = `${String(names.length)} selected tool(s) have a visibility no tier can decide before a call: ${listed}${rest > 0 ? `, and ${String(rest)} more` : ""}. Cover them in the authorizer, declare their guards, or use the probe tier.`;
+    report({ code: uncoveredCode, message });
+    logger.warn(message);
+    logger.debug(`sezzlee uncovered tools: ${names.join(", ")}`);
   }
 
   private checkMetadataPath(
@@ -626,6 +824,46 @@ function withUnpublished(
     }
   }
   return all;
+}
+
+/**
+ * Applies a provided row's overrides at their documented positions: below the decorator's own
+ * declaration and above the hook or derived value that would otherwise decide.
+ */
+function withProvided(
+  endpoint: DiscoveredEndpoint,
+  row: ProvidedSelection,
+): DiscoveredEndpoint {
+  const hints = endpoint.hints;
+  const declaresDescription =
+    hints.description !== undefined && hints.description.length > 0;
+  const name = hints.name ?? row.name;
+  const tags = hints.tags ?? row.tags;
+  const searchTerms = hints.searchTerms ?? row.searchTerms;
+  const description = declaresDescription ? undefined : row.description;
+  return {
+    ...endpoint,
+    hints: {
+      ...hints,
+      ...(name === undefined ? {} : { name }),
+      ...(tags === undefined ? {} : { tags }),
+      ...(searchTerms === undefined ? {} : { searchTerms }),
+    },
+    descriptor:
+      description === undefined
+        ? endpoint.descriptor
+        : { ...endpoint.descriptor, description },
+  };
+}
+
+function endpointInfoOf(endpoint: DiscoveredEndpoint): McpEndpointInfo {
+  return {
+    method: endpoint.descriptor.method,
+    route: endpoint.descriptor.route,
+    container: endpoint.controller.name,
+    handler: endpoint.handler,
+    declared: endpoint.descriptor.description,
+  };
 }
 
 function markersOf(endpoint: DiscoveredEndpoint) {

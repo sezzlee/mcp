@@ -107,7 +107,13 @@ export interface VisibilityDeclaration {
   readonly policies?: readonly string[];
 }
 
-/** What `options.description` sees: the handler's identity and the description its metadata declares. */
+/**
+ * What an endpoint hook sees: the handler's identity and a description.
+ *
+ * @param declared for `options.description`, the description the handler's metadata declares; for
+ * `options.endpointTags` and `options.endpointSearchTerms`, the description the tool is published
+ * with
+ */
 export interface McpEndpointInfo {
   readonly method: string;
   readonly route: string;
@@ -132,6 +138,7 @@ export interface DiscoveredEndpoint {
   readonly descriptor: EndpointDescriptor;
   readonly controller: NewableFunction;
   readonly handlerName: string;
+  readonly handler: (...args: never[]) => unknown;
   readonly containerMarkers: readonly boolean[];
   readonly operationMarkers: readonly boolean[];
   readonly hints: McpToolOptions;
@@ -262,6 +269,7 @@ function fromController(
         descriptor: built,
         controller,
         handlerName,
+        handler,
         containerMarkers: containerMarkers.map((marker) => marker.include),
         operationMarkers: operationMarkers.map((marker) => marker.include),
         hints,

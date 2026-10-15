@@ -18,35 +18,24 @@ internal sealed class SezzleeOptionsValidator : IValidateOptions<SezzleeOptions>
         {
             failures.Add("Cache.MaxCallers must be at least 1.");
         }
-        if (options.Visibility.ProbeTopK < 0)
+        if (options.Visibility.OnUnknown is { } onUnknown && !Enum.IsDefined(onUnknown))
         {
-            failures.Add("Visibility.ProbeTopK must be zero or positive.");
+            failures.Add("Visibility.OnUnknown must be Show or Hide.");
+        }
+        if (!Enum.IsDefined(options.Visibility.OnUncovered))
+        {
+            failures.Add("Visibility.OnUncovered must be Report or Fatal.");
+        }
+        if (options.Visibility.MaxProbesPerSearch < 0)
+        {
+            failures.Add("Visibility.MaxProbesPerSearch must be zero or positive.");
         }
         if (options.Visibility.ProbeConcurrency < 1)
         {
             failures.Add("Visibility.ProbeConcurrency must be at least 1.");
         }
-        if (options.Families.LoadTimeout <= TimeSpan.Zero)
-        {
-            failures.Add("Families.LoadTimeout must be positive.");
-        }
-        if (options.Families.RefreshInterval < TimeSpan.Zero)
-        {
-            failures.Add("Families.RefreshInterval must be zero or positive.");
-        }
-        if (!Enum.IsDefined(options.Families.LoadMode))
-        {
-            failures.Add("Families.LoadMode must be Blocking or Background.");
-        }
-        if (!Enum.IsDefined(options.Families.OnFailure))
-        {
-            failures.Add("Families.OnFailure must be Drop or Fatal.");
-        }
-        if (options.Families.OnFailure == FamilyLoadFailure.Fatal
-            && options.Families.LoadMode == FamilyLoadMode.Background)
-        {
-            failures.Add("Families.OnFailure Fatal requires Families.LoadMode Blocking: a background load ends after startup, when there is nothing left to stop.");
-        }
+        ValidateSource("Families", options.Families, failures);
+        ValidateSource("Selection.Source", options.Selection.Source, failures);
         if (options.Invoke.MaxInlineFileBytes < 0)
         {
             failures.Add("Invoke.MaxInlineFileBytes must be zero or positive.");
@@ -109,5 +98,29 @@ internal sealed class SezzleeOptionsValidator : IValidateOptions<SezzleeOptions>
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
+    }
+
+    private static void ValidateSource(string path, SourceLoadOptions source, List<string> failures)
+    {
+        if (source.LoadTimeout <= TimeSpan.Zero)
+        {
+            failures.Add($"{path}.LoadTimeout must be positive.");
+        }
+        if (source.RefreshInterval < TimeSpan.Zero)
+        {
+            failures.Add($"{path}.RefreshInterval must be zero or positive.");
+        }
+        if (!Enum.IsDefined(source.LoadMode))
+        {
+            failures.Add($"{path}.LoadMode must be Blocking or Background.");
+        }
+        if (!Enum.IsDefined(source.OnFailure))
+        {
+            failures.Add($"{path}.OnFailure must be Drop or Fatal.");
+        }
+        if (source.OnFailure == FamilyLoadFailure.Fatal && source.LoadMode == FamilyLoadMode.Background)
+        {
+            failures.Add($"{path}.OnFailure Fatal requires {path}.LoadMode Blocking: a background load ends after startup, when there is nothing left to stop.");
+        }
     }
 }

@@ -42,12 +42,18 @@ public static class DiagnosticCodes
     public const string UnboundQueryObject = "unbound_query_object";
     public const string UnflattenableBodyRoot = "unflattenable_body_root";
     public const string UnsupportedDictionaryKey = "unsupported_dictionary_key";
+    public const string VisibilityUncovered = "visibility_uncovered";
     public const string VariantIndistinguishable = "variant_indistinguishable";
     public const string UnknownFamilySource = "unknown_family_source";
     public const string FamilySourceFailed = "family_source_failed";
     public const string FamilySourceStale = "family_source_stale";
     public const string FamilyNotLoaded = "family_not_loaded";
     public const string FamilyMemberRejected = "family_member_rejected";
+    public const string SelectionTargetUnknown = "selection_target_unknown";
+    public const string SelectionEntryConflict = "selection_entry_conflict";
+    public const string SelectionEntryRejected = "selection_entry_rejected";
+    public const string SelectionNotLoaded = "selection_not_loaded";
+    public const string SelectionSourceFailed = "selection_source_failed";
 
     private static readonly Dictionary<string, CatalogSeverity> Defaults =
         new(StringComparer.Ordinal)

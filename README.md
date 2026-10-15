@@ -58,6 +58,7 @@ Each package README has its own quick start, configuration and limits. To build 
 | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------- |
 | [Sezzlee.AspNetCore](sdks/dotnet)                                                      | ASP.NET Core SDK                                                      | stable    |
 | [Sezzlee.AspNetCore.NewtonsoftJson](sdks/dotnet/src/Sezzlee.AspNetCore.NewtonsoftJson) | Newtonsoft.Json adapter for the ASP.NET Core SDK                      | stable    |
+| [Sezzlee.AspNetCore.Testing](sdks/dotnet/src/Sezzlee.AspNetCore.Testing)               | Test helper: audits per-caller visibility against the real pipeline   | stable    |
 | [@sezzlee/sdk-nestjs](sdks/nestjs)                                                     | NestJS SDK                                                            | stable    |
 | [@sezzlee/openapi-mcp](packages/servers/openapi-mcp)                                   | Gateway: an OpenAPI document as a catalog over a remote backend       | stable    |
 | [@sezzlee/openapi](packages/http/openapi)                                              | Swagger 2.0 / OpenAPI 3.0–3.2 ingestion                               | stable    |

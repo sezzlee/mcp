@@ -81,4 +81,72 @@ public sealed class ConfigurationBindingTests
 
         Assert.Contains(refused.Failures, f => f.Contains("Families.OnFailure", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void CB5_VisibilityBindsTheUncoveredPolicy_AndLeavesOnUnknownUnsetByDefault()
+    {
+        SezzleeOptions unset = Bind(new());
+        SezzleeOptions bound = Bind(new()
+        {
+            ["Visibility:OnUncovered"] = "Fatal",
+            ["Visibility:OnUnknown"] = "Show",
+        });
+
+        Assert.Null(unset.Visibility.OnUnknown);
+        Assert.Equal(UncoveredVisibility.Report, unset.Visibility.OnUncovered);
+        Assert.Equal(UncoveredVisibility.Fatal, bound.Visibility.OnUncovered);
+        Assert.Equal(UnknownVisibility.Show, bound.Visibility.OnUnknown);
+    }
+
+    [Fact]
+    public void CB6_MaxProbesPerSearchBindsFromConfiguration_AndDefaultsToFifty()
+    {
+        SezzleeOptions unset = Bind(new());
+        SezzleeOptions bound = Bind(new()
+        {
+            ["Visibility:MaxProbesPerSearch"] = "7",
+        });
+
+        Assert.Equal(50, unset.Visibility.MaxProbesPerSearch);
+        Assert.Equal(7, bound.Visibility.MaxProbesPerSearch);
+    }
+
+    [Fact]
+    public void CB7_ANegativeMaxProbesPerSearch_IsRefused()
+    {
+        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
+            () => Bind(new() { ["Visibility:MaxProbesPerSearch"] = "-1" }));
+
+        Assert.Contains(refused.Failures, f => f.Contains("Visibility.MaxProbesPerSearch", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void CB8_TheSelectionSourceBindsItsLoadOptionsFromConfiguration()
+    {
+        SezzleeOptions options = Bind(new()
+        {
+            ["Selection:Source:LoadMode"] = "Background",
+            ["Selection:Source:LoadTimeout"] = "00:00:03",
+            ["Selection:Source:RefreshInterval"] = "00:02:00",
+            ["Selection:Source:OnFailure"] = "Drop",
+        });
+
+        Assert.Equal(FamilyLoadMode.Background, options.Selection.Source.LoadMode);
+        Assert.Equal(TimeSpan.FromSeconds(3), options.Selection.Source.LoadTimeout);
+        Assert.Equal(TimeSpan.FromMinutes(2), options.Selection.Source.RefreshInterval);
+        Assert.Equal(FamilyLoadFailure.Drop, options.Selection.Source.OnFailure);
+        Assert.Equal(FamilyLoadMode.Blocking, options.Families.LoadMode);
+    }
+
+    [Fact]
+    public void CB9_AFatalSelectionSourceWithABackgroundLoad_IsRefused()
+    {
+        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(() => Bind(new()
+        {
+            ["Selection:Source:LoadMode"] = "Background",
+            ["Selection:Source:OnFailure"] = "Fatal",
+        }));
+
+        Assert.Contains(refused.Failures, f => f.Contains("Selection.Source.OnFailure", StringComparison.Ordinal));
+    }
 }

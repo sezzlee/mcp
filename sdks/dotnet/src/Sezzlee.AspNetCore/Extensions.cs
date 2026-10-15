@@ -48,6 +48,7 @@ public static class SezzleeServiceCollectionExtensions
         services.TryAddSingleton<IVisibilityEvaluator, DeclarativeVisibilityEvaluator>();
         services.TryAddSingleton<IProbeEvaluator, ProbeEvaluator>();
         services.TryAddSingleton<ICallerScopeResolver, CarrierHashCallerScopeResolver>();
+        services.TryAddSingleton<ToolAccessResolver>();
         services.TryAddSingleton<ISezzleeCache, MemorySezzleeCache>();
         services.TryAddSingleton<CallerVisibilityProvider>();
         services.TryAddSingleton<ISezzleeCacheInvalidator, SezzleeCacheInvalidator>();
@@ -55,7 +56,7 @@ public static class SezzleeServiceCollectionExtensions
         services.TryAddSingleton<IProtectedResourceMetadataProvider, OptionsProtectedResourceMetadataProvider>();
         services.TryAddSingleton<SezzleeEndpointRegistration>();
         services.TryAddSingleton<ToolListChangePublisher>();
-        services.AddHostedService<Discovery.SezzleeFamilyLoader>();
+        services.AddHostedService<Discovery.SezzleeSourceLoader>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SezzleeOptions>, SezzleeOptionsValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<McpServerOptions>, ToolCollectionSetup>());
         services.AddOptions<SezzleeOptions>().ValidateOnStart();

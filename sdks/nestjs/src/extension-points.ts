@@ -3,6 +3,7 @@ import type { SezzleeCache, ToolRanker } from "@sezzlee/core";
 import type { CallerScopeResolver } from "./cache.js";
 import type { InvokeResultMapper } from "./invoke-result-mapper.js";
 import type { VisibilityEvaluator } from "./visibility/evaluator.js";
+import type { ToolAuthorizer } from "./visibility/authorizer.js";
 import type { ProbeEvaluator } from "./visibility/probe.js";
 
 export interface ExtensionPoints {
@@ -12,6 +13,7 @@ export interface ExtensionPoints {
   visibilityEvaluator: VisibilityEvaluator;
   probeEvaluator: ProbeEvaluator;
   toolRanker: ToolRanker | null;
+  toolAuthorizer: ToolAuthorizer | null;
 }
 
 export const extensionTokens = {
@@ -21,6 +23,7 @@ export const extensionTokens = {
   visibilityEvaluator: Symbol("SEZZLEE_VISIBILITY_EVALUATOR"),
   probeEvaluator: Symbol("SEZZLEE_PROBE_EVALUATOR"),
   toolRanker: Symbol("SEZZLEE_TOOL_RANKER"),
+  toolAuthorizer: Symbol("SEZZLEE_TOOL_AUTHORIZER"),
 } as const satisfies { readonly [K in keyof ExtensionPoints]: symbol };
 
 export type OverrideProvider<T> =

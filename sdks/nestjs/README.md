@@ -198,6 +198,42 @@ order, and two equally specific rules that disagree fail the catalog with `ambig
 rather than one quietly winning. An attribute always outranks a rule, so a carve-out inside an
 excluded subtree goes on the endpoint.
 
+### A selection source
+
+When the list of exposed endpoints lives in data — a database table an operator edits — supply it
+as a source instead of code. It becomes a level between the attributes and the rules:
+`operation` > `container` > provided > `rules` > `default`. A row never overrules a
+`@McpIgnore()`, and it outranks a glob in configuration.
+
+```ts
+SezzleeModule.forRoot((options) => {
+  options.selection.provide(async ({ signal }) =>
+    (await db.exposedEndpoints({ signal })).map((row) => ({
+      method: row.method,
+      route: row.route,
+      decision: row.exposed ? "include" : "exclude",
+      description: row.description,
+      tags: row.tags,
+    })),
+  );
+  options.selection.source.refreshIntervalMs = 60_000;
+});
+```
+
+A row names one endpoint by upper-case `method` and composed `route`, compared exactly; there are no
+globs. `name`, `description`, `tags` and `searchTerms` are optional overrides that sit below the
+decorator's own declaration and above the endpoint hooks and the derived name. The source loads like
+a family source: `selection.source` takes the same `loadTimeoutMs`, `loadMode`, `refreshIntervalMs`
+and `onFailure`, a refresh that returns the same rows rebuilds nothing, and a failed refresh keeps
+the rows it last returned.
+
+Until the source has returned once, every endpoint without a decorator is **not selected**, because
+the source may be the only thing excluding it; decorated endpoints are decided as usual, and
+`selection_not_loaded` says so. A defect in one row is that row's alone and a warning:
+`selection_target_unknown` for a row naming no endpoint, `selection_entry_conflict` when two rows
+for one endpoint disagree (both are ignored and the endpoint is excluded), and `selection_entry_rejected` for a blank method or
+route, an unknown decision, or an invalid override, which loses only that override.
+
 Visibility is **not** a security mechanism. A tool hidden from the catalog still runs only if your
 backend permits it; enforcement is always in your pipeline at invoke time.
 
@@ -268,7 +304,8 @@ How and when sources load is configured on `options.families`:
 A source that fails after it returned keeps the members it last returned, and each load logs one
 line per source under the `Sezzlee` logger. A refresh whose rebuild would turn a valid catalog
 fatal is refused and the current catalog kept, as `reload()` does; the timer logs it as a warning.
-`catalog.refreshFamilies()` runs one refresh on demand. Full guide: the docs site's _How to expose
+`catalog.refreshFamilies()` runs one refresh on demand, and `catalog.reload()` rebuilds the catalog
+whenever your own data changed; both are public API on `SezzleeCatalog`. Full guide: the docs site's _How to expose
 a dispatching endpoint as one tool per method_.
 
 Full guide: the docs site's _How to curate the arguments an agent sees_.
@@ -349,11 +386,160 @@ export class OrdersReadGuard implements CanActivate {
 }
 ```
 
-`unknown` is not a denial: with the default `visibility.onUnknown: "show"` the tool still appears,
-flagged `authUncertain`. When the guards cannot declare themselves, `visibility.tier = "probe"`
-resolves them by really running them — at a cost. The full recipe, including
-`visibility.probeValues`, is in the docs site's
+`unknown` is not a denial: with the default `visibility.onUnknown` (`"show"` unless a
+`toolAuthorizer` is bound) the tool still appears, flagged `authUncertain`. When the guards cannot
+declare themselves, `visibility.tier = "probe"` resolves them by really running them — at a cost.
+The full recipe, including `visibility.probeValues`, is in the docs site's
 _How to declare visibility for a NestJS guard_.
+
+### A host authorizer
+
+When authorization is your own code — permission keys read from a database, a dispatching handler
+that checks the target method inside — neither guards nor probes can say what a caller may use.
+Bind a `ToolAuthorizer` and its answer outranks every other tier:
+
+```ts
+SezzleeModule.forRoot(configure, {
+  toolAuthorizer: {
+    useFactory: (permissions: PermissionService) => ({
+      covers: () => true,
+      async resolve(request) {
+        const granted = await permissions.forRequest(request);
+        return {
+          decide: (tool) =>
+            granted.has(
+              tool.member?.key ?? `${tool.container}.${tool.handler.name}`,
+            )
+              ? "allow"
+              : "deny",
+        };
+      },
+    }),
+    inject: [PermissionService],
+  },
+});
+```
+
+`resolve` runs once per caller scope and the resulting `ToolAccess` is held in process memory for
+`cache.lifetimeMs`, concurrent callers of a scope sharing one resolution; `decide` is then asked per
+tool and has to be cheap and synchronous. `SezzleeCacheInvalidator.invalidateCaller(scope)` drops a
+scope's access early, so a scope that carries the caller's permission version needs no other signal.
+`McpToolInfo` carries `name`, `method`, `route`, `container` and `handler`, and `member: { source,
+key }` for a tool lowered from a family source. `"allow"` and `"deny"` are final; `"unknown"` falls
+through to the declarative tier, then the probe tier.
+
+With an authorizer bound, `visibility.onUnknown` defaults to `"hide"`, a tool it denies is answered
+by `load_tool` exactly like a tool that does not exist, and the tags vocabulary and the
+`search_tools` limit are computed from the tools the caller may use. `invoke_tool` never consults
+visibility: the authorizer and the probe shape what `search_tools` and `load_tool` show, and your
+pipeline alone decides every call. Visibility is not enforcement.
+
+`covers(tool)` is caller-independent. After each catalog build, when an authorizer is bound, the
+SDK reports a `visibility_uncovered` warning naming the first twenty selected tools that no tier can
+decide: not covered, guards imperative or anonymity unknown, and no probe tier to reach them. Set
+`visibility.onUncovered = "fatal"` to make that fail the catalog; it also turns the check on for a
+host without an authorizer. Debug logs on the `CallerVisibilityProvider` and `Sezzlee` loggers time
+the authorizer's resolution (hit or miss) and each `search_tools` and `load_tool` answer.
+
+### Probing until the page fills
+
+With `visibility.tier = "probe"`, `search_tools` walks the ranked candidates in order and decides
+each one: the authorizer, then the guards' declarations, then — for a tool still unknown — a probe
+request through the real pipeline. A tool that is denied is skipped and the walk goes on, so the page
+fills from the tools the caller may use however far down the ranking they sit, and a hidden tool
+never shortens a page. Probes run `visibility.probeConcurrency` at a time (default 4) for the
+candidates just ahead; once the page is full no more are sent, and the few still in flight finish
+into the cache. `total` and the `tags` vocabulary come from the tools the cheaper tiers can decide
+and never probe, so a tag reachable only through tools that need a probe follows `onUnknown`.
+`load_tool` probes just the tool it names; `invoke_tool` never probes.
+
+| Option                          | Default | Meaning                                                                                                                                                                                                                                                                         |
+| ------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `visibility.maxProbesPerSearch` | `50`    | The most probe requests one search sends; a non-negative integer, `0` stops search from probing. At the cap the page is returned as it stands, the tools left unprobed follow `onUnknown`, and one warning names the cap. A cached verdict does not count. Replaces `probeTopK` |
+
+An `allow` or `deny` verdict is kept in the shared cache for `cache.lifetimeMs`, as before, and
+`SezzleeCacheInvalidator` drops it with the rest of the scope.
+
+Only a 401 or 403 is a `deny`. A 429, a 5xx, a probe that timed out or was cancelled, and any other
+answer that is not the interceptor's short-circuit are `unknown` and transient: nothing is cached
+and the next search probes the tool again. A probe disables a tool for the rest of the catalog
+generation only when it says the probe cannot work for it — the route did not match (declare a
+value in `visibility.probeValues`), or a 2xx came back without the short-circuit marker, which means
+the handler may have run. A probe's deadline is `invoke.timeoutMs`.
+
+A probe is a real request through your guards, middleware and filters, with the handler skipped. Skip
+the side effects that should not count a probe — rate limiting, audit logs, last-seen updates — by
+asking `isSezzleeProbe(request)`, exported from the package, which is `true` on the synthetic request
+of a probe and `false` on any other, including a real `invoke_tool` dispatch (`isSezzleeRequest` is
+`true` for both):
+
+```ts
+import { isSezzleeProbe } from "@sezzlee/sdk-nestjs";
+
+@Injectable()
+export class AuditInterceptor implements NestInterceptor {
+  intercept(context: ExecutionContext, next: CallHandler) {
+    if (isSezzleeProbe(context.switchToHttp().getRequest())) {
+      return next.handle();
+    }
+    /* record the call */
+  }
+}
+```
+
+A rate limiter that counts probes will answer 429 for them, which keeps those tools unknown.
+
+### Auditing visibility in your tests
+
+`search_tools` and `load_tool` decide from your authorizer and your guards' declarations; the
+pipeline decides every real call. `auditVisibility` from `@sezzlee/sdk-nestjs/testing` checks the
+two against each other, for each caller you name and each tool in the catalog, so a permission
+change that only one side learns about fails a test instead of surfacing in production.
+
+```ts
+import { auditVisibility } from "@sezzlee/sdk-nestjs/testing";
+
+it("shows each caller exactly what the pipeline lets through", async () => {
+  const report = await auditVisibility(
+    app,
+    [
+      { name: "clerk", headers: { authorization: `Bearer ${clerkToken}` } },
+      { name: "auditor", headers: { authorization: `Bearer ${auditorToken}` } },
+    ],
+    {
+      exclude: (tool) => tool.container === "MethodDispatcher",
+    },
+  );
+  report.ensureConsistent();
+});
+```
+
+The listing side runs the cheap tiers only, through the same code the tools use: the authorizer,
+then the guards' declarations, then `visibility.onUnknown`, with no probe. The other side sends one
+probe per tool and caller, a request through your middleware, guards, pipes and interceptors that
+stops before the handler, uncached and not limited by `maxProbesPerSearch`. It never reads or writes
+the shared verdict cache. Each pair ends as one of:
+
+| Finding            | Meaning                                                                                                                     |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `listedButDenied`  | Listed, but the probe got a 401 or 403                                                                                      |
+| `hiddenButAllowed` | Hidden, but the probe got through                                                                                           |
+| `notComparable`    | The probe could not judge it (no request template, probing disabled for the tool, a 429, a 5xx, a timeout), with a `reason` |
+| `excluded`         | Skipped by `exclude`                                                                                                        |
+
+`report.findings` lists every pair that is not consistent, `report.counts` totals each kind, and
+`report.consistent` and `report.compared` count the rest. `ensureConsistent()` throws a
+`VisibilityAuditError` that groups the findings by kind, and it fails on `notComparable` too: a pair
+the probe could not judge was not checked. Declare a `visibility.probeValues` entry for a route the
+probe could not reach, or `exclude` the tool. `concurrency` (default 4) bounds the probes in flight.
+
+The probe stops before the handler, so a check inside a handler, such as a dispatcher that validates
+its target method, is invisible to it. A tool your authorizer hides for that reason shows as
+`hiddenButAllowed`; skip it with `exclude`, which reports it as `excluded` rather than dropping it. A
+probe that does not route, or that returns a 2xx without the short-circuit marker, disables probing
+for that tool until the catalog changes, as it would during a search.
+
+A probe that throws instead of answering, such as an application whose pipeline is not set up for probing, fails the audit with that error rather than being reported once per tool.
 
 ## 5. Connecting an MCP client
 
@@ -379,7 +565,11 @@ is tagged with its controller name unless you say otherwise:
 
 A declaration replaces the controller-derived tag rather than adding to it, and `options.tags` sets
 the same thing centrally for controllers you cannot decorate. Tags are search text too, so changing
-them changes ranking — see the how-to on grouping operations.
+them changes ranking — see the how-to on grouping operations. `options.endpointTags` decides per
+endpoint instead: it receives `{ method, route, container, handler, declared }` (here `declared` is
+the description the tool is published with), sits below a declaration and above `options.tags`, and
+returning `undefined` keeps the next level. `options.endpointSearchTerms` does the same for search
+terms.
 
 Words an agent may type that your operation's text does not contain go in `searchTerms`
 (`@McpTool({ searchTerms: ["sipariş"] })`, or `options.searchTerms` centrally): indexed like the

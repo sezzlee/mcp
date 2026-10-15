@@ -34,6 +34,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Sezzlee.AspNetCore\Sezzlee.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\Sezzlee.AspNetCore.NewtonsoftJson\Sezzlee.AspNetCore.NewtonsoftJson.csproj" />
+    <ProjectReference Include="..\..\src\Sezzlee.AspNetCore.Testing\Sezzlee.AspNetCore.Testing.csproj" />
     <ProjectReference Include="..\..\samples\DemoAuthServer\DemoAuthServer.csproj" />
   </ItemGroup>
 

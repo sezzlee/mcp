@@ -25,6 +25,7 @@ import {
 } from "./visibility/probe.js";
 import { CallerVisibilityProvider } from "./visibility/provider.js";
 import type { VisibilityEvaluator } from "./visibility/evaluator.js";
+import type { ToolAuthorizer } from "./visibility/authorizer.js";
 import {
   CarrierHashCallerScopeResolver,
   SEZZLEE_CACHE_INVALIDATOR,
@@ -78,6 +79,7 @@ function defaultProviders(): Provider[] {
       useClass: DeclarativeVisibilityEvaluator,
     },
     { provide: extensionTokens.toolRanker, useValue: null },
+    { provide: extensionTokens.toolAuthorizer, useValue: null },
     {
       provide: extensionTokens.probeEvaluator,
       useFactory: (dispatcher: SezzleeDispatcher, options: SezzleeOptions) =>
@@ -101,12 +103,21 @@ function defaultProviders(): Provider[] {
         prober: ProbeEvaluator,
         cache: SezzleeCache,
         options: SezzleeOptions,
-      ) => new CallerVisibilityProvider(evaluator, prober, cache, options),
+        authorizer: ToolAuthorizer | null,
+      ) =>
+        new CallerVisibilityProvider(
+          evaluator,
+          prober,
+          cache,
+          options,
+          authorizer,
+        ),
       inject: [
         extensionTokens.visibilityEvaluator,
         extensionTokens.probeEvaluator,
         extensionTokens.cache,
         SEZZLEE_OPTIONS,
+        extensionTokens.toolAuthorizer,
       ],
     },
     {

@@ -14,16 +14,17 @@ Defines which endpoints are exposed on the MCP surface. The machine-readable cou
 
 Selection is caller-independent and fixed at application startup; visibility is computed per caller on every search. An unselected endpoint is invisible to every identity.
 
-## Four levels, most specific wins
+## Five levels, most specific wins
 
 | Level       | Scope                                                                            |
 | ----------- | -------------------------------------------------------------------------------- |
 | `global`    | Every endpoint in the application                                                |
 | `rules`     | Every endpoint whose route and method a config-level rule matches                |
+| `provided`  | The one endpoint a row from the host's selection source names                    |
 | `container` | Every endpoint in a group (C#: the controller class; Nest: the controller class) |
 | `operation` | A single endpoint (C#: the action method; Nest: the handler method)              |
 
-An endpoint's effective decision is the decision of **the most specific level carrying a marker**: `operation` > `container` > `rules` > `global`. More general levels apply only when no more specific marker exists.
+An endpoint's effective decision is the decision of **the most specific level carrying a marker**: `operation` > `container` > `provided` > `rules` > `global`. More general levels apply only when no more specific marker exists.
 
 The three attribute-free levels follow directly from the frameworks' own metadata models; no new mechanism is invented. (The C# counterpart: endpoint metadata arrives ordered from most general to most specific, and the last writer wins. The Nest counterpart: `Reflector`'s resolution, which puts method metadata ahead of class metadata.)
 
@@ -41,12 +42,26 @@ Every level is in one of three states: no marker · `include` · `exclude`. The 
 | `global: exclude`, no marker               | out                                             |
 | `rules: exclude`, `container: include`     | in — an attribute outranks a rule               |
 | `rules: exclude`, no attribute             | out — the rule outranks the global default      |
+| `provided: include`, `rules: exclude`      | in — a row names the endpoint, a rule a pattern |
+| `provided: include`, `operation: exclude`  | out — an attribute outranks a row               |
 
 ## The global default is `exclude`
 
 Nothing undeclared is exposed. This is the selection form of the default-deny invariant: adding the SDK to a backend MUST NOT mean exposing that backend's entire surface to agents.
 
 `global: include` is a legitimate setup (expose everything, then carve out exceptions), but it **requires a declaration** — it cannot be the default.
+
+## The selection source
+
+Some hosts keep the list of exposed endpoints in data, such as a table an administrator edits. They register one source (C#: `options.Selection.Provide`; NestJS: `selection.provide`) that returns rows of `{ method, route, decision }`, each optionally carrying a name, a description, tags and search terms. The source loads exactly like a family source ([tool-families.md](tool-families.md) §Membership): at startup or in the background, again on a refresh interval, a refresh whose rows are unchanged rebuilds nothing, a reload that would turn the catalog newly fatal is refused, and a failure keeps the rows it last returned.
+
+A row names one endpoint: its method compared case-insensitively and its route compared exactly with the composed route template, with no wildcards — patterns are what config-level rules are for. That is why `provided` ranks above `rules` and below the attributes: a row names a single endpoint, which makes it more specific than a pattern, but it is written far from the endpoint, so an attribute on the endpoint itself still wins.
+
+Its overrides sit at the same place: a row's name, description, tags and search terms rank below the operation's own declaration and above the host's per-endpoint hooks.
+
+Rows are data, so a defect in one is that row's alone, as with family members. A row naming no endpoint is `selection_target_unknown`, a malformed row is `selection_entry_rejected` (an invalid override loses only that override), and two rows that disagree about one endpoint are `selection_entry_conflict` — all warnings, and a contested endpoint is **excluded**, never left to a lower level that might include it. Contradictory data is not `ambiguous_selection`: it is not source code, and one bad row should not stop a backend.
+
+The source fails **closed**. Until it has returned once, an endpoint with no attribute marker is excluded and `selection_not_loaded` is reported, because the source may be the only thing keeping that endpoint out and a lower level might let it in. Attribute-marked endpoints are decided as usual. A host MAY make a failed first load stop startup instead (`selection_source_failed`).
 
 ## Config-level rules
 

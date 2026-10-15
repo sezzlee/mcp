@@ -64,14 +64,15 @@ Why that order:
 
 ## The evaluation ladder
 
-The tiers are defined over framework contracts; the SDK MUST NOT recognize any host-specific type.
+The tiers are defined over framework contracts; the SDK MUST NOT recognize any host-specific type. The one tier the host writes itself, the authorizer, sits above them.
 
-| Tier           | What it reads                                                                                      | What it produces                |
-| -------------- | -------------------------------------------------------------------------------------------------- | ------------------------------- |
-| T0 anonymous   | The framework's anonymous/authorization markers in endpoint metadata                               | `auth.anonymous` (three-valued) |
-| T1 declarative | The framework's declarative authorization data → combined policy → evaluable requirements          | `policyResults` entries         |
-| T2 probe       | A synthetic request enters the real pipeline and is cut **before the handler**; the status is read | `allow` / `deny`                |
-| T3             | Nothing above decided                                                                              | `unknown`                       |
+| Tier            | What it reads                                                                                      | What it produces                |
+| --------------- | -------------------------------------------------------------------------------------------------- | ------------------------------- |
+| Host authorizer | The host's own answer for the caller, per tool                                                     | `allow` / `deny` / `unknown`    |
+| T0 anonymous    | The framework's anonymous/authorization markers in endpoint metadata                               | `auth.anonymous` (three-valued) |
+| T1 declarative  | The framework's declarative authorization data → combined policy → evaluable requirements          | `policyResults` entries         |
+| T2 probe        | A synthetic request enters the real pipeline and is cut **before the handler**; the status is read | `allow` / `deny`                |
+| T3              | Nothing above decided                                                                              | `unknown`                       |
 
 T0 reads three-valued, because what the metadata says and what the backend does are not the same thing:
 
@@ -93,14 +94,29 @@ Roles are declarative and evaluable: a framework's role requirement is written i
 
 Blind evaluation at T1 is forbidden: running a requirement that needs a resource without one can produce a false `deny`. Only the resource-independent requirement kinds the framework itself recognizes are evaluated; the rest is `unknown`.
 
-T2 is opt-in and its cost is bounded: the probe is applied to the first K candidates **after ranking**, so cost grows with K rather than with the number of endpoints. A probe cannot have side effects — the cut point is before the handler, and no probe is issued unless the cut layer is proven to be installed for that endpoint.
+T2 is opt-in and its cost is bounded by the page, not by the catalog: candidates are probed **after ranking**, in rank order, only until the page is full, so cost grows with the limit and the denials on the way rather than with the number of endpoints. A probe cannot have side effects — the cut point is before the handler, and no probe is issued unless the cut layer is proven to be installed for that endpoint.
+
+## The host authorizer
+
+Some backends authorize with code no tier can read or reach: permission keys from their own database checked in a custom filter, or a dispatcher that checks the target method inside the handler, where a probe cut before the handler answers `allow` for every member. For those, the host MAY register an authorizer (C#: `IToolAuthorizer`; NestJS: `ToolAuthorizer`). It has two parts:
+
+- **Coverage** is caller-independent: whether the authorizer decides a given tool. The startup coverage check reads it.
+- **Access** is resolved once per caller and then queried per tool, synchronously. It answers `allow`, `deny` or `unknown`; `allow` and `deny` are final, `unknown` falls through to T0–T2.
+
+The tool it is asked about carries the method, route, container, the handler and its metadata, and for a family member the source and the member's key, so a host can decide per dispatched method.
+
+An exception from the authorizer fails the call rather than deciding anything; nothing is cached for it. A resolved access is cached per caller scope for the cache lifetime ([caching.md](caching.md)), single-flight per scope, in process memory: it is an object, not a serialized verdict. The caller scope is the host's to define; a scope that includes the caller's permission version invalidates on a permission change without any other signal.
+
+## Coverage
+
+When a host authorizer is registered, or the host made coverage fatal, the SDK counts after each catalog build the selected tools whose visibility no tier can decide without a caller: not covered by the authorizer, not decidable by T0/T1 (`auth.imperative`, or `auth.anonymous` is `unknown`), and not reachable by T2. It reports them once as `visibility_uncovered` (warning) with the count and the first names. A host MAY make it fatal (`OnUncovered = Fatal` / `onUncovered: "fatal"`), which makes startup fail while any selected tool is uncovered. Without either, the check does not run: a host that never opted in sees no new diagnostic.
 
 ## T2 probe: mechanics
 
 For an endpoint the declarative tier left as `unknown`, the probe obtains the framework's real verdict: a synthetic request (with the same identity composition as invoke) enters the real pipeline and is cut immediately after the authorization decision, **before** the handler.
 
-- **The cost policy belongs to the host.** How aggressively the probe should run varies by backend: database load, rate limiters and acceptable search latency differ in every deployment. The SDK offers two settings with reasonable defaults: candidate count (`ProbeTopK`, the first K after ranking) and concurrency (`ProbeConcurrency`, 1 = sequential). T2 verdicts are additionally cached per caller; key derivation, namespacing, lifetime/jitter and invalidation are now normative in a separate document, [caching.md](caching.md). If `Identity.Project` derives a value from something other than the outer request (a clock, a counter, a database), the correct lever — as [caching.md](caching.md) also notes — is to override `ICallerScopeResolver`, not to disable the cache.
-- **The flag lives in the request context, not in a header** (C#: `HttpContext.Items`). An outer request MUST NOT be able to turn probe mode on. The host MAY use the flag to skip audit, rate-limit and logging middleware (C#: `IsSezzleeProbe()`). For skips that are not probe-specific, the synthetic-request marker is used instead (C#: `IsSezzleeRequest()`, M9) — that marker is also carried at invoke time.
+- **The cost policy belongs to the host.** How aggressively the probe should run varies by backend: database load, rate limiters and acceptable search latency differ in every deployment. The SDK offers two settings with reasonable defaults: a per-search cap on probes (`MaxProbesPerSearch` / `maxProbesPerSearch`, 0 keeps search from probing) and concurrency (`ProbeConcurrency`, 1 = sequential). A verdict served from the cache costs nothing against the cap. T2 verdicts are additionally cached per caller; key derivation, namespacing, lifetime/jitter and invalidation are now normative in a separate document, [caching.md](caching.md). If `Identity.Project` derives a value from something other than the outer request (a clock, a counter, a database), the correct lever — as [caching.md](caching.md) also notes — is to override `ICallerScopeResolver`, not to disable the cache.
+- **The flag lives in the request context, not in a header** (C#: `HttpContext.Items`). An outer request MUST NOT be able to turn probe mode on. The host SHOULD use the flag to skip side effects such as rate limiting, audit logs and last-seen updates (C#: `IsSezzleeProbe()`): a probe that spends the caller's rate limit turns into a 429, which is no verdict at all. For skips that are not probe-specific, the synthetic-request marker is used instead (C#: `IsSezzleeRequest()`, M9) — that marker is also carried at invoke time.
 - **Two cut points:** the framework's authorization-middleware result handler, and an MVC resource filter (after every authorization filter, before model binding). The result handler records a **rejection** for every endpoint; on **success** it cuts only endpoints with no MVC action (minimal APIs) — for an MVC action it continues to `next` so imperative authorization filters run and the resource filter reads the verdict. Otherwise an endpoint carrying `[Authorize]` plus an imperative filter would be counted as `allow` without the filter ever running. A cut probe returns a success status plus the cut marker. If the host has its own result handler it is wrapped, never replaced.
 - **Eligibility (framework-neutral):** the endpoint MUST be known to routing **and** the SDK's cut layer MUST be **proven** installed for that endpoint — that is, the endpoint's execution must pass through a stage where the SDK registered a cut point, running after all authorization and before the handler. Without that proof a probe is issued only if the endpoint carries declarative authorization data **and** its method is safe (GET/HEAD).
 
@@ -111,21 +127,21 @@ For an endpoint the declarative tier left as `unknown`, the probe obtains the fr
   | ASP.NET Core | MVC actions (global resource filter)                | Yes — a minimal API carrying `[Authorize]` plus GET/HEAD |
   | NestJS       | **every catalog entry** (all are controller routes) | No                                                       |
 
-- **Verdict:** `401`/`403` → `deny`, with or without the cut marker: if a middleware rejected before the authorization layer, the handler did not run (this is the path for backends whose auth lives in custom middleware). Cut marker plus success → `allow`. Every other response — an unmarked 2xx in particular — → `unknown`; the probe is permanently disabled for that endpoint and a warning is logged, because the handler may have run and MUST NOT be tried a second time. An unmarked `404` means the route did not match: the host declares the placeholder value.
-- **Budget:** only after ranking, only for those left as `unknown`, and only the first K candidates (default 25). Anything outside the budget is handled by the `unknown` policy. `total` is the declarative count; the probe does not change it.
+- **Verdict:** `401`/`403` → `deny`, with or without the cut marker: if a middleware rejected before the authorization layer, the handler did not run (this is the path for backends whose auth lives in custom middleware). Cut marker plus success → `allow`. A `429`, a `5xx` or a probe that times out says nothing about authorization: it is `unknown` and **transient**, so the tool is probed again next time. An unmarked success (a `2xx` or `3xx` with no cut marker) → `unknown`, and the probe is permanently disabled for that endpoint with a warning, because the handler may have run and MUST NOT be tried a second time. An unmarked `404` means the route did not match: the probe is disabled for that endpoint and the host declares the placeholder value.
+- **Budget:** only after ranking, only for those left as `unknown`, in rank order, and only until the page holds `limit` visible results; probes run `ProbeConcurrency` at a time. A per-search cap stops it on a caller who may use almost nothing: the page returns as it stands, the unprobed candidates follow the `unknown` policy and a warning is logged. `load_tool` probes the one tool it is asked for. `total` is the declarative count, and the `tags` vocabulary is built without probing; the probe changes neither.
 - **Request shape:** path parameters are filled with a placeholder derived from the route constraint (numeric → `1`, guid → the empty guid, bool → `true`, date → `2000-01-01`, otherwise → `probe`); the host MAY declare a value by parameter name. A path parameter hidden with a constant is written with that constant instead of either, because it is the only value that routes to the tool ([tool-families.md](tool-families.md)). Query and body are not sent — the cut is before model binding, so no formatter runs.
 
 ## `load_tool` is subject to visibility
 
-Filtering search results while handing the schema to everyone makes hiding meaningless: the agent guesses the name and `load_tool` confirms existence. So `load_tool` applies the same decision — for a `deny` tool its answer is **identical** to the answer for a nonexistent tool (`unknown_tool`). An `unknown` tool is returned and carries `authUncertain`. Per invariant 1, `invoke_tool` stays untouched: calling a hidden tool is the pipeline's business.
+Filtering search results while handing the schema to everyone makes hiding meaningless: the agent guesses the name and `load_tool` confirms existence. So `load_tool` applies the same decision — for a `deny` tool its answer is **identical** to the answer for a nonexistent tool (`unknown_tool`). An `unknown` tool is returned and carries `authUncertain`, unless the `unknown` policy hides it. Per invariant 1, `invoke_tool` stays untouched: calling a hidden tool is the pipeline's business.
 
 ## The `unknown` policy
 
-Default: **show** plus `authUncertain`. Rationale: preserve capability, and rely on enforcement being guaranteed at invoke time. Deployments sensitive to existence leaks MAY switch to `Hide` — the policy belongs to whoever writes the code.
+Without a host authorizer the default is **show** plus `authUncertain`. Rationale: preserve capability, and rely on enforcement being guaranteed at invoke time. With a host authorizer the default is **hide**: a host that wrote its own per-tool answer has said which tools a caller may use, and a tool it left undecided is closer to "not this caller's" than to "unknown". Either default MAY be overridden — the policy belongs to whoever writes the code.
 
 ## Invariants
 
-1. **Invoke MUST NEVER consult the visibility filter.** If it did there would be two sources of truth, and they would diverge over time. Even if the agent guesses a hidden tool's name and calls it, the pipeline stops it.
+1. **Invoke MUST NEVER consult the visibility filter**, a host authorizer included. If it did there would be two sources of truth, and they would diverge over time. Even if the agent guesses a hidden tool's name and calls it, the pipeline stops it; a host that wants agents held to a narrower rule than its users enforces that rule in the pipeline, where every caller meets it.
 2. **Visibility MUST use exactly the same identity composition as invoke** (the same carrier list, the same projector). If they diverge, the filter and enforcement contradict each other, and that is the most confusing class of error a user encounters.
 3. **Policy names MUST NOT leak to the agent.** `auth` is an internal model; only `authUncertain` reaches the MCP surface.
 4. **Hiding MUST NOT report a reason.** A filtered endpoint is removed from the result; saying "you are not authorized" discloses its existence.

@@ -8,6 +8,25 @@ using Sezzlee.AspNetCore.Visibility.Probe;
 
 namespace Sezzlee.AspNetCore.Visibility;
 
+internal sealed class ProbeBudget(int limit)
+{
+    public static readonly ProbeBudget Unbounded = new(int.MaxValue);
+
+    private int _taken;
+
+    public bool Exhausted => Volatile.Read(ref _taken) >= limit;
+
+    public bool TryTake()
+    {
+        if (Interlocked.Increment(ref _taken) <= limit)
+        {
+            return true;
+        }
+        Interlocked.Decrement(ref _taken);
+        return false;
+    }
+}
+
 internal sealed class CallerVisibilityProvider
 {
     private readonly IVisibilityEvaluator evaluator;
@@ -15,6 +34,7 @@ internal sealed class CallerVisibilityProvider
     private readonly ISezzleeCache cache;
     private readonly IOptions<SezzleeOptions> options;
     private readonly ILogger<CallerVisibilityProvider> logger;
+    private readonly ToolAccessResolver access;
     private readonly SingleFlight<CallerFacts> _factsFlight = new();
     private readonly SingleFlight<VisibilityDecision> _probeFlight = new();
     private long _epoch;
@@ -25,19 +45,66 @@ internal sealed class CallerVisibilityProvider
         ISezzleeCache cache,
         IOptions<SezzleeOptions> options,
         ILogger<CallerVisibilityProvider> logger,
-        ISezzleeCatalogChangeSource changeSource)
+        ISezzleeCatalogChangeSource changeSource,
+        ToolAccessResolver access)
     {
         this.evaluator = evaluator;
         this.probe = probe;
         this.cache = cache;
         this.options = options;
         this.logger = logger;
+        this.access = access;
         ChangeToken.OnChange(changeSource.GetChangeToken, Bump);
     }
 
     internal void Bump() => Interlocked.Increment(ref _epoch);
 
+    internal void ForgetCaller(CallerScope scope) => access.Forget(scope);
+
+    internal void ForgetAllCallers() => access.ForgetAll();
+
+    public bool HasAuthorizer => access.HasAuthorizer;
+
+    public ValueTask<IToolAccess?> AccessAsync(
+        CallerScope scope, HttpRequest? outerRequest, CancellationToken cancellationToken) =>
+        access.ResolveAsync(scope, outerRequest, cancellationToken);
+
     public bool CanProbe(CatalogEntry entry) => probe.CanProbe(entry);
+
+    public UnknownVisibility OnUnknown =>
+        options.Value.Visibility.OnUnknown ?? (HasAuthorizer ? UnknownVisibility.Hide : UnknownVisibility.Show);
+
+    /// <remarks>
+    /// Guard: the one place that orders the cheap tiers, shared by search_tools, load_tool and the
+    /// test audit, so an audit cannot drift from what the tools show. An authorizer's allow or deny is
+    /// final; unknown falls through to the declarative tier.
+    /// </remarks>
+    public static VisibilityDecision Decide(CatalogEntry entry, IToolAccess? access, CallerFacts facts)
+    {
+        VisibilityDecision decision = access?.Decide(entry.Info) ?? VisibilityDecision.Unknown;
+        return decision != VisibilityDecision.Unknown
+            ? decision
+            : VisibilityCombiner.Evaluate(entry.Descriptor.Auth, facts);
+    }
+
+    public bool IsVisible(VisibilityDecision decision) => decision switch
+    {
+        VisibilityDecision.Allow => true,
+        VisibilityDecision.Unknown => OnUnknown == UnknownVisibility.Show,
+        _ => false,
+    };
+
+    /// <summary>
+    /// Whether search_tools and load_tool would list each tool for the caller, from the cheap tiers
+    /// alone: no probe, and neither the facts cache nor the held authorizer accesses are read or written.
+    /// </summary>
+    internal async Task<Func<CatalogEntry, bool>> ListingAsync(
+        HttpRequest outerRequest, IReadOnlySet<string> policyNames, CancellationToken cancellationToken)
+    {
+        IToolAccess? held = await access.ResolveUncachedAsync(outerRequest, cancellationToken);
+        CallerFacts facts = await evaluator.ResolveAsync(outerRequest, policyNames, cancellationToken);
+        return entry => IsVisible(Decide(entry, held, facts));
+    }
 
     public async Task<CallerFacts> FactsAsync(
         CallerScope scope, HttpRequest? outerRequest, IReadOnlySet<string> policyNames, CancellationToken cancellationToken)
@@ -67,12 +134,18 @@ internal sealed class CallerVisibilityProvider
     }
 
     public async Task<VisibilityDecision> ProbeAsync(
-        CallerScope scope, HttpRequest? outerRequest, CatalogEntry entry, CancellationToken cancellationToken)
+        CallerScope scope, HttpRequest? outerRequest, CatalogEntry entry, CancellationToken cancellationToken) =>
+        await ProbeAsync(scope, outerRequest, entry, ProbeBudget.Unbounded, cancellationToken)
+        ?? VisibilityDecision.Unknown;
+
+    /// <returns>The verdict, or <see langword="null"/> when the cache had none and the budget refused to probe.</returns>
+    public async Task<VisibilityDecision?> ProbeAsync(
+        CallerScope scope, HttpRequest? outerRequest, CatalogEntry entry, ProbeBudget budget, CancellationToken cancellationToken)
     {
         TimeSpan lifetime = options.Value.Cache.Lifetime;
         if (lifetime <= TimeSpan.Zero)
         {
-            return await probe.ProbeAsync(entry, outerRequest, cancellationToken);
+            return budget.TryTake() ? await probe.ProbeAsync(entry, outerRequest, cancellationToken) : null;
         }
 
         CacheKey key = new(scope, CacheKind.Probe, entry.Tool.Name);
@@ -83,8 +156,23 @@ internal sealed class CallerVisibilityProvider
             return CallerFactsCodec.DecodeProbe(cached);
         }
 
+        bool refused = false;
         VisibilityDecision decision = await _probeFlight.RunAsync(
-            key.ToString(), ct => probe.ProbeAsync(entry, outerRequest, ct), cancellationToken);
+            key.ToString(),
+            ct =>
+            {
+                if (budget.TryTake())
+                {
+                    return probe.ProbeAsync(entry, outerRequest, ct);
+                }
+                refused = true;
+                return Task.FromResult(VisibilityDecision.Unknown);
+            },
+            cancellationToken);
+        if (refused)
+        {
+            return null;
+        }
 
         if (decision != VisibilityDecision.Unknown && Volatile.Read(ref _epoch) == epoch)
         {
