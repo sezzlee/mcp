@@ -362,21 +362,34 @@ public sealed class SelectionSourceHostTests
     }
 
     [Fact]
+    /// <remarks>
+    /// Guard: the source holds its thread until the test has asserted, rather than sleeping for a
+    /// fixed time. Under thread-pool pressure the deadline's timer callback can run after a fixed
+    /// sleep ends, the source then counts as returned in time, and the test fails on a slow runner.
+    /// </remarks>
     public async Task SP7_ASourceThatOutlivesItsDeadline_IsReportedAsATimeout_NamingTheOption()
     {
+        using ManualResetEventSlim held = new();
         await using SelectionSourceHarness host = await SelectionSourceHost.StartAsync(
             (_, _) =>
             {
-                Thread.Sleep(TimeSpan.FromSeconds(1));
+                held.Wait(TimeSpan.FromSeconds(30));
                 return ValueTask.FromResult<IReadOnlyList<McpSelectionEntry>>([Include("/orders")]);
             },
             options => options.Selection.Source.LoadTimeout = TimeSpan.FromMilliseconds(50));
 
-        CatalogDiagnostic notLoaded = Assert.Single(
-            host.Catalog.Result.Diagnostics, d => d.Code == DiagnosticCodes.SelectionNotLoaded);
+        try
+        {
+            CatalogDiagnostic notLoaded = Assert.Single(
+                host.Catalog.Result.Diagnostics, d => d.Code == DiagnosticCodes.SelectionNotLoaded);
 
-        Assert.Contains("timeout", notLoaded.Message, StringComparison.Ordinal);
-        Assert.Contains("Selection.Source.LoadTimeout", notLoaded.Message, StringComparison.Ordinal);
+            Assert.Contains("timeout", notLoaded.Message, StringComparison.Ordinal);
+            Assert.Contains("Selection.Source.LoadTimeout", notLoaded.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            held.Set();
+        }
     }
 
     [Fact]
