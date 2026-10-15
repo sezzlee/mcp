@@ -3,8 +3,7 @@
 Signatures only: what you call, what it returns, and where the options themselves are defined.
 There are no output examples on this page by design — nothing here produces output.
 
-Verified against `Sezzlee.AspNetCore` `0.1.0-alpha.1` and `@sezzlee/sdk-nestjs` at the current
-workspace version. This surface has no generator, so it is hand-maintained and may lag a release.
+Verified against `Sezzlee.AspNetCore` `1.0.0` and `@sezzlee/sdk-nestjs` `1.0.0`. This surface has no generator, so it is hand-maintained and may lag a release.
 
 ## ASP.NET Core
 

@@ -4,7 +4,7 @@ An MCP layer that embeds into your existing NestJS backend. It exposes your endp
 a search-first tool catalog and replays each call through **your own** pipeline, so your guards,
 pipes and interceptors keep running unchanged. Not a gateway, not duplicated business logic.
 
-> Status: `0.2.1`, alpha; breaking changes are possible. [samples/demo-api](samples/demo-api) is
+> Status: `1.0.0`, stable; a breaking change is a major version. [samples/demo-api](samples/demo-api) is
 > the reference wiring.
 
 ## Requirements

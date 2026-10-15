@@ -1,6 +1,6 @@
 # Sezzlee.AspNetCore.NewtonsoftJson
 
-> Status: `0.2.2`, alpha. Versioned with `Sezzlee.AspNetCore`; use the same version of both.
+> Status: `1.0.0`, stable. Versioned with `Sezzlee.AspNetCore`; use the same version of both.
 
 For a backend that binds JSON with `AddNewtonsoftJson()`. `Sezzlee.AspNetCore` cannot read Newtonsoft's settings on its own, so it publishes CLR property names and accepts both the name and the number of every enum, and reports `naming_policy_unresolved` and `enum_format_unresolved`. This package reads the settings the backend binds with instead:
 

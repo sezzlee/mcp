@@ -9,12 +9,12 @@
     "source": "github",
     "subfolder": "packages/servers/openapi-mcp"
   },
-  "version": "0.2.3",
+  "version": "1.0.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@sezzlee/openapi-mcp",
-      "version": "0.2.3",
+      "version": "1.0.0",
       "transport": {
         "type": "stdio"
       },
