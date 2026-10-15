@@ -114,6 +114,21 @@ internal static class SdkErrors
         Retryable = true,
     };
 
+    /// <summary>Refuses a meta-tool call this server's rate limit turned away before it ran.</summary>
+    /// <param name="retryAfterSeconds">The refusing limiter's retry-after in whole seconds, rounded up; null when it gave none.</param>
+    public static SdkError RefuseRateLimited(int? retryAfterSeconds) => new()
+    {
+        Error = SdkErrorCode.RateLimitExceeded,
+        Message = retryAfterSeconds is int seconds
+            ? string.Format(
+                CultureInfo.InvariantCulture,
+                "The call was refused by this server's rate limit before it ran. Retry after {0} seconds.",
+                seconds)
+            : "The call was refused by this server's rate limit before it ran. Retry later.",
+        Retryable = true,
+        RetryAfterSeconds = retryAfterSeconds,
+    };
+
     public static SdkError RefuseChangedTool(string name) => new()
     {
         Error = SdkErrorCode.ToolChanged,

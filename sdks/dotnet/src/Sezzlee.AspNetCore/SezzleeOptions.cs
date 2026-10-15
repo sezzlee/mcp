@@ -5,6 +5,7 @@ using ModelContextProtocol.Authentication;
 using Sezzlee.AspNetCore.Discovery;
 using Sezzlee.AspNetCore.Errors;
 using Sezzlee.AspNetCore.Naming;
+using Sezzlee.AspNetCore.RateLimiting;
 
 using Sezzlee.AspNetCore.Spec;
 
@@ -24,6 +25,7 @@ public sealed class SezzleeOptions
     public ResourceServerOptions ResourceServer { get; } = new();
     public DiagnosticsOptions Diagnostics { get; } = new();
     public ArgumentCurationOptions Arguments { get; } = new();
+    public RateLimitingOptions RateLimiting { get; } = new();
 
     public ToolFamilyOptions Families { get; } = new();
     public InvokeOptions Invoke { get; } = new();

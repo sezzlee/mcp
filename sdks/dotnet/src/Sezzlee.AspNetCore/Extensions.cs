@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using Sezzlee.AspNetCore.Caching;
 using Sezzlee.AspNetCore.Errors;
+using Sezzlee.AspNetCore.RateLimiting;
 using Sezzlee.AspNetCore.Tools;
 using Sezzlee.AspNetCore.Transport;
 using Sezzlee.AspNetCore.Visibility;
@@ -56,6 +57,7 @@ public static class SezzleeServiceCollectionExtensions
         services.TryAddSingleton<IProtectedResourceMetadataProvider, OptionsProtectedResourceMetadataProvider>();
         services.TryAddSingleton<SezzleeEndpointRegistration>();
         services.TryAddSingleton<ToolListChangePublisher>();
+        services.TryAddSingleton<MetaToolRateLimiter>();
         services.AddHostedService<Discovery.SezzleeSourceLoader>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SezzleeOptions>, SezzleeOptionsValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<McpServerOptions>, ToolCollectionSetup>());
