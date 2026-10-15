@@ -80,7 +80,7 @@ public sealed class SezzleeOptions
 /// <param name="Route">The normalized route template.</param>
 /// <param name="Container">The controller's full type name; null for a minimal API endpoint.</param>
 /// <param name="Action">The controller action's method; null for a minimal API endpoint.</param>
-/// <param name="Declared">The description the endpoint's metadata declares, if any.</param>
+/// <param name="Declared">The description the selection source provides, else the one the endpoint's metadata declares.</param>
 public sealed record McpEndpointInfo(
     string Method,
     string Route,
@@ -192,6 +192,25 @@ public sealed class SelectionOptions
     /// specific rules that disagree are a build error rather than a silent first-match win.
     /// </summary>
     public List<SelectionRule> Rules { get; } = [];
+
+    /// <summary>The source registered with <see cref="Provide"/>, or null when selection lives in code alone.</summary>
+    public McpSelectionSource? Provider { get; private set; }
+
+    /// <summary>How the provided source is loaded; meaningful once <see cref="Provide"/> has registered one.</summary>
+    public SelectionSourceOptions Source { get; } = new();
+
+    /// <summary>
+    /// Registers the source of a host whose exposed endpoints live in data, such as a table. Its rows
+    /// are one level of the hierarchy, <c>operation &gt; container &gt; provided &gt; rules &gt; default</c>: an
+    /// attribute is never overruled by a row, and a row naming one endpoint outranks a rule's glob.
+    /// Until the source first returns, an endpoint without an attribute marker is not exposed.
+    /// </summary>
+    public SelectionOptions Provide(McpSelectionSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        Provider = source;
+        return this;
+    }
 }
 
 public enum QueryObjectGrouping { Flatten, Group }

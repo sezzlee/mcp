@@ -32,6 +32,11 @@ spec, a guard comment or the package README.
   `x-sezzlee` extensions annotate, comparing names, argument names and hints; the NestJS SDK runs
   the same rebuild in `sdks/nestjs/test/openapi-extension.spec.ts`. It does not compare
   argument schemas, and it does not yet run against a real backend that embeds the SDK.
+- **Host-supplied descriptions and tags in `x-sezzlee`.** The SDKs publish a selection-source row's
+  name and search terms and every selection decision, but not a description or tags that come from
+  `options.Description` / `options.description`, the endpoint hooks or a selection-source row: the
+  extension schema has no field for them, so a gateway rebuilding the catalog from the annotated
+  document falls back to the document's own operation text. Adding the two fields is additive.
 - **Tests for the gateway's config refusals.** Plain HTTP without token exchange bound to a
   non-loopback host, token exchange on stdio (`token_exchange_requires_http`), and the choice
   between security alternatives have no tests.

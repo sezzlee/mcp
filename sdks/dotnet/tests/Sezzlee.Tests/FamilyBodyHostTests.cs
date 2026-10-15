@@ -122,11 +122,11 @@ public sealed class FamilyRefreshHostTests : FamilyHost
     {
         long generation = Catalog.Generation;
 
-        await Catalog.RefreshFamiliesAsync(CancellationToken.None);
+        await Catalog.RefreshSourcesAsync(CatalogSources.Families, CancellationToken.None);
         Assert.Equal(generation, Catalog.Generation);
         Assert.Equal(["list_customer_balances", "list_orders"], Names);
 
-        await Catalog.RefreshFamiliesAsync(CancellationToken.None);
+        await Catalog.RefreshSourcesAsync(CatalogSources.Families, CancellationToken.None);
         Assert.Equal(generation + 1, Catalog.Generation);
         Assert.Equal(["list_customer_balances", "list_delayed_orders", "list_orders"], Names);
     }

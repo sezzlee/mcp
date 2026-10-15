@@ -7,6 +7,16 @@ import {
   type ToolVariant,
 } from "@sezzlee/core";
 import type { McpToolEffect, McpVariantOptions } from "./decorators.js";
+import {
+  defaultLoadTimeoutMs,
+  reasonOf,
+  type Source,
+  type SourceLoad,
+  type SourceLoadFailure,
+  type SourceLoadMode,
+  type SourceLoads,
+  type SourceLoadSettings,
+} from "./source-loading.js";
 
 /**
  * A member's request body: a JSON Schema the host wrote, or a DTO class the SDK maps the way it
@@ -31,36 +41,19 @@ export type McpFamilyMember = {
 } & McpFamilyMemberBody &
   McpToolEffect;
 
-export type McpFamilySource = (context: {
-  readonly signal: AbortSignal;
-}) => Promise<readonly McpFamilyMember[]> | readonly McpFamilyMember[];
+export type McpFamilySource = Source<readonly McpFamilyMember[]>;
 
-export type FamilyLoad =
-  | { readonly state: "loaded"; readonly members: readonly McpFamilyMember[] }
-  | {
-      readonly state: "stale";
-      readonly members: readonly McpFamilyMember[];
-      readonly error: unknown;
-    }
-  | { readonly state: "failed"; readonly error: unknown };
+export type FamilyLoad = SourceLoad<readonly McpFamilyMember[]>;
 
-export type FamilyLoads = ReadonlyMap<string, FamilyLoad>;
+export type FamilyLoads = SourceLoads<readonly McpFamilyMember[]>;
 
-/**
- * `blocking` makes startup wait for the first load; `background` starts it and lets family
- * operations join the catalog when their source returns.
- */
-export type FamilyLoadMode = "blocking" | "background";
+export type FamilyLoadMode = SourceLoadMode;
 
-/**
- * `drop` keeps starting when a source never returned and drops the families it feeds; `fatal`
- * stops startup instead, and requires `loadMode: "blocking"`.
- */
-export type FamilyLoadFailure = "drop" | "fatal";
+export type FamilyLoadFailure = SourceLoadFailure;
 
-export class ToolFamilyOptions {
+export class ToolFamilyOptions implements SourceLoadSettings {
   private readonly registered = new Map<string, McpFamilySource>();
-  loadTimeoutMs = 10_000;
+  loadTimeoutMs = defaultLoadTimeoutMs;
   loadMode: FamilyLoadMode = "blocking";
   /**
    * How often sources are loaded again after the first load, in whole milliseconds. Zero loads
@@ -78,73 +71,6 @@ export class ToolFamilyOptions {
     return this;
   }
 }
-
-/**
- * Guard: a source that honours its signal rejects with the abort reason while the race below
- * rejects too, and which settles first is not specified. The stored error names the setting
- * either way, because "signal timed out" tells the host nothing about what to change.
- */
-async function loadOne(
-  name: string,
-  source: McpFamilySource,
-  timeoutMs: number,
-): Promise<readonly McpFamilyMember[]> {
-  const signal = AbortSignal.timeout(timeoutMs);
-  const aborted = new Promise<never>((_, reject) => {
-    signal.addEventListener("abort", () => reject(signal.reason as Error), {
-      once: true,
-    });
-  });
-  try {
-    return await Promise.race([Promise.resolve(source({ signal })), aborted]);
-  } catch (error) {
-    if (signal.aborted) {
-      throw new Error(
-        `timeout: source '${name}' did not return within families.loadTimeoutMs (${timeoutMs} ms); raise options.families.loadTimeoutMs or set options.families.loadMode to "background"`,
-        { cause: error },
-      );
-    }
-    throw error;
-  }
-}
-
-/**
- * Loads every registered source once.
- *
- * A failing source keeps the members it last returned: dropping a family because its source was
- * briefly unreachable would take working tools offline on every transient error.
- *
- * @param previous the loads the current catalog was built from, or `undefined` before the first
- */
-export async function loadFamilies(
-  options: ToolFamilyOptions,
-  previous: FamilyLoads | undefined,
-): Promise<FamilyLoads> {
-  const entries = await Promise.all(
-    [...options.sources].map(
-      async ([name, source]): Promise<[string, FamilyLoad]> => {
-        try {
-          const members = await loadOne(name, source, options.loadTimeoutMs);
-          return [name, { state: "loaded", members }];
-        } catch (error) {
-          const last = previous?.get(name);
-          return [
-            name,
-            last === undefined || last.state === "failed"
-              ? { state: "failed", error }
-              : { state: "stale", members: last.members, error },
-          ];
-        }
-      },
-    ),
-  );
-  return new Map(entries);
-}
-
-const publishedOf = (
-  load: FamilyLoad,
-): readonly McpFamilyMember[] | undefined =>
-  load.state === "failed" ? undefined : load.members;
 
 function jsonEqual(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) {
@@ -191,30 +117,18 @@ function sameMember(a: McpFamilyMember, b: McpFamilyMember): boolean {
 }
 
 /**
- * Whether any source publishes different members than it did, where published means the members
- * of a `loaded` or `stale` source. A body given as a class compares by identity, a JSON Schema by
- * structure.
+ * Whether two loads of one source publish the same members. A body given as a class compares by
+ * identity, a JSON Schema by structure.
  */
-export function membersChanged(
-  previous: FamilyLoads,
-  current: FamilyLoads,
-): boolean {
-  return [...current].some(([name, load]) => {
-    const before = previous.get(name);
-    const prior = before === undefined ? undefined : publishedOf(before);
-    const now = publishedOf(load);
-    if (prior === undefined || now === undefined) {
-      return prior !== now;
-    }
-    return (
-      prior.length !== now.length ||
-      prior.some((member, index) => {
-        const next = now[index];
-        return next === undefined || !sameMember(member, next);
-      })
-    );
+export const sameMembers = (
+  a: readonly McpFamilyMember[],
+  b: readonly McpFamilyMember[],
+): boolean =>
+  a.length === b.length &&
+  a.every((member, index) => {
+    const other = b[index];
+    return other !== undefined && sameMember(member, other);
   });
-}
 
 export type FamilyResolution =
   | { readonly kind: "none" }
@@ -242,10 +156,7 @@ const diagnostic = (
   message: string,
 ): CatalogDiagnostic => ({ code, message });
 
-const toolNamePattern = /^[a-z][a-z0-9_]{0,255}$/;
-
-export const reasonOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
+export const toolNamePattern = /^[a-z][a-z0-9_]{0,255}$/;
 
 /**
  * Maps a member's `bodyType` the way an `@Body()` parameter's class is mapped, honouring
@@ -318,7 +229,7 @@ export function resolveFamily(
   const keys = new Set<string>();
   const variants: ToolVariant[] = [];
   const memberKeys = new Map<string, string | number>();
-  for (const member of load.members) {
+  for (const member of load.value) {
     const body =
       memberProblem(member, names, keys) ??
       bodyOf(member, owner, mapBody, diagnostics);

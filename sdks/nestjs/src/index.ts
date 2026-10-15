@@ -30,6 +30,11 @@ export type {
   McpFamilyMemberBody,
   McpFamilySource,
 } from "./families.js";
+export type {
+  McpSelectionEntry,
+  McpSelectionSource,
+  SelectionSourceSettings,
+} from "./selection-source.js";
 export { SezzleeFileRefused } from "./files.js";
 export type {
   FileResolution,

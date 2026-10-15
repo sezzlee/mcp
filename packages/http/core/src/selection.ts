@@ -91,12 +91,20 @@ export function resolveRules(
   return [...decisions][0];
 }
 
+/**
+ * Folds the levels into one decision: `operation` over `container` over `provided` over `rule`
+ * over the default.
+ *
+ * @param provided - The decision a host-supplied source made for the endpoint, which sits above
+ * the config-level rules and below every attribute.
+ */
 export function isSelected(
   defaultDecision: SelectionDefault,
   container?: SelectionMarker,
   operation?: SelectionMarker,
   describedAs?: string,
   rule?: SelectionMarker,
+  provided?: SelectionDecision,
 ): boolean {
   reject(container, "container", describedAs);
   reject(operation, "operation", describedAs);
@@ -105,6 +113,9 @@ export function isSelected(
   }
   if (container !== undefined) {
     return container === "include";
+  }
+  if (provided !== undefined) {
+    return provided === "include";
   }
   if (rule !== undefined) {
     return rule === "include";

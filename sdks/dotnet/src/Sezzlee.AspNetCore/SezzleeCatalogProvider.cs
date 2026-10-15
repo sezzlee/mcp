@@ -53,7 +53,7 @@ internal sealed class SezzleeCatalogProvider(
     private CancellationTokenSource _changeSource = new();
     private long _generation;
     private readonly SemaphoreSlim _reloads = new(1, 1);
-    private IReadOnlyDictionary<string, FamilyLoad>? _familyLoads;
+    private SourceLoads? _loads;
 
     public void Attach(ICollection<EndpointDataSource> dataSources, string reservedPrefix)
     {
@@ -72,20 +72,23 @@ internal sealed class SezzleeCatalogProvider(
 
     public IReadOnlySet<string> PolicyNames => Current.PolicyNames;
 
+    private bool HasSources =>
+        options.Value.Families.Sources.Count > 0 || options.Value.Selection.Provider is not null;
+
     /// <remarks>
-    /// With a family source registered, members are loaded first and reloads run one at a time; a
-    /// rebuild that would turn a valid catalog fatal is refused and the current catalog kept
-    /// (tool-families.md §Membership), because member data added under a name another tool already
-    /// has would otherwise take every tool offline.
+    /// With a family or selection source registered, rows are loaded first and reloads run one at a
+    /// time; a rebuild that would turn a valid catalog fatal is refused and the current catalog kept
+    /// (tool-families.md §Membership), because data added under a name another tool already has would
+    /// otherwise take every tool offline.
     /// </remarks>
     /// <exception cref="SezzleeCatalogException">The rebuild is refused.</exception>
     public async ValueTask ReloadAsync(CancellationToken cancellationToken = default)
     {
-        if (options.Value.Families.Sources.Count == 0)
+        if (!HasSources)
         {
             lock (_gate)
             {
-                _snapshot = Build(_familyLoads);
+                _snapshot = Build(_loads);
                 Interlocked.Increment(ref _generation);
             }
             await CommitAsync(cancellationToken);
@@ -95,22 +98,8 @@ internal sealed class SezzleeCatalogProvider(
         await _reloads.WaitAsync(cancellationToken);
         try
         {
-            IReadOnlyDictionary<string, FamilyLoad> loads = await FamilyReader.LoadAsync(
-                options.Value.Families, scopes, _familyLoads, cancellationToken);
-            lock (_gate)
-            {
-                Snapshot candidate = Build(loads);
-                if (candidate.Fatal.Count > 0 && Current.Fatal.Count == 0)
-                {
-                    throw new SezzleeCatalogException(
-                        candidate.Fatal[0].Code,
-                        "sezzlee catalog reload refused; the current catalog is kept: "
-                        + string.Join(" | ", candidate.Fatal.Select(d => d.Message)));
-                }
-                _familyLoads = loads;
-                _snapshot = candidate;
-                Interlocked.Increment(ref _generation);
-            }
+            SourceLoads loads = await LoadAndReportAsync(CatalogSources.All, cancellationToken);
+            Rebuild(loads, "reload");
             await CommitAsync(cancellationToken);
         }
         finally
@@ -120,34 +109,29 @@ internal sealed class SezzleeCatalogProvider(
     }
 
     /// <summary>
-    /// Loads family members for the first time. A catalog built earlier carries
-    /// <c>family_not_loaded</c> and is rebuilt here, which signals the change token.
+    /// Loads the given sources for the first time. A catalog built earlier carries
+    /// <c>family_not_loaded</c> or <c>selection_not_loaded</c> and is rebuilt here, which signals the
+    /// change token.
     /// </summary>
     /// <exception cref="SezzleeCatalogException">
-    /// A source failed and <see cref="ToolFamilyOptions.OnFailure"/> is <see cref="FamilyLoadFailure.Fatal"/>.
+    /// A source failed and its <see cref="SourceLoadOptions.OnFailure"/> is <see cref="FamilyLoadFailure.Fatal"/>.
     /// </exception>
-    internal async Task LoadFamiliesAsync(CancellationToken cancellationToken)
+    internal async Task LoadSourcesAsync(CatalogSources sources, CancellationToken cancellationToken)
     {
-        ToolFamilyOptions families = options.Value.Families;
-        if (families.Sources.Count == 0)
+        sources &= RegisteredSources();
+        if (sources == CatalogSources.None)
         {
             return;
         }
         await _reloads.WaitAsync(cancellationToken);
         try
         {
-            IReadOnlyDictionary<string, FamilyLoad> loads = await LoadAndReportAsync(cancellationToken);
-            if (families.OnFailure == FamilyLoadFailure.Fatal
-                && loads.FirstOrDefault(l => l.Value is FamilyLoad.Failed) is { Value: FamilyLoad.Failed failed } entry)
-            {
-                throw new SezzleeCatalogException(
-                    DiagnosticCodes.FamilySourceFailed,
-                    $"sezzlee family source '{entry.Key}' failed and Families.OnFailure is Fatal: {failed.Error.Message}");
-            }
+            SourceLoads loads = await LoadAndReportAsync(sources, cancellationToken);
+            ThrowIfFatal(sources, loads);
             bool built;
             lock (_gate)
             {
-                _familyLoads = loads;
+                _loads = loads;
                 built = _snapshot is not null;
                 if (built)
                 {
@@ -159,8 +143,8 @@ internal sealed class SezzleeCatalogProvider(
             {
                 await CommitAsync(cancellationToken);
                 logger.LogInformation(
-                    "sezzlee catalog rebuilt with family members: {Tools} tools",
-                    Current.Result.Entries.Count);
+                    "sezzlee catalog rebuilt with {Sources}: {Tools} tools",
+                    sources, Current.Result.Entries.Count);
             }
         }
         finally
@@ -170,40 +154,32 @@ internal sealed class SezzleeCatalogProvider(
     }
 
     /// <summary>
-    /// Loads family members again and rebuilds the catalog only when a source's members changed,
-    /// so an unchanged refresh signals no change to connected clients.
+    /// Loads the given sources again and rebuilds the catalog only when one's rows changed, so an
+    /// unchanged refresh signals no change to connected clients.
     /// </summary>
     /// <exception cref="SezzleeCatalogException">The rebuild is refused; the current catalog is kept.</exception>
-    internal async Task RefreshFamiliesAsync(CancellationToken cancellationToken)
+    internal async Task RefreshSourcesAsync(CatalogSources sources, CancellationToken cancellationToken)
     {
+        sources &= RegisteredSources();
+        if (sources == CatalogSources.None)
+        {
+            return;
+        }
         await _reloads.WaitAsync(cancellationToken);
         try
         {
-            IReadOnlyDictionary<string, FamilyLoad>? previous = _familyLoads;
-            IReadOnlyDictionary<string, FamilyLoad> loads = await LoadAndReportAsync(cancellationToken);
-            if (previous is not null && !MembersChanged(previous, loads))
+            SourceLoads? previous = _loads;
+            SourceLoads loads = await LoadAndReportAsync(sources, cancellationToken);
+            if (previous is not null && !RowsChanged(sources, previous, loads))
             {
-                _familyLoads = loads;
+                _loads = loads;
                 return;
             }
-            lock (_gate)
-            {
-                Snapshot candidate = Build(loads);
-                if (candidate.Fatal.Count > 0 && Current.Fatal.Count == 0)
-                {
-                    throw new SezzleeCatalogException(
-                        candidate.Fatal[0].Code,
-                        "sezzlee catalog refresh refused; the current catalog is kept: "
-                        + string.Join(" | ", candidate.Fatal.Select(d => d.Message)));
-                }
-                _familyLoads = loads;
-                _snapshot = candidate;
-                Interlocked.Increment(ref _generation);
-            }
+            Rebuild(loads, "refresh");
             await CommitAsync(cancellationToken);
             logger.LogInformation(
-                "sezzlee catalog rebuilt after a family refresh: {Tools} tools",
-                Current.Result.Entries.Count);
+                "sezzlee catalog rebuilt after a refresh of {Sources}: {Tools} tools",
+                sources, Current.Result.Entries.Count);
         }
         finally
         {
@@ -211,37 +187,104 @@ internal sealed class SezzleeCatalogProvider(
         }
     }
 
-    private async Task<IReadOnlyDictionary<string, FamilyLoad>> LoadAndReportAsync(CancellationToken cancellationToken)
+    private CatalogSources RegisteredSources() =>
+        (options.Value.Families.Sources.Count > 0 ? CatalogSources.Families : CatalogSources.None)
+        | (options.Value.Selection.Provider is not null ? CatalogSources.Selection : CatalogSources.None);
+
+    private void Rebuild(SourceLoads loads, string verb)
+    {
+        lock (_gate)
+        {
+            Snapshot candidate = Build(loads);
+            if (candidate.Fatal.Count > 0 && Current.Fatal.Count == 0)
+            {
+                throw new SezzleeCatalogException(
+                    candidate.Fatal[0].Code,
+                    $"sezzlee catalog {verb} refused; the current catalog is kept: "
+                    + string.Join(" | ", candidate.Fatal.Select(d => d.Message)));
+            }
+            _loads = loads;
+            _snapshot = candidate;
+            Interlocked.Increment(ref _generation);
+        }
+    }
+
+    private void ThrowIfFatal(CatalogSources sources, SourceLoads loads)
+    {
+        ToolFamilyOptions families = options.Value.Families;
+        if (sources.HasFlag(CatalogSources.Families)
+            && families.OnFailure == FamilyLoadFailure.Fatal
+            && loads.Families.FirstOrDefault(l => l.Value is FamilyLoad.Failed) is { Value: FamilyLoad.Failed failed } entry)
+        {
+            throw new SezzleeCatalogException(
+                DiagnosticCodes.FamilySourceFailed,
+                $"sezzlee family source '{entry.Key}' failed and Families.OnFailure is Fatal: {failed.Error.Message}");
+        }
+        if (sources.HasFlag(CatalogSources.Selection)
+            && options.Value.Selection.Source.OnFailure == FamilyLoadFailure.Fatal
+            && loads.Selection is SelectionLoad.Failed selectionFailed)
+        {
+            throw new SezzleeCatalogException(
+                DiagnosticCodes.SelectionSourceFailed,
+                $"sezzlee selection source failed and Selection.Source.OnFailure is Fatal: {selectionFailed.Error.Message}");
+        }
+    }
+
+    private async Task<SourceLoads> LoadAndReportAsync(CatalogSources sources, CancellationToken cancellationToken)
     {
         long started = Stopwatch.GetTimestamp();
-        IReadOnlyDictionary<string, FamilyLoad> loads = await FamilyReader.LoadAsync(
-            options.Value.Families, scopes, _familyLoads, cancellationToken);
+        SourceLoads previous = _loads ?? SourceLoads.None;
+        Task<IReadOnlyDictionary<string, FamilyLoad>> families = sources.HasFlag(CatalogSources.Families)
+            ? FamilyReader.LoadAsync(options.Value.Families, scopes, previous.Families, cancellationToken)
+            : Task.FromResult(previous.Families);
+        Task<SelectionLoad?> selection = sources.HasFlag(CatalogSources.Selection)
+            ? SelectionReader.LoadAsync(options.Value.Selection, scopes, previous.Selection, cancellationToken)
+            : Task.FromResult(previous.Selection);
+        SourceLoads loaded = new(await families, await selection);
         TimeSpan elapsed = Stopwatch.GetElapsedTime(started);
-        foreach ((string source, FamilyLoad load) in loads)
+        if (sources.HasFlag(CatalogSources.Families))
         {
-            switch (load)
+            foreach ((string source, FamilyLoad load) in loaded.Families)
             {
-                case FamilyLoad.Loaded loaded:
-                    logger.LogInformation(
-                        "sezzlee family source '{Source}' returned {Members} member(s) in {Elapsed} ms",
-                        source, loaded.Members.Count, (long)elapsed.TotalMilliseconds);
-                    break;
-                case FamilyLoad.Stale stale:
-                    logger.LogWarning(
-                        stale.Error,
-                        "sezzlee family source '{Source}' failed; the {Members} member(s) it last returned stay published: {Reason}",
-                        source, stale.Members.Count, stale.Error.Message);
-                    break;
-                case FamilyLoad.Failed failed:
-                    logger.LogError(
-                        failed.Error,
-                        "sezzlee family source '{Source}' failed and has never returned members; the operations it feeds are dropped: {Reason}",
-                        source, failed.Error.Message);
-                    break;
+                Report($"family source '{source}'", "member", load, members => members.Count, elapsed, "the operations it feeds are dropped");
             }
         }
-        return loads;
+        if (sources.HasFlag(CatalogSources.Selection) && loaded.Selection is { } selectionLoad)
+        {
+            Report("selection source", "row", selectionLoad, rows => rows.Count, elapsed, "endpoints without an attribute marker stay unexposed");
+        }
+        return previous.With(sources, loaded);
     }
+
+    private void Report<T>(
+        string subject, string unit, SourceLoad<T> load, Func<T, int> count, TimeSpan elapsed, string consequence)
+        where T : class
+    {
+        switch (load)
+        {
+            case SourceLoad<T>.Loaded loaded:
+                logger.LogInformation(
+                    "sezzlee {Subject} returned {Count} {Unit}(s) in {Elapsed} ms",
+                    subject, count(loaded.Value), unit, (long)elapsed.TotalMilliseconds);
+                break;
+            case SourceLoad<T>.Stale stale:
+                logger.LogWarning(
+                    stale.Error,
+                    "sezzlee {Subject} failed; the {Count} {Unit}(s) it last returned stay published: {Reason}",
+                    subject, count(stale.Value), unit, stale.Error.Message);
+                break;
+            case SourceLoad<T>.Failed failed:
+                logger.LogError(
+                    failed.Error,
+                    "sezzlee {Subject} failed and has never returned {Unit}s; {Consequence}: {Reason}",
+                    subject, unit, consequence, failed.Error.Message);
+                break;
+        }
+    }
+
+    private static bool RowsChanged(CatalogSources sources, SourceLoads previous, SourceLoads current) =>
+        (sources.HasFlag(CatalogSources.Families) && MembersChanged(previous.Families, current.Families))
+        || (sources.HasFlag(CatalogSources.Selection) && SelectionReader.Changed(previous.Selection, current.Selection));
 
     private static bool MembersChanged(
         IReadOnlyDictionary<string, FamilyLoad> previous, IReadOnlyDictionary<string, FamilyLoad> current) =>
@@ -309,8 +352,7 @@ internal sealed class SezzleeCatalogProvider(
             snapshot.Result.Entries.Count, snapshot.Result.Diagnostics.Count);
         foreach (CatalogDiagnostic diagnostic in snapshot.Result.Diagnostics)
         {
-            if (diagnostic.Code == DiagnosticCodes.FamilyNotLoaded
-                && options.Value.Families.LoadMode == FamilyLoadMode.Background)
+            if (IsPendingBackgroundLoad(diagnostic.Code))
             {
                 logger.LogInformation("sezzlee {Code}: {Message}", diagnostic.Code, diagnostic.Message);
                 continue;
@@ -330,18 +372,25 @@ internal sealed class SezzleeCatalogProvider(
         }
     }
 
+    private bool IsPendingBackgroundLoad(string code) => code switch
+    {
+        DiagnosticCodes.FamilyNotLoaded => options.Value.Families.LoadMode == FamilyLoadMode.Background,
+        DiagnosticCodes.SelectionNotLoaded => options.Value.Selection.Source.LoadMode == FamilyLoadMode.Background,
+        _ => false,
+    };
+
     private Snapshot Current
     {
         get
         {
             lock (_gate)
             {
-                return _snapshot ??= Build(_familyLoads);
+                return _snapshot ??= Build(_loads);
             }
         }
     }
 
-    private Snapshot Build(IReadOnlyDictionary<string, FamilyLoad>? familyLoads)
+    private Snapshot Build(SourceLoads? loads)
     {
         if (_dataSources is null)
         {
@@ -368,12 +417,13 @@ internal sealed class SezzleeCatalogProvider(
             groupQueryObjects: options.Value.Query.Grouping == QueryObjectGrouping.Group,
             refDescription: fileResolver?.RefDescription,
             families: options.Value.Families,
-            familyLoads: familyLoads,
+            familyLoads: loads?.Families,
             catalogRevision: options.Value.Revision,
             containerRevision: options.Value.ContainerRevision,
             endpointDescription: options.Value.Description,
             endpointTags: options.Value.EndpointTags,
-            endpointSearchTerms: options.Value.EndpointSearchTerms);
+            endpointSearchTerms: options.Value.EndpointSearchTerms,
+            selectionSource: options.Value.Selection.Provider is null ? null : SelectionReader.StateOf(loads?.Selection));
         if (schemaNotes.Count > 0)
         {
             result = result with { Diagnostics = [.. schemaNotes, .. result.Diagnostics] };

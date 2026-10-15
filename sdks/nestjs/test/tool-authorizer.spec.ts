@@ -522,6 +522,10 @@ describe("host authorizer", () => {
     await host.call("dave", "search_tools", { query: "" });
     expect(authorizer.resolutions.get("dave")).toBe(2);
     expect(authorizer.resolutions.get("erin")).toBeUndefined();
+
+    await host.app.get(SezzleeCacheInvalidator).invalidateTag("tenant:acme");
+    await host.call("dave", "search_tools", { query: "" });
+    expect(authorizer.resolutions.get("dave")).toBe(3);
   });
 });
 

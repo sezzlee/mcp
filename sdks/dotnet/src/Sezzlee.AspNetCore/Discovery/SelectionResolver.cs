@@ -21,7 +21,8 @@ internal static class SelectionResolver
         SelectionMarker? container,
         SelectionMarker? operation,
         string? describedAs = null,
-        SelectionMarker? rule = null)
+        SelectionMarker? rule = null,
+        SelectionMarker? provided = null)
     {
         Reject(container, "container", describedAs);
         Reject(operation, "operation", describedAs);
@@ -33,6 +34,10 @@ internal static class SelectionResolver
         if (container is not null)
         {
             return container == SelectionMarker.Include;
+        }
+        if (provided is not null)
+        {
+            return provided == SelectionMarker.Include;
         }
         if (rule is not null)
         {
@@ -83,6 +88,9 @@ internal static class SelectionResolver
         return rule.Method is null
             || string.Equals(rule.Method, method, StringComparison.OrdinalIgnoreCase);
     }
+
+    public static SelectionMarker MarkerOf(SelectionDefault decision) =>
+        decision == SelectionDefault.Include ? SelectionMarker.Include : SelectionMarker.Exclude;
 
     public static SelectionMarker? Combine(bool include, bool exclude) => (include, exclude) switch
     {

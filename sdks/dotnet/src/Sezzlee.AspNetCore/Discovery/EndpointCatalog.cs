@@ -86,7 +86,8 @@ internal static partial class EndpointCatalog
         Func<string, int?>? containerRevision = null,
         Func<McpEndpointInfo, string?>? endpointDescription = null,
         Func<McpEndpointInfo, IReadOnlyList<string>?>? endpointTags = null,
-        Func<McpEndpointInfo, IReadOnlyList<string>?>? endpointSearchTerms = null)
+        Func<McpEndpointInfo, IReadOnlyList<string>?>? endpointSearchTerms = null,
+        SelectionSourceState? selectionSource = null)
     {
         ArgumentNullException.ThrowIfNull(apiDescriptions);
         severityOf ??= DiagnosticCodes.SeverityOf;
@@ -109,6 +110,11 @@ internal static partial class EndpointCatalog
         Dictionary<EndpointDescriptor, EndpointOrigin> origins = new(ReferenceEqualityComparer.Instance);
         int discovered = 0;
         int selected = 0;
+        ProvidedSelection? provided = selectionSource is SelectionSourceState.Rows rows
+            ? ProvidedSelection.Index(rows.Entries, diagnostics)
+            : null;
+        HashSet<string> targets = new(StringComparer.Ordinal);
+        int withheld = 0;
 
         foreach (ApiDescriptionGroup group in apiDescriptions.ApiDescriptionGroups.Items)
         {
@@ -120,6 +126,7 @@ internal static partial class EndpointCatalog
                 if (!string.IsNullOrEmpty(api.HttpMethod))
                 {
                     declared[target] = null;
+                    targets.Add(ProvidedSelection.TargetOf(api.HttpMethod, route));
                 }
                 if (reservedRoutePrefix is not null
                     && route.StartsWith(reservedRoutePrefix, StringComparison.OrdinalIgnoreCase))
@@ -133,13 +140,27 @@ internal static partial class EndpointCatalog
                     ? [.. endpoint.Metadata]
                     : [.. action.EndpointMetadata ?? []];
 
+                SelectionMarker? containerMarker = ContainerMarker(action);
+                SelectionMarker? operationMarker = OperationMarker(action, metadata);
+                if (selectionSource is SelectionSourceState.Withheld
+                    && containerMarker is null
+                    && operationMarker is null)
+                {
+                    withheld += 1;
+                    continue;
+                }
+                McpSelectionEntry? providedEntry = string.IsNullOrEmpty(api.HttpMethod)
+                    ? null
+                    : provided?.Find(api.HttpMethod, route);
+
                 bool include;
                 try
                 {
                     include = SelectionResolver.IsSelected(
-                        selectionDefault, ContainerMarker(action), OperationMarker(action, metadata), target,
+                        selectionDefault, containerMarker, operationMarker, target,
                         SelectionResolver.ResolveRules(
-                            selectionRules, route, api.HttpMethod ?? string.Empty, target));
+                            selectionRules, route, api.HttpMethod ?? string.Empty, target),
+                        providedEntry is null ? null : SelectionResolver.MarkerOf(providedEntry.Decision));
                 }
                 catch (SezzleeCatalogException ex)
                 {
@@ -164,7 +185,7 @@ internal static partial class EndpointCatalog
                     api, route, action, metadata, useOperationIds, schema, hasFallbackPolicy,
                     containerPrefix, containerTags, containerSearchTerms, diagnostics,
                     curation ?? new ArgumentCurationOptions(), groupQueryObjects, endpointDescription,
-                    endpointTags, endpointSearchTerms);
+                    endpointTags, endpointSearchTerms, providedEntry);
                 if (descriptor is null)
                 {
                     dropped += 1;
@@ -201,6 +222,19 @@ internal static partial class EndpointCatalog
                 origins[descriptor] = new EndpointOrigin((action as ControllerActionDescriptor)?.MethodInfo, metadata, memberOrigins);
                 declared[target] = descriptor;
             }
+        }
+
+        if (selectionSource is SelectionSourceState.Withheld notLoaded && withheld > 0)
+        {
+            diagnostics.Add(new CatalogDiagnostic(
+                DiagnosticCodes.SelectionNotLoaded,
+                $"{withheld} endpoint(s) without an attribute marker are not exposed: {notLoaded.Reason}, and the rows may be the only thing excluding them; the catalog is rebuilt when the source returns."));
+        }
+        foreach (string unknown in provided?.Unmatched(targets) ?? [])
+        {
+            diagnostics.Add(new CatalogDiagnostic(
+                DiagnosticCodes.SelectionTargetUnknown,
+                $"selection source row {unknown} names no endpoint of this application and was ignored."));
         }
 
         List<CatalogEntry> entries = [];
@@ -429,7 +463,8 @@ internal static partial class EndpointCatalog
         bool groupQueryObjects,
         Func<McpEndpointInfo, string?>? endpointDescription,
         Func<McpEndpointInfo, IReadOnlyList<string>?>? endpointTags,
-        Func<McpEndpointInfo, IReadOnlyList<string>?>? endpointSearchTerms)
+        Func<McpEndpointInfo, IReadOnlyList<string>?>? endpointSearchTerms,
+        McpSelectionEntry? provided)
     {
         List<Parameter> parameters = [];
         RequestBody? body = null;
@@ -566,11 +601,12 @@ internal static partial class EndpointCatalog
             Container = action is ControllerActionDescriptor declaring
                 ? declaring.ControllerTypeInfo.FullName
                 : null,
-            ToolName = SelectionAttribute(action, metadata, operationOnly: true)?.Name,
+            ToolName = SelectionAttribute(action, metadata, operationOnly: true)?.Name ?? provided?.Name,
             ContainerPrefix = PrefixFor(action, metadata, containerPrefix),
             Method = api.HttpMethod!.ToUpperInvariant(),
             Route = route,
             Description = SelectionAttribute(action, metadata, operationOnly: true)?.Description
+                ?? provided?.Description
                 ?? DescribedBy(endpointDescription, api, route, action, metadata),
             Arguments = CurationReader.Read(
                 action, metadata, null, curation,
@@ -582,8 +618,8 @@ internal static partial class EndpointCatalog
             RequestBody = body,
             Responses = responses.Count == 0 ? null : responses,
             Auth = ReadAuth(metadata, hasFallbackPolicy),
-            Tags = TagsFor(action, metadata, api, route, containerTags, endpointTags, diagnostics),
-            SearchTerms = SearchTermsFor(action, metadata, api, route, containerSearchTerms, endpointSearchTerms, diagnostics),
+            Tags = TagsFor(action, metadata, api, route, containerTags, endpointTags, provided, diagnostics),
+            SearchTerms = SearchTermsFor(action, metadata, api, route, containerSearchTerms, endpointSearchTerms, provided, diagnostics),
         };
     }
 
@@ -655,12 +691,13 @@ internal static partial class EndpointCatalog
         {
             return declared;
         }
-        string? described = rule(EndpointInfoOf(api, route, action, metadata));
+        string? described = rule(EndpointInfoOf(api, route, action, metadata, null));
         return string.IsNullOrWhiteSpace(described) ? declared : described;
     }
 
     private static McpEndpointInfo EndpointInfoOf(
-        ApiDescription api, string route, ActionDescriptor action, IReadOnlyList<object> metadata)
+        ApiDescription api, string route, ActionDescriptor action, IReadOnlyList<object> metadata,
+        McpSelectionEntry? provided)
     {
         ControllerActionDescriptor? controller = action as ControllerActionDescriptor;
         return new McpEndpointInfo(
@@ -669,7 +706,7 @@ internal static partial class EndpointCatalog
             controller?.ControllerTypeInfo.FullName,
             controller?.MethodInfo,
             metadata,
-            DescriptionOf(metadata));
+            provided?.Description ?? DescriptionOf(metadata));
     }
 
     private static string? DescriptionOf(IReadOnlyList<object> metadata)
@@ -748,6 +785,7 @@ internal static partial class EndpointCatalog
         string route,
         Func<string, IReadOnlyList<string>?>? containerTags,
         Func<McpEndpointInfo, IReadOnlyList<string>?>? endpointTags,
+        McpSelectionEntry? provided,
         List<CatalogDiagnostic> diagnostics)
     {
         string owner = OwnerOf(action, api);
@@ -755,7 +793,11 @@ internal static partial class EndpointCatalog
         {
             return CleanVocabulary(declared, owner, diagnostics, TagRules);
         }
-        if (endpointTags?.Invoke(EndpointInfoOf(api, route, action, metadata)) is { } perEndpoint)
+        if (provided?.Tags is { } providedTags)
+        {
+            return CleanVocabulary(providedTags, owner, diagnostics, TagRules);
+        }
+        if (endpointTags?.Invoke(EndpointInfoOf(api, route, action, metadata, provided)) is { } perEndpoint)
         {
             return CleanVocabulary(perEndpoint, owner, diagnostics, TagRules);
         }
@@ -775,10 +817,12 @@ internal static partial class EndpointCatalog
         string route,
         Func<string, IReadOnlyList<string>?>? containerSearchTerms,
         Func<McpEndpointInfo, IReadOnlyList<string>?>? endpointSearchTerms,
+        McpSelectionEntry? provided,
         List<CatalogDiagnostic> diagnostics)
     {
         IReadOnlyList<string>? declared = Declared(action, metadata, attribute => attribute.SearchTerms)
-            ?? endpointSearchTerms?.Invoke(EndpointInfoOf(api, route, action, metadata))
+            ?? provided?.SearchTerms
+            ?? endpointSearchTerms?.Invoke(EndpointInfoOf(api, route, action, metadata, provided))
             ?? Central(action, containerSearchTerms);
         if (declared is null)
         {

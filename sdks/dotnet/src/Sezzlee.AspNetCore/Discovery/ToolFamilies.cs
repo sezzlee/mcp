@@ -153,23 +153,11 @@ public enum FamilyLoadFailure
     Fatal,
 }
 
-public sealed class ToolFamilyOptions
+public sealed class ToolFamilyOptions : SourceLoadOptions
 {
     private readonly Dictionary<string, McpFamilySource> _sources = new(StringComparer.Ordinal);
 
     public IReadOnlyDictionary<string, McpFamilySource> Sources => _sources;
-
-    public TimeSpan LoadTimeout { get; set; } = TimeSpan.FromSeconds(10);
-
-    public FamilyLoadMode LoadMode { get; set; } = FamilyLoadMode.Blocking;
-
-    /// <summary>
-    /// How often sources are loaded again after the first load. <see cref="TimeSpan.Zero"/> loads
-    /// them once. A refresh whose members equal the published ones changes nothing.
-    /// </summary>
-    public TimeSpan RefreshInterval { get; set; } = TimeSpan.Zero;
-
-    public FamilyLoadFailure OnFailure { get; set; } = FamilyLoadFailure.Drop;
 
     public ToolFamilyOptions Provide(string name, McpFamilySource source)
     {
@@ -178,22 +166,6 @@ public sealed class ToolFamilyOptions
         _sources[name] = source;
         return this;
     }
-}
-
-internal abstract record FamilyLoad
-{
-    internal sealed record Loaded(IReadOnlyList<McpFamilyMember> Members) : FamilyLoad;
-
-    internal sealed record Stale(IReadOnlyList<McpFamilyMember> Members, Exception Error) : FamilyLoad;
-
-    internal sealed record Failed(Exception Error) : FamilyLoad;
-
-    internal IReadOnlyList<McpFamilyMember>? Published => this switch
-    {
-        Loaded loaded => loaded.Members,
-        Stale stale => stale.Members,
-        _ => null,
-    };
 }
 
 internal abstract record FamilyResolution
@@ -211,13 +183,6 @@ internal abstract record FamilyResolution
 internal static partial class FamilyReader
 {
     /// <summary>Loads every registered source once.</summary>
-    /// <remarks>
-    /// Guard: a source runs on the thread pool because a source that does its work synchronously
-    /// before returning would otherwise hold the caller past <see cref="ToolFamilyOptions.LoadTimeout"/>,
-    /// and hold startup in <see cref="FamilyLoadMode.Background"/>.
-    /// A failing source keeps the members it last returned: dropping a family because its source
-    /// was briefly unreachable would take working tools offline on every transient error.
-    /// </remarks>
     public static async Task<IReadOnlyDictionary<string, FamilyLoad>> LoadAsync(
         ToolFamilyOptions options,
         IServiceScopeFactory? scopes,
@@ -225,50 +190,14 @@ internal static partial class FamilyReader
         CancellationToken cancellationToken)
     {
         (string Name, FamilyLoad Load)[] loads = await Task.WhenAll(options.Sources.Select(async entry =>
-        {
-            try
-            {
-                using CancellationTokenSource deadline =
-                    CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                deadline.CancelAfter(options.LoadTimeout);
-                try
-                {
-                    IReadOnlyList<McpFamilyMember> members = await Task.Run(
-                        () => LoadOneAsync(entry.Value, scopes, deadline.Token), deadline.Token)
-                        .WaitAsync(deadline.Token);
-                    return (entry.Key, (FamilyLoad)new FamilyLoad.Loaded(members ?? []));
-                }
-                catch (OperationCanceledException canceled)
-                    when (deadline.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
-                {
-                    throw new TimeoutException(
-                        $"timeout: source '{entry.Key}' did not return within Families.LoadTimeout ({options.LoadTimeout}); raise options.Families.LoadTimeout or set options.Families.LoadMode to Background",
-                        canceled);
-                }
-            }
-            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-            {
-                FamilyLoad load = previous?.GetValueOrDefault(entry.Key) switch
-                {
-                    FamilyLoad.Loaded last => new FamilyLoad.Stale(last.Members, ex),
-                    FamilyLoad.Stale last => new FamilyLoad.Stale(last.Members, ex),
-                    _ => new FamilyLoad.Failed(ex),
-                };
-                return (entry.Key, load);
-            }
-        }));
+            (entry.Key, await SourceReader.LoadAsync<IReadOnlyList<McpFamilyMember>>(
+                async (services, token) => await entry.Value(services, token) ?? [],
+                scopes,
+                options.LoadTimeout,
+                $"timeout: source '{entry.Key}' did not return within Families.LoadTimeout ({options.LoadTimeout}); raise options.Families.LoadTimeout or set options.Families.LoadMode to Background",
+                previous?.GetValueOrDefault(entry.Key),
+                cancellationToken))));
         return loads.ToDictionary(l => l.Name, l => l.Load, StringComparer.Ordinal);
-    }
-
-    private static async Task<IReadOnlyList<McpFamilyMember>> LoadOneAsync(
-        McpFamilySource source, IServiceScopeFactory? scopes, CancellationToken cancellationToken)
-    {
-        if (scopes is null)
-        {
-            return await source(EmptyServices.Instance, cancellationToken);
-        }
-        await using AsyncServiceScope scope = scopes.CreateAsyncScope();
-        return await source(scope.ServiceProvider, cancellationToken);
     }
 
     /// <summary>Lowers one operation's family declaration into the variants its members become.</summary>
@@ -313,10 +242,10 @@ internal static partial class FamilyReader
                 diagnostics.Add(new CatalogDiagnostic(
                     DiagnosticCodes.FamilySourceStale,
                     $"{owner} keeps the members source '{declaration.Source}' last returned; the latest load failed ({stale.Error.Message})."));
-                members = stale.Members;
+                members = stale.Value;
                 break;
             case FamilyLoad.Loaded loaded:
-                members = loaded.Members;
+                members = loaded.Value;
                 break;
             default:
                 throw new InvalidOperationException($"Unhandled family load {load.GetType().Name}.");
@@ -431,11 +360,4 @@ internal static partial class FamilyReader
 
     [GeneratedRegex("^[a-z][a-z0-9_]{0,255}$")]
     private static partial Regex ToolName();
-
-    private sealed class EmptyServices : IServiceProvider
-    {
-        public static readonly EmptyServices Instance = new();
-
-        public object? GetService(Type serviceType) => null;
-    }
 }

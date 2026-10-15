@@ -49,7 +49,7 @@ public sealed class FamilyParameterDescriptionsHostTests : FamilyHost
     {
         long generation = Catalog.Generation;
 
-        await Catalog.RefreshFamiliesAsync(CancellationToken.None);
+        await Catalog.RefreshSourcesAsync(CatalogSources.Families, CancellationToken.None);
 
         Assert.Equal(generation, Catalog.Generation);
     }
@@ -68,7 +68,7 @@ public sealed class FamilyParameterDescriptionsChangeHostTests : FamilyHost
     {
         long generation = Catalog.Generation;
 
-        await Catalog.RefreshFamiliesAsync(CancellationToken.None);
+        await Catalog.RefreshSourcesAsync(CatalogSources.Families, CancellationToken.None);
 
         Assert.Equal(generation + 1, Catalog.Generation);
         JsonNode properties = (await LoadInputSchemaAsync("assign_courier"))["properties"]!;

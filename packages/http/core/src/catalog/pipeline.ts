@@ -28,6 +28,7 @@ import {
 import {
   isSelected,
   resolveRules,
+  type SelectionDecision,
   type SelectionDefault,
   type SelectionMarker,
   type SelectionRule,
@@ -62,6 +63,8 @@ export type CatalogEntry<Source extends object = object> = {
  *
  * @param source fields carried onto the catalog entry unchanged, for the source's own later use
  * @param owner the operation's human-readable identity in diagnostics
+ * @param provided the decision of a host-supplied source, ranked between `container` and the
+ * config-level rules
  * @param declare applies the source's declarations to the discovered descriptor; it may throw a
  * `SezzleeTemplateError` for a declaration conflict, which aborts the build
  */
@@ -71,6 +74,7 @@ export interface CatalogCandidate<Source extends object = object> {
   readonly descriptor: EndpointDescriptor;
   readonly container?: SelectionMarker;
   readonly operation?: SelectionMarker;
+  readonly provided?: SelectionDecision;
   readonly tags?: readonly string[];
   readonly searchTerms?: readonly string[];
   readonly revision?: RevisionDeclarations;
@@ -166,6 +170,7 @@ export function buildCatalog<Source extends object>(
             candidate.descriptor.method,
             describedAs,
           ),
+          candidate.provided,
         )
       ) {
         chosen.push(candidate);

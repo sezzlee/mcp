@@ -49,6 +49,11 @@ public static class DiagnosticCodes
     public const string FamilySourceStale = "family_source_stale";
     public const string FamilyNotLoaded = "family_not_loaded";
     public const string FamilyMemberRejected = "family_member_rejected";
+    public const string SelectionTargetUnknown = "selection_target_unknown";
+    public const string SelectionEntryConflict = "selection_entry_conflict";
+    public const string SelectionEntryRejected = "selection_entry_rejected";
+    public const string SelectionNotLoaded = "selection_not_loaded";
+    public const string SelectionSourceFailed = "selection_source_failed";
 
     private static readonly Dictionary<string, CatalogSeverity> Defaults =
         new(StringComparer.Ordinal)

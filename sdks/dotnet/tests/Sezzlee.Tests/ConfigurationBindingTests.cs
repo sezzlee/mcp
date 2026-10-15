@@ -119,4 +119,34 @@ public sealed class ConfigurationBindingTests
 
         Assert.Contains(refused.Failures, f => f.Contains("Visibility.MaxProbesPerSearch", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void CB8_TheSelectionSourceBindsItsLoadOptionsFromConfiguration()
+    {
+        SezzleeOptions options = Bind(new()
+        {
+            ["Selection:Source:LoadMode"] = "Background",
+            ["Selection:Source:LoadTimeout"] = "00:00:03",
+            ["Selection:Source:RefreshInterval"] = "00:02:00",
+            ["Selection:Source:OnFailure"] = "Drop",
+        });
+
+        Assert.Equal(FamilyLoadMode.Background, options.Selection.Source.LoadMode);
+        Assert.Equal(TimeSpan.FromSeconds(3), options.Selection.Source.LoadTimeout);
+        Assert.Equal(TimeSpan.FromMinutes(2), options.Selection.Source.RefreshInterval);
+        Assert.Equal(FamilyLoadFailure.Drop, options.Selection.Source.OnFailure);
+        Assert.Equal(FamilyLoadMode.Blocking, options.Families.LoadMode);
+    }
+
+    [Fact]
+    public void CB9_AFatalSelectionSourceWithABackgroundLoad_IsRefused()
+    {
+        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(() => Bind(new()
+        {
+            ["Selection:Source:LoadMode"] = "Background",
+            ["Selection:Source:OnFailure"] = "Fatal",
+        }));
+
+        Assert.Contains(refused.Failures, f => f.Contains("Selection.Source.OnFailure", StringComparison.Ordinal));
+    }
 }

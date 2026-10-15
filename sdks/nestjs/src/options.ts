@@ -12,6 +12,10 @@ import type { CatalogSeverity } from "./discovery/diagnostics.js";
 import type { McpEndpointInfo } from "./discovery/endpoint-discovery.js";
 import type { TypeShapeBinderOptions } from "./discovery/type-shape.js";
 import { ToolFamilyOptions } from "./families.js";
+import {
+  SelectionSourceSettings,
+  type McpSelectionSource,
+} from "./selection-source.js";
 import type { SezzleeFileOptions } from "./files.js";
 import type { OuterConnection } from "./outer-connection.js";
 
@@ -248,14 +252,30 @@ export interface SezzleeResourceServerOptions {
 }
 
 /**
- * Config-level selection, for routes the host cannot or will not decorate.
+ * Selection beyond the decorators: config-level rules, and a source for a host whose list of
+ * exposed endpoints lives in data.
  *
- * `rules` sits below both attribute levels and above `default`; order carries no meaning, and
- * equally specific rules that disagree are a build error rather than a silent first-match win.
+ * The levels rank `operation`, `container`, the rows a source provides, `rules`, then `default`.
+ * `rules` order carries no meaning, and equally specific rules that disagree are a build error
+ * rather than a silent first-match win. Until a provided source has returned, an endpoint without
+ * a decorator is not selected, because the source may be the only thing excluding it.
+ *
+ * @param source how the provided source is loaded; the same settings as `families`
  */
-export interface SezzleeSelectionOptions {
-  default: SelectionDefault;
+export class SezzleeSelectionOptions {
+  default: SelectionDefault = "exclude";
   rules?: readonly SelectionRule[];
+  readonly source = new SelectionSourceSettings();
+  private supplier: McpSelectionSource | undefined;
+
+  get provider(): McpSelectionSource | undefined {
+    return this.supplier;
+  }
+
+  provide(source: McpSelectionSource): this {
+    this.supplier = source;
+    return this;
+  }
 }
 
 /**
@@ -323,7 +343,7 @@ export class SezzleeOptions {
   readonly synthetic: SyntheticRequestOptions = { accept: "application/json" };
   readonly cache: SezzleeCacheOptions = { lifetimeMs: 30_000, maxCallers: 128 };
   readonly errors = new ErrorMappingOptions();
-  readonly selection: SezzleeSelectionOptions = { default: "exclude" };
+  readonly selection = new SezzleeSelectionOptions();
   readonly query: SezzleeQueryOptions = { grouping: "flatten" };
   readonly naming: SezzleeNamingOptions = { prefixMode: "always" };
   readonly diagnostics: SezzleeDiagnosticsOptions = {

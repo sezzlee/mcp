@@ -48,7 +48,13 @@ export class SezzleeCacheInvalidator {
     return this.cache.removeScope(scope.key);
   }
 
+  /**
+   * Guard: a held authorizer access is not indexed by tag, so a tag invalidation drops every held
+   * access. Dropping none would leave a caller whose permissions changed under that tag seeing the
+   * old answer for a whole cache lifetime.
+   */
   invalidateTag(tag: CacheTag): Promise<void> {
+    this.visibility?.invalidateAccess();
     return this.cache.removeTag(tag);
   }
 

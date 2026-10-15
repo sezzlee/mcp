@@ -198,6 +198,42 @@ order, and two equally specific rules that disagree fail the catalog with `ambig
 rather than one quietly winning. An attribute always outranks a rule, so a carve-out inside an
 excluded subtree goes on the endpoint.
 
+### A selection source
+
+When the list of exposed endpoints lives in data — a database table an operator edits — supply it
+as a source instead of code. It becomes a level between the attributes and the rules:
+`operation` > `container` > provided > `rules` > `default`. A row never overrules a
+`@McpIgnore()`, and it outranks a glob in configuration.
+
+```ts
+SezzleeModule.forRoot((options) => {
+  options.selection.provide(async ({ signal }) =>
+    (await db.exposedEndpoints({ signal })).map((row) => ({
+      method: row.method,
+      route: row.route,
+      decision: row.exposed ? "include" : "exclude",
+      description: row.description,
+      tags: row.tags,
+    })),
+  );
+  options.selection.source.refreshIntervalMs = 60_000;
+});
+```
+
+A row names one endpoint by upper-case `method` and composed `route`, compared exactly; there are no
+globs. `name`, `description`, `tags` and `searchTerms` are optional overrides that sit below the
+decorator's own declaration and above the endpoint hooks and the derived name. The source loads like
+a family source: `selection.source` takes the same `loadTimeoutMs`, `loadMode`, `refreshIntervalMs`
+and `onFailure`, a refresh that returns the same rows rebuilds nothing, and a failed refresh keeps
+the rows it last returned.
+
+Until the source has returned once, every endpoint without a decorator is **not selected**, because
+the source may be the only thing excluding it; decorated endpoints are decided as usual, and
+`selection_not_loaded` says so. A defect in one row is that row's alone and a warning:
+`selection_target_unknown` for a row naming no endpoint, `selection_entry_conflict` when two rows
+for one endpoint disagree (both are ignored and the endpoint is excluded), and `selection_entry_rejected` for a blank method or
+route, an unknown decision, or an invalid override, which loses only that override.
+
 Visibility is **not** a security mechanism. A tool hidden from the catalog still runs only if your
 backend permits it; enforcement is always in your pipeline at invoke time.
 
@@ -417,9 +453,9 @@ into the cache. `total` and the `tags` vocabulary come from the tools the cheape
 and never probe, so a tag reachable only through tools that need a probe follows `onUnknown`.
 `load_tool` probes just the tool it names; `invoke_tool` never probes.
 
-| Option                          | Default            | Meaning                                                                                                                                                                                                                                                                         |
-| ------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `visibility.maxProbesPerSearch` | `50`               | The most probe requests one search sends; a non-negative integer, `0` stops search from probing. At the cap the page is returned as it stands, the tools left unprobed follow `onUnknown`, and one warning names the cap. A cached verdict does not count. Replaces `probeTopK` |
+| Option                          | Default | Meaning                                                                                                                                                                                                                                                                         |
+| ------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `visibility.maxProbesPerSearch` | `50`    | The most probe requests one search sends; a non-negative integer, `0` stops search from probing. At the cap the page is returned as it stands, the tools left unprobed follow `onUnknown`, and one warning names the cap. A cached verdict does not count. Replaces `probeTopK` |
 
 An `allow` or `deny` verdict is kept in the shared cache for `cache.lifetimeMs`, as before, and
 `SezzleeCacheInvalidator` drops it with the rest of the scope.

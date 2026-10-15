@@ -122,6 +122,49 @@ order, and two equally specific rules that disagree fail the catalog with `ambig
 rather than one quietly winning. An attribute always outranks a rule, so a carve-out inside an
 excluded subtree goes on the endpoint.
 
+When the list of exposed endpoints lives in data, such as a table an operator edits, supply it as a
+selection source. It loads like a family source and sits between the attributes and the rules:
+`operation > container > provided > rules > default`. An `[McpIgnore]` is never overruled by a row,
+and a row naming one endpoint outranks a rule's glob.
+
+```csharp
+builder.Services.AddSezzlee(options =>
+{
+    options.Selection.Provide(async (services, ct) =>
+    {
+        var rows = await services.GetRequiredService<ExposureStore>().LoadAsync(ct);
+        return [.. rows.Select(r => new McpSelectionEntry(r.Method, r.Route, r.Exposed
+            ? SelectionDefault.Include
+            : SelectionDefault.Exclude)
+        {
+            Name = r.ToolName,
+            Description = r.Description,
+            Tags = r.Tags,
+            SearchTerms = r.SearchTerms,
+        })];
+    });
+    options.Selection.Source.LoadMode = FamilyLoadMode.Background;
+    options.Selection.Source.RefreshInterval = TimeSpan.FromMinutes(1);
+});
+```
+
+A row targets one endpoint: the upper-case `Method` and the exact normalized route template, with
+no globs. `Name`, `Description`, `Tags` and `SearchTerms` are optional and sit below the matching
+`[McpTool(...)]` declaration and above the options hooks. A row naming no endpoint is reported as
+`selection_target_unknown` and ignored. Two rows for one target that disagree exclude it and report
+`selection_entry_conflict`; identical rows collapse. A row with a blank method or route or an
+undefined decision is rejected whole (`selection_entry_rejected`), and an invalid override, such as
+a name that fails the tool-name pattern, loses only itself and the decision stays.
+
+Until the source first returns, an endpoint without an attribute marker is not exposed, because the
+source may be the only thing excluding it; the catalog reports `selection_not_loaded` (logged at
+information in `Background` mode, otherwise at warning) and is rebuilt when the source returns.
+`options.Selection.Source` takes the same `LoadTimeout`, `LoadMode`, `RefreshInterval` and
+`OnFailure` as `options.Families`, binds from `Selection:Source:*`, and one hosted service loads
+both. With `OnFailure = Fatal` a first load that fails stops startup with `selection_source_failed`.
+The `x-sezzlee` markers published for an OpenAPI gateway carry the provided decisions, tool names
+and search terms.
+
 Visibility is **not** a security mechanism. A tool hidden from the catalog still runs only if your
 backend permits it; enforcement is always in your pipeline at invoke time.
 
@@ -454,6 +497,7 @@ tokenization.
 | Every request to `/mcp` returns 401                           | `.RequireAuthorization()` is on and the client sends no token            | Send a bearer token, or drop `.RequireAuthorization()` during development                   |
 | Host will not start, fatal diagnostic                         | A catalog error such as `name_collision` / `invalid_name`                | Read the code list in the log; downgrade a single code with `options.Diagnostics.Downgrade` |
 | Family tools missing, `family_source_failed` with `timeout`   | The source ran past `Families.LoadTimeout`                               | Raise `Families.LoadTimeout`, or set `Families.LoadMode = Background`                       |
+| Endpoints missing, `selection_not_loaded` with `timeout`      | The selection source ran past `Selection.Source.LoadTimeout`             | Raise `Selection.Source.LoadTimeout`, or set `Selection.Source.LoadMode = Background`       |
 | `unreadable_shape` naming a type that "contains its own kind" | A collection whose items are its own kind, such as Newtonsoft's `JToken` | Publish a schema for it with `options.Schema.TypeSchema`                                    |
 
 ## 6. What's next
