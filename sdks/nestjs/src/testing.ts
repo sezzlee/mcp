@@ -1,5 +1,4 @@
 import type { INestApplication } from "@nestjs/common";
-import type { VisibilityDecision } from "@sezzlee/core";
 import { SezzleeCatalog, type CatalogEntry } from "./catalog.js";
 import { extensionTokens } from "./extension-points.js";
 import type { OuterRequest } from "./options.js";
@@ -309,15 +308,7 @@ async function truthOf(
         "probing is disabled for this tool: an earlier probe did not route or came back without the short-circuit marker; declare a value in visibility.probeValues",
     };
   }
-  let decision: VisibilityDecision;
-  try {
-    decision = await prober.probe(entry, outer);
-  } catch (error) {
-    return {
-      kind: "unjudged",
-      reason: `the probe threw: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
+  const decision = await prober.probe(entry, outer);
   if (decision !== "unknown") {
     return { kind: "decided", decision };
   }

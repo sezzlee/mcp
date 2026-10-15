@@ -30,6 +30,7 @@ import type {
   ToolAccess,
   ToolAuthorizer,
 } from "../src/visibility/authorizer.js";
+import type { ProbeEvaluator } from "../src/visibility/probe.js";
 import { CallerVisibilityProvider } from "../src/visibility/provider.js";
 
 type Answer = "allow" | "forbid" | "throttle";
@@ -342,5 +343,17 @@ describe("visibility audit", () => {
     ]);
     expect(set).not.toHaveBeenCalled();
     expect(await provider.cachedProbe(scope, entry)).toBe("allow");
+  });
+
+  it("fails the audit with the error of a probe that throws instead of answering", async () => {
+    const started = await startApp();
+    const prober = started.get<ProbeEvaluator>(extensionTokens.probeEvaluator);
+    vi.spyOn(prober, "probe").mockRejectedValue(
+      new Error("the pipeline was never captured"),
+    );
+
+    await expect(auditVisibility(started, [bob])).rejects.toThrow(
+      "the pipeline was never captured",
+    );
   });
 });

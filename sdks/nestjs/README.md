@@ -539,6 +539,8 @@ its target method, is invisible to it. A tool your authorizer hides for that rea
 probe that does not route, or that returns a 2xx without the short-circuit marker, disables probing
 for that tool until the catalog changes, as it would during a search.
 
+A probe that throws instead of answering, such as an application whose pipeline is not set up for probing, fails the audit with that error rather than being reported once per tool.
+
 ## 5. Connecting an MCP client
 
 The endpoint speaks Streamable HTTP. `tools/list` returns only three meta-tools:
