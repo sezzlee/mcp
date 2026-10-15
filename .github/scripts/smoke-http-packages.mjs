@@ -5,12 +5,16 @@ import { join, resolve } from "node:path";
 
 const input = resolve(process.argv[2] ?? "local/npm-tarballs");
 const names = await readdir(input);
-const archive = (prefix) => {
-  const matches = names.filter(
-    (name) => name.startsWith(prefix) && name.endsWith(".tgz"),
-  );
+/**
+ * Guard: a tarball is matched by its package name followed by the version's first digit. A bare
+ * prefix such as `sezzlee-openapi-` also matches `sezzlee-openapi-mcp-…`, and pinning the major
+ * (`sezzlee-openapi-0`) broke the moment a package reached 1.0.0.
+ */
+const archive = (packageName) => {
+  const pattern = new RegExp(`^${packageName}-\\d.*\\.tgz$`);
+  const matches = names.filter((name) => pattern.test(name));
   if (matches.length !== 1)
-    throw new Error(`Expected exactly one ${prefix} tarball`);
+    throw new Error(`Expected exactly one ${packageName} tarball`);
   return `file:${join(input, matches[0]).replaceAll("\\", "/")}`;
 };
 const directory = await mkdtemp(join(tmpdir(), "http-packages-smoke-"));
@@ -31,10 +35,10 @@ try {
         "reflect-metadata": "^0.2.2",
         rxjs: "^7.8.0",
         zod: "^4.5.4",
-        "@sezzlee/core": archive("sezzlee-core-"),
-        "@sezzlee/openapi": archive("sezzlee-openapi-0"),
-        "@sezzlee/openapi-mcp": archive("sezzlee-openapi-mcp-"),
-        "@sezzlee/sdk-nestjs": archive("sezzlee-sdk-nestjs-"),
+        "@sezzlee/core": archive("sezzlee-core"),
+        "@sezzlee/openapi": archive("sezzlee-openapi"),
+        "@sezzlee/openapi-mcp": archive("sezzlee-openapi-mcp"),
+        "@sezzlee/sdk-nestjs": archive("sezzlee-sdk-nestjs"),
       },
       overrides: {
         "@sezzlee/core": "$@sezzlee/core",

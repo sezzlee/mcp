@@ -12,25 +12,29 @@ import { basename, join, resolve } from "node:path";
 
 const input = resolve(process.argv[2] ?? "local/npm-tarballs");
 const names = await readdir(input);
-const find = (prefix) => {
-  const matches = names.filter(
-    (name) => name.startsWith(prefix) && name.endsWith(".tgz"),
-  );
+/**
+ * Guard: a tarball is matched by its package name followed by the version's first digit. A bare
+ * prefix such as `sezzlee-file-core-` also matches `sezzlee-file-core-native-…`, and pinning the
+ * major (`sezzlee-file-core-0`) breaks the moment the package reaches 1.0.0.
+ */
+const find = (packageName) => {
+  const pattern = new RegExp(`^${packageName}-\\d.*\\.tgz$`);
+  const matches = names.filter((name) => pattern.test(name));
   if (matches.length > 1)
-    throw new Error(`Expected at most one ${prefix} tarball`);
+    throw new Error(`Expected at most one ${packageName} tarball`);
   return matches[0];
 };
-const archive = (prefix) => {
-  const match = find(prefix);
+const archive = (packageName) => {
+  const match = find(packageName);
   if (match === undefined)
-    throw new Error(`Expected exactly one ${prefix} tarball`);
+    throw new Error(`Expected exactly one ${packageName} tarball`);
   return `file:${join(input, match).replaceAll("\\", "/")}`;
 };
 /**
  * The PDF engine publishes no darwin-x64 binary, so the native job does not pack
  * @sezzlee/pdf-mcp on that leg. Its smoke is skipped there rather than failing.
  */
-const packedPdf = find("sezzlee-pdf-mcp-") !== undefined;
+const packedPdf = find("sezzlee-pdf-mcp") !== undefined;
 const directory = await mkdtemp(join(tmpdir(), "file-packages-smoke-"));
 try {
   await writeFile(
@@ -40,15 +44,15 @@ try {
       type: "module",
       dependencies: {
         "@modelcontextprotocol/client": "^2.0.0",
-        "@sezzlee/file-core-native": archive("sezzlee-file-core-native-"),
-        "@sezzlee/mcp-core": archive("sezzlee-mcp-core-"),
-        "@sezzlee/llm-mcp": archive("sezzlee-llm-mcp-"),
-        "@sezzlee/file-core": archive("sezzlee-file-core-0"),
-        "@sezzlee/ooxml-core": archive("sezzlee-ooxml-core-"),
-        "@sezzlee/excel-mcp": archive("sezzlee-excel-mcp-"),
-        "@sezzlee/xml-mcp": archive("sezzlee-xml-mcp-"),
+        "@sezzlee/file-core-native": archive("sezzlee-file-core-native"),
+        "@sezzlee/mcp-core": archive("sezzlee-mcp-core"),
+        "@sezzlee/llm-mcp": archive("sezzlee-llm-mcp"),
+        "@sezzlee/file-core": archive("sezzlee-file-core"),
+        "@sezzlee/ooxml-core": archive("sezzlee-ooxml-core"),
+        "@sezzlee/excel-mcp": archive("sezzlee-excel-mcp"),
+        "@sezzlee/xml-mcp": archive("sezzlee-xml-mcp"),
         ...(packedPdf
-          ? { "@sezzlee/pdf-mcp": archive("sezzlee-pdf-mcp-") }
+          ? { "@sezzlee/pdf-mcp": archive("sezzlee-pdf-mcp") }
           : {}),
       },
       overrides: {
