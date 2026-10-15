@@ -48,9 +48,6 @@ internal sealed class SezzleeMetaTools(
 
     private sealed record DecisionContext(Func<CatalogEntry, VisibilityDecision> Decide, CallerScope Scope, HttpRequest? Outer);
 
-    private UnknownVisibility OnUnknown =>
-        options.Value.Visibility.OnUnknown ?? (visibility.HasAuthorizer ? UnknownVisibility.Hide : UnknownVisibility.Show);
-
     /// <remarks>
     /// Guard: <c>detail</c> is a string carrying <see cref="AllowedValuesAttribute"/> rather than a CLR
     /// enum. An enum parameter is deserialized during argument binding, so an unrecognised value would
@@ -92,7 +89,7 @@ internal sealed class SezzleeMetaTools(
         HashSet<string> vocabulary = new(StringComparer.Ordinal);
         foreach (CatalogEntry entry in catalog.Result.Entries)
         {
-            if (!IsVisible(context.Decide(entry)))
+            if (!visibility.IsVisible(context.Decide(entry)))
             {
                 continue;
             }
@@ -129,7 +126,7 @@ internal sealed class SezzleeMetaTools(
             return UnknownTool(name);
         }
         VisibilityDecision decision = await DecideOneAsync(entry, cancellationToken);
-        bool visible = IsVisible(decision);
+        bool visible = visibility.IsVisible(decision);
         logger.LogDebug(
             "load_tool answered '{Tool}' as {Outcome} in {Elapsed} ms",
             name, visible ? "loaded" : "unknown", (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
@@ -263,7 +260,7 @@ internal sealed class SezzleeMetaTools(
                 }
                 Prefetch(index + 1);
             }
-            if (IsVisible(decision))
+            if (visibility.IsVisible(decision))
             {
                 page.Add((entry, decision));
             }
@@ -274,7 +271,7 @@ internal sealed class SezzleeMetaTools(
         {
             logger.LogWarning(
                 "search_tools reached Visibility.MaxProbesPerSearch ({Cap}) before the page was full; the tools left unprobed follow Visibility.OnUnknown ({OnUnknown}).",
-                cap, OnUnknown);
+                cap, visibility.OnUnknown);
         }
         return page;
     }
@@ -360,21 +357,13 @@ internal sealed class SezzleeMetaTools(
             {
                 if (!memo.TryGetValue(entry.Tool.Name, out VisibilityDecision decision))
                 {
-                    decision = Decide(entry, access, facts);
+                    decision = CallerVisibilityProvider.Decide(entry, access, facts);
                     memo[entry.Tool.Name] = decision;
                 }
                 return decision;
             },
             scope,
             outer);
-    }
-
-    private static VisibilityDecision Decide(CatalogEntry entry, IToolAccess? access, CallerFacts facts)
-    {
-        VisibilityDecision decision = access?.Decide(entry.Info) ?? VisibilityDecision.Unknown;
-        return decision != VisibilityDecision.Unknown
-            ? decision
-            : VisibilityCombiner.Evaluate(entry.Descriptor.Auth, facts);
     }
 
     private async Task<VisibilityDecision> DecideOneAsync(CatalogEntry entry, CancellationToken cancellationToken)
@@ -389,13 +378,6 @@ internal sealed class SezzleeMetaTools(
         }
         return decision;
     }
-
-    private bool IsVisible(VisibilityDecision decision) => decision switch
-    {
-        VisibilityDecision.Allow => true,
-        VisibilityDecision.Unknown => OnUnknown == UnknownVisibility.Show,
-        _ => false,
-    };
 
     private static bool? Uncertain(VisibilityDecision decision) =>
         decision == VisibilityDecision.Unknown ? true : null;

@@ -71,6 +71,41 @@ internal sealed class CallerVisibilityProvider
 
     public bool CanProbe(CatalogEntry entry) => probe.CanProbe(entry);
 
+    public UnknownVisibility OnUnknown =>
+        options.Value.Visibility.OnUnknown ?? (HasAuthorizer ? UnknownVisibility.Hide : UnknownVisibility.Show);
+
+    /// <remarks>
+    /// Guard: the one place that orders the cheap tiers, shared by search_tools, load_tool and the
+    /// test audit, so an audit cannot drift from what the tools show. An authorizer's allow or deny is
+    /// final; unknown falls through to the declarative tier.
+    /// </remarks>
+    public static VisibilityDecision Decide(CatalogEntry entry, IToolAccess? access, CallerFacts facts)
+    {
+        VisibilityDecision decision = access?.Decide(entry.Info) ?? VisibilityDecision.Unknown;
+        return decision != VisibilityDecision.Unknown
+            ? decision
+            : VisibilityCombiner.Evaluate(entry.Descriptor.Auth, facts);
+    }
+
+    public bool IsVisible(VisibilityDecision decision) => decision switch
+    {
+        VisibilityDecision.Allow => true,
+        VisibilityDecision.Unknown => OnUnknown == UnknownVisibility.Show,
+        _ => false,
+    };
+
+    /// <summary>
+    /// Whether search_tools and load_tool would list each tool for the caller, from the cheap tiers
+    /// alone: no probe, and neither the facts cache nor the held authorizer accesses are read or written.
+    /// </summary>
+    internal async Task<Func<CatalogEntry, bool>> ListingAsync(
+        HttpRequest outerRequest, IReadOnlySet<string> policyNames, CancellationToken cancellationToken)
+    {
+        IToolAccess? held = await access.ResolveUncachedAsync(outerRequest, cancellationToken);
+        CallerFacts facts = await evaluator.ResolveAsync(outerRequest, policyNames, cancellationToken);
+        return entry => IsVisible(Decide(entry, held, facts));
+    }
+
     public async Task<CallerFacts> FactsAsync(
         CallerScope scope, HttpRequest? outerRequest, IReadOnlySet<string> policyNames, CancellationToken cancellationToken)
     {

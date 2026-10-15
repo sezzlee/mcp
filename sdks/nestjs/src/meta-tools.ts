@@ -59,7 +59,6 @@ import type {
   VerifiedToken,
 } from "./options.js";
 import { currentOuterConnection } from "./outer-connection.js";
-import { toolInfoOf } from "./visibility/authorizer.js";
 import type { CallerVisibilityProvider } from "./visibility/provider.js";
 
 export interface MetaToolDependencies {
@@ -477,7 +476,7 @@ async function decider(
     deps.visibility.access(scope, outer, signal),
   ]);
   if (access === undefined) {
-    return (entry) => deps.visibility.decide(entry.descriptor.auth, facts);
+    return (entry) => deps.visibility.decideFor(entry, facts, undefined);
   }
   const decided = new Map<CatalogEntry, VisibilityDecision>();
   return (entry) => {
@@ -485,11 +484,7 @@ async function decider(
     if (held !== undefined) {
       return held;
     }
-    const own = access.decide(toolInfoOf(entry));
-    const decision =
-      own === "allow" || own === "deny"
-        ? own
-        : deps.visibility.decide(entry.descriptor.auth, facts);
+    const decision = deps.visibility.decideFor(entry, facts, access);
     decided.set(entry, decision);
     return decision;
   };

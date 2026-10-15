@@ -55,7 +55,7 @@ internal sealed class ToolAccessResolver
         TimeSpan lifetime = options.Value.Cache.Lifetime;
         if (lifetime <= TimeSpan.Zero)
         {
-            return await CreateAsync(outerRequest, cancellationToken);
+            return await ResolveUncachedAsync(outerRequest, cancellationToken);
         }
 
         long epoch = Volatile.Read(ref _epoch);
@@ -86,6 +86,10 @@ internal sealed class ToolAccessResolver
         Trim(now);
         return await fresh.Completion.Task.WaitAsync(cancellationToken);
     }
+
+    /// <summary>Asks the authorizer afresh, neither reading nor writing what <see cref="ResolveAsync"/> keeps.</summary>
+    public async ValueTask<IToolAccess?> ResolveUncachedAsync(HttpRequest? outerRequest, CancellationToken cancellationToken) =>
+        HasAuthorizer ? await CreateAsync(outerRequest, cancellationToken) : null;
 
     public void Forget(CallerScope scope)
     {

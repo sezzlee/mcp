@@ -123,6 +123,7 @@ async function unpublished(publicPackages) {
   for (const nugetPackage of [
     "Sezzlee.AspNetCore",
     "Sezzlee.AspNetCore.NewtonsoftJson",
+    "Sezzlee.AspNetCore.Testing",
   ]) {
     const project = await readFile(
       `sdks/dotnet/src/${nugetPackage}/${nugetPackage}.csproj`,

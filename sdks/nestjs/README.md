@@ -489,6 +489,56 @@ export class AuditInterceptor implements NestInterceptor {
 
 A rate limiter that counts probes will answer 429 for them, which keeps those tools unknown.
 
+### Auditing visibility in your tests
+
+`search_tools` and `load_tool` decide from your authorizer and your guards' declarations; the
+pipeline decides every real call. `auditVisibility` from `@sezzlee/sdk-nestjs/testing` checks the
+two against each other, for each caller you name and each tool in the catalog, so a permission
+change that only one side learns about fails a test instead of surfacing in production.
+
+```ts
+import { auditVisibility } from "@sezzlee/sdk-nestjs/testing";
+
+it("shows each caller exactly what the pipeline lets through", async () => {
+  const report = await auditVisibility(
+    app,
+    [
+      { name: "clerk", headers: { authorization: `Bearer ${clerkToken}` } },
+      { name: "auditor", headers: { authorization: `Bearer ${auditorToken}` } },
+    ],
+    {
+      exclude: (tool) => tool.container === "MethodDispatcher",
+    },
+  );
+  report.ensureConsistent();
+});
+```
+
+The listing side runs the cheap tiers only, through the same code the tools use: the authorizer,
+then the guards' declarations, then `visibility.onUnknown`, with no probe. The other side sends one
+probe per tool and caller, a request through your middleware, guards, pipes and interceptors that
+stops before the handler, uncached and not limited by `maxProbesPerSearch`. It never reads or writes
+the shared verdict cache. Each pair ends as one of:
+
+| Finding            | Meaning                                                                                                                     |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `listedButDenied`  | Listed, but the probe got a 401 or 403                                                                                      |
+| `hiddenButAllowed` | Hidden, but the probe got through                                                                                           |
+| `notComparable`    | The probe could not judge it (no request template, probing disabled for the tool, a 429, a 5xx, a timeout), with a `reason` |
+| `excluded`         | Skipped by `exclude`                                                                                                        |
+
+`report.findings` lists every pair that is not consistent, `report.counts` totals each kind, and
+`report.consistent` and `report.compared` count the rest. `ensureConsistent()` throws a
+`VisibilityAuditError` that groups the findings by kind, and it fails on `notComparable` too: a pair
+the probe could not judge was not checked. Declare a `visibility.probeValues` entry for a route the
+probe could not reach, or `exclude` the tool. `concurrency` (default 4) bounds the probes in flight.
+
+The probe stops before the handler, so a check inside a handler, such as a dispatcher that validates
+its target method, is invisible to it. A tool your authorizer hides for that reason shows as
+`hiddenButAllowed`; skip it with `exclude`, which reports it as `excluded` rather than dropping it. A
+probe that does not route, or that returns a 2xx without the short-circuit marker, disables probing
+for that tool until the catalog changes, as it would during a search.
+
 ## 5. Connecting an MCP client
 
 The endpoint speaks Streamable HTTP. `tools/list` returns only three meta-tools:

@@ -12,7 +12,11 @@ import type { CatalogEntry } from "../catalog.js";
 import type { OuterRequest, SezzleeOptions } from "../options.js";
 import type { ProbeEvaluator } from "./probe.js";
 import type { VisibilityEvaluator } from "./evaluator.js";
-import type { ToolAccess, ToolAuthorizer } from "./authorizer.js";
+import {
+  toolInfoOf,
+  type ToolAccess,
+  type ToolAuthorizer,
+} from "./authorizer.js";
 
 interface HeldAccess {
   readonly access: ToolAccess;
@@ -198,6 +202,22 @@ export class CallerVisibilityProvider {
     facts: CallerFacts,
   ): VisibilityDecision {
     return evaluateVisibility(auth, facts);
+  }
+
+  /**
+   * Guard: the one place that orders the cheap tiers, shared by `search_tools`, `load_tool` and the
+   * test audit, so an audit cannot drift from what the tools show. An authorizer's `allow` or
+   * `deny` is final; `unknown` falls through to the declarative tier.
+   */
+  decideFor(
+    entry: CatalogEntry,
+    facts: CallerFacts,
+    access: ToolAccess | undefined,
+  ): VisibilityDecision {
+    const own = access?.decide(toolInfoOf(entry));
+    return own === "allow" || own === "deny"
+      ? own
+      : this.decide(entry.descriptor.auth, facts);
   }
 
   visible(decision: VisibilityDecision): boolean {
