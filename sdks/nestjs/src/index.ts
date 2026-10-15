@@ -66,8 +66,31 @@ export {
 } from "./outer-connection.js";
 export {
   catalogGenerationMetaKey,
+  rateLimitHostTool,
   registerSezzleeTools,
 } from "./meta-tools.js";
+export {
+  createConcurrencyLimiter,
+  createFixedWindowLimiter,
+  createSlidingWindowLimiter,
+  createTokenBucketLimiter,
+} from "./rate-limiting/limiters.js";
+export type {
+  ConcurrencySettings,
+  DeclaredRateLimits,
+  FixedWindowSettings,
+  McpCallContext,
+  McpMetaTool,
+  PartitionedRateLimits,
+  RateLimitClock,
+  RateLimiter,
+  RateLimitLease,
+  RateLimitPartition,
+  RateLimitSettings,
+  SezzleeRateLimitingOptions,
+  SlidingWindowSettings,
+  TokenBucketSettings,
+} from "./rate-limiting/types.js";
 export type { MetaToolDependencies } from "./meta-tools.js";
 export {
   createRoutePaths,

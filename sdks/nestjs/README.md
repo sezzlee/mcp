@@ -541,6 +541,99 @@ for that tool until the catalog changes, as it would during a search.
 
 A probe that throws instead of answering, such as an application whose pipeline is not set up for probing, fails the audit with that error rather than being reported once per tool.
 
+## 4b. Rate limiting
+
+A host's HTTP limiter runs before the MCP body is read, so it can only count requests, and the only
+answer it has is a 429, which some MCP clients answer by dropping the session. The SDK limits
+`tools/call` after it has parsed the call, per caller, and refuses with a normal tool result the
+agent can read. With nothing configured no wrapper runs and nothing changes.
+
+```ts
+SezzleeModule.forRoot((options) => {
+  options.rateLimiting = {
+    default: {
+      kind: "tokenBucket",
+      tokenLimit: 120,
+      tokensPerPeriod: 2,
+      periodMs: 1_000,
+    },
+    invoke: { kind: "fixedWindow", permitLimit: 30, windowMs: 60_000 },
+    invokeConcurrency: 4,
+  };
+});
+```
+
+`default` covers every meta-tool without a section of its own, and a host tool registered beside
+them (below). `search`, `load` and `invoke` each replace it for that meta-tool and get a bucket of
+their own; the rest share one. `invokeConcurrency` also holds an `invoke_tool` call's lease until
+its answer is mapped, whatever way the call ends. The limiters are in-memory and per process: a
+token bucket, a fixed window, a sliding window (`segmentsPerWindow`) and a concurrency limit. They
+never queue and run no timer, and a limiter idles out of memory once it has refilled to full, so
+the state follows the callers active now. The settings are plain data, so they can be read from
+configuration.
+
+The key is the caller scope key by default. That fits only while the key stays the same for one
+caller: a scope key that carries a permission version starts a fresh bucket on every change, which
+hands a caller whose permissions change often extra permits. Such a host gives a stable key of its
+own and keeps the declared limits:
+
+```ts
+options.rateLimiting = {
+  default: { kind: "concurrency", permitLimit: 8 },
+  key: (call) => call.request?.auth?.clientId ?? call.callerScope,
+};
+```
+
+For anything else, a partition function replaces the declared limits, and setting both is a startup
+error. It is called once per call and returns zero or more partitions, each a key and the factory of
+its limiter. A call is admitted only when every partition grants a permit, taken in order; the ones
+already taken are released at the first refusal, and the refusal carries that partition's retry-after.
+Implement `RateLimiter` to back a partition with a distributed limiter such as Redis; give it
+`isIdle` and `dispose` and the registry evicts it as it does its own.
+
+```ts
+options.rateLimiting = {
+  partition: (call) => [
+    {
+      key: `tenant:${tenantOf(call.request)}`,
+      create: () =>
+        createSlidingWindowLimiter({
+          permitLimit: 600,
+          windowMs: 60_000,
+          segmentsPerWindow: 6,
+        }),
+    },
+    {
+      key: `caller:${call.callerScope}`,
+      create: () => createConcurrencyLimiter({ permitLimit: 4 }),
+    },
+  ],
+};
+```
+
+`McpCallContext` carries the outer `request`, the `metaTool` (`search`, `load`, `invoke` or
+`other`), the `target` a `load_tool` or `invoke_tool` call names as `McpToolInfo`, and the
+`callerScope`. The target comes from the catalog **without** visibility and is `undefined` when
+`name` is missing, not a string or unknown. The limit is taken first: a call naming a hidden or
+unknown tool consumes a permit, so names cannot be enumerated for free.
+
+A refused call answers `isError: true` with `rate_limit_exceeded`, `retryable: true` and, when the
+limiter gives one, `retryAfterSeconds` rounded up to whole seconds. It is distinct from the backend's
+`rate_limited`: the call never reached the backend. A host tool registered on the same server is
+limited by wrapping its handler:
+
+```ts
+server.registerTool(
+  "health",
+  { description },
+  rateLimitHostTool(deps, "health", handler),
+);
+```
+
+One gap: a `search_tools` call whose arguments the MCP framework itself rejects, such as a `limit`
+that is not an integer, is answered before the SDK sees it and consumes no permit. It runs nothing.
+The rules are in [rate-limiting.md](../../packages/http/spec/rate-limiting.md).
+
 ## 5. Connecting an MCP client
 
 The endpoint speaks Streamable HTTP. `tools/list` returns only three meta-tools:
