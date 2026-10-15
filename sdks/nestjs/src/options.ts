@@ -18,6 +18,7 @@ import {
 } from "./selection-source.js";
 import type { SezzleeFileOptions } from "./files.js";
 import type { OuterConnection } from "./outer-connection.js";
+import type { SezzleeRateLimitingOptions } from "./rate-limiting/types.js";
 
 export interface OuterRequest {
   readonly headers: IncomingHttpHeaders;
@@ -398,6 +399,11 @@ export class SezzleeOptions {
    * it receives as `declared`; returning undefined or blank keeps that.
    */
   description?: (endpoint: McpEndpointInfo) => string | undefined;
+  /**
+   * Per-caller limits on `tools/call`. Unset, nothing is limited and no wrapper runs; see
+   * packages/http/spec/rate-limiting.md.
+   */
+  rateLimiting?: SezzleeRateLimitingOptions;
   /** The behaviour revision of the whole catalog; raising it changes every tool version. */
   revision?: number;
   /** A behaviour revision for a container the host cannot decorate, below a `@McpTool({ revision })`. */

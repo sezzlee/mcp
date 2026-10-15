@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using Sezzlee.AspNetCore.Discovery;
+using Sezzlee.AspNetCore.RateLimiting;
 
 namespace Sezzlee.AspNetCore;
 
@@ -34,6 +35,7 @@ internal sealed class SezzleeOptionsValidator : IValidateOptions<SezzleeOptions>
         {
             failures.Add("Visibility.ProbeConcurrency must be at least 1.");
         }
+        ValidateRateLimiting(options.RateLimiting, failures);
         ValidateSource("Families", options.Families, failures);
         ValidateSource("Selection.Source", options.Selection.Source, failures);
         if (options.Invoke.MaxInlineFileBytes < 0)
@@ -98,6 +100,77 @@ internal sealed class SezzleeOptionsValidator : IValidateOptions<SezzleeOptions>
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
+    }
+
+    private static void ValidateRateLimiting(RateLimitingOptions limits, List<string> failures)
+    {
+        ValidateLimit("RateLimiting.Default", limits.Default, failures);
+        ValidateLimit("RateLimiting.Search", limits.Search, failures);
+        ValidateLimit("RateLimiting.Load", limits.Load, failures);
+        ValidateLimit("RateLimiting.Invoke", limits.Invoke, failures);
+        if (limits.InvokeConcurrency is < 1)
+        {
+            failures.Add("RateLimiting.InvokeConcurrency must be at least 1.");
+        }
+        if (limits.PartitionFunction is not null && limits.HasDeclared)
+        {
+            failures.Add("RateLimiting.Partition cannot be combined with Default, Search, Load, Invoke or InvokeConcurrency: a partition function replaces the declared limits.");
+        }
+        if (limits.KeyFunction is not null && !limits.HasDeclared)
+        {
+            failures.Add("RateLimiting.Key needs declared limits: it only chooses the key they are partitioned by. Declare Default, Search, Load, Invoke or InvokeConcurrency, or use Partition.");
+        }
+    }
+
+    private static void ValidateLimit(string path, RateLimitSettings? limit, List<string> failures)
+    {
+        if (limit is null)
+        {
+            return;
+        }
+        if (limit.QueueLimit < 0)
+        {
+            failures.Add($"{path}.QueueLimit must be zero or positive.");
+        }
+        switch (limit.Kind)
+        {
+            case RateLimitKind.TokenBucket:
+                RequireAtLeastOne(path, "TokenLimit", limit.TokenLimit, failures);
+                RequireAtLeastOne(path, "TokensPerPeriod", limit.TokensPerPeriod, failures);
+                RequirePositive(path, "Period", limit.Period, failures);
+                break;
+            case RateLimitKind.FixedWindow:
+                RequireAtLeastOne(path, "PermitLimit", limit.PermitLimit, failures);
+                RequirePositive(path, "Window", limit.Window, failures);
+                break;
+            case RateLimitKind.SlidingWindow:
+                RequireAtLeastOne(path, "PermitLimit", limit.PermitLimit, failures);
+                RequirePositive(path, "Window", limit.Window, failures);
+                RequireAtLeastOne(path, "SegmentsPerWindow", limit.SegmentsPerWindow, failures);
+                break;
+            case RateLimitKind.Concurrency:
+                RequireAtLeastOne(path, "PermitLimit", limit.PermitLimit, failures);
+                break;
+            default:
+                failures.Add($"{path}.Kind must be TokenBucket, FixedWindow, SlidingWindow or Concurrency.");
+                break;
+        }
+    }
+
+    private static void RequireAtLeastOne(string path, string field, int value, List<string> failures)
+    {
+        if (value < 1)
+        {
+            failures.Add($"{path}.{field} must be at least 1 for this Kind.");
+        }
+    }
+
+    private static void RequirePositive(string path, string field, TimeSpan value, List<string> failures)
+    {
+        if (value <= TimeSpan.Zero)
+        {
+            failures.Add($"{path}.{field} must be positive for this Kind.");
+        }
     }
 
     private static void ValidateSource(string path, SourceLoadOptions source, List<string> failures)

@@ -176,7 +176,7 @@ public sealed record InvokeSuccess
     public string? Location { get; init; }
 }
 
-public enum SdkErrorCode { UnknownTool, NotInvocable, UnknownArgument, InvalidPathType, MissingPathParameter, HeaderInjection, NullNotAllowed, InvalidType, DeferredValueMissing, DeferredValueInvalid, InvalidCookieValue, CookieCarrierCollision, InvalidFileArgument, FileTooLarge, FileUnresolved, ResponseTooLarge, InvokeTimeout, SearchRankerUnavailable, InternalError, ToolChanged }
+public enum SdkErrorCode { UnknownTool, NotInvocable, UnknownArgument, InvalidPathType, MissingPathParameter, HeaderInjection, NullNotAllowed, InvalidType, DeferredValueMissing, DeferredValueInvalid, InvalidCookieValue, CookieCarrierCollision, InvalidFileArgument, FileTooLarge, FileUnresolved, ResponseTooLarge, InvokeTimeout, SearchRankerUnavailable, InternalError, ToolChanged, RateLimitExceeded }
 
 public enum PayloadShapeKind { Array, Object, Text }
 
@@ -200,6 +200,7 @@ public sealed record SdkError
     public required bool Retryable { get; init; }
     public IReadOnlyList<FieldError>? Fields { get; init; }
     public PayloadFacts? Payload { get; init; }
+    public int? RetryAfterSeconds { get; init; }
 }
 
 public sealed record TypeShape

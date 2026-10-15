@@ -1,4 +1,5 @@
 import type { SezzleeOptions } from "./options.js";
+import { rateLimitingFailures } from "./rate-limiting/validation.js";
 import type { SourceLoadSettings } from "./source-loading.js";
 
 export class SezzleeConfigurationError extends Error {
@@ -91,6 +92,7 @@ export function collectConfigurationFailures(
   if (!["fallback", "error"].includes(options.search.onRankerFailure)) {
     failures.push('search.onRankerFailure must be "fallback" or "error".');
   }
+  failures.push(...rateLimitingFailures(options.rateLimiting));
   failures.push(...loadSettingFailures("families", options.families));
   failures.push(
     ...loadSettingFailures("selection.source", options.selection.source),

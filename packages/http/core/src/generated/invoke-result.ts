@@ -29,7 +29,8 @@ export type SdkErrorCode =
   | "invoke_timeout"
   | "search_ranker_unavailable"
   | "internal_error"
-  | "tool_changed";
+  | "tool_changed"
+  | "rate_limit_exceeded";
 export type PayloadShapeKind = "array" | "object" | "text";
 
 export interface InvokeSuccess {
@@ -57,6 +58,7 @@ export interface SdkError {
   retryable: boolean;
   fields?: FieldError[];
   payload?: PayloadFacts;
+  retryAfterSeconds?: number;
 }
 export interface PayloadFacts {
   bytes: number;

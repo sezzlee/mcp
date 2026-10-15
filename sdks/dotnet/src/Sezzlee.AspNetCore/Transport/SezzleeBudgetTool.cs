@@ -75,7 +75,7 @@ internal sealed class SezzleeBudgetTool(McpServerTool inner, IOptions<SezzleeOpt
             null)));
     }
 
-    private static CallToolResult Refuse(SdkError error) => new()
+    internal static CallToolResult Refuse(SdkError error) => new()
     {
         IsError = true,
         Content = [new TextContentBlock { Text = JsonSerializer.Serialize(error, SezzleeJson.Wire) }],

@@ -423,6 +423,107 @@ app.Use(async (context, next) =>
 });
 ```
 
+## 3g. Rate limiting
+
+`search_tools`, `load_tool` and `invoke_tool` all arrive as the same `POST` to `/mcp`, so a limiter in
+front of the endpoint can count requests but cannot give a search a different budget from a write, and
+it answers with a `429` that some MCP clients answer by dropping the session. Sezzlee limits the
+meta-tool call itself. Nothing is limited until you configure it:
+
+```csharp
+builder.Services.AddSezzlee(options =>
+{
+    options.RateLimiting.Default = new RateLimitSettings
+    {
+        Kind = RateLimitKind.TokenBucket,
+        TokenLimit = 120,
+        TokensPerPeriod = 2,
+        Period = TimeSpan.FromSeconds(1),
+    };
+    options.RateLimiting.Invoke = new RateLimitSettings
+    {
+        Kind = RateLimitKind.FixedWindow,
+        PermitLimit = 30,
+        Window = TimeSpan.FromMinutes(1),
+    };
+    options.RateLimiting.InvokeConcurrency = 4;
+});
+```
+
+The same limits bind from configuration through `AddSezzlee(configuration)`:
+
+```json
+"Sezzlee": {
+  "RateLimiting": {
+    "Default": { "Kind": "TokenBucket", "TokenLimit": 120, "TokensPerPeriod": 2, "Period": "00:00:01" },
+    "Invoke": { "Kind": "FixedWindow", "PermitLimit": 30, "Window": "00:01:00" },
+    "InvokeConcurrency": 4
+  }
+}
+```
+
+The limiters are the ones in `System.Threading.RateLimiting`. `Kind` is `TokenBucket`
+(`TokenLimit`, `TokensPerPeriod`, `Period`), `FixedWindow` (`PermitLimit`, `Window`), `SlidingWindow`
+(`PermitLimit`, `Window`, `SegmentsPerWindow`) or `Concurrency` (`PermitLimit`); `QueueLimit` lets that
+many calls wait for a permit, and cancelling the MCP call ends the wait. `Search`, `Load` and `Invoke`
+each replace `Default` for that meta-tool and get a bucket of their own; a meta-tool without a section
+shares the `Default` bucket, and so does any other tool registered on the same MCP server.
+`InvokeConcurrency` is held from the start of an `invoke_tool` call until its result is mapped.
+Limits are per process.
+
+The limit is taken first: before argument binding, the catalog lookup, the version check and
+visibility. A `load_tool` or `invoke_tool` call that names a hidden or unknown tool takes a permit like
+any other, so an agent cannot enumerate names for free. A refused call is a normal result, never a
+`429`:
+
+```json
+{
+  "error": "rate_limit_exceeded",
+  "message": "The call was refused by this server's rate limit before it ran. Retry after 3 seconds.",
+  "retryable": true,
+  "retryAfterSeconds": 3
+}
+```
+
+`retryAfterSeconds` is the limiter's retry-after rounded up, and is absent for a concurrency limit. It
+is distinct from the backend's `rate_limited`: this call never reached the backend. Other JSON-RPC
+methods (`initialize`, `tools/list`, `ping`) are not limited here; your host's HTTP limiter covers them.
+
+**The key.** Declared limits are partitioned per caller scope key (`ICallerScopeResolver`). That fits only
+while the key stays the same for one caller: a scope key that carries a permission version starts a new
+bucket on every change. The scope key is also derived from the identity carrier headers, so it is safe
+only when the MCP endpoint rejects unauthenticated requests: on an endpoint that admits anonymous calls,
+a caller can send a different header on every call and start each one with a full bucket. In both cases
+supply a key the caller cannot change at will:
+
+```csharp
+options.RateLimiting.Key(call => call.HttpContext?.User.FindFirst("sub")?.Value ?? call.CallerScope);
+```
+
+**A partition function.** For anything the declared form cannot say, return the partitions yourself.
+`McpCallContext` carries the `HttpContext`, the `MetaTool`, the `Target` (the catalog tool a `load_tool` or
+`invoke_tool` call names, found without visibility, or null), the `ToolName` and the `CallerScope`. A call
+takes one permit from each returned partition in order and is refused when any refuses, releasing the
+ones it already holds; partitions with equal keys share one limiter, and an empty list leaves the call
+unlimited:
+
+```csharp
+options.RateLimiting.Partitions(call =>
+[
+    RateLimitPartition.GetConcurrencyLimiter(
+        $"user:{call.CallerScope}", _ => new ConcurrencyLimiterOptions { PermitLimit = 2 }),
+    RateLimitPartition.GetTokenBucketLimiter(
+        "everyone", _ => new TokenBucketRateLimiterOptions
+        {
+            TokenLimit = 600, TokensPerPeriod = 10, ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+        }),
+]);
+```
+
+`Partition` takes a single partition. A partition function replaces the declared limits, so setting
+both, or setting `Key` without declared limits, fails startup, as does a value its `Kind` needs that is
+not positive.
+
 ## 4. Connecting an MCP client
 
 The endpoint speaks Streamable HTTP. `tools/list` returns only three meta-tools:

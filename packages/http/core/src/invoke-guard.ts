@@ -197,6 +197,29 @@ export function refuseTimedOutInvoke(limitMs: number): SdkError {
   };
 }
 
+/**
+ * Refuses a meta-tool call that the host's rate limit turned away before it ran.
+ *
+ * @param retryAfterSeconds the refusing limiter's retry-after, rounded up to whole seconds; absent
+ * when the limiter gives none
+ */
+export function refuseRateLimited(retryAfterSeconds?: number): SdkError {
+  const refusal =
+    "The call was refused by this server's rate limit before it ran.";
+  return retryAfterSeconds === undefined
+    ? {
+        error: "rate_limit_exceeded",
+        message: `${refusal} Retry later.`,
+        retryable: true,
+      }
+    : {
+        error: "rate_limit_exceeded",
+        message: `${refusal} Retry after ${retryAfterSeconds} seconds.`,
+        retryable: true,
+        retryAfterSeconds,
+      };
+}
+
 export function refuseChangedTool(name: string): SdkError {
   return {
     error: "tool_changed",

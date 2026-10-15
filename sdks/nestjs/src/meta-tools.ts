@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/server";
+import type { CallToolResult, McpServer } from "@modelcontextprotocol/server";
 import {
   catalogGenerationMetaKey,
   checkPinnedVersion,
@@ -17,6 +17,7 @@ import {
   normalizeInvokeArguments,
   notInvocable,
   operationNameDescription,
+  refuseRateLimited,
   refuseTimedOutInvoke,
   refuseUnresolvedFile,
   resolveDeferred as resolveDeferredWith,
@@ -36,6 +37,7 @@ import {
   describeRankerEvent,
   type CallerScope,
   type MetaResponse,
+  type SdkError,
   type SearchRankerOptions,
   type VisibilityDecision,
   type WireResult,
@@ -59,6 +61,12 @@ import type {
   VerifiedToken,
 } from "./options.js";
 import { currentOuterConnection } from "./outer-connection.js";
+import {
+  createRateLimitGate,
+  type RateLimitGate,
+} from "./rate-limiting/gate.js";
+import type { McpCallContext, McpMetaTool } from "./rate-limiting/types.js";
+import { toolInfoOf } from "./visibility/authorizer.js";
 import type { CallerVisibilityProvider } from "./visibility/provider.js";
 
 export interface MetaToolDependencies {
@@ -182,6 +190,125 @@ function emitGuarded(
   return emitWithin((target) => budgetFor(deps, target), produce);
 }
 
+const metaToolNames = {
+  search: "search_tools",
+  load: "load_tool",
+  invoke: "invoke_tool",
+} as const;
+
+interface LimitedCall {
+  readonly metaTool: McpMetaTool;
+  readonly toolName: string;
+  readonly name?: unknown;
+}
+
+/**
+ * Guard: the MCP handler builds a server per exchange, so limiter state cannot live in the
+ * handlers' closures, and `MetaToolDependencies` is built by the host with no place to carry it.
+ * Keyed by the options object, which lives as long as the process, the gate is shared by every
+ * server built from them. Without this each request would meet a full bucket.
+ */
+const gates = new WeakMap<SezzleeOptions, RateLimitGate | null>();
+
+function gateFor(deps: MetaToolDependencies): RateLimitGate | undefined {
+  const known = gates.get(deps.options);
+  if (known !== undefined) {
+    return known ?? undefined;
+  }
+  const options = deps.options.rateLimiting;
+  const created =
+    options === undefined ? undefined : createRateLimitGate(options);
+  gates.set(deps.options, created ?? null);
+  return created;
+}
+
+function callContextOf(
+  deps: MetaToolDependencies,
+  ctx: unknown,
+  call: LimitedCall,
+): McpCallContext {
+  const request = outerFrom(ctx);
+  const entry =
+    typeof call.name === "string" ? deps.catalog.find(call.name) : undefined;
+  return {
+    request,
+    metaTool: call.metaTool,
+    target: entry === undefined ? undefined : toolInfoOf(entry),
+    toolName: call.toolName,
+    callerScope: scopeFor(deps, request).key,
+  };
+}
+
+async function throttled<T>(
+  deps: MetaToolDependencies,
+  ctx: unknown,
+  call: LimitedCall,
+  produce: () => Promise<T>,
+  refused: (error: SdkError) => T,
+): Promise<T> {
+  const gate = gateFor(deps);
+  if (gate === undefined) {
+    return produce();
+  }
+  const admission = await gate.admit(
+    callContextOf(deps, ctx, call),
+    deadlineFrom(ctx)?.signal,
+  );
+  if (!admission.granted) {
+    logger.debug(
+      `${call.toolName} refused by the rate limit (${call.metaTool}, partition '${admission.partition}')`,
+    );
+    return refused(refuseRateLimited(admission.retryAfterSeconds));
+  }
+  try {
+    return await produce();
+  } finally {
+    admission.release();
+  }
+}
+
+function limited(
+  deps: MetaToolDependencies,
+  ctx: unknown,
+  metaTool: keyof typeof metaToolNames,
+  name: unknown,
+  produce: () => Promise<MetaResponse<InvokeTarget>>,
+): Promise<WireResult> {
+  return emitGuarded(deps, () =>
+    throttled(
+      deps,
+      ctx,
+      { metaTool, toolName: metaToolNames[metaTool], name },
+      produce,
+      (error) => ({ payload: error, isError: true }),
+    ),
+  );
+}
+
+/**
+ * Puts a host's own tool, registered on the same server, behind the rate limit as `other`.
+ *
+ * @param handler the tool's handler
+ * @returns the handler to register; a refusal is a normal `isError` result, as for the meta-tools
+ */
+export function rateLimitHostTool<Args, Context>(
+  deps: MetaToolDependencies,
+  toolName: string,
+  handler: (args: Args, ctx: Context) => Promise<CallToolResult>,
+): (args: Args, ctx: Context) => Promise<CallToolResult> {
+  return (args, ctx) =>
+    throttled(
+      deps,
+      ctx,
+      { metaTool: "other", toolName },
+      () => handler(args, ctx),
+      (error) => ({
+        content: [{ type: "text", text: JSON.stringify(error) }],
+        isError: true,
+      }),
+    );
+}
+
 export function registerSezzleeTools(
   server: McpServer,
   deps: MetaToolDependencies,
@@ -230,7 +357,7 @@ export function registerSezzleeTools(
       }),
     },
     async ({ query, limit, detail, tags }, ctx) =>
-      emitGuarded(deps, async () => {
+      limited(deps, ctx, "search", undefined, async () => {
         const started = performance.now();
         deps.catalog.ensureValid();
         const outer = outerFrom(ctx);
@@ -285,7 +412,7 @@ export function registerSezzleeTools(
         .meta({ required: ["name"] }),
     },
     async ({ name }, ctx) =>
-      emitGuarded(deps, async () => {
+      limited(deps, ctx, "load", name, async () => {
         if (name === undefined) {
           return missingArgument("load_tool", "name");
         }
@@ -356,7 +483,7 @@ export function registerSezzleeTools(
         .meta({ required: ["name", "arguments"] }),
     },
     async ({ name, arguments: args, version }, ctx) =>
-      emitGuarded(deps, async () => {
+      limited(deps, ctx, "invoke", name, async () => {
         if (name === undefined) {
           return missingArgument("invoke_tool", "name");
         }

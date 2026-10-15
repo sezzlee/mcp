@@ -253,6 +253,7 @@ export {
   refuseChangedTool,
   refuseOversizeResponse,
   refuseRankerUnavailable,
+  refuseRateLimited,
   refuseTimedOutInvoke,
   refuseUnresolvedFile,
   sdkError,
