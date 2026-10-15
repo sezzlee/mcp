@@ -78,7 +78,9 @@ A concurrency limit has no retry time, so it answers `Retry later.` instead. `ra
 
 ## Count per user, not per permission set
 
-Declared limits are counted per caller scope key, the one the visibility cache uses. That works only while the key stays the same for one caller. If your scope resolver adds a permission version to the key, every permission change starts the caller with a fresh bucket. Give the limiter a stable key instead:
+Declared limits are counted per caller scope key, the one the visibility cache uses. That works only while the key stays the same for one caller. If your scope resolver adds a permission version to the key, every permission change starts the caller with a fresh bucket.
+
+The caller scope key is also derived from the identity headers, by default `Authorization`. It is safe only when your MCP endpoint rejects a request it has not authenticated. If the endpoint lets anonymous calls through, a caller can send a different header on every call, and each call starts with a full bucket. In both cases, give the limiter a key the caller cannot change at will:
 
 :::tabs
 

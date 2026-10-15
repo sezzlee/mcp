@@ -51,7 +51,9 @@ export function createRateLimitGate(
   if (partitionsFor === undefined) {
     return undefined;
   }
-  const registry = createPartitionRegistry();
+  const registry = createPartitionRegistry(
+    options.now === undefined ? {} : { now: options.now },
+  );
   return {
     admit: async (call, signal) => {
       const held: HeldLease[] = [];

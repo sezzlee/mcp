@@ -193,7 +193,16 @@ describe("concurrency", () => {
 });
 
 describe("partition registry", () => {
-  const countingPartition = (key: string, limiter: () => RateLimiter) => {
+  const limiterWith = (
+    idle: () => boolean,
+    dispose?: () => void,
+  ): RateLimiter => ({
+    acquire: () => ({ acquired: false }),
+    isIdle: idle,
+    ...(dispose === undefined ? {} : { dispose }),
+  });
+
+  const partitionOf = (key: string, limiter: () => RateLimiter) => {
     const created = { count: 0 };
     return {
       created,
@@ -209,7 +218,7 @@ describe("partition registry", () => {
 
   it("shares one limiter among partitions with equal keys", () => {
     const registry = createPartitionRegistry();
-    const { created, partition } = countingPartition("a", () =>
+    const { created, partition } = partitionOf("a", () =>
       createConcurrencyLimiter({ permitLimit: 1 }),
     );
 
@@ -217,41 +226,81 @@ describe("partition registry", () => {
     expect(created.count).toBe(1);
   });
 
-  it("evicts idle limiters on a sweep and keeps one holding a lease", async () => {
-    const registry = createPartitionRegistry(3);
-    const idle = countingPartition("idle", () =>
-      createConcurrencyLimiter({ permitLimit: 1 }),
+  it("evicts a host limiter once it reports idle and disposes it", () => {
+    const clock = clockAt();
+    const registry = createPartitionRegistry({
+      now: clock.now,
+      sweepIntervalMs: 1_000,
+    });
+    const disposed: string[] = [];
+    const host = partitionOf("host", () =>
+      limiterWith(
+        () => true,
+        () => disposed.push("host"),
+      ),
     );
-    const busy = countingPartition("busy", () =>
-      createConcurrencyLimiter({ permitLimit: 1 }),
+    registry.limiterFor(host.partition);
+
+    clock.set(1_000);
+    registry.limiterFor(
+      partitionOf("other", () => limiterWith(() => false)).partition,
     );
-    registry.limiterFor(idle.partition);
-    await registry.limiterFor(busy.partition).acquire();
-    expect(registry.size).toBe(2);
 
-    registry.limiterFor(busy.partition);
-
+    expect(disposed).toEqual(["host"]);
     expect(registry.size).toBe(1);
-    registry.limiterFor(idle.partition);
-    expect(idle.created.count).toBe(2);
-    expect(busy.created.count).toBe(1);
+    registry.limiterFor(host.partition);
+    expect(host.created.count).toBe(2);
   });
 
-  it("disposes a limiter it evicts and never evicts one that cannot say it is idle", () => {
-    const registry = createPartitionRegistry(2);
-    const disposed: string[] = [];
-    const reporting = countingPartition("reporting", () => ({
-      acquire: () => ({ acquired: false }),
-      isIdle: () => true,
-      dispose: () => disposed.push("reporting"),
-    }));
-    const silent = countingPartition("silent", () => ({
-      acquire: () => ({ acquired: false }),
-    }));
-    registry.limiterFor(reporting.partition);
-    registry.limiterFor(silent.partition);
+  it("keeps a limiter that is not idle through a sweep", async () => {
+    const clock = clockAt();
+    const registry = createPartitionRegistry({
+      now: clock.now,
+      sweepIntervalMs: 1_000,
+    });
+    const busy = partitionOf("busy", () =>
+      createConcurrencyLimiter({ permitLimit: 1 }),
+    );
+    await registry.limiterFor(busy.partition).acquire();
 
-    expect(disposed).toEqual(["reporting"]);
+    clock.set(5_000);
+    const kept = registry.limiterFor(busy.partition);
+
     expect(registry.size).toBe(1);
+    expect(busy.created.count).toBe(1);
+    expect(await outcome(kept)).toBe("refused");
+  });
+
+  it("sweeps at most once per interval of its clock", () => {
+    const clock = clockAt();
+    const registry = createPartitionRegistry({
+      now: clock.now,
+      sweepIntervalMs: 1_000,
+    });
+    let asked = 0;
+    const counting = partitionOf("counting", () =>
+      limiterWith(() => {
+        asked += 1;
+        return false;
+      }),
+    );
+    registry.limiterFor(counting.partition);
+
+    for (const at of [0, 400, 999]) {
+      clock.set(at);
+      registry.limiterFor(counting.partition);
+    }
+    expect(asked).toBe(0);
+
+    clock.set(1_000);
+    registry.limiterFor(counting.partition);
+    registry.limiterFor(counting.partition);
+    clock.set(1_999);
+    registry.limiterFor(counting.partition);
+    expect(asked).toBe(1);
+
+    clock.set(2_000);
+    registry.limiterFor(counting.partition);
+    expect(asked).toBe(2);
   });
 });

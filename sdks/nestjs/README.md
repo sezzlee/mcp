@@ -574,8 +574,11 @@ configuration.
 
 The key is the caller scope key by default. That fits only while the key stays the same for one
 caller: a scope key that carries a permission version starts a fresh bucket on every change, which
-hands a caller whose permissions change often extra permits. Such a host gives a stable key of its
-own and keeps the declared limits:
+hands a caller whose permissions change often extra permits. The scope key is also derived from the
+identity carrier headers, so it is safe only when the MCP endpoint rejects unauthenticated requests:
+on an endpoint that admits anonymous calls, a caller can send a different header on every call and
+start each one with a full bucket. In both cases give a key the caller cannot change at will and keep
+the declared limits:
 
 ```ts
 options.rateLimiting = {
@@ -588,8 +591,10 @@ For anything else, a partition function replaces the declared limits, and settin
 error. It is called once per call and returns zero or more partitions, each a key and the factory of
 its limiter. A call is admitted only when every partition grants a permit, taken in order; the ones
 already taken are released at the first refusal, and the refusal carries that partition's retry-after.
-Implement `RateLimiter` to back a partition with a distributed limiter such as Redis; give it
-`isIdle` and `dispose` and the registry evicts it as it does its own.
+Implement `RateLimiter` to back a partition with a distributed limiter such as Redis. `isIdle` is
+required, because the registry keeps one limiter per key and evicts it once it reports idle, at a
+sweep every ten seconds at most; a limiter whose state lives elsewhere returns `true`. `dispose` is
+optional.
 
 ```ts
 options.rateLimiting = {

@@ -29,13 +29,14 @@ export type RateLimitLease =
  * One limiter. A refusal is a lease with `acquired: false`; the SDK never waits on it beyond what
  * `acquire` itself does, and cancels a wait through `signal`.
  *
- * @param isIdle whether the limiter holds no state worth keeping; the registry evicts an idle one.
- * A limiter without it is never evicted
+ * @param isIdle whether the limiter holds no state worth keeping; the registry evicts an idle one
+ * and never a limiter that is not. A limiter whose state lives elsewhere, such as a distributed
+ * one, returns `true`
  * @param dispose called once when the registry evicts the limiter
  */
 export interface RateLimiter {
   acquire(signal?: AbortSignal): Promise<RateLimitLease> | RateLimitLease;
-  isIdle?(): boolean;
+  isIdle(): boolean;
   dispose?(): void;
 }
 

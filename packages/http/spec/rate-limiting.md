@@ -36,6 +36,10 @@ The call context carries the host's request (from which the host reads its own i
 
 The key is the host's choice. The caller scope key is only a convenience default, and it fits only when it stays the same for one caller. A scope key that carries a permission or version stamp starts a fresh bucket on every change, so a caller whose permissions change often gets extra permits. A host whose scope resolver does that SHOULD supply a stable key of its own, such as a user or grant identifier.
 
+A key MUST NOT be a value the caller can change without authenticating again. The default caller scope key is derived from the identity carrier headers. It meets this rule only when the MCP endpoint rejects a request whose carriers it has not verified. On an endpoint that admits unauthenticated calls, a caller can send a different carrier value on every call. Each value is a new key, so each call starts with a fresh bucket and the limit does nothing. Every key also holds a limiter until it idles out, so memory grows with the number of keys. A host that admits unauthenticated calls MUST supply a key derived from something the caller cannot vary at will, such as a verified identity or the client's network address as its own proxy configuration reports it.
+
+A limiter is evicted only when it is idle: it holds no state a later call would read, such as a full bucket, an empty window or no held leases. Evicting a limiter that is not idle would reset its count and hand the caller fresh permits.
+
 Limits are per process unless the host's limiter is itself distributed.
 
 ## Order

@@ -1,10 +1,20 @@
-import type { RateLimiter, RateLimitPartition } from "./types.js";
+import type {
+  RateLimitClock,
+  RateLimiter,
+  RateLimitPartition,
+} from "./types.js";
 
-export const defaultSweepInterval = 256;
+export const defaultSweepIntervalMs = 10_000;
+
+export interface PartitionRegistryOptions {
+  readonly now?: RateLimitClock;
+  readonly sweepIntervalMs?: number;
+}
 
 /**
- * Keeps one limiter per partition key. Idle limiters are evicted on access, one sweep every
- * `sweepInterval` lookups, so memory follows the callers active now and no timer is needed.
+ * Keeps one limiter per partition key. A lookup sweeps at most once per `sweepIntervalMs` of the
+ * clock and evicts exactly the limiters that report themselves idle, so memory follows the callers
+ * active now and no timer is needed.
  */
 export interface PartitionRegistry {
   limiterFor(partition: RateLimitPartition): RateLimiter;
@@ -12,14 +22,20 @@ export interface PartitionRegistry {
 }
 
 export function createPartitionRegistry(
-  sweepInterval: number = defaultSweepInterval,
+  options: PartitionRegistryOptions = {},
 ): PartitionRegistry {
+  const now = options.now ?? Date.now;
+  const sweepIntervalMs = options.sweepIntervalMs ?? defaultSweepIntervalMs;
   const limiters = new Map<string, RateLimiter>();
-  let lookups = 0;
+  let sweptAt = now();
 
+  /**
+   * Guard: only an idle limiter is evicted. Evicting one that still holds state would reset its
+   * window or bucket on the next lookup and hand the caller its permits back.
+   */
   const sweep = (): void => {
     for (const [key, limiter] of limiters) {
-      if (limiter.isIdle?.() === true) {
+      if (limiter.isIdle()) {
         limiters.delete(key);
         limiter.dispose?.();
       }
@@ -28,8 +44,9 @@ export function createPartitionRegistry(
 
   return {
     limiterFor: (partition) => {
-      lookups += 1;
-      if (lookups % sweepInterval === 0) {
+      const at = now();
+      if (at - sweptAt >= sweepIntervalMs) {
+        sweptAt = at;
         sweep();
       }
       const known = limiters.get(partition.key);

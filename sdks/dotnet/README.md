@@ -491,7 +491,10 @@ methods (`initialize`, `tools/list`, `ping`) are not limited here; your host's H
 
 **The key.** Declared limits are partitioned per caller scope key (`ICallerScopeResolver`). That fits only
 while the key stays the same for one caller: a scope key that carries a permission version starts a new
-bucket on every change. Such a host supplies a stable key of its own:
+bucket on every change. The scope key is also derived from the identity carrier headers, so it is safe
+only when the MCP endpoint rejects unauthenticated requests: on an endpoint that admits anonymous calls,
+a caller can send a different header on every call and start each one with a full bucket. In both cases
+supply a key the caller cannot change at will:
 
 ```csharp
 options.RateLimiting.Key(call => call.HttpContext?.User.FindFirst("sub")?.Value ?? call.CallerScope);
