@@ -140,7 +140,8 @@ export type SdkErrorCode =
   | "invoke_timeout"
   | "search_ranker_unavailable"
   | "internal_error"
-  | "tool_changed";
+  | "tool_changed"
+  | "rate_limit_exceeded";
 export type InvokeResult = InvokeSuccess | MappedError | SdkError;
 export type BackendErrorCode =
   | "validation_failed"
@@ -639,6 +640,7 @@ export interface SdkError {
   retryable: boolean;
   fields?: FieldError[];
   payload?: PayloadFacts;
+  retryAfterSeconds?: number;
 }
 export interface PayloadFacts {
   bytes: number;

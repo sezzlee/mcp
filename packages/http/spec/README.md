@@ -23,6 +23,7 @@ treat a file as binding without reading it.
 | `transport.md`               | Streamable HTTP, PRM, the 401 rule               | normative, two implementations           |
 | `fixture-format.md`          | Fixture envelope and kinds                       | normative, two implementations           |
 | `schema-conversion-rules.md` | TypeShape → JSON Schema                          | **rule layer normative, binding partly** |
+| `rate-limiting.md`           | Per-caller limits on meta-tool calls             | normative, two implementations           |
 | `caching.md`                 | Cache key, namespace, TTL, invalidation          | **partly normative**                     |
 | `argument-mapping.md`        | Flat arguments → HTTP request                    | **normative candidate**                  |
 | `request-bodies.md`          | Body media types, form and multipart, file parts | normative, two implementations           |

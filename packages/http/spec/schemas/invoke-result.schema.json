@@ -127,7 +127,8 @@
         "invoke_timeout",
         "search_ranker_unavailable",
         "internal_error",
-        "tool_changed"
+        "tool_changed",
+        "rate_limit_exceeded"
       ]
     },
     "PayloadShapeKind": {
@@ -193,6 +194,10 @@
         },
         "payload": {
           "$ref": "#/$defs/PayloadFacts"
+        },
+        "retryAfterSeconds": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     }
