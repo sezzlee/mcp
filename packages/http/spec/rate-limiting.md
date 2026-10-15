@@ -34,7 +34,7 @@ A host configures limits in one of two forms, and an SDK implements the first as
 
 The call context carries the host's request (from which the host reads its own identity), the meta-tool, the target, and the caller scope key.
 
-The key is the host's choice. The caller scope key is only a convenience default: a host whose scope resolver folds a permission version into the key resets every caller's counters on each permission change, and such a host supplies its own key.
+The key is the host's choice. The caller scope key is only a convenience default, and it fits only when it stays the same for one caller. A scope key that carries a permission or version stamp starts a fresh bucket on every change, so a caller whose permissions change often gets extra permits. A host whose scope resolver does that SHOULD supply a stable key of its own, such as a user or grant identifier.
 
 Limits are per process unless the host's limiter is itself distributed.
 
@@ -44,6 +44,7 @@ The limit is taken **first**: before argument validation, before the catalog loo
 
 - A `load_tool` or `invoke_tool` call naming a hidden or unknown tool consumes a permit exactly like one naming a visible tool. Without this, `unknown_tool` answers would let a caller enumerate names without limit.
 - A call refused by the limit runs nothing else: no visibility decision, no probe, no dispatch.
+- A call the MCP framework rejects before any SDK code runs, such as a `search_tools` call whose `limit` fails the framework's own schema validation, MAY consume no permit. Such a call reaches neither the catalog nor the backend, so it reveals nothing a permit would protect.
 
 ## Chaining
 
