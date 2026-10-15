@@ -132,10 +132,17 @@ public sealed class FamilyRefreshHostTests : FamilyHost
     }
 }
 
+/// <remarks>
+/// Guard: the source holds its thread until the test has asserted, rather than sleeping for a fixed
+/// time. Under thread-pool pressure the deadline's timer callback can run after a fixed sleep ends,
+/// the source then counts as returned in time, and the test fails on a slow runner.
+/// </remarks>
 public sealed class FamilyTimeoutHostTests : FamilyHost
 {
+    private readonly ManualResetEventSlim _held = new();
+
     protected override IReadOnlyList<Func<IReadOnlyList<McpFamilyMember>>> Answers =>
-        [() => { Thread.Sleep(TimeSpan.FromSeconds(1)); return [Members.Balances]; }];
+        [() => { _held.Wait(TimeSpan.FromSeconds(30)); return [Members.Balances]; }];
 
     protected override void Configure(IMvcBuilder mvc)
     {
@@ -146,11 +153,18 @@ public sealed class FamilyTimeoutHostTests : FamilyHost
     [Fact]
     public void FT1_ASourceThatOutlivesItsDeadline_IsReportedAsATimeout_NamingTheOption()
     {
-        CatalogDiagnostic failed = Assert.Single(
-            Catalog.Result.Diagnostics, d => d.Code == DiagnosticCodes.FamilySourceFailed);
+        try
+        {
+            CatalogDiagnostic failed = Assert.Single(
+                Catalog.Result.Diagnostics, d => d.Code == DiagnosticCodes.FamilySourceFailed);
 
-        Assert.Contains("timeout", failed.Message, StringComparison.Ordinal);
-        Assert.Contains("Families.LoadTimeout", failed.Message, StringComparison.Ordinal);
+            Assert.Contains("timeout", failed.Message, StringComparison.Ordinal);
+            Assert.Contains("Families.LoadTimeout", failed.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            _held.Set();
+        }
     }
 }
 
