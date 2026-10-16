@@ -180,11 +180,40 @@ fed chunks.
 A side finding: today's `saxes` reader listens for `text` but not `cdata`, so text inside a CDATA
 section is lost. Excel does not write CDATA, and no corpus part differs because of it.
 
+## After the switch
+
+The production tokenizer (`ooxml-core/src/xml/tokenizer.ts`) adds the checks the prototype lacked
+(name characters, excluded characters, namespace rules, repeated attributes) and stays twice as
+fast as `saxes` on the largest part: 4.1 s against 8.1 s for the Izmir water sheet.
+
+**Whole runs taken hours apart do not compare.** The run after the switch took 261 s against 230 s
+the run before, slower on every size of file and on CSV files that never reach the tokenizer. The
+same old build took 64 s on the Izmir file in the afternoon against 52 s in the morning: the machine
+was slower, not the code. Speed is therefore measured A/B: the old build (a worktree at the previous
+commit) and the new one run the same files alternately, three times each, median taken.
+
+| Files                   | Before | After  | Change                            |
+| ----------------------- | ------ | ------ | --------------------------------- |
+| Four largest (15–44 MB) | 139 s  | 103 s  | 26% faster                        |
+| Ten of 1–10 MB          | 36 s   | 30 s   | 18% faster                        |
+| Eight of 0.1–1 MB       | 3.5 s  | 2.9 s  | 17% faster                        |
+| Twelve under 100 KB     | 0.72 s | 0.75 s | the same; process start dominates |
+
+Answers are unchanged on 478 of 480 files; the other two differ only in error message wording. Peak
+memory did not move, as the parser benchmark predicted.
+
+A profile put a fifth of the time in the start tag scanner, so its four passes over each attribute
+value were merged into one loop. Measured A/B the change made no difference (3.8 s against 3.7–3.9
+s) and was reverted: V8's `indexOf` and regular expressions were never the cost.
+
+The parser is now the largest share of a profile because `excel-mcp` scans each sheet part once per
+reader: cells, hyperlinks, layout, validations, tables, images and panes. Reading every sheet part
+once is the next speed step; reading parts as they inflate is the memory step.
+
 ## Next steps
 
-1. Performance, measured by this harness on the five large files: choose the XML parser from a
-   benchmark (ROADMAP), scan each sheet part once, stream inflation and parsing, and store cells
-   compactly. SheetJS is now a dev dependency only, the oracle the reader is compared against.
+1. Performance, measured A/B on the large files: scan each sheet part once, stream inflation and
+   parsing, and store cells compactly.
 2. Report chart sheets honestly, then read charts. A chart stores both the cell ranges it plots
    and a cached copy of their values, so every chart is a built-in check against the cells.
 3. Examine the 13 CSV files and decide on single-byte encodings.

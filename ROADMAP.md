@@ -66,21 +66,13 @@ spec, a guard comment or the package README.
   its prefix so its result set does not change.
 - **`excel-mcp` memory and speed.** The OOXML reader scans each sheet part once per part reader
   (cells, hyperlinks, layout, validations, tables, images, panes), holds each part as one decoded
-  string, and keeps every cell as an object.
-  `ooxml-core`'s `read()` walks the whole directory for each part although the directory's offsets
+  string, and keeps every cell as an object. The tokenizer already accepts chunks, so a part can be
+  read as it inflates once `XmlPartReader` takes them. `ooxml-core`'s `read()` walks the whole directory for each part although the directory's offsets
   are now known, and `fflate`'s streaming `Inflate` could start from them. Target: the five largest
   corpus files (`packages/lab/excel-lab/FINDINGS.md`) at a few times their file size, measured with
   `excel-lab`.
 - **ZIP64 coverage in `ooxml-core`.** The local-header check reads a ZIP64 entry's offset from its
   extra field; no fixture exercises that path yet.
-- **Replace `saxes` in `@sezzlee/ooxml-core`.** `saxes` is archived upstream (last release 6.0.0,
-  November 2021) and parses untrusted parts. `src/xml/read.ts` is its only importer, so the choice
-  stays behind `XmlPartReader`. Two candidates: `sax` (maintained, same event model, a one-file
-  change), or an in-repo tokenizer for the OOXML subset (no DTD, no entities beyond the five
-  predefined ones) that reads inflated chunks instead of a whole decoded part, which is where the
-  memory of a large sheet goes today. Decide from a benchmark of `saxes`, `sax` and a prototype on
-  the largest corpus sheet parts (time and peak memory), then prove the winner against the corpus
-  with `excel-lab`; an in-repo tokenizer also needs its own fuzz and malformed-input suite.
 
 ## llm-mcp
 

@@ -37,7 +37,8 @@ format nouns belong there, not in this package.
   archive — are ECMA-376 vocabulary and are allowed.
 - **Names no `@sezzlee/*` package.** The error factory and the part source both arrive by
   injection, so `@e965/xlsx` never enters this package.
-- **`saxes` and `fflate` are its only runtime dependencies.**
+- **`fflate` is its only runtime dependency.** `saxes` is a dev dependency, the oracle the
+  tokenizer is fuzzed against.
 
 ## Design notes
 
@@ -63,6 +64,25 @@ together, because one threshold alone either rejects real files or lets a bomb t
 against the central directory, so a damaged archive fails as `corrupt_package` and two zip readers
 cannot be shown two different parts under one name. Bytes that start with a zip signature but do
 not index are `corrupt_package`; bytes that do not are `not_a_package`.
+
+**The tokenizer.** `src/xml/tokenizer.ts` reads XML 1.0 for an OOXML part: elements, attributes,
+text, CDATA, comments and processing instructions, the five predefined entities and character
+references. A DOCTYPE is refused, so no other entity can exist. `src/xml/scope.ts` resolves names
+against Namespaces in XML 1.0. Every check is linear in the part: names are validated once and
+remembered, repeated attributes are found through a set, and namespace bindings live in one map that
+an element restores when it closes. Input may arrive in chunks; a construct cut by a chunk boundary
+is retried only once the buffer has doubled. It replaced `saxes` (archived upstream since 2021)
+after a benchmark on the largest corpus parts showed it 2.2 times faster with the same events on
+every part (`packages/lab/excel-lab/FINDINGS.md`). What proves it:
+
+| Test                           | What it checks                                                                                                                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `test/xml-tokenizer.spec.ts`   | the rules with expected values from the specifications, inputs that would be quadratic in a naive scan, and 6,000 seeded mutations compared with `saxes` read whole and in random chunks         |
+| `test/xml-conformance.spec.ts` | the W3C XML Conformance Test Suite, gated on `SEZZLEE_CORPUS`: every not-well-formed case whose error lies outside a DTD refused, every well-formed one read and matched to its canonical output |
+
+**Encoding.** A part is decoded by its byte order mark, and decoding is fatal on a malformed
+sequence: a replacing decoder would turn damaged bytes into U+FFFD, a legal character. A part that
+names UTF-16 without a byte order mark, or a code page this reader does not decode, is refused.
 
 **Visitor errors.** An error thrown by an `XmlVisitor` callback stops the scan and reaches the
 caller unchanged. Only a failure of the XML itself becomes `corrupt_package`.

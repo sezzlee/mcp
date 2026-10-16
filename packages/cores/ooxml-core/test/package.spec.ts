@@ -153,6 +153,41 @@ describe("part decoding", () => {
     );
   });
 
+  /**
+   * XML 1.0 section 2.2 and appendix F: bytes that are not the encoding's are
+   * a fatal error. These are the CESU-8 form of U+D800, which UTF-8 forbids.
+   */
+  it("refuses a part that is not valid UTF-8", () => {
+    const opened = openWith({
+      "[Content_Types].xml": minimalContentTypes,
+      "doc/main.xml": new Uint8Array([
+        ...bytes("<a>"),
+        0xed,
+        0xa0,
+        0x80,
+        ...bytes("</a>"),
+      ]),
+    });
+    const refusal = expectRefusal(
+      () => opened.part("doc/main.xml"),
+      "corrupt_package",
+    );
+    expect(refusal.message).toMatch(/UTF-8/);
+  });
+
+  /** XML 1.0 section 4.3.3: a UTF-16 entity begins with a byte order mark. */
+  it("refuses a part that declares UTF-16 without a byte order mark", () => {
+    const opened = openWith({
+      "[Content_Types].xml": minimalContentTypes,
+      "doc/main.xml": `<?xml version="1.0" encoding="UTF-16"?><a/>`,
+    });
+    const refusal = expectRefusal(
+      () => opened.part("doc/main.xml"),
+      "corrupt_package",
+    );
+    expect(refusal.message).toMatch(/byte order mark/);
+  });
+
   it("accepts a part that declares the encoding it is written in", () => {
     const opened = openWith({
       "[Content_Types].xml": minimalContentTypes,

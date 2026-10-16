@@ -1,7 +1,7 @@
 import type { OoxmlLimits } from "../limits.js";
 import type { OoxmlErrorFactory } from "../model/errors.js";
 import type { OpcPackage, PartSource, Relationship } from "../model/package.js";
-import { declaredEncodingOf, decodePart } from "../primitives/bytes.js";
+import { partText } from "../primitives/bytes.js";
 import type { XmlPartReader } from "../xml/read.js";
 import { contentTypesPath, readContentTypes } from "./content-types.js";
 import { normalisePartPath, relationshipsPathFor } from "./names.js";
@@ -59,25 +59,31 @@ export function openPackage(
         `Reading '${normalised}' takes this package past the ${String(limits.maxDecodedPackageBytes)} byte decoding budget.`,
       );
     }
-    const { text, encoding } = decodePart(bytes);
-    const named = declaredEncodingOf(text);
-    /**
-     * Guard: a part that names a code page this reader does not decode would
-     * otherwise be read as UTF-8 and fail later as malformed, which names the
-     * wrong defect. utf-8 and the two utf-16 spellings are the ones the byte
-     * order mark already resolved.
-     */
-    if (
-      named !== undefined &&
-      named !== encoding &&
-      named !== "utf-16" &&
-      named !== "us-ascii"
-    ) {
-      throw fail(
-        "unsupported_part_encoding",
-        `'${normalised}' declares encoding '${named}', which is not read.`,
-      );
+    const read = partText(bytes);
+    switch (read.kind) {
+      case "text":
+        break;
+      case "malformed":
+        throw fail(
+          "corrupt_package",
+          `'${normalised}' is not valid ${read.encoding === "utf-8" ? "UTF-8" : "UTF-16"}.`,
+        );
+      case "no_byte_order_mark":
+        throw fail(
+          "corrupt_package",
+          `'${normalised}' declares UTF-16 but carries no byte order mark.`,
+        );
+      case "unsupported":
+        throw fail(
+          "unsupported_part_encoding",
+          `'${normalised}' declares encoding '${read.named}', which is not read.`,
+        );
+      default: {
+        const _exhaustive: never = read;
+        return _exhaustive;
+      }
     }
+    const text = read.text;
     decoded.set(normalised, text);
     return text;
   };

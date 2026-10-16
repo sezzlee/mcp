@@ -418,9 +418,6 @@ importers:
       fflate:
         specifier: ^0.8.3
         version: 0.8.3
-      saxes:
-        specifier: ^6.0.0
-        version: 6.0.0
     devDependencies:
       '@sezzlee/oxlint-config':
         specifier: workspace:*
@@ -440,6 +437,9 @@ importers:
       oxlint:
         specifier: 1.85.0
         version: 1.85.0
+      saxes:
+        specifier: ^6.0.0
+        version: 6.0.0
       typescript:
         specifier: 7.0.2
         version: 7.0.2

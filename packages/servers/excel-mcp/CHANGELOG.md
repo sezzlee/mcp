@@ -11,6 +11,8 @@
 - Two merged ranges that overlap are refused with `corrupt_workbook` when a row they share is read. Excel repairs such a file; no corpus workbook has one.
 - A sheet listing more than 66,530 hyperlinks, the most Excel keeps on one sheet, is refused with `file_too_large`.
 
+- The OOXML parts are read by `@sezzlee/ooxml-core`'s own XML tokenizer instead of `saxes`, 2.2 times faster on the largest corpus parts. Text in a CDATA section, which the `saxes` reader dropped, is now read. A part that is not valid UTF-8, or that names UTF-16 without a byte order mark, is refused with `corrupt_workbook` instead of being read with replacement characters.
+
 ### Resource bounds
 
 - A cell's hyperlink is looked up in a per-sheet index instead of a scan over every link, and building the index visits at most 1,000,000 covered cells. A link anchored on a huge range no longer costs a loop over every row it names.
