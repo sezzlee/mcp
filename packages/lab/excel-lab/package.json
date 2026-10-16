@@ -18,10 +18,15 @@
   "devDependencies": {
     "@modelcontextprotocol/client": "^2.0.0",
     "@sezzlee/excel-mcp": "workspace:*",
+    "@sezzlee/ooxml-core": "workspace:*",
     "@sezzlee/oxlint-config": "workspace:*",
     "@sezzlee/typescript-config": "workspace:*",
     "@types/node": "^24.3.0",
+    "@types/sax": "1.2.7",
+    "fflate": "^0.8.3",
     "oxlint": "1.85.0",
+    "sax": "1.6.1",
+    "saxes": "6.0.0",
     "typescript": "7.0.2",
     "vitest": "^3.2.4",
     "zod": "^4.5.4"

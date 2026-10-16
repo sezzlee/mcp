@@ -80,7 +80,7 @@ function isInside(directory: string, path: string): boolean {
  * anything is created and again on the real path once it exists, so a symlink
  * into the tree does not get past it.
  */
-async function prepareOutRoot(outRoot: string): Promise<string> {
+export async function prepareOutRoot(outRoot: string): Promise<string> {
   const repository = await realpath(repositoryRoot);
   const refuse = (): never => {
     throw new Error(

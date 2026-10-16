@@ -144,6 +144,42 @@ Memory and time have not improved yet: 195 s for the corpus became 230 s, the la
 from 2914 MB to 1944 MB, and the genome file from 1520 MB to 1683 MB. The reader still scans each
 sheet part once per part reader and keeps every cell as an object; that is the next step.
 
+## Choosing the XML parser
+
+`src/parser-bench/` runs three parsers behind the part reader's contract: `saxes` (today's), `sax`
+1.6.1 and an in-repo prototype tokenizer for the OOXML subset (no DTD, the five predefined entities
+and character references). `test/parser-bench.spec.ts` holds the XML 1.0 rules each must keep.
+
+**Conformance.** `sax` breaks four of them even in strict mode: it keeps raw line ends, accepts
+`&nbsp;`, keeps the last of two repeated attributes without complaint, and accepts a second root
+element. The repeated attribute is the dangerous one: two readers of the same part see different
+values. `saxes` and the prototype keep every rule.
+
+**Agreement.** Over 392 corpus workbooks, 2,057 worksheet and shared string parts, `saxes` and the
+prototype report the same event stream for every part (`verify` mode, events hashed after joining
+adjacent text). `sax` differs on 126 parts. Two files never reach a parser: a fuzzed zip and an
+encrypted workbook.
+
+**Time and memory**, median of three runs, each in a fresh process, on the five largest files. The
+workload is the cell reader's: three attribute lookups per cell and the text of every value.
+
+| File (characters decoded) | `saxes` | `sax`  | prototype | Process with parts decoded |
+| ------------------------- | ------- | ------ | --------- | -------------------------- |
+| Izmir water use (365 M)   | 7.6 s   | 15.0 s | 3.4 s     | 864 MiB                    |
+| Genome samples (252 M)    | 2.5 s   | 4.8 s  | 1.2 s     | 635 MiB                    |
+| Izmir social aid (205 M)  | 4.0 s   | 8.0 s  | 1.8 s     | 538 MiB                    |
+| 15-minute weather (69 M)  | 1.0 s   | 2.2 s  | 0.6 s     | 257 MiB                    |
+| Weather summary (30 M)    | 0.5 s   | 1.1 s  | 0.2 s     | 171 MiB                    |
+
+The prototype is 2.2 times faster than `saxes`; `sax` is twice as slow. No parser adds more than
+120 MiB over the decoded parts. **The memory is the decoded parts themselves, not the parser**: the
+largest file holds 864 MiB before a single event. Choosing a parser cannot fix memory; reading a
+part in inflated chunks instead of one decoded string can, and both `saxes` and a tokenizer can be
+fed chunks.
+
+A side finding: today's `saxes` reader listens for `text` but not `cdata`, so text inside a CDATA
+section is lost. Excel does not write CDATA, and no corpus part differs because of it.
+
 ## Next steps
 
 1. Performance, measured by this harness on the five large files: choose the XML parser from a
