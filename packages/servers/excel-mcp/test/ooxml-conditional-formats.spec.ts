@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import { collectConditionalFormats } from "../src/metadata/conditional-formats.js";
 import { createWorkbookRoot } from "../src/platform/paths.js";
-import { parseSheetJs } from "../src/format/sheetjs-workbook.js";
+import { parseOoxml } from "../src/format/ooxml-workbook.js";
 import { createHandlers } from "../src/tools/handlers.js";
 
 function payload(result: CallToolResult): Record<string, unknown> {
@@ -97,7 +97,7 @@ describe("the OOXML conditional format reader agrees with ExcelJS", () => {
       })),
     );
 
-    const parsed = parseSheetJs(bytes, "cf.xlsx");
+    const parsed = parseOoxml(bytes, "cf.xlsx");
     const actual = (parsed.conditionalFormats.get("K") ?? []).flatMap((block) =>
       block.rules.map((rule) => ({
         ref: block.ref,
@@ -138,7 +138,7 @@ describe("the OOXML conditional format reader agrees with ExcelJS", () => {
       ],
     });
     const bytes = Buffer.from(await workbook.xlsx.writeBuffer());
-    const rules = parseSheetJs(bytes, "text.xlsx").conditionalFormats.get("K");
+    const rules = parseOoxml(bytes, "text.xlsx").conditionalFormats.get("K");
     expect(rules?.[0]?.rules[0]).toMatchObject({
       type: "containsText",
       operator: "containsText",

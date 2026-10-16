@@ -13,7 +13,19 @@ const formatMessage =
 const workerMessage =
   "The regex worker entry stays free of the server surface; it answers over the message port and the main side builds the error.";
 
-const parserPackages = ["@e965/xlsx", "csv-parse", "csv-parse/sync"];
+const parserPackages = ["csv-parse", "csv-parse/sync"];
+
+/**
+ * Guard: SheetJS is the test oracle the OOXML reader is compared against, so it
+ * is a dev dependency. An import from src would pass every local check and
+ * fail only for a consumer installing the tarball. Every src override carries
+ * the ban, because an override replaces the rule's options instead of merging.
+ */
+const oracle = {
+  name: "@e965/xlsx",
+  message:
+    "@e965/xlsx is the test oracle and a dev dependency; src reads workbooks through the OOXML reader.",
+};
 
 /**
  * Guard: the platform layer may name the container reader, because sniffing the
@@ -44,7 +56,7 @@ const restrict = (
   "no-restricted-imports": [
     "error",
     {
-      paths: paths.map((name) => ({ name, message })),
+      paths: [...paths.map((name) => ({ name, message })), oracle],
       patterns: [{ group: [...folders, ...entrypoints], message }],
     },
   ],
@@ -55,6 +67,12 @@ export default defineConfig({
   ignorePatterns: ["dist/**"],
   overrides: [
     ...casing,
+    {
+      files: ["src/**/*.ts"],
+      rules: {
+        "no-restricted-imports": ["error", { paths: [oracle] }],
+      },
+    },
     {
       files: ["test/fixtures/*.mjs"],
       globals: {

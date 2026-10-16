@@ -23,8 +23,8 @@ import { createHandlers } from "../src/tools/handlers.js";
 import { parseCsv } from "../src/format/csv.js";
 import { limits } from "../src/platform/limits.js";
 import { decodeCursor } from "../src/grid/cursor.js";
-import { selectSheetName } from "../src/format/sheetjs-workbook.js";
-import { parseSheetJs } from "../src/format/sheetjs-workbook.js";
+import { selectSheetName } from "../src/format/ooxml-workbook.js";
+import { parseOoxml } from "../src/format/ooxml-workbook.js";
 import { collectValidations } from "../src/metadata/validations.js";
 import { validateCondition } from "../src/grid/predicate.js";
 import { declaredTablesOf } from "../src/metadata/tables.js";
@@ -754,7 +754,7 @@ describe("cell/header and metadata regressions", () => {
       ],
       warnings: [expect.stringContaining("missing column names")],
     });
-    const parsed = parseSheetJs(
+    const parsed = parseOoxml(
       await readFile(join(directory, "missing-table-column.xlsx")),
       "missing-table-column.xlsx",
     );
@@ -777,7 +777,7 @@ describe("cell/header and metadata regressions", () => {
     const bytes = Buffer.from(await book.xlsx.writeBuffer());
     const report = collectValidations(
       "V",
-      parseSheetJs(bytes, "v.xlsx").validations.get("V"),
+      parseOoxml(bytes, "v.xlsx").validations.get("V"),
     );
     expect(report.count).toBe(1);
     expect(report.coveredCellCount).toBe(5001);

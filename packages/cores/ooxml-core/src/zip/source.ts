@@ -2,6 +2,8 @@ import { unzipSync, type UnzipFileInfo } from "fflate";
 import type { OoxmlErrorCode, OoxmlErrorFactory } from "../model/errors.js";
 import type { PartEntry, PartSource } from "../model/package.js";
 import type { OoxmlLimits } from "../limits.js";
+import { crc32 } from "../primitives/crc32.js";
+import { localHeaderAgrees, readDirectory } from "./directory.js";
 
 interface Refusal {
   readonly code: OoxmlErrorCode;
@@ -10,6 +12,7 @@ interface Refusal {
 
 const stored = 0;
 const deflated = 8;
+const zipMagic = [0x50, 0x4b] as const;
 
 /**
  * Guard: ECMA-376 Part 2 restricts a part name to the RFC 3986 pchar ASCII
@@ -120,8 +123,14 @@ export function createZipSource(
   try {
     unzipSync(bytes, { filter: inspect });
   } catch (error) {
+    /**
+     * Guard: bytes that open with the zip signature are an archive, so one that
+     * fails to index is damaged, not something other than a package; the two
+     * call for different advice (re-save it, or check what the file is).
+     */
+    const signed = zipMagic.every((byte, index) => bytes[index] === byte);
     throw fail(
-      "not_a_package",
+      signed ? "corrupt_package" : "not_a_package",
       `The archive could not be read: ${error instanceof Error ? error.message : String(error)}.`,
     );
   }
@@ -132,10 +141,24 @@ export function createZipSource(
       `The archive carries ${String(entries.length)} parts, over the ${String(limits.maxPartCount)} part ceiling.`,
     );
   }
+  const directory = readDirectory(bytes);
+  if (directory === undefined) {
+    throw fail(
+      "corrupt_package",
+      "The archive's central directory could not be walked.",
+    );
+  }
 
   const read = (path: string): Uint8Array | undefined => {
     const size = declared.get(path);
     if (size === undefined) return undefined;
+    const record = directory.get(path);
+    if (record === undefined || !localHeaderAgrees(bytes, path, record)) {
+      throw fail(
+        "corrupt_package",
+        `'${path}' has a local header that disagrees with the central directory.`,
+      );
+    }
     let found: Uint8Array | undefined;
     try {
       found = unzipSync(bytes, { filter: (entry) => entry.name === path })[
@@ -158,6 +181,17 @@ export function createZipSource(
       throw fail(
         "corrupt_package",
         `'${path}' declares ${String(size)} bytes but expands to ${String(found.length)}.`,
+      );
+    }
+    /**
+     * Guard: a damaged deflate stream can still inflate to the declared length,
+     * and `fflate` checks no CRC, so without this a flipped byte reaches the
+     * part readers as a plausible wrong value instead of failing.
+     */
+    if (crc32(found) !== record.crc32) {
+      throw fail(
+        "corrupt_package",
+        `'${path}' fails its CRC-32 check; the archive is damaged.`,
       );
     }
     return found;

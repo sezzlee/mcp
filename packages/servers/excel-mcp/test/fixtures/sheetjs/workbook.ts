@@ -1,49 +1,49 @@
 import { canonical } from "@sezzlee/file-core";
 import * as XLSX from "@e965/xlsx";
-import { conditionalFormatRuleCountOf } from "../metadata/conditional-formats.js";
-import type { MediaEntry } from "../metadata/images.js";
-import { SezzleeExcelError } from "../platform/errors.js";
-import { openPackage } from "../metadata/spreadsheetml/package.js";
-import { zipSource } from "../metadata/spreadsheetml/reader.js";
+import { conditionalFormatRuleCountOf } from "../../../src/metadata/conditional-formats.js";
+import type { MediaEntry } from "../../../src/metadata/images.js";
+import { SezzleeExcelError } from "../../../src/platform/errors.js";
+import { openPackage } from "../../../src/metadata/spreadsheetml/package.js";
+import { zipSource } from "../../../src/metadata/spreadsheetml/reader.js";
 import {
   readConditionalFormats,
   type OoxmlConditionalBlock,
-} from "../metadata/spreadsheetml/conditional-formats.js";
+} from "../../../src/metadata/spreadsheetml/conditional-formats.js";
 import {
   readFrozenPanes,
   readImages,
   type OoxmlImage,
   type OoxmlPanes,
-} from "../metadata/spreadsheetml/images.js";
+} from "../../../src/metadata/spreadsheetml/images.js";
 import {
   readTables,
   type OoxmlTable,
-} from "../metadata/spreadsheetml/tables.js";
+} from "../../../src/metadata/spreadsheetml/tables.js";
 import {
   readValidations,
   type OoxmlValidations,
-} from "../metadata/spreadsheetml/validations.js";
-import { limits } from "../platform/limits.js";
-import { metadataLimitations } from "../metadata/support.js";
+} from "../../../src/metadata/spreadsheetml/validations.js";
+import { limits } from "../../../src/platform/limits.js";
+import { metadataLimitations } from "../../../src/metadata/support.js";
 import {
   formatCellRef,
   formatRange,
   parseCellRef,
   type GridBounds,
-} from "../grid/range.js";
-import { sheetjsSnapshot, type SheetJsCell } from "./sheetjs-cell.js";
+} from "../../../src/grid/range.js";
+import { sheetjsSnapshot, type SheetJsCell } from "./cell.js";
 import {
   presentIndices,
   type DeclaredTable,
   type Populated,
   type RowView,
   type SheetView,
-} from "../grid/sheet.js";
+} from "../../../src/grid/sheet.js";
 import type {
   DocumentMeta,
   SheetSummary,
   WorkbookDescription,
-} from "../metadata/description.js";
+} from "../../../src/metadata/description.js";
 
 export interface SheetJsWorkbook {
   readonly book: XLSX.WorkBook;
@@ -174,7 +174,7 @@ function stateOf(book: XLSX.WorkBook, name: string): string {
   }
 }
 
-export function sheetNameSummary(loaded: SheetJsWorkbook): string {
+function sheetNameSummary(loaded: SheetJsWorkbook): string {
   return loaded.sheetNames
     .map((name) => {
       const state = stateOf(loaded.book, name);
@@ -183,7 +183,7 @@ export function sheetNameSummary(loaded: SheetJsWorkbook): string {
     .join(", ");
 }
 
-export function selectSheetName(
+function selectSheetName(
   loaded: SheetJsWorkbook,
   sheetName: string | undefined,
 ): string {

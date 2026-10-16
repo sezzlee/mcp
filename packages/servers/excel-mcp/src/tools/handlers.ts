@@ -10,7 +10,7 @@ import { collectConditionalFormats } from "../metadata/conditional-formats.js";
 import { collectImages } from "../metadata/images.js";
 import { collectTables } from "../metadata/tables.js";
 import { collectValidations } from "../metadata/validations.js";
-import { selectSheetName } from "../format/sheetjs-workbook.js";
+import { selectSheetName } from "../format/ooxml-workbook.js";
 import {
   createDocumentCache,
   csvReportOf,

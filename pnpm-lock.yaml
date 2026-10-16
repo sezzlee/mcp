@@ -522,6 +522,36 @@ importers:
 
   packages/http/spec: {}
 
+  packages/lab/excel-lab:
+    devDependencies:
+      '@modelcontextprotocol/client':
+        specifier: ^2.0.0
+        version: 2.0.0
+      '@sezzlee/excel-mcp':
+        specifier: workspace:*
+        version: link:../../servers/excel-mcp
+      '@sezzlee/oxlint-config':
+        specifier: workspace:*
+        version: link:../../toolchain/oxlint-config
+      '@sezzlee/typescript-config':
+        specifier: workspace:*
+        version: link:../../toolchain/typescript-config
+      '@types/node':
+        specifier: ^24.3.0
+        version: 24.19.0
+      oxlint:
+        specifier: 1.85.0
+        version: 1.85.0
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@24.19.0)(jiti@2.7.0)(lightningcss@1.33.0)(sugarss@5.0.1(postcss@8.5.26))(supports-color@10.2.2)(yaml@2.9.1)
+      zod:
+        specifier: ^4.5.4
+        version: 4.6.5
+
   packages/lab/xml-lab:
     devDependencies:
       '@sezzlee/oxlint-config':
@@ -551,9 +581,6 @@ importers:
 
   packages/servers/excel-mcp:
     dependencies:
-      '@e965/xlsx':
-        specifier: 0.20.3
-        version: 0.20.3
       '@modelcontextprotocol/server':
         specifier: ^2.0.0
         version: 2.2.0
@@ -570,6 +597,9 @@ importers:
         specifier: ^4.5.4
         version: 4.6.5
     devDependencies:
+      '@e965/xlsx':
+        specifier: 0.20.3
+        version: 0.20.3
       '@modelcontextprotocol/client':
         specifier: ^2.0.0
         version: 2.0.0

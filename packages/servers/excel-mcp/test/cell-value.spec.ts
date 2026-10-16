@@ -1,12 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   normalizeCell,
   type NormalizeOptions,
 } from "../src/grid/cell-value.js";
-import {
-  sheetjsSnapshot,
-  type SheetJsCell,
-} from "../src/format/sheetjs-cell.js";
+import { ooxmlSnapshot } from "../src/format/ooxml-cell.js";
+import type { RawValue } from "../src/metadata/spreadsheetml/cells.js";
 import { limits } from "../src/platform/limits.js";
 
 const values: NormalizeOptions = {
@@ -15,66 +13,102 @@ const values: NormalizeOptions = {
   includeHyperlinks: false,
 };
 
-const snapshot = (cell: Partial<SheetJsCell>, merged = false) =>
-  sheetjsSnapshot(cell as SheetJsCell, merged);
+const snapshot = ({
+  value,
+  formula,
+  numberFormat = "General",
+  href,
+  merged = false,
+}: {
+  readonly value: RawValue;
+  readonly formula?: string;
+  readonly numberFormat?: string;
+  readonly href?: string;
+  readonly merged?: boolean;
+}) =>
+  ooxmlSnapshot({
+    value,
+    formula,
+    numberFormat,
+    date1904: false,
+    href,
+    merged,
+  });
+
+const text = (value: string): RawValue => ({ kind: "string", value });
+
+/**
+ * Serials from Excel's 1900 date system: 46037 is 15 January 2026, and
+ * 0.395833… of a day is 09:30.
+ */
+const january15 = 46037;
+const january15At0930 = 46037 + 9.5 / 24;
 
 describe("scalars", () => {
   it("keeps null and empty string apart", () => {
-    expect(normalizeCell(snapshot({ t: "z" }), values).value).toBeNull();
-    expect(normalizeCell(snapshot({}), values).value).toBeNull();
-    expect(normalizeCell(snapshot({ t: "s", v: "" }), values).value).toBe("");
+    expect(
+      normalizeCell(snapshot({ value: { kind: "none" } }), values).value,
+    ).toBeNull();
+    expect(normalizeCell(snapshot({ value: text("") }), values).value).toBe("");
   });
 
   it("passes numbers and booleans through", () => {
-    expect(normalizeCell(snapshot({ t: "n", v: 0 }), values).value).toBe(0);
-    expect(normalizeCell(snapshot({ t: "b", v: false }), values).value).toBe(
-      false,
-    );
+    expect(
+      normalizeCell(snapshot({ value: { kind: "number", value: 0 } }), values)
+        .value,
+    ).toBe(0);
+    expect(
+      normalizeCell(
+        snapshot({ value: { kind: "boolean", value: false } }),
+        values,
+      ).value,
+    ).toBe(false);
   });
 
   it("renders a midnight date as a calendar day", () => {
     const cell = snapshot({
-      t: "d",
-      v: new Date(Date.UTC(2026, 0, 15)),
-      z: "yyyy-mm-dd",
+      value: { kind: "number", value: january15 },
+      numberFormat: "yyyy-mm-dd",
     });
     expect(normalizeCell(cell, values).value).toBe("2026-01-15");
   });
 
   it("renders a timed date as a full instant", () => {
     const cell = snapshot({
-      t: "d",
-      v: new Date(Date.UTC(2026, 0, 15, 9, 30)),
-      z: "yyyy-mm-dd hh:mm",
+      value: { kind: "number", value: january15At0930 },
+      numberFormat: "yyyy-mm-dd hh:mm",
     });
     expect(normalizeCell(cell, values).value).toBe("2026-01-15T09:30:00.000Z");
   });
 
   it("keeps the instant when the format carries a time token", () => {
     const cell = snapshot({
-      t: "d",
-      v: new Date(Date.UTC(2026, 0, 15)),
-      z: "yyyy-mm-dd hh:mm",
+      value: { kind: "number", value: january15 },
+      numberFormat: "yyyy-mm-dd hh:mm",
     });
     expect(normalizeCell(cell, values).value).toBe("2026-01-15T00:00:00.000Z");
   });
 
-  it("tags error cells from the cached text", () => {
-    const cell = snapshot({ t: "e", v: 0x07, w: "#DIV/0!" });
+  it("refuses a non-finite number", () => {
+    expect(() =>
+      snapshot({ value: { kind: "number", value: Number.POSITIVE_INFINITY } }),
+    ).toThrow(expect.objectContaining({ code: "numeric_overflow" }));
+  });
+
+  it("tags error cells from the stored text", () => {
+    const cell = snapshot({ value: { kind: "error", value: "#DIV/0!" } });
     expect(normalizeCell(cell, values).value).toEqual({ error: "#DIV/0!" });
   });
 
-  it("names an error cell that carries no cached text", () => {
-    expect(normalizeCell(snapshot({ t: "e", v: 0x2a }), values).value).toEqual({
-      error: "#N/A",
-    });
+  it("names an error cell that stores no text", () => {
+    const cell = snapshot({ value: { kind: "error", value: "" } });
+    expect(normalizeCell(cell, values).value).toEqual({ error: "#ERROR!" });
   });
 
   it("returns hyperlink text and hides the href by default", () => {
     const cell = snapshot({
-      t: "s",
-      v: "Docs",
-      l: { Target: "https://example.test" },
+      value: text("Docs"),
+      href: "https://example.test",
     });
     expect(normalizeCell(cell, values)).toEqual({ value: "Docs" });
     expect(normalizeCell(cell, { ...values, includeHyperlinks: true })).toEqual(
@@ -86,52 +120,75 @@ describe("scalars", () => {
   });
 
   it("truncates long strings and records the original length", () => {
-    const text = "x".repeat(limits.maxStringChars + 7);
-    const result = normalizeCell(snapshot({ t: "s", v: text }), values);
+    const long = "x".repeat(limits.maxStringChars + 7);
+    const result = normalizeCell(snapshot({ value: text(long) }), values);
     expect(String(result.value)).toHaveLength(limits.maxStringChars);
-    expect(result.note).toEqual({ kind: "truncated", length: text.length });
+    expect(result.note).toEqual({ kind: "truncated", length: long.length });
+  });
+});
+
+describe("an ISO date cell without a zone", () => {
+  const hostZone = process.env.TZ;
+  afterEach(() => {
+    if (hostZone === undefined) delete process.env.TZ;
+    else process.env.TZ = hostZone;
+  });
+
+  /**
+   * Guard: on a UTC host the zone-less reading and the UTC reading agree, so
+   * the host zone is moved off UTC to make the difference observable.
+   */
+  it("reads as UTC whatever the host zone", () => {
+    process.env.TZ = "Asia/Tokyo";
+    const cell = snapshot({
+      value: { kind: "date", value: "2026-01-15T09:30:00" },
+      numberFormat: "yyyy-mm-dd hh:mm",
+    });
+    expect(normalizeCell(cell, values).value).toBe("2026-01-15T09:30:00.000Z");
   });
 });
 
 describe("merged cells", () => {
   it("blanks continuation cells under the master policy", () => {
     expect(
-      normalizeCell(snapshot({ t: "s", v: "merged" }, true), values).value,
+      normalizeCell(snapshot({ value: text("merged"), merged: true }), values)
+        .value,
     ).toBeNull();
   });
 
   it("repeats the master value when asked", () => {
-    const result = normalizeCell(snapshot({ t: "s", v: "merged" }, true), {
-      ...values,
-      mergePolicy: "repeat",
-    });
+    const result = normalizeCell(
+      snapshot({ value: text("merged"), merged: true }),
+      { ...values, mergePolicy: "repeat" },
+    );
     expect(result.value).toBe("merged");
   });
 });
 
 describe("formulas", () => {
-  const formulaCell = (cached: number | boolean | undefined) =>
-    snapshot({
-      f: "SUM(A1:A2)",
-      ...(cached === undefined
-        ? {}
-        : { t: typeof cached === "number" ? "n" : "b", v: cached }),
-    });
+  const formulaCell = (cached: RawValue) =>
+    snapshot({ value: cached, formula: "SUM(A1:A2)" });
 
   it("returns the cached value", () => {
-    expect(normalizeCell(formulaCell(7), values)).toEqual({ value: 7 });
+    expect(
+      normalizeCell(formulaCell({ kind: "number", value: 7 }), values),
+    ).toEqual({ value: 7 });
   });
 
   it("keeps a cached zero", () => {
-    expect(normalizeCell(formulaCell(0), values)).toEqual({ value: 0 });
+    expect(
+      normalizeCell(formulaCell({ kind: "number", value: 0 }), values),
+    ).toEqual({ value: 0 });
   });
 
   it("keeps a cached false", () => {
-    expect(normalizeCell(formulaCell(false), values)).toEqual({ value: false });
+    expect(
+      normalizeCell(formulaCell({ kind: "boolean", value: false }), values),
+    ).toEqual({ value: false });
   });
 
   it("reports an uncached formula", () => {
-    expect(normalizeCell(formulaCell(undefined), values)).toEqual({
+    expect(normalizeCell(formulaCell({ kind: "none" }), values)).toEqual({
       value: null,
       note: { kind: "formula", formula: "=SUM(A1:A2)", cached: false },
     });
@@ -139,13 +196,19 @@ describe("formulas", () => {
 
   it("returns the formula text in formulas mode", () => {
     expect(
-      normalizeCell(formulaCell(7), { ...values, valueMode: "formulas" }),
+      normalizeCell(formulaCell({ kind: "number", value: 7 }), {
+        ...values,
+        valueMode: "formulas",
+      }),
     ).toEqual({ value: "=SUM(A1:A2)" });
   });
 
   it("returns both in both mode", () => {
     expect(
-      normalizeCell(formulaCell(7), { ...values, valueMode: "both" }),
+      normalizeCell(formulaCell({ kind: "number", value: 7 }), {
+        ...values,
+        valueMode: "both",
+      }),
     ).toEqual({
       value: 7,
       note: { kind: "formula", formula: "=SUM(A1:A2)", cached: true },

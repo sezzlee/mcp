@@ -116,8 +116,8 @@ describe("the OOXML data validation reader agrees with ExcelJS", () => {
     await reference.xlsx.load(Uint8Array.from(bytes).buffer);
     const expected = excelJsRules(reference.worksheets[0]!);
 
-    const { parseSheetJs } = await import("../src/format/sheetjs-workbook.js");
-    const parsed = parseSheetJs(bytes, "parity.xlsx");
+    const { parseOoxml } = await import("../src/format/ooxml-workbook.js");
+    const parsed = parseOoxml(bytes, "parity.xlsx");
     const actual = collectValidations("Data", parsed.validations.get("Data"));
 
     expect(actual.rules).toHaveLength(expected.length);
@@ -153,10 +153,10 @@ describe("the OOXML data validation reader agrees with ExcelJS", () => {
       formulae: ["TRUE()"],
     });
     const bytes = Buffer.from(await workbook.xlsx.writeBuffer());
-    const { parseSheetJs } = await import("../src/format/sheetjs-workbook.js");
+    const { parseOoxml } = await import("../src/format/ooxml-workbook.js");
     const report = collectValidations(
       "Wide",
-      parseSheetJs(bytes, "wide.xlsx").validations.get("Wide"),
+      parseOoxml(bytes, "wide.xlsx").validations.get("Wide"),
     );
     expect(report.count).toBe(1);
     expect(report.rules[0]?.ranges).toEqual(["A1:A1048576"]);

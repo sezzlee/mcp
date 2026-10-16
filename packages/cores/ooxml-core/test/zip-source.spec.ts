@@ -1,3 +1,4 @@
+import { zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import {
   bytes,
@@ -171,5 +172,55 @@ describe("what fflate does, pinned", () => {
 
   it("keeps deflateRawSync output readable through the same path", () => {
     expect(deflateRaw(bytes("<a/>")).length).toBeGreaterThan(0);
+  });
+});
+
+describe("integrity", () => {
+  it("refuses a part whose bytes no longer match the directory's CRC-32", () => {
+    const archive = zipSync({ "a.xml": [bytes("<a>value</a>"), { level: 0 }] });
+    const at = Buffer.from(archive).indexOf("value");
+    const tampered = Uint8Array.from(archive);
+    tampered[at] = (tampered[at] ?? 0) ^ 0x01;
+    const source = reader().zipSource(tampered);
+
+    expect(() => source.read("a.xml")).toThrow(/CRC-32/);
+    expectRefusal(() => source.read("a.xml"), "corrupt_package");
+  });
+
+  it("reads a part whose bytes match the directory's CRC-32", () => {
+    const source = reader().zipSource(zipOf({ "a.xml": "<a>value</a>" }));
+
+    expect(new TextDecoder().decode(source.read("a.xml"))).toBe("<a>value</a>");
+  });
+
+  it("refuses a truncated archive as damaged, not as a foreign file", () => {
+    const archive = samplePackage();
+
+    expectRefusal(
+      () =>
+        reader().zipSource(archive.subarray(0, Math.floor(archive.length / 2))),
+      "corrupt_package",
+    );
+  });
+});
+
+describe("local headers", () => {
+  it("refuses a part whose local header no longer carries its signature", () => {
+    const archive = zipSync({ "a.xml": [bytes("<a/>"), { level: 0 }] });
+    const tampered = Uint8Array.from(archive);
+    tampered[0] = (tampered[0] ?? 0) ^ 0xff;
+    const source = reader().zipSource(tampered);
+
+    expect(() => source.read("a.xml")).toThrow(/local header/);
+  });
+
+  it("refuses a part whose local header names another part", () => {
+    const archive = zipSync({ "a.xml": [bytes("<a/>"), { level: 0 }] });
+    const tampered = Uint8Array.from(archive);
+    const at = Buffer.from(archive).indexOf("a.xml");
+    tampered[at] = "b".charCodeAt(0);
+    const source = reader().zipSource(tampered);
+
+    expect(() => source.read("a.xml")).toThrow(/local header/);
   });
 });

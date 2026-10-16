@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Compatibility changes
+
+- **SheetJS is no longer a runtime dependency.** Cells, number formats, dates, formulas, hyperlinks, merges, the auto filter, the declared range, sheet states and defined names are read from the OOXML parts by the server's own reader over `@sezzlee/ooxml-core`, so a workbook is unzipped once instead of twice. `@e965/xlsx` stays as a dev dependency: the test suite compares the reader against it, cell by cell, over every fixture workbook. Parts of the reader derive from SheetJS (Apache-2.0); `THIRD-PARTY-NOTICES.md` lists them and ships in the tarball.
+- `parseSheetJs`, `describeSheetJs`, `sheetjsSheetView` and the `SheetJsWorkbook` type are replaced by `parseOoxml`, `describeOoxml`, `ooxmlSheetView` and `OoxmlWorkbook`. `selectSheetName` takes an `OoxmlWorkbook`.
+- A damaged archive is refused with `corrupt_workbook`: every part is checked against its CRC-32, and every part's local header must agree with the central directory, so two zip readers cannot see two different files in the same bytes. A truncated workbook that still starts with a zip header is `corrupt_workbook`; bytes that are not a zip at all stay `not_a_workbook`, whose `recovery` now says the file is probably not a spreadsheet.
+- A shared string table that declares a DOCTYPE, and a cell in row 0, are refused with `corrupt_workbook`. ECMA-376 forbids both; SheetJS read through them.
+
+### Reading
+
+- Strict OOXML workbooks (`purl.oclc.org` namespaces) are read like Transitional ones.
+- A cell with no `s` attribute takes cell format 0, as ECMA-376 says, instead of `General`.
+- A chart sheet declares no rows or columns; SheetJS reported a range drawn from the chart's series.
+- Raw carriage returns in cell text are normalised to line feeds, as XML 1.0 end-of-line handling requires.
+
 ## 0.7.0
 
 ### Compatibility changes

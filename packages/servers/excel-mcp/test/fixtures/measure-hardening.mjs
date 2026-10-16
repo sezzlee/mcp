@@ -11,9 +11,9 @@ import JSZip from "jszip";
  */
 import {
   collectValidations,
-  describeSheetJs,
+  describeOoxml,
   parseCsv,
-  parseSheetJs,
+  parseOoxml,
 } from "../../dist/index.js";
 const report = {};
 let start = performance.now();
@@ -52,7 +52,7 @@ zip.file(
 );
 const xlsx = await zip.generateAsync({ type: "nodebuffer" });
 start = performance.now();
-const parsed = parseSheetJs(xlsx, "validation.xlsx");
+const parsed = parseOoxml(xlsx, "validation.xlsx");
 const describeOptions = { includeDefinedNames: false };
 report.validationParseMs = performance.now() - start;
 const validations = collectValidations(
@@ -68,12 +68,12 @@ const meta = {
   modifiedAt: "2026-01-01T00:00:00.000Z",
 };
 start = performance.now();
-const described = describeSheetJs(parsed, meta, describeOptions);
+const described = describeOoxml(parsed, meta, describeOptions);
 report.validationDescribeMs = performance.now() - start;
 assert.equal(described.sheets[0].dataValidationRuleCount, 1);
 assert.equal(described.sheets[0].dataValidationRuleCountExact, true);
 start = performance.now();
-describeSheetJs(parsed, meta, describeOptions);
+describeOoxml(parsed, meta, describeOptions);
 report.validationCachedDescribeMs = performance.now() - start;
 report.peakRssKiB = process.resourceUsage().maxRSS;
 assert.ok(report.peakRssKiB < 1024 * 1024, "resource test exceeded 1 GiB RSS");
