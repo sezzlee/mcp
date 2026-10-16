@@ -59,6 +59,14 @@ together, because one threshold alone either rejects real files or lets a bomb t
 | `ratioFloorBytes`        | 16 MiB  | Below this, ratio is not checked — a small, highly repetitive part is normal           |
 | `maxDecodedPackageBytes` | 512 MiB | Bounds the sum of many parts that each stay under their own limit                      |
 
+**Integrity.** The read pass checks each inflated part against its CRC-32 and each local header
+against the central directory, so a damaged archive fails as `corrupt_package` and two zip readers
+cannot be shown two different parts under one name. Bytes that start with a zip signature but do
+not index are `corrupt_package`; bytes that do not are `not_a_package`.
+
+**Visitor errors.** An error thrown by an `XmlVisitor` callback stops the scan and reaches the
+caller unchanged. Only a failure of the XML itself becomes `corrupt_package`.
+
 **Known limitation.** Per-entry zip encryption (PKWARE) is **not detected**: `fflate`'s
 general-purpose flag bit is not exposed to the filter callback. A document Office actually
 encrypts is already a CFB container, not a zip, and `classifyContainerMagic` catches it outside

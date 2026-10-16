@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { RawCell } from "../src/metadata/spreadsheetml/cells.js";
 import {
   displayFormula,
-  formulaTexts,
+  formulaSources,
+  formulaText,
   shiftFormula,
 } from "../src/metadata/spreadsheetml/formula-text.js";
 
@@ -42,7 +43,7 @@ describe("shiftFormula", () => {
   );
 });
 
-describe("formulaTexts", () => {
+describe("formulaSources", () => {
   const cell = (
     row: number,
     column: number,
@@ -55,8 +56,14 @@ describe("formulaTexts", () => {
     ...(formula === undefined ? {} : { formula }),
   });
 
+  const texts = (cells: readonly RawCell[]) =>
+    [...formulaSources(cells)].map(([index, source]) => {
+      const at = cells[index];
+      return [index, at === undefined ? undefined : formulaText(source, at)];
+    });
+
   it("expands a shared group from the cell that defines it", () => {
-    const texts = formulaTexts([
+    const expanded = texts([
       cell(1, 3, { kind: "shared", group: 0, text: "A1*B1", ref: "C1:C3" }),
       cell(2, 3, { kind: "shared", group: 0, text: undefined, ref: undefined }),
       cell(3, 4, { kind: "shared", group: 0, text: undefined, ref: undefined }),
@@ -64,7 +71,7 @@ describe("formulaTexts", () => {
       cell(5, 1, undefined),
     ]);
 
-    expect([...texts]).toEqual([
+    expect(expanded).toEqual([
       [0, "A1*B1"],
       [1, "A2*B2"],
       [2, "B3*C3"],
@@ -73,11 +80,11 @@ describe("formulaTexts", () => {
   });
 
   it("leaves a group cell met before its defining cell without text", () => {
-    const texts = formulaTexts([
+    const expanded = texts([
       cell(1, 1, { kind: "shared", group: 7, text: undefined, ref: undefined }),
       cell(2, 1, { kind: "shared", group: 7, text: "B2", ref: "A1:A2" }),
     ]);
 
-    expect([...texts]).toEqual([[1, "B2"]]);
+    expect(expanded).toEqual([[1, "B2"]]);
   });
 });

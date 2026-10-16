@@ -70,6 +70,24 @@ describe("readXmlPart", () => {
     expect(error.message).toContain("DOCTYPE");
   });
 
+  it("lets a visitor's own error through unchanged and stops reading", () => {
+    const refusal = new Error("the visitor refuses this part");
+    const seen: string[] = [];
+    expect(() =>
+      reader().readXmlPart(
+        `<root xmlns="${ns}"><a/><b/><c/></root>`,
+        "part.xml",
+        {
+          onOpen(node) {
+            seen.push(node.local);
+            if (node.local === "a") throw refusal;
+          },
+        },
+      ),
+    ).toThrow(refusal);
+    expect(seen).toStrictEqual(["root", "a"]);
+  });
+
   it("refuses a part that is not well-formed", () => {
     const error = expectRefusal(
       () => reader().readXmlPart(`<root><a></root>`, "part.xml", {}),

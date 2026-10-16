@@ -8,6 +8,14 @@
 - `parseSheetJs`, `describeSheetJs`, `sheetjsSheetView` and the `SheetJsWorkbook` type are replaced by `parseOoxml`, `describeOoxml`, `ooxmlSheetView` and `OoxmlWorkbook`. `selectSheetName` takes an `OoxmlWorkbook`.
 - A damaged archive is refused with `corrupt_workbook`: every part is checked against its CRC-32, and every part's local header must agree with the central directory, so two zip readers cannot see two different files in the same bytes. A truncated workbook that still starts with a zip header is `corrupt_workbook`; bytes that are not a zip at all stay `not_a_workbook`, whose `recovery` now says the file is probably not a spreadsheet.
 - A shared string table that declares a DOCTYPE, and a cell in row 0, are refused with `corrupt_workbook`. ECMA-376 forbids both; SheetJS read through them.
+- Two merged ranges that overlap are refused with `corrupt_workbook` when a row they share is read. Excel repairs such a file; no corpus workbook has one.
+- A sheet listing more than 66,530 hyperlinks, the most Excel keeps on one sheet, is refused with `file_too_large`.
+
+### Resource bounds
+
+- A cell's hyperlink is looked up in a per-sheet index instead of a scan over every link, and building the index visits at most 1,000,000 covered cells. A link anchored on a huge range no longer costs a loop over every row it names.
+- A row's merged ranges are found through an interval tree instead of a scan over every merge; a sheet with 100,000 merges read row by row went from 14 s to under half a second.
+- A shared formula's later cells keep a reference to their group and are expanded when read. Expanding them up front let 40,000 cells of one 8,000-character formula hold 760 MB.
 
 ### Reading
 

@@ -49,6 +49,11 @@ export function createXmlPartReader(fail: OoxmlErrorFactory): XmlPartReader {
    * Guard: a DOCTYPE is refused rather than parsed. ECMA-376 Part 2 forbids a
    * DTD in an OPC part, so its presence means the bytes are not the part they
    * claim to be, and refusing keeps entity resolution off the table entirely.
+   *
+   * Guard: an error a visitor throws is its own refusal, not a parse failure.
+   * It stops the scan and reaches the caller unchanged, instead of being
+   * reported as malformed XML under the wrong code. saxes reports its own
+   * errors through the handler above, so anything thrown here is the visitor's.
    */
   return function readXmlPart(xml, partName, visitor) {
     const parser = new SaxesParser<typeof namespaceAware>(namespaceAware);
@@ -80,11 +85,7 @@ export function createXmlPartReader(fail: OoxmlErrorFactory): XmlPartReader {
         onText(text);
       });
     }
-    try {
-      parser.write(xml).close();
-    } catch (error) {
-      failure ??= error instanceof Error ? error.message : String(error);
-    }
+    parser.write(xml).close();
     if (failure !== undefined) {
       throw fail(
         "corrupt_package",

@@ -66,7 +66,7 @@ spec, a guard comment or the package README.
   its prefix so its result set does not change.
 - **`excel-mcp` memory and speed.** The OOXML reader scans each sheet part once per part reader
   (cells, hyperlinks, layout, validations, tables, images, panes), holds each part as one decoded
-  string, keeps every cell as an object, and resolves a cell's hyperlink by scanning every link.
+  string, and keeps every cell as an object.
   `ooxml-core`'s `read()` walks the whole directory for each part although the directory's offsets
   are now known, and `fflate`'s streaming `Inflate` could start from them. Target: the five largest
   corpus files (`packages/lab/excel-lab/FINDINGS.md`) at a few times their file size, measured with
