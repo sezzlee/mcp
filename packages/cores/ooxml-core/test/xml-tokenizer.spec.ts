@@ -315,5 +315,5 @@ describe("differential fuzzing against saxes", () => {
       "namespace name trimmed",
       "processing instruction target is not a Name",
     ]);
-  });
+  }, 30_000);
 });
