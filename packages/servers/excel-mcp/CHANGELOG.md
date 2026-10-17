@@ -22,6 +22,8 @@
 
 ### Memory
 
+- A sheet's cells are kept as typed arrays, one per field, instead of an object per cell with a value object of its own: about 21 bytes a cell where it took 120 to 300. A described workbook retains 61–75% less memory on the four largest corpus files (the largest from 1.2 GiB to 0.3 GiB) and peak memory while reading falls by a third or more, at the same speed.
+
 - Every worksheet, the shared string table, the styles and each table and drawing part are inflated, decoded and scanned a chunk at a time, and their text is not kept. On three of the four largest corpus files a described workbook retains 19–27% less heap, and the largest reads in a 1.3 GiB heap where it needed 1.6 GiB. Files under 1 MB read up to 5% slower.
 - A damaged part is still refused, but a fault met while scanning it can be reported before its CRC-32 mismatch, and a part that inflates past its declared size is stopped at the first byte over, so the refusal no longer states how far it expands.
 

@@ -1,4 +1,5 @@
-import { cellScan, type RawCell } from "./cells.js";
+import { cellStoreBuilder, type StoredCells } from "./cell-store.js";
+import { cellScan } from "./cells.js";
 import {
   conditionalFormatScan,
   type OoxmlConditionalBlock,
@@ -26,7 +27,7 @@ export interface SheetFacts {
 }
 
 export interface SheetContent {
-  readonly cells: readonly RawCell[];
+  readonly cells: StoredCells;
   readonly links: readonly Hyperlink[];
   readonly layout: SheetLayout;
 }
@@ -78,7 +79,8 @@ export function readWorksheet(
     known === undefined
       ? factScan(opc, part)
       : { visitor: {}, finish: () => known };
-  const cells = cellScan(part, strings);
+  const store = cellStoreBuilder();
+  const cells = cellScan(part, strings, store.add);
   const links = hyperlinkScan(opc, part);
   const layout = layoutScan();
   scanPart(
@@ -89,7 +91,7 @@ export function readWorksheet(
   const finished = facts.finish();
   return {
     content: {
-      cells: cells.finish(),
+      cells: (cells.finish(), store.finish()),
       links: links.finish(),
       layout: layout.finish(),
     },

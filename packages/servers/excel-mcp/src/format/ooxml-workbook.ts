@@ -6,12 +6,8 @@ import type {
   SheetSummary,
   WorkbookDescription,
 } from "../metadata/description.js";
-import type { RawCell } from "../metadata/spreadsheetml/cells.js";
-import {
-  formulaSources,
-  formulaText,
-  type FormulaSource,
-} from "../metadata/spreadsheetml/formula-text.js";
+import type { CellStore } from "../metadata/spreadsheetml/cell-store.js";
+import { formulaText } from "../metadata/spreadsheetml/formula-text.js";
 import {
   hyperlinkIndex,
   type HyperlinkIndex,
@@ -36,7 +32,6 @@ import { metadataLimitations } from "../metadata/support.js";
 import type { CellSnapshot } from "../grid/cell-value.js";
 import { formatCellRef, formatRange, type GridBounds } from "../grid/range.js";
 import {
-  presentIndices,
   type DeclaredTable,
   type Populated,
   type RowView,
@@ -60,13 +55,27 @@ import { anchorSnapshot, ooxmlSnapshot } from "./ooxml-cell.js";
  */
 const maxAnchorSlots = 100_000;
 
-/** A stored cell, or an empty slot a hyperlink is anchored on. */
-type Slot = RawCell | { readonly anchor: string };
+/** A stored cell, or an empty cell a hyperlink is anchored on. */
+type Slot =
+  | {
+      readonly kind: "cell";
+      readonly index: number;
+      readonly row: number;
+      readonly column: number;
+    }
+  | { readonly kind: "anchor"; readonly href: string };
+
+/** The empty cells a hyperlink is anchored on, each row's columns ascending. */
+interface Anchors {
+  readonly rows: readonly number[];
+  readonly columns: ReadonlyMap<number, readonly number[]>;
+  readonly hrefs: ReadonlyMap<number, ReadonlyMap<number, string>>;
+}
 
 interface OoxmlSheet {
-  readonly formulas: ReadonlyMap<RawCell, FormulaSource>;
+  readonly cells: CellStore;
+  readonly anchors: Anchors;
   readonly links: HyperlinkIndex;
-  readonly slots: readonly (readonly Slot[] | undefined)[];
   readonly bounds: GridBounds | undefined;
   readonly declared: GridBounds | undefined;
   readonly merges: readonly string[];
@@ -96,47 +105,83 @@ export interface OoxmlWorkbook {
   sheet(name: string): OoxmlSheet;
 }
 
+function slotAt(
+  { cells, anchors }: Pick<OoxmlSheet, "cells" | "anchors">,
+  row: number,
+  column: number,
+): Slot | undefined {
+  const index = cells.indexAt(row, column);
+  if (index !== undefined) return { kind: "cell", index, row, column };
+  const href = anchors.hrefs.get(row)?.get(column);
+  return href === undefined ? undefined : { kind: "anchor", href };
+}
+
 function snapshotOf(
   loaded: OoxmlWorkbook,
   sheet: OoxmlSheet,
   slot: Slot,
   merged: boolean,
 ): CellSnapshot {
-  if ("anchor" in slot) {
-    return anchorSnapshot({ href: slot.anchor, merged });
+  if (slot.kind === "anchor") {
+    return anchorSnapshot({ href: slot.href, merged });
   }
-  const cell = slot;
-  const source = sheet.formulas.get(cell);
+  const { cells } = sheet;
+  const source = cells.formula(slot.index);
   return ooxmlSnapshot({
-    value: cell.value,
-    formula: source === undefined ? undefined : formulaText(source, cell),
-    numberFormat: loaded.formats.formatOf(cell.style),
+    value: cells.value(slot.index),
+    formula: source === undefined ? undefined : formulaText(source, slot),
+    numberFormat: loaded.formats.formatOf(cells.style(slot.index)),
     date1904: loaded.opc.date1904,
-    href: sheet.links.at(cell.row, cell.column),
+    href: sheet.links.at(slot.row, slot.column),
     merged,
   });
 }
 
-function placed(
-  slots: (Slot[] | undefined)[],
-  row: number,
-  column: number,
-  slot: Slot,
-): void {
-  const line = slots[row - 1] ?? [];
-  slots[row - 1] = line;
-  line[column - 1] = slot;
+function anchorsOf(links: HyperlinkIndex, cells: CellStore): Anchors {
+  const hrefs = new Map<number, Map<number, string>>();
+  let placed = 0;
+  links.forEachCell((row, column, href) => {
+    if (placed >= maxAnchorSlots) return;
+    if (cells.indexAt(row, column) !== undefined) return;
+    const line = hrefs.get(row) ?? new Map<number, string>();
+    hrefs.set(row, line);
+    line.set(column, href);
+    placed += 1;
+  });
+  const ascending = (a: number, b: number) => a - b;
+  return {
+    rows: [...hrefs.keys()].sort(ascending),
+    columns: new Map(
+      [...hrefs].map(([row, line]) => [row, [...line.keys()].sort(ascending)]),
+    ),
+    hrefs,
+  };
 }
 
-function grow(bounds: GridBounds | undefined, row: number, column: number) {
-  return bounds === undefined
-    ? { top: row, left: column, bottom: row, right: column }
-    : {
-        top: Math.min(bounds.top, row),
-        left: Math.min(bounds.left, column),
-        bottom: Math.max(bounds.bottom, row),
-        right: Math.max(bounds.right, column),
-      };
+/**
+ * @returns the indices of two ascending sequences, each once, ascending; the
+ *   second is filtered to `[from, to]`.
+ */
+function* ascendingUnion(
+  stored: Iterable<number>,
+  anchored: readonly number[],
+  from: number,
+  to: number,
+): Generator<number> {
+  let at = 0;
+  while (at < anchored.length && (anchored[at] ?? 0) < from) at += 1;
+  for (const index of stored) {
+    while (at < anchored.length && (anchored[at] ?? 0) < index) {
+      yield anchored[at] ?? 0;
+      at += 1;
+    }
+    if (anchored[at] === index) at += 1;
+    yield index;
+  }
+  while (at < anchored.length && (anchored[at] ?? 0) <= to) {
+    yield anchored[at] ?? 0;
+    at += 1;
+  }
 }
 
 function readSheet(
@@ -147,53 +192,28 @@ function readSheet(
 ): OoxmlSheet {
   const { content, facts } = readWorksheet(opc, part, strings, known);
   const { cells, layout } = content;
-  const sources = formulaSources(cells);
-  const formulas = new Map<RawCell, FormulaSource>();
   const links = hyperlinkIndex(content.links);
-  const slots: (Slot[] | undefined)[] = [];
-  let bounds: GridBounds | undefined;
-  let formulaCellCount = 0;
-  let cachedFormulaValueCount = 0;
-  cells.forEach((cell, index) => {
-    placed(slots, cell.row, cell.column, cell);
-    const source = sources.get(index);
-    const formula = source !== undefined;
-    if (formula) {
-      formulas.set(cell, source);
-      formulaCellCount += 1;
-      if (cell.value.kind !== "none") cachedFormulaValueCount += 1;
-    }
-    if (formula || cell.value.kind !== "none") {
-      bounds = grow(bounds, cell.row, cell.column);
-    }
-  });
-  let anchors = 0;
-  links.forEachCell((row, column, href) => {
-    if (anchors >= maxAnchorSlots) return;
-    if (slots[row - 1]?.[column - 1] !== undefined) return;
-    placed(slots, row, column, { anchor: href });
-    anchors += 1;
-  });
+  const anchors = anchorsOf(links, cells.store);
   const merges: MergeRange[] = layout.merges.map((merge) => ({
     ...merge,
     ref: `${formatCellRef(merge.top, merge.left)}:${formatCellRef(merge.bottom, merge.right)}`,
   }));
+  const stored = { cells: cells.store, anchors };
   return {
-    formulas,
+    ...stored,
     links,
-    slots,
-    bounds,
-    declared: declaredBounds(layout, cells),
+    bounds: cells.bounds,
+    declared: declaredBounds(layout, cells.stored),
     merges: merges.map((merge) => merge.ref),
     mergeIndex: mergeIndex(part, merges),
     mergedRows: coalesced(
       merges
-        .filter((merge) => slots[merge.top - 1]?.[merge.left - 1] !== undefined)
+        .filter((merge) => slotAt(stored, merge.top, merge.left) !== undefined)
         .map((merge) => [merge.top, merge.bottom] as const),
     ),
     autoFilter: layout.autoFilter,
-    formulaCellCount,
-    cachedFormulaValueCount,
+    formulaCellCount: cells.formulaCellCount,
+    cachedFormulaValueCount: cells.cachedFormulaValueCount,
     facts,
   };
 }
@@ -321,8 +341,6 @@ export function ooxmlSheetView(
 ): SheetView {
   const name = selectSheetName(loaded, sheetName);
   const sheet = loaded.sheet(name);
-  const slotAt = (row: number, column: number): Slot | undefined =>
-    sheet.slots[row - 1]?.[column - 1];
   /**
    * The spans are disjoint, so the walk visits each index of the span once
    * however many merges there are.
@@ -342,7 +360,7 @@ export function ooxmlSheetView(
     return [...indices].sort((a, b) => a - b);
   };
   const withMaster = (merge: MergeRange): boolean =>
-    slotAt(merge.top, merge.left) !== undefined;
+    slotAt(sheet, merge.top, merge.left) !== undefined;
   return {
     name,
     bounds: sheet.bounds,
@@ -360,19 +378,20 @@ export function ooxmlSheetView(
            * master value or blank the continuation.
            */
           if (merge !== undefined) {
-            const master = slotAt(merge.top, merge.left);
+            const master = slotAt(sheet, merge.top, merge.left);
             if (master === undefined) return undefined;
             const isMaster = merge.top === row && merge.left === column;
             return snapshotOf(loaded, sheet, master, !isMaster);
           }
-          const slot = slotAt(row, column);
+          const slot = slotAt(sheet, row, column);
           return slot === undefined
             ? undefined
             : snapshotOf(loaded, sheet, slot, false);
         },
         populatedColumns(span) {
-          const stored = presentIndices(
-            sheet.slots[row - 1] ?? [],
+          const stored = ascendingUnion(
+            sheet.cells.columns(row, span.from, span.to),
+            sheet.anchors.columns.get(row) ?? [],
             span.from,
             span.to,
           );
@@ -389,7 +408,12 @@ export function ooxmlSheetView(
       };
     },
     populatedRows(span) {
-      const stored = presentIndices(sheet.slots, span.from, span.to);
+      const stored = ascendingUnion(
+        sheet.cells.rows(span.from, span.to),
+        sheet.anchors.rows,
+        span.from,
+        span.to,
+      );
       return span.withCovered
         ? repeated(stored, sheet.mergedRows, span)
         : stored;

@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { cellScan } from "../src/metadata/spreadsheetml/cells.js";
+import { Buffer } from "node:buffer";
+import { ooxmlSheetView, parseOoxml } from "../src/format/ooxml-workbook.js";
+import { cellScan, type RawCell } from "../src/metadata/spreadsheetml/cells.js";
 import { openPackage } from "../src/metadata/spreadsheetml/package.js";
 import { zipSource } from "../src/metadata/spreadsheetml/reader.js";
 import { hyperlinkScan } from "../src/metadata/spreadsheetml/hyperlinks.js";
-import {
-  declaredBounds,
-  layoutScan,
-} from "../src/metadata/spreadsheetml/sheet-layout.js";
+import { layoutScan } from "../src/metadata/spreadsheetml/sheet-layout.js";
 import { readSharedStrings } from "../src/metadata/spreadsheetml/shared-strings.js";
 import { readNumberFormats } from "../src/metadata/spreadsheetml/styles.js";
 import {
@@ -19,14 +18,25 @@ import { scanAlone } from "./fixtures/scan-alone.js";
 const sheet = "xl/worksheets/sheet1.xml";
 
 async function workbook(options: RawWorkbookOptions) {
-  const opc = openPackage(zipSource(await rawWorkbook(options)));
+  const bytes = await rawWorkbook(options);
+  const opc = openPackage(zipSource(bytes));
   const strings = readSharedStrings(opc);
   return {
     strings,
     formats: readNumberFormats(opc),
     links: () => scanAlone(opc, sheet, hyperlinkScan(opc, sheet)),
     layout: () => scanAlone(opc, sheet, layoutScan()),
-    cells: () => scanAlone(opc, sheet, cellScan(sheet, strings)),
+    cells: () => {
+      const cells: RawCell[] = [];
+      scanAlone(
+        opc,
+        sheet,
+        cellScan(sheet, strings, (cell) => cells.push(cell)),
+      );
+      return cells;
+    },
+    declared: () =>
+      parseOoxml(Buffer.from(bytes), "w.xlsx").sheet("S").declared,
   };
 }
 
@@ -276,7 +286,7 @@ describe("layoutScan", () => {
   });
 
   it("declares the written rows when the dimension names a single cell", async () => {
-    const { layout, cells } = await workbook({
+    const { layout, declared } = await workbook({
       beforeSheetData: '<dimension ref="A1"/>',
       sheetData:
         '<row r="2"><c r="B2"><v>1</v></c><c r="D2"><v>2</v></c></row>' +
@@ -284,7 +294,7 @@ describe("layoutScan", () => {
     });
 
     expect(layout().dimension).toBeUndefined();
-    expect(declaredBounds(layout(), cells())).toEqual({
+    expect(declared()).toEqual({
       top: 2,
       left: 2,
       bottom: 40,
@@ -293,10 +303,77 @@ describe("layoutScan", () => {
   });
 
   it("declares nothing for a sheet without stored cells", async () => {
-    const { layout, cells } = await workbook({
+    const { declared } = await workbook({
       sheetData: '<row r="1000" ht="15.75" customHeight="1"/>',
     });
 
-    expect(declaredBounds(layout(), cells())).toBeUndefined();
+    expect(declared()).toBeUndefined();
+  });
+});
+
+describe("the stored grid", () => {
+  const all = { from: 1, to: 1_048_576, withCovered: false };
+
+  async function viewOf(options: RawWorkbookOptions) {
+    const loaded = parseOoxml(
+      Buffer.from(await rawWorkbook(options)),
+      "g.xlsx",
+    );
+    return { loaded, view: ooxmlSheetView(loaded, "S") };
+  }
+
+  it("reads cells stored out of order, the later of two at one position winning", async () => {
+    const { loaded, view } = await viewOf({
+      sheetData:
+        '<row r="3"><c r="B3"><v>3</v></c><c r="A3"><f>1+1</f><v>2</v></c></row>' +
+        '<row r="1"><c r="A1"><v>1</v></c></row>' +
+        '<row r="3"><c r="A3"><f>4+5</f><v>9</v></c></row>',
+    });
+
+    expect([...view.populatedRows(all)]).toEqual([1, 3]);
+    expect([...(view.rowAt(3)?.populatedColumns(all) ?? [])]).toEqual([1, 2]);
+    expect(view.rowAt(3)?.cellAt(1)).toMatchObject({
+      formula: "4+5",
+      cached: { value: 9 },
+    });
+    expect(view.rowAt(3)?.cellAt(2)?.value).toEqual({ value: 3 });
+    expect(view.rowAt(1)?.cellAt(1)?.value).toEqual({ value: 1 });
+    expect(loaded.sheet("S").formulaCellCount).toBe(2);
+  });
+
+  it("lists a hyperlink's empty cells among the stored ones, ascending", async () => {
+    const { view } = await viewOf({
+      sheetData:
+        '<row r="1"><c r="A1"><v>1</v></c><c r="C1"><v>3</v></c></row>' +
+        '<row r="3"><c r="A3"><v>7</v></c></row>',
+      afterSheetData:
+        '<hyperlinks><hyperlink ref="B1:B2" location="S!A1"/></hyperlinks>',
+    });
+
+    expect([...view.populatedRows(all)]).toEqual([1, 2, 3]);
+    expect([...(view.rowAt(1)?.populatedColumns(all) ?? [])]).toEqual([
+      1, 2, 3,
+    ]);
+    expect([...(view.rowAt(2)?.populatedColumns(all) ?? [])]).toEqual([2]);
+    expect(view.rowAt(1)?.cellAt(2)?.value).toEqual({
+      value: null,
+      href: "#S!A1",
+    });
+    expect(view.rowAt(1)?.cellAt(3)?.value).toEqual({
+      value: 3,
+      href: undefined,
+    });
+  });
+
+  it("formats a cell whose style index is past 32 bits as one past the table", async () => {
+    const { view } = await viewOf({
+      sheetData:
+        '<row r="1"><c r="A1" s="5000000000"><v>1</v></c><c r="B1" s="9"><v>1</v></c></row>',
+      styles: '<cellXfs count="1"><xf numFmtId="14"/></cellXfs>',
+    });
+
+    expect(view.rowAt(1)?.cellAt(1)?.numberFormat).toBe(
+      view.rowAt(1)?.cellAt(2)?.numberFormat,
+    );
   });
 });

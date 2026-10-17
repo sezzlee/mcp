@@ -264,9 +264,33 @@ Speed is unchanged within noise on the large files and up to 5% slower on files 
 ms a call), measured A/B against the previous commit with every answer the same on all 34 files.
 What a read workbook still retains is its cells, each an object with a value object of its own.
 
+## Cells as typed arrays
+
+A sheet's cells were an object each, with a value object of its own, and a row array per row: 120
+to 300 bytes a cell, and most of what a read workbook retained. They are now typed arrays, one per
+field (column, style, kind, a number or an index into a text pool, a formula reference), with a row
+index for lookups: about 21 bytes a cell. Typed arrays live outside the V8 heap, so the retained
+measure below counts heap and array buffers together; the heap floor no longer means much.
+
+| File (four largest) | Retained after `describe_workbook`, before → after | Peak RSS, before → after |
+| ------------------- | -------------------------------------------------- | ------------------------ |
+| Izmir water use     | 1186 → 302 MiB                                     | 1715 → 1154 MiB          |
+| Genome samples      | 656 → 259 MiB                                      | 1226 → 679 MiB           |
+| Izmir social aid    | 678 → 183 MiB                                      | 1133 → 753 MiB           |
+| 15-minute weather   | 263 → 80 MiB                                       | 660 → 425 MiB            |
+
+Speed is unchanged (A/B, three runs, every answer the same on all 34 files), and a full corpus run
+matches the previous one on all 480 files. A cell the part stores twice keeps the later one, cells
+stored out of order are sorted once, and the counts still include both, as before;
+`test/ooxml-cells.spec.ts` pins these and passes on the commit before the change too.
+
+What the peak still holds is transient: the reader builds a cell object per cell before storing it,
+and V8 collects them late.
+
 ## Next steps
 
-1. Memory, measured on the large files: store cells compactly instead of an object per cell.
+1. Measure how long a read holds the main thread, and how many corpus files have more than one
+   large sheet, to decide whether reading belongs in a worker.
 2. Report chart sheets honestly, then read charts. A chart stores both the cell ranges it plots
    and a cached copy of their values, so every chart is a built-in check against the cells.
 3. Examine the 13 CSV files and decide on single-byte encodings.

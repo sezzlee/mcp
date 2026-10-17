@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RawCell } from "../src/metadata/spreadsheetml/cells.js";
 import {
   displayFormula,
-  formulaSources,
+  formulaSourcer,
   formulaText,
   shiftFormula,
 } from "../src/metadata/spreadsheetml/formula-text.js";
@@ -43,7 +43,7 @@ describe("shiftFormula", () => {
   );
 });
 
-describe("formulaSources", () => {
+describe("formulaSourcer", () => {
   const cell = (
     row: number,
     column: number,
@@ -56,11 +56,13 @@ describe("formulaSources", () => {
     ...(formula === undefined ? {} : { formula }),
   });
 
-  const texts = (cells: readonly RawCell[]) =>
-    [...formulaSources(cells)].map(([index, source]) => {
-      const at = cells[index];
-      return [index, at === undefined ? undefined : formulaText(source, at)];
+  const texts = (cells: readonly RawCell[]) => {
+    const sourceOf = formulaSourcer();
+    return cells.flatMap((at, index) => {
+      const source = sourceOf(at);
+      return source === undefined ? [] : [[index, formulaText(source, at)]];
     });
+  };
 
   it("expands a shared group from the cell that defines it", () => {
     const expanded = texts([

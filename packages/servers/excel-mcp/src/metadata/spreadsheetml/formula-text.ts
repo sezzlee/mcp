@@ -125,57 +125,44 @@ export interface SharedFormula {
 export type FormulaSource = string | SharedFormula;
 
 /**
- * Where every formula cell of one sheet takes its display text from, keyed by
- * the cell's position in `cells`. A shared formula's text is written once, on
- * the cell that opens the group; each later cell of the group gets that text
- * moved by its offset from that cell, as Excel expands it. A group cell met
- * before the cell that defines the group has no text, which is how SheetJS
- * reads it too.
+ * Builds the function that tells, cell by cell in document order, where a
+ * formula cell takes its display text from. A shared formula's text is written
+ * once, on the cell that opens the group; each later cell of the group gets
+ * that text moved by its offset from that cell, as Excel expands it. A group
+ * cell met before the cell that defines the group has no text, which is how
+ * SheetJS reads it too.
  *
  * Guard: a later cell keeps its group, not its expanded text. A group member
  * costs a few bytes of compressed XML, while its text can run to 8,192
  * characters, so expanding every member up front turns a small file into
  * gigabytes; `formulaText` expands one cell when it is read.
+ *
+ * @returns for each cell, its formula's source, or undefined for a cell with
+ *   no formula text.
  */
-export function formulaSources(
-  cells: readonly RawCell[],
-): ReadonlyMap<number, FormulaSource> {
-  const sources = new Map<number, FormulaSource>();
+export function formulaSourcer(): (cell: RawCell) => FormulaSource | undefined {
   const groups = new Map<number, SharedFormula>();
-  cells.forEach((cell, index) => {
+  return (cell) => {
     const formula = cell.formula;
-    if (formula === undefined) return;
+    if (formula === undefined) return undefined;
     switch (formula.kind) {
       case "normal":
       case "array":
-        if (formula.text !== "") {
-          sources.set(index, displayFormula(formula.text));
-        }
-        return;
+        return formula.text === "" ? undefined : displayFormula(formula.text);
       case "shared": {
-        if (formula.text !== undefined) {
-          const text = displayFormula(formula.text);
-          groups.set(formula.group, {
-            text,
-            row: cell.row,
-            column: cell.column,
-          });
-          sources.set(index, text);
-          return;
-        }
-        const group = groups.get(formula.group);
-        if (group !== undefined) sources.set(index, group);
-        return;
+        if (formula.text === undefined) return groups.get(formula.group);
+        const text = displayFormula(formula.text);
+        groups.set(formula.group, { text, row: cell.row, column: cell.column });
+        return text;
       }
       case "dataTable":
-        return;
+        return undefined;
       default: {
         const _exhaustive: never = formula;
         return _exhaustive;
       }
     }
-  });
-  return sources;
+  };
 }
 
 /** @returns the display text of the formula at `cell`. */

@@ -105,32 +105,22 @@ export function layoutScan(): PartScan<SheetLayout> {
 
 /**
  * The range a sheet declares: its `<dimension>`, or else the rows its `<row>`
- * elements name, empty ones included, across the columns its stored cells
+ * elements name, empty rows included, across the columns its stored cells
  * use. A writer such as Google Sheets omits the dimension and writes its whole
  * grid as empty rows, which is the size it means. A sheet without stored cells
  * declares nothing.
+ *
+ * @param stored the bounds of every stored cell, empty ones included.
  */
 export function declaredBounds(
   layout: SheetLayout,
-  cells: readonly { readonly row: number; readonly column: number }[],
+  stored: GridBounds | undefined,
 ): GridBounds | undefined {
   if (layout.dimension !== undefined) return layout.dimension;
-  let bounds: GridBounds | undefined;
-  for (const { row, column } of cells) {
-    bounds =
-      bounds === undefined
-        ? { top: row, left: column, bottom: row, right: column }
-        : {
-            top: Math.min(bounds.top, row),
-            left: Math.min(bounds.left, column),
-            bottom: Math.max(bounds.bottom, row),
-            right: Math.max(bounds.right, column),
-          };
-  }
-  if (bounds === undefined || layout.rows === undefined) return bounds;
+  if (stored === undefined || layout.rows === undefined) return stored;
   return {
-    ...bounds,
-    top: Math.min(bounds.top, layout.rows.first),
-    bottom: Math.max(bounds.bottom, layout.rows.last),
+    ...stored,
+    top: Math.min(stored.top, layout.rows.first),
+    bottom: Math.max(stored.bottom, layout.rows.last),
   };
 }

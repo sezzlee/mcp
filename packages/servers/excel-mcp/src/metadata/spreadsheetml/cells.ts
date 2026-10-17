@@ -186,15 +186,15 @@ interface CellDraft {
 }
 
 /**
- * Reads every stored cell of one worksheet part, in the order the part stores
- * them. A row or cell without an `r` attribute follows the one before it, as
- * ECMA-376 allows.
+ * Hands every stored cell of one worksheet part to `onCell`, in the order the
+ * part stores them. A row or cell without an `r` attribute follows the one
+ * before it, as ECMA-376 allows.
  */
 export function cellScan(
   sheetPart: string,
   strings: readonly string[],
-): PartScan<readonly RawCell[]> {
-  const cells: RawCell[] = [];
+  onCell: (cell: RawCell) => void,
+): PartScan<void> {
   let inSheetData = false;
   let row = 0;
   let column = 0;
@@ -269,7 +269,7 @@ export function cellScan(
         capture = undefined;
       } else if (local === "c") {
         const value = valueOf(cell.type, cell.value, cell.inline, strings);
-        cells.push({
+        onCell({
           row: cell.row,
           column: cell.column,
           value,
@@ -282,5 +282,5 @@ export function cellScan(
       }
     },
   };
-  return { visitor, finish: () => cells };
+  return { visitor, finish: () => undefined };
 }
