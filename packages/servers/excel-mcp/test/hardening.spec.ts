@@ -758,7 +758,7 @@ describe("cell/header and metadata regressions", () => {
       await readFile(join(directory, "missing-table-column.xlsx")),
       "missing-table-column.xlsx",
     );
-    expect(declaredTablesOf(parsed.tables.get("T") ?? [])[0]?.columns).toEqual([
+    expect(declaredTablesOf(parsed.facts("T").tables)[0]?.columns).toEqual([
       "one",
       null,
       "three",
@@ -777,7 +777,7 @@ describe("cell/header and metadata regressions", () => {
     const bytes = Buffer.from(await book.xlsx.writeBuffer());
     const report = collectValidations(
       "V",
-      parseOoxml(bytes, "v.xlsx").validations.get("V"),
+      parseOoxml(bytes, "v.xlsx").facts("V").validations,
     );
     expect(report.count).toBe(1);
     expect(report.coveredCellCount).toBe(5001);

@@ -10,6 +10,7 @@
 - A shared string table that declares a DOCTYPE, and a cell in row 0, are refused with `corrupt_workbook`. ECMA-376 forbids both; SheetJS read through them.
 - Two merged ranges that overlap are refused with `corrupt_workbook` when a row they share is read. Excel repairs such a file; no corpus workbook has one.
 - A sheet listing more than 66,530 hyperlinks, the most Excel keeps on one sheet, is refused with `file_too_large`.
+- A malformed worksheet is refused with `corrupt_workbook` by the calls that read that sheet instead of when the workbook opens, so the workbook's other sheets stay readable. `describe_workbook` reads every sheet and still refuses. `OoxmlWorkbook` reads a sheet's validations, tables, conditional formats, images and panes through `facts(sheetName)`.
 
 - The OOXML parts are read by `@sezzlee/ooxml-core`'s own XML tokenizer instead of `saxes`, 2.2 times faster on the largest corpus parts. Text in a CDATA section, which the `saxes` reader dropped, is now read. A part that is not valid UTF-8, or that names UTF-16 without a byte order mark, is refused with `corrupt_workbook` instead of being read with replacement characters.
 
@@ -21,7 +22,7 @@
 
 ### Speed
 
-- A worksheet part is scanned twice instead of eight times: once when the workbook opens, for its data validations, tables, conditional formats, images and frozen panes, and once when its cells are first read, for its cells, hyperlinks, merges, auto filter and declared range. Every part reader is fed from one of those two passes, and every answer and every refusal is the one the eight scans gave. Measured A/B against the previous build on the corpus, with the same answers on every file, the four largest files read 2.2 times faster and files of 0.1–10 MB 1.9–2.2 times faster.
+- A worksheet part is scanned once, when a tool first needs that sheet, with every part reader fed from that one pass. Opening a workbook scanned every sheet five times and reading a sheet's cells three more, so `describe_workbook` scanned each sheet eight times and `read_sheet` scanned every sheet of the workbook. Measured A/B against the build before the shared pass on the corpus, with the same answers on every file, the four largest files and files of 1–10 MB read 2.7 times faster, and files of 0.1–1 MB 2.2 times faster.
 
 ### Reading
 

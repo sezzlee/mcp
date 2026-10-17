@@ -153,7 +153,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         const sheet = selectSheetName(loaded.workbook, args.sheetName);
         return json(
           withMode(
-            collectValidations(sheet, loaded.workbook.validations.get(sheet)),
+            collectValidations(sheet, loaded.workbook.facts(sheet).validations),
             loaded.mode,
           ),
         );
@@ -167,7 +167,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         const sheet = selectSheetName(loaded.workbook, args.sheetName);
         return json(
           withMode(
-            collectTables(sheet, loaded.workbook.tables.get(sheet) ?? []),
+            collectTables(sheet, loaded.workbook.facts(sheet).tables),
             loaded.mode,
           ),
         );
@@ -183,7 +183,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
           withMode(
             collectConditionalFormats(
               sheet,
-              loaded.workbook.conditionalFormats.get(sheet) ?? [],
+              loaded.workbook.facts(sheet).conditionalFormats,
             ),
             loaded.mode,
           ),
@@ -201,7 +201,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
           withMode(
             collectImages(
               sheet,
-              loaded.workbook.images.get(sheet) ?? [],
+              loaded.workbook.facts(sheet).images,
               loaded.workbook.media,
             ),
             loaded.mode,

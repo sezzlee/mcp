@@ -57,7 +57,7 @@ const describeOptions = { includeDefinedNames: false };
 report.validationParseMs = performance.now() - start;
 const validations = collectValidations(
   "Validation",
-  parsed.validations.get("Validation"),
+  parsed.facts("Validation").validations,
 );
 assert.equal(validations.count, 1);
 assert.equal(validations.coveredCellCount, 5001);

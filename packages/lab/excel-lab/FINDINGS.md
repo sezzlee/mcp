@@ -210,31 +210,31 @@ The parser is now the largest share of a profile because `excel-mcp` scans each 
 reader: cells, hyperlinks, layout, validations, tables, images and panes. Reading every sheet part
 once is the next speed step; reading parts as they inflate is the memory step.
 
-## Two passes per sheet
+## One pass per sheet, when it is needed
 
-Every part reader of a worksheet now runs as a visitor on a shared scan. Opening a workbook scans
-each sheet once for its facts (validations, tables, conditional formats, images, panes), where five
-readers scanned it in turn; reading a sheet's cells scans it once more for cells, hyperlinks and
-layout, where three did. A probe's `describe_workbook` and `read_sheet` scanned each sheet eight
-times and now scan it twice.
+Every part reader of a worksheet (cells, hyperlinks, layout, validations, tables, conditional
+formats, images, panes) now runs as a visitor on one shared scan, taken when a tool first needs the
+sheet. Opening a workbook scanned every sheet five times for its facts, and reading a sheet's cells
+scanned it three more; a probe's `describe_workbook` and `read_sheet` scanned each sheet eight
+times and now scan it once, and `read_sheet` alone scans only the sheet it reads.
 
 | Files                   | Before | After  | Change           |
 | ----------------------- | ------ | ------ | ---------------- |
-| Four largest (14–42 MB) | 86 s   | 40 s   | 2.2 times faster |
-| Ten of 1–9 MB           | 19 s   | 8.8 s  | 2.2 times faster |
-| Eight of 0.1–1 MB       | 2.6 s  | 1.4 s  | 1.9 times faster |
-| Twelve under 100 KB     | 0.52 s | 0.45 s | 1.2 times faster |
+| Four largest (14–42 MB) | 84 s   | 31 s   | 2.7 times faster |
+| Ten of 1–9 MB           | 19 s   | 7.0 s  | 2.7 times faster |
+| Eight of 0.1–1 MB       | 2.5 s  | 1.1 s  | 2.2 times faster |
+| Twelve under 100 KB     | 0.52 s | 0.41 s | 1.3 times faster |
 
-A/B against the previous commit, three runs each, alternated, median taken. Every call answered
-byte for byte the same on all 34 files in every run, and a full corpus run matched the previous one
-on all 480 files, refusals included. Peak memory did not improve and moved by up to 8% per file (the
-Izmir water file 2030 → 2185 MiB): it is the decoded parts and the cell objects, not the scans.
+A/B against the commit before the shared pass, three runs each, alternated, median taken. Every call
+answered byte for byte the same on all 34 files in every run, and a full corpus run matched the
+previous one on all 480 files, refusals included. Peak memory did not improve and moved by up to 16%
+either way per file: it is the decoded parts and the cell objects, not the scans.
 
-One pass for all eight readers, reading a sheet only when a tool first needs it, measured 2.7 times
-faster on the largest files. It was not kept: a malformed worksheet would then be refused only by
-the tools that read it, where today opening the workbook refuses it. `test/ooxml-sheet-faults.spec.ts`
-pins where each fault surfaces, including the order the hyperlink reader's faults keep behind the
-cell reader's.
+The one change a caller can see: a malformed worksheet is refused by the calls that read that sheet
+instead of when the workbook opens, so the other sheets stay readable. A first cut kept the opening
+scan to keep the old refusal, at 2.2 times faster; the refusal was judged not worth the scans.
+`test/ooxml-sheet-faults.spec.ts` pins where each fault surfaces, including the order the hyperlink
+reader's faults keep behind the cell reader's.
 
 The shared pass is held to each reader's own pass: the parity comparison checks every sheet's
 validations, tables, conditional formats, images and panes against a reference that scans the part

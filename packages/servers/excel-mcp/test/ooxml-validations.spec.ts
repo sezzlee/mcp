@@ -118,7 +118,7 @@ describe("the OOXML data validation reader agrees with ExcelJS", () => {
 
     const { parseOoxml } = await import("../src/format/ooxml-workbook.js");
     const parsed = parseOoxml(bytes, "parity.xlsx");
-    const actual = collectValidations("Data", parsed.validations.get("Data"));
+    const actual = collectValidations("Data", parsed.facts("Data").validations);
 
     expect(actual.rules).toHaveLength(expected.length);
     expect(actual.rules.map(comparable).sort()).toEqual(
@@ -130,7 +130,7 @@ describe("the OOXML data validation reader agrees with ExcelJS", () => {
     const loaded = await loadXlsx("validations.xlsx");
     const report = collectValidations(
       "Data",
-      loaded.workbook.validations.get("Data"),
+      loaded.workbook.facts("Data").validations,
     );
     const list = report.rules.find((rule) => rule.type === "list");
     expect(list?.ranges).toEqual(["A2:A5000", "C2:C10"]);
@@ -156,7 +156,7 @@ describe("the OOXML data validation reader agrees with ExcelJS", () => {
     const { parseOoxml } = await import("../src/format/ooxml-workbook.js");
     const report = collectValidations(
       "Wide",
-      parseOoxml(bytes, "wide.xlsx").validations.get("Wide"),
+      parseOoxml(bytes, "wide.xlsx").facts("Wide").validations,
     );
     expect(report.count).toBe(1);
     expect(report.rules[0]?.ranges).toEqual(["A1:A1048576"]);
@@ -201,7 +201,7 @@ describe("validations no longer need the ExcelJS metadata reader", () => {
       const capabilities = body["capabilities"] as Record<string, boolean>;
       expect(capabilities["dataValidations"]).toBe(true);
       expect(
-        (await loadXlsx(file)).workbook.validations.get("Veri")?.rules,
+        (await loadXlsx(file)).workbook.facts("Veri").validations.rules,
       ).toHaveLength(1);
     });
   }

@@ -98,7 +98,7 @@ describe("the OOXML conditional format reader agrees with ExcelJS", () => {
     );
 
     const parsed = parseOoxml(bytes, "cf.xlsx");
-    const actual = (parsed.conditionalFormats.get("K") ?? []).flatMap((block) =>
+    const actual = parsed.facts("K").conditionalFormats.flatMap((block) =>
       block.rules.map((rule) => ({
         ref: block.ref,
         type: rule.type,
@@ -138,7 +138,7 @@ describe("the OOXML conditional format reader agrees with ExcelJS", () => {
       ],
     });
     const bytes = Buffer.from(await workbook.xlsx.writeBuffer());
-    const rules = parseOoxml(bytes, "text.xlsx").conditionalFormats.get("K");
+    const rules = parseOoxml(bytes, "text.xlsx").facts("K").conditionalFormats;
     expect(rules?.[0]?.rules[0]).toMatchObject({
       type: "containsText",
       operator: "containsText",

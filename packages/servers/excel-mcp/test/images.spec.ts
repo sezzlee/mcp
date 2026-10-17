@@ -25,7 +25,7 @@ async function facets(sheet: string) {
   const loaded = await loadXlsx(await pathTo("facets.xlsx"));
   return collectImages(
     sheet,
-    loaded.workbook.images.get(sheet) ?? [],
+    loaded.workbook.facts(sheet).images,
     loaded.workbook.media,
   );
 }

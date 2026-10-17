@@ -64,9 +64,8 @@ spec, a guard comment or the package README.
 - **`docx-mcp` and `pptx-mcp`.** Further OOXML servers over `@sezzlee/ooxml-core`. Moving media
   selection from path prefixes to content types is the generalisation they need; `excel-mcp` keeps
   its prefix so its result set does not change.
-- **`excel-mcp` memory and speed.** The OOXML reader scans each sheet part twice (its facts when the
-  workbook opens, its cells when they are read), holds each part as one decoded string and keeps
-  every cell as an object. The tokenizer already accepts chunks, so a part can be
+- **`excel-mcp` memory and speed.** The OOXML reader scans each sheet part once, when a tool first
+  needs it, but holds each part as one decoded string and keeps every cell as an object. The tokenizer already accepts chunks, so a part can be
   read as it inflates once `XmlPartReader` takes them. `ooxml-core`'s `read()` walks the whole directory for each part although the directory's offsets
   are now known, and `fflate`'s streaming `Inflate` could start from them. Target: the five largest
   corpus files (`packages/lab/excel-lab/FINDINGS.md`) at a few times their file size, measured with

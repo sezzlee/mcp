@@ -7,7 +7,6 @@ import type {
   WorkbookDescription,
 } from "../metadata/description.js";
 import type { RawCell } from "../metadata/spreadsheetml/cells.js";
-import type { OoxmlConditionalBlock } from "../metadata/spreadsheetml/conditional-formats.js";
 import {
   formulaSources,
   formulaText,
@@ -17,10 +16,6 @@ import {
   hyperlinkIndex,
   type HyperlinkIndex,
 } from "../metadata/spreadsheetml/hyperlinks.js";
-import type {
-  OoxmlImage,
-  OoxmlPanes,
-} from "../metadata/spreadsheetml/images.js";
 import {
   openPackage,
   type WorkbookPackage,
@@ -32,11 +27,10 @@ import {
   readNumberFormats,
   type NumberFormats,
 } from "../metadata/spreadsheetml/styles.js";
-import type { OoxmlTable } from "../metadata/spreadsheetml/tables.js";
-import type { OoxmlValidations } from "../metadata/spreadsheetml/validations.js";
 import {
-  readSheetContent,
   readSheetFacts,
+  readWorksheet,
+  type SheetFacts,
 } from "../metadata/spreadsheetml/worksheet.js";
 import { metadataLimitations } from "../metadata/support.js";
 import type { CellSnapshot } from "../grid/cell-value.js";
@@ -82,22 +76,23 @@ interface OoxmlSheet {
   readonly autoFilter: string | undefined;
   readonly formulaCellCount: number;
   readonly cachedFormulaValueCount: number;
+  readonly facts: SheetFacts;
 }
 
 export interface OoxmlWorkbook {
   readonly opc: WorkbookPackage;
   readonly sheetNames: readonly string[];
-  readonly validations: ReadonlyMap<string, OoxmlValidations>;
-  readonly tables: ReadonlyMap<string, readonly OoxmlTable[]>;
-  readonly conditionalFormats: ReadonlyMap<
-    string,
-    readonly OoxmlConditionalBlock[]
-  >;
-  readonly images: ReadonlyMap<string, readonly OoxmlImage[]>;
-  readonly panes: ReadonlyMap<string, OoxmlPanes>;
   readonly media: ReadonlyMap<string, MediaEntry>;
   readonly formats: NumberFormats;
-  /** @returns the sheet's cells and layout, read on first use and kept. */
+  /**
+   * @returns the sheet's validations, tables, conditional formats, images and
+   *   panes, read on first use and kept; a sheet already read has them.
+   */
+  facts(name: string): SheetFacts;
+  /**
+   * @returns the sheet's cells and layout with its facts, read in one pass on
+   *   first use and kept.
+   */
   sheet(name: string): OoxmlSheet;
 }
 
@@ -148,8 +143,9 @@ function readSheet(
   opc: WorkbookPackage,
   part: string,
   strings: readonly string[],
+  known: SheetFacts | undefined,
 ): OoxmlSheet {
-  const content = readSheetContent(opc, part, strings);
+  const { content, facts } = readWorksheet(opc, part, strings, known);
   const { cells, layout } = content;
   const sources = formulaSources(cells);
   const formulas = new Map<RawCell, FormulaSource>();
@@ -198,6 +194,7 @@ function readSheet(
     autoFilter: layout.autoFilter,
     formulaCellCount,
     cachedFormulaValueCount,
+    facts,
   };
 }
 
@@ -222,14 +219,6 @@ export function parseOoxml(bytes: Buffer, path: string): OoxmlWorkbook {
       "The file is probably not a spreadsheet; check what it really is before reading it.",
     );
   }
-  const validations = new Map<string, OoxmlValidations>();
-  const tables = new Map<string, readonly OoxmlTable[]>();
-  const conditionalFormats = new Map<
-    string,
-    readonly OoxmlConditionalBlock[]
-  >();
-  const images = new Map<string, readonly OoxmlImage[]>();
-  const panes = new Map<string, OoxmlPanes>();
   const media = new Map<string, MediaEntry>();
   opc.mediaParts.forEach((part, index) => {
     const sizeBytes = opc.partSize(part);
@@ -238,38 +227,36 @@ export function parseOoxml(bytes: Buffer, path: string): OoxmlWorkbook {
       ...(sizeBytes === undefined ? {} : { sizeBytes }),
     });
   });
-  for (const [name, sheetPart] of opc.sheetParts) {
-    const facts = readSheetFacts(opc, sheetPart);
-    validations.set(name, facts.validations);
-    tables.set(name, facts.tables);
-    conditionalFormats.set(name, facts.conditionalFormats);
-    images.set(name, facts.images);
-    panes.set(name, facts.panes);
-  }
   const strings = readSharedStrings(opc);
   const sheets = new Map<string, OoxmlSheet>();
+  const facts = new Map<string, SheetFacts>();
+  const partOf = (name: string): string => {
+    const part = opc.sheetParts.get(name);
+    if (part === undefined) {
+      throw new SezzleeExcelError(
+        "unknown_sheet",
+        `The workbook has no sheet named '${name}'.`,
+        `Available sheets: ${sheetNameSummary(workbook)}.`,
+      );
+    }
+    return part;
+  };
   const workbook: OoxmlWorkbook = {
     opc,
     sheetNames,
-    validations,
-    tables,
-    conditionalFormats,
-    images,
-    panes,
     media,
     formats: readNumberFormats(opc),
+    facts(name) {
+      const known = facts.get(name) ?? sheets.get(name)?.facts;
+      if (known !== undefined) return known;
+      const read = readSheetFacts(opc, partOf(name));
+      facts.set(name, read);
+      return read;
+    },
     sheet(name) {
       const cached = sheets.get(name);
       if (cached !== undefined) return cached;
-      const part = opc.sheetParts.get(name);
-      if (part === undefined) {
-        throw new SezzleeExcelError(
-          "unknown_sheet",
-          `The workbook has no sheet named '${name}'.`,
-          `Available sheets: ${sheetNameSummary(workbook)}.`,
-        );
-      }
-      const sheet = readSheet(opc, part, strings);
+      const sheet = readSheet(opc, partOf(name), strings, facts.get(name));
       sheets.set(name, sheet);
       return sheet;
     },
@@ -432,19 +419,19 @@ export function describeOoxml(
       declaredRowCount: declared?.bottom ?? 0,
       declaredColumnCount: declared?.right ?? 0,
       mergeCount: sheet.merges.length,
-      dataValidationRuleCount: loaded.validations.get(name)?.rules.length ?? 0,
+      dataValidationRuleCount: sheet.facts.validations.rules.length,
       dataValidationRuleCountExact: true,
       formulaCellCount: sheet.formulaCellCount,
       cachedFormulaValueCount: sheet.cachedFormulaValueCount,
-      tableCount: loaded.tables.get(name)?.length ?? 0,
+      tableCount: sheet.facts.tables.length,
       conditionalFormatRuleCount: conditionalFormatRuleCountOf(
-        loaded.conditionalFormats.get(name) ?? [],
+        sheet.facts.conditionalFormats,
       ),
-      imageCount: loaded.images.get(name)?.length ?? 0,
+      imageCount: sheet.facts.images.length,
       imageCountExact: false,
       autoFilterRef: sheet.autoFilter ?? null,
-      frozenRowCount: loaded.panes.get(name)?.rows ?? 0,
-      frozenColumnCount: loaded.panes.get(name)?.columns ?? 0,
+      frozenRowCount: sheet.facts.panes.rows,
+      frozenColumnCount: sheet.facts.panes.columns,
     };
   });
   const tallest = sheets.reduce(

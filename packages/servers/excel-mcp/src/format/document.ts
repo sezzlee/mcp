@@ -146,7 +146,7 @@ export function documentSheet(
   return ooxmlSheetView(
     loaded.workbook,
     name,
-    declaredTablesOf(loaded.workbook.tables.get(name) ?? []),
+    declaredTablesOf(loaded.workbook.sheet(name).facts.tables),
   );
 }
 

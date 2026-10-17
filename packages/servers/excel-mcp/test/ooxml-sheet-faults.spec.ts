@@ -2,7 +2,11 @@ import { Buffer } from "node:buffer";
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
-import { ooxmlSheetView, parseOoxml } from "../src/format/ooxml-workbook.js";
+import {
+  describeOoxml,
+  ooxmlSheetView,
+  parseOoxml,
+} from "../src/format/ooxml-workbook.js";
 import {
   rawWorkbook,
   type RawWorkbookOptions,
@@ -13,16 +17,23 @@ async function sheetOf(options: RawWorkbookOptions) {
   return ooxmlSheetView(loaded, "S");
 }
 
+const meta = {
+  filePath: "f.xlsx",
+  sizeBytes: 1,
+  modifiedAt: "2026-01-01T00:00:00.000Z",
+};
+
 const repeat = (count: number, line: (index: number) => string): string =>
   Array.from({ length: count }, (_, index) => line(index + 1)).join("");
 
 /**
- * The part readers of a worksheet share one pass, and sharing it must not
- * move a fault: each is still reported by the same call, under the same code,
- * as when every reader scanned the part on its own.
+ * The part readers of a worksheet share one pass, taken when a tool first
+ * needs that sheet. A fault is reported by the calls that read the sheet, under
+ * the code it always had, and the hyperlink reader's faults still follow the
+ * cell reader's.
  */
-describe("a worksheet's faults surface where they did", () => {
-  it("refuses the workbook when it is opened if any worksheet is malformed", async () => {
+describe("where a worksheet's faults surface", () => {
+  it("refuses a malformed worksheet only where it is read", async () => {
     const book = new ExcelJS.Workbook();
     book.addWorksheet("Good").getCell("A1").value = "kept";
     book.addWorksheet("Broken").getCell("A1").value = 1;
@@ -35,12 +46,24 @@ describe("a worksheet's faults surface where they did", () => {
     );
     const bytes = await zip.generateAsync({ type: "nodebuffer" });
 
-    expect(() => parseOoxml(bytes, "f.xlsx")).toThrow(
-      expect.objectContaining({
-        code: "corrupt_workbook",
-        message: expect.stringContaining("'xl/worksheets/sheet2.xml'"),
-      }),
-    );
+    const loaded = parseOoxml(bytes, "f.xlsx");
+
+    expect(ooxmlSheetView(loaded, "Good").rowAt(1)?.cellAt(1)?.value).toEqual({
+      value: "kept",
+    });
+    expect(loaded.facts("Good").validations.rules).toEqual([]);
+    for (const read of [
+      () => ooxmlSheetView(loaded, "Broken"),
+      () => loaded.facts("Broken"),
+      () => describeOoxml(loaded, meta, { includeDefinedNames: false }),
+    ]) {
+      expect(read).toThrow(
+        expect.objectContaining({
+          code: "corrupt_workbook",
+          message: expect.stringContaining("'xl/worksheets/sheet2.xml'"),
+        }),
+      );
+    }
   });
 
   it("refuses a sheet whose relationships part is malformed though it has no hyperlink", async () => {

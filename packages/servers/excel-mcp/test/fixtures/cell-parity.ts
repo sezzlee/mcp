@@ -167,6 +167,7 @@ export function compareWorkbook(bytes: Buffer, limit = 20): CellComparison {
     }
   });
   for (const name of workbook.sheetNames) {
+    const facts = workbook.facts(name);
     for (const field of [
       "validations",
       "tables",
@@ -174,7 +175,7 @@ export function compareWorkbook(bytes: Buffer, limit = 20): CellComparison {
       "images",
       "panes",
     ] as const) {
-      const ours = workbook[field].get(name);
+      const ours = facts[field];
       const theirs = reference[field].get(name);
       if (!isDeepStrictEqual(ours, theirs)) {
         report({ kind: "facts", sheet: name, field, ours, theirs });
