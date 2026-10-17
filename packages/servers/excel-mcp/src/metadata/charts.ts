@@ -7,10 +7,7 @@ import {
   type ChartPlot,
   type ChartTitle,
 } from "./spreadsheetml/chart.js";
-import type {
-  AnchorCell,
-  OoxmlChartFrame,
-} from "./spreadsheetml/drawing.js";
+import type { AnchorCell, OoxmlChartFrame } from "./spreadsheetml/drawing.js";
 import type { OpcPackage } from "./spreadsheetml/package.js";
 import { formatRectangle } from "../grid/range.js";
 

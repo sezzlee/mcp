@@ -16,8 +16,7 @@ export type ChartPlotType =
   | "ofPie";
 
 export type ChartTitle =
-  | { readonly text: string }
-  | { readonly text: string; readonly ref: string };
+  { readonly text: string } | { readonly text: string; readonly ref: string };
 
 export type SeriesPoints = readonly (string | number | null)[];
 
@@ -207,9 +206,7 @@ function finishData(
     }
     const asNumber = Number(raw);
     points.push(
-      raw !== "" &&
-        Number.isFinite(asNumber) &&
-        String(asNumber) === raw.trim()
+      raw !== "" && Number.isFinite(asNumber) && String(asNumber) === raw.trim()
         ? asNumber
         : raw,
     );
@@ -234,9 +231,7 @@ function finishSeries(
   return {
     ...(draft.name === undefined ? {} : { name: draft.name }),
     ...(draft.hidden === undefined ? {} : { hidden: true as const }),
-    ...(draft.trendlines.length === 0
-      ? {}
-      : { trendlines: draft.trendlines }),
+    ...(draft.trendlines.length === 0 ? {} : { trendlines: draft.trendlines }),
     ...(draft.categories === undefined
       ? {}
       : { categories: finishData(draft.categories, options) }),
@@ -306,10 +301,7 @@ export function readChartPart(
         collectingText = true;
         return;
       }
-      if (
-        series !== undefined &&
-        node.local.startsWith("filtered")
-      ) {
+      if (series !== undefined && node.local.startsWith("filtered")) {
         series.hidden = true;
       }
       if (node.uri !== namespaces.chart) return;

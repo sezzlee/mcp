@@ -213,7 +213,12 @@ describe("get_charts reads series from xl/charts", () => {
         "charts"
       ] as Record<string, unknown>[]
     )[0] as {
-      plots: { series: { categories: { external?: true }; values: { external?: true } }[] }[];
+      plots: {
+        series: {
+          categories: { external?: true };
+          values: { external?: true };
+        }[];
+      }[];
     };
     const series = charts.plots[0]!.series[0]!;
     expect(series.categories.external).toBeUndefined();
@@ -307,7 +312,9 @@ describe("get_charts layer 2: axes, trendlines, hidden series, pivot", () => {
       },
     });
     const handlers = await handlersFor(bytes, "layer2.xlsx");
-    const body = payload(await handlers.get_charts({ filePath: "layer2.xlsx" }));
+    const body = payload(
+      await handlers.get_charts({ filePath: "layer2.xlsx" }),
+    );
     expect(body).toMatchObject({
       charts: [
         {
