@@ -46,11 +46,12 @@ describe("collectImages", () => {
     expect("heightPx" in (spanning ?? {})).toBe(false);
   });
 
-  it("collapses a one-cell anchor and reports the size it declares", async () => {
+  it("reports a one-cell anchor as its top-left cell and size, not as a one-cell range", async () => {
     const report = await facets("Resimler");
     const pinned = report.images[1];
     expect(pinned?.anchor).toBe("oneCell");
-    expect(pinned?.range).toBe("I3");
+    expect(pinned?.cell).toBe("I3");
+    expect("range" in (pinned ?? {})).toBe(false);
     expect(pinned?.widthPx).toBe(64);
     expect(pinned?.heightPx).toBe(48);
   });

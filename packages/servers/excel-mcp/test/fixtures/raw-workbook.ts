@@ -94,6 +94,7 @@ export async function rawWorkbook({
 export interface RawChartSheetOptions {
   readonly worksheetName?: string;
   readonly chartSheetName?: string;
+  readonly chartSheetFirst?: boolean;
   readonly sheetData?: string;
   readonly drawingXml: string;
   readonly drawingRelationships: string;
@@ -107,6 +108,7 @@ export interface RawChartSheetOptions {
 export async function rawChartSheetWorkbook({
   worksheetName = "Data",
   chartSheetName = "Chart",
+  chartSheetFirst = false,
   sheetData = '<row r="1"><c r="A1"><v>1</v></c></row>',
   drawingXml,
   drawingRelationships,
@@ -123,7 +125,11 @@ export async function rawChartSheetWorkbook({
   );
   zip.file(
     "xl/workbook.xml",
-    `<workbook xmlns="${transitionalMain}" xmlns:r="${officeRelationships}"><sheets><sheet name="${worksheetName}" sheetId="1" r:id="rId1"/><sheet name="${chartSheetName}" sheetId="2" r:id="rId2"/></sheets></workbook>`,
+    `<workbook xmlns="${transitionalMain}" xmlns:r="${officeRelationships}"><sheets>${
+      chartSheetFirst
+        ? `<sheet name="${chartSheetName}" sheetId="2" r:id="rId2"/><sheet name="${worksheetName}" sheetId="1" r:id="rId1"/>`
+        : `<sheet name="${worksheetName}" sheetId="1" r:id="rId1"/><sheet name="${chartSheetName}" sheetId="2" r:id="rId2"/>`
+    }</sheets></workbook>`,
   );
   zip.file(
     "xl/_rels/workbook.xml.rels",

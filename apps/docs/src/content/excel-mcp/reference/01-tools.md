@@ -98,7 +98,7 @@ Annotations: read-only, idempotent, closed world.
 
 ## `get_images`
 
-List the pictures embedded in a worksheet: anchor range, byte size and file extension. Charts belong to get_charts; pivot tables and sparklines are refused rather than reported as absent.
+List the pictures embedded in a worksheet: the cells a picture spans (range), or its top-left cell and pixel size when only those are anchored (cell), plus byte size and file extension. Charts belong to get_charts; pivot tables and sparklines are refused rather than reported as absent.
 
 Annotations: read-only, idempotent, closed world.
 

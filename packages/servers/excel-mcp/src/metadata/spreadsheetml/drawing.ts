@@ -145,11 +145,11 @@ function placementOf(draft: AnchorDraft): AnchorPlacement {
   const width =
     draft.cx === undefined || !Number.isFinite(draft.cx)
       ? undefined
-      : draft.cx / emuPerPixel;
+      : Math.round(draft.cx / emuPerPixel);
   const height =
     draft.cy === undefined || !Number.isFinite(draft.cy)
       ? undefined
-      : draft.cy / emuPerPixel;
+      : Math.round(draft.cy / emuPerPixel);
   return {
     anchor: draft.kind,
     ...(draft.from === undefined ? {} : { from: draft.from }),

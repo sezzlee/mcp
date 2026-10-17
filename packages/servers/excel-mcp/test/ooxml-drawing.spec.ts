@@ -140,3 +140,15 @@ describe("the drawing reader applies Markup Compatibility", () => {
     expect(facts.charts).toHaveLength(1);
   });
 });
+
+describe("the drawing reader measures in whole pixels", () => {
+  it("rounds an extent in EMU to the nearest pixel at 96 DPI", async () => {
+    const facts = await factsOf(
+      `<xdr:oneCellAnchor>${from(0, 0)}<xdr:ext cx="1638303" cy="771417"/>${picture("rId9")}<xdr:clientData/></xdr:oneCellAnchor>`,
+      imageRelationship,
+    );
+    expect(
+      facts.images.map((image) => [image.widthPx, image.heightPx]),
+    ).toEqual([[172, 81]]);
+  });
+});

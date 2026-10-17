@@ -215,7 +215,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
       { root: root.real, tool: "get_charts" },
       async (args, tool) => {
         const loaded = await openXlsx(args.filePath, tool);
-        const sheet = selectSheetName(loaded.workbook, args.sheetName);
+        const sheet = selectSheetName(loaded.workbook, args.sheetName, "any");
         return json(
           withMode(
             collectCharts(

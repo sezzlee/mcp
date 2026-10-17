@@ -306,15 +306,25 @@ export function assertWorksheet(loaded: OoxmlWorkbook, name: string): void {
   );
 }
 
+/**
+ * @param defaultTo which sheets a call without `sheetName` may land on: a
+ *   chart sheet carries no cells, tables, validations or formats, so only a
+ *   chart reader defaults to one.
+ */
 export function selectSheetName(
   loaded: OoxmlWorkbook,
   sheetName: string | undefined,
+  defaultTo: "worksheet" | "any" = "worksheet",
 ): string {
   if (sheetName === undefined) {
-    const visible = loaded.sheetNames.find(
+    const candidates =
+      defaultTo === "any"
+        ? loaded.sheetNames
+        : loaded.sheetNames.filter((name) => !loaded.opc.chartSheets.has(name));
+    const visible = candidates.find(
       (name) => stateOf(loaded, name) === "visible",
     );
-    const fallback = visible ?? loaded.sheetNames[0];
+    const fallback = visible ?? candidates[0] ?? loaded.sheetNames[0];
     if (fallback === undefined) {
       throw new SezzleeExcelError(
         "unknown_sheet",
