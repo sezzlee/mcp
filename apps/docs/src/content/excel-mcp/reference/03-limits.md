@@ -1,6 +1,6 @@
 # Limits
 
-> Generated from the exported `limits` object of `@sezzlee/excel-mcp` 0.7.1.
+> Generated from the exported `limits` object of `@sezzlee/excel-mcp` 0.8.0.
 
 Every limit is fixed at build time; none is configurable. A call that would cross one either answers with `truncated: true` and a way to continue, or fails with `resource_limit`.
 
