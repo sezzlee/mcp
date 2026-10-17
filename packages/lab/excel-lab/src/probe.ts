@@ -89,6 +89,7 @@ async function probe({
     }
     await call("read_sheet", { filePath, sheetName, valueMode: "both" });
     await call("get_merged_ranges", { filePath, sheetName });
+    await call("get_charts", { filePath, sheetName });
   }
 
   await client.close();

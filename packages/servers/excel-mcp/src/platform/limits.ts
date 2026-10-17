@@ -16,6 +16,11 @@ export const limits = {
   maxTableColumns: 256,
   maxConditionalFormatRules: 200,
   maxImagesPerSheet: 200,
+  maxChartsPerSheet: 200,
+  maxChartPointsDefault: 200,
+  maxChartPointsHard: 2_000,
+  maxChartPointsPerResponse: 5_000,
+  maxSeriesPerChart: 255,
   maxCsvBytes: 16 * 1024 * 1024, // 16 MB
   maxCsvCells: 2_000_000,
   maxCsvColumns: 16_384,

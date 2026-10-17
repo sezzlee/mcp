@@ -21,6 +21,7 @@ export type SezzleeExcelErrorCode =
   | "unknown_sheet"
   | "ambiguous_sheet"
   | "empty_sheet"
+  | "chart_sheet"
   | "unknown_header_row"
   | "ambiguous_header_row"
   | "invalid_range"

@@ -7,6 +7,7 @@ import {
 } from "../platform/paths.js";
 import { findInSheet, readSheet } from "../grid/read-sheet.js";
 import { collectConditionalFormats } from "../metadata/conditional-formats.js";
+import { collectCharts } from "../metadata/charts.js";
 import { collectImages } from "../metadata/images.js";
 import { collectTables } from "../metadata/tables.js";
 import { collectValidations } from "../metadata/validations.js";
@@ -203,6 +204,32 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               sheet,
               loaded.workbook.facts(sheet).images,
               loaded.workbook.media,
+            ),
+            loaded.mode,
+          ),
+        );
+      },
+    ),
+
+    get_charts: guard(
+      { root: root.real, tool: "get_charts" },
+      async (args, tool) => {
+        const loaded = await openXlsx(args.filePath, tool);
+        const sheet = selectSheetName(loaded.workbook, args.sheetName);
+        return json(
+          withMode(
+            collectCharts(
+              loaded.workbook.opc,
+              sheet,
+              loaded.workbook.facts(sheet).charts,
+              {
+                ...(args.chartId === undefined
+                  ? {}
+                  : { chartId: args.chartId }),
+                ...(args.maxPoints === undefined
+                  ? {}
+                  : { maxPoints: args.maxPoints }),
+              },
             ),
             loaded.mode,
           ),

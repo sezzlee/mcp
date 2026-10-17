@@ -25,6 +25,7 @@ import { assertReadableFormat } from "../platform/paths.js";
 import type { SheetSource, SheetView } from "../grid/sheet.js";
 import { vocabulary } from "../platform/vocabulary.js";
 import {
+  assertWorksheet,
   describeOoxml,
   ooxmlSheetView,
   parseOoxml,
@@ -143,6 +144,7 @@ export function documentSheet(
     return csvSheetView(loaded.table);
   }
   const name = selectSheetName(loaded.workbook, sheetName);
+  assertWorksheet(loaded.workbook, name);
   return ooxmlSheetView(
     loaded.workbook,
     name,

@@ -32,7 +32,16 @@ const transitionalOf: ReadonlyMap<string, string> = new Map([
     "http://purl.oclc.org/ooxml/drawingml/spreadsheetDrawing",
     "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing",
   ],
+  [
+    "http://purl.oclc.org/ooxml/drawingml/chart",
+    "http://schemas.openxmlformats.org/drawingml/2006/chart",
+  ],
 ]);
+
+/** @returns the Transitional namespace for a Strict one, any other as is. */
+export function transitionalNamespace(uri: string): string {
+  return transitionalOf.get(uri) ?? uri;
+}
 
 const strictOf: ReadonlyMap<string, string> = new Map(
   [...transitionalOf].map(([strict, transitional]) => [transitional, strict]),
@@ -48,6 +57,7 @@ function transitional(node: XmlNode): XmlNode {
       const strict = strictOf.get(wanted);
       return strict === undefined ? undefined : node.attr(name, strict);
     },
+    namespaceOf: (prefix) => node.namespaceOf(prefix),
   };
 }
 

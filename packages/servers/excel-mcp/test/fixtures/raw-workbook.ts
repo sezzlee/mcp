@@ -19,6 +19,8 @@ export interface RawWorkbookOptions {
   readonly beforeSheetData?: string;
   readonly afterSheetData?: string;
   readonly sheetRelationships?: string;
+  /** Further parts, written verbatim under their package path. */
+  readonly parts?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -34,6 +36,7 @@ export async function rawWorkbook({
   beforeSheetData = "",
   afterSheetData = "",
   sheetRelationships,
+  parts = {},
 }: RawWorkbookOptions): Promise<Uint8Array> {
   const q = prefix === "" ? "" : `${prefix}:`;
   const main = strict ? strictMain : transitionalMain;
@@ -84,5 +87,65 @@ export async function rawWorkbook({
       `<Relationships xmlns="${relationshipsNs}">${sheetRelationships}</Relationships>`,
     );
   }
+  for (const [path, content] of Object.entries(parts)) zip.file(path, content);
+  return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+}
+
+export interface RawChartSheetOptions {
+  readonly worksheetName?: string;
+  readonly chartSheetName?: string;
+  readonly sheetData?: string;
+  readonly drawingXml: string;
+  readonly drawingRelationships: string;
+  readonly parts?: Readonly<Record<string, string>>;
+}
+
+/**
+ * Builds a workbook with one worksheet and one chart sheet whose drawing is
+ * supplied verbatim, so chart-sheet honesty and frame listing can be pinned.
+ */
+export async function rawChartSheetWorkbook({
+  worksheetName = "Data",
+  chartSheetName = "Chart",
+  sheetData = '<row r="1"><c r="A1"><v>1</v></c></row>',
+  drawingXml,
+  drawingRelationships,
+  parts = {},
+}: RawChartSheetOptions): Promise<Uint8Array> {
+  const zip = new JSZip();
+  zip.file(
+    "[Content_Types].xml",
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/></Types>',
+  );
+  zip.file(
+    "_rels/.rels",
+    `<Relationships xmlns="${relationshipsNs}"><Relationship Id="rId1" Type="${officeRelationships}/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+  );
+  zip.file(
+    "xl/workbook.xml",
+    `<workbook xmlns="${transitionalMain}" xmlns:r="${officeRelationships}"><sheets><sheet name="${worksheetName}" sheetId="1" r:id="rId1"/><sheet name="${chartSheetName}" sheetId="2" r:id="rId2"/></sheets></workbook>`,
+  );
+  zip.file(
+    "xl/_rels/workbook.xml.rels",
+    `<Relationships xmlns="${relationshipsNs}"><Relationship Id="rId1" Type="${officeRelationships}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${officeRelationships}/chartsheet" Target="chartsheets/sheet1.xml"/></Relationships>`,
+  );
+  zip.file(
+    "xl/worksheets/sheet1.xml",
+    `<worksheet xmlns="${transitionalMain}" xmlns:r="${officeRelationships}"><sheetData>${sheetData}</sheetData></worksheet>`,
+  );
+  zip.file(
+    "xl/chartsheets/sheet1.xml",
+    `<chartsheet xmlns="${transitionalMain}" xmlns:r="${officeRelationships}"><drawing r:id="rId1"/></chartsheet>`,
+  );
+  zip.file(
+    "xl/chartsheets/_rels/sheet1.xml.rels",
+    `<Relationships xmlns="${relationshipsNs}"><Relationship Id="rId1" Type="${officeRelationships}/drawing" Target="../drawings/drawing1.xml"/></Relationships>`,
+  );
+  zip.file("xl/drawings/drawing1.xml", drawingXml);
+  zip.file(
+    "xl/drawings/_rels/drawing1.xml.rels",
+    `<Relationships xmlns="${relationshipsNs}">${drawingRelationships}</Relationships>`,
+  );
+  for (const [path, content] of Object.entries(parts)) zip.file(path, content);
   return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
 }

@@ -222,7 +222,11 @@ describe("error surfacing", () => {
       expect(result.isError).toBe(true);
       const body = payload(result);
       expect(body["error"]).toBe("unsupported_object_kind");
-      expect(String(body["recovery"])).toContain("capabilities");
+      if (kind === "chart") {
+        expect(String(body["recovery"])).toContain("get_charts");
+      } else {
+        expect(String(body["recovery"])).toContain("capabilities");
+      }
     },
   );
 

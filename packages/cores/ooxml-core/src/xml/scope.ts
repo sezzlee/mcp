@@ -12,11 +12,22 @@ class Element implements XmlNode {
   readonly local: string;
   readonly uri: string;
   readonly #attributes: readonly string[];
+  readonly #bindings: ReadonlyMap<string, string>;
 
-  constructor(local: string, uri: string, attributes: readonly string[]) {
+  constructor(
+    local: string,
+    uri: string,
+    attributes: readonly string[],
+    bindings: ReadonlyMap<string, string>,
+  ) {
     this.local = local;
     this.uri = uri;
     this.#attributes = attributes;
+    this.#bindings = bindings;
+  }
+
+  namespaceOf(prefix: string): string | undefined {
+    return this.#bindings.get(prefix);
   }
 
   attr(name: string, uri = ""): string | undefined {
@@ -144,7 +155,7 @@ export function namespaceSink(visitor: XmlVisitor): TokenSink {
           keys.add(key);
         }
       }
-      const node = new Element(local, uri ?? "", resolved);
+      const node = new Element(local, uri ?? "", resolved, bindings);
       onOpen?.(node);
       if (empty) {
         onClose?.(node.local, node.uri);

@@ -6,12 +6,12 @@ import {
 } from "./conditional-formats.js";
 import { hyperlinkScan, type Hyperlink } from "./hyperlinks.js";
 import {
-  imageScan,
-  paneScan,
+  drawingScan,
+  type OoxmlChartFrame,
   type OoxmlImage,
-  type OoxmlPanes,
-} from "./images.js";
+} from "./drawing.js";
 import type { WorkbookPackage } from "./package.js";
+import { paneScan, type OoxmlPanes } from "./panes.js";
 import { layoutScan, type SheetLayout } from "./sheet-layout.js";
 import { tableScan, type OoxmlTable } from "./tables.js";
 import { validationScan, type OoxmlValidations } from "./validations.js";
@@ -23,6 +23,7 @@ export interface SheetFacts {
   readonly tables: readonly OoxmlTable[];
   readonly conditionalFormats: readonly OoxmlConditionalBlock[];
   readonly images: readonly OoxmlImage[];
+  readonly charts: readonly OoxmlChartFrame[];
   readonly panes: OoxmlPanes;
 }
 
@@ -36,21 +37,21 @@ function factScan(opc: WorkbookPackage, part: string): PartScan<SheetFacts> {
   const validations = validationScan(opc.date1904);
   const tables = tableScan(opc, part);
   const conditionalFormats = conditionalFormatScan();
-  const images = imageScan(opc, part);
+  const drawing = drawingScan(opc, part);
   const panes = paneScan();
   return {
     visitor: fanOut([
       validations.visitor,
       tables.visitor,
       conditionalFormats.visitor,
-      images.visitor,
+      drawing.visitor,
       panes.visitor,
     ]),
     finish: () => ({
       validations: validations.finish(),
       tables: tables.finish(),
       conditionalFormats: conditionalFormats.finish(),
-      images: images.finish(),
+      ...drawing.finish(),
       panes: panes.finish(),
     }),
   };

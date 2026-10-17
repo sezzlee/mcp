@@ -130,6 +130,7 @@ export function oracle(xml: string): Events {
         attributes.find(
           (attribute) => attribute.local === name && attribute.uri === uri,
         )?.value,
+      namespaceOf: (prefix) => parser.resolve(prefix),
     });
   });
   parser.on("closetag", (tag) => onClose?.(tag.local, tag.uri));

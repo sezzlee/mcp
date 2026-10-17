@@ -483,6 +483,7 @@ export function describeCsv(
         name: csvSheetName,
         index: 1,
         state: "visible",
+        kind: "worksheet",
         usedRange:
           bounds === undefined
             ? null
@@ -500,6 +501,7 @@ export function describeCsv(
         conditionalFormatRuleCount: null,
         imageCount: null,
         imageCountExact: false,
+        chartCount: null,
         autoFilterRef: null,
         frozenRowCount: null,
         frozenColumnCount: null,

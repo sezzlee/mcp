@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Tool surface
+
+- `describe_workbook` reports each sheet's `kind` (`worksheet` or `chartsheet`) and `chartCount`. A chart sheet is no longer described as an empty grid.
+- `read_sheet`, `aggregate_sheet` and `find_in_sheet` refuse a chart sheet with `chart_sheet` instead of `empty_sheet`; recovery points at `get_charts`.
+- New tool `get_charts`: type, title, axes, series cell references and cached points. `capabilities.charts` is `true` for `.xlsx`. `get_images` with `kind: "chart"` still refuses and names `get_charts`.
+- `get_charts` also reports secondary axes (`axPos` right/top), axis min/max/logBase and number format, series trendline types, user-filtered series as `hidden`, and `pivotSource` when the chart is pivot-backed.
+- Markup Compatibility (`mc:AlternateContent`) is applied when reading drawings, so a chartEx frame is reported once rather than as its placeholder shape.
+
 ### Compatibility changes
 
 - **SheetJS is no longer a runtime dependency.** Cells, number formats, dates, formulas, hyperlinks, merges, the auto filter, the declared range, sheet states and defined names are read from the OOXML parts by the server's own reader over `@sezzlee/ooxml-core`, so a workbook is unzipped once instead of twice. `@e965/xlsx` stays as a dev dependency: the test suite compares the reader against it, cell by cell, over every fixture workbook. Parts of the reader derive from SheetJS (Apache-2.0); `THIRD-PARTY-NOTICES.md` lists them and ships in the tarball.

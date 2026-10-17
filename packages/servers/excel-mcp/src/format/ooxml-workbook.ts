@@ -297,6 +297,15 @@ export function sheetNameSummary(loaded: OoxmlWorkbook): string {
     .join(", ");
 }
 
+export function assertWorksheet(loaded: OoxmlWorkbook, name: string): void {
+  if (!loaded.opc.chartSheets.has(name)) return;
+  throw new SezzleeExcelError(
+    "chart_sheet",
+    `Sheet '${name}' is a chart sheet; it holds a chart, not a cell grid.`,
+    "Call get_charts to read the chart on this sheet, or describe_workbook to see which sheets carry cells.",
+  );
+}
+
 export function selectSheetName(
   loaded: OoxmlWorkbook,
   sheetName: string | undefined,
@@ -431,12 +440,40 @@ export function describeOoxml(
   options: DescribeOptions,
 ): WorkbookDescription {
   const sheets = loaded.sheetNames.map((name, ordinal): SheetSummary => {
+    if (loaded.opc.chartSheets.has(name)) {
+      const facts = loaded.facts(name);
+      return {
+        name,
+        index: ordinal + 1,
+        state: stateOf(loaded, name),
+        kind: "chartsheet",
+        usedRange: null,
+        rowCount: 0,
+        columnCount: 0,
+        declaredRowCount: 0,
+        declaredColumnCount: 0,
+        mergeCount: 0,
+        dataValidationRuleCount: 0,
+        dataValidationRuleCountExact: true,
+        formulaCellCount: 0,
+        cachedFormulaValueCount: 0,
+        tableCount: 0,
+        conditionalFormatRuleCount: 0,
+        imageCount: facts.images.length,
+        imageCountExact: false,
+        chartCount: facts.charts.length,
+        autoFilterRef: null,
+        frozenRowCount: 0,
+        frozenColumnCount: 0,
+      };
+    }
     const sheet = loaded.sheet(name);
     const { bounds, declared } = sheet;
     return {
       name,
       index: ordinal + 1,
       state: stateOf(loaded, name),
+      kind: "worksheet",
       usedRange: bounds === undefined ? null : formatRange(bounds),
       rowCount: bounds === undefined ? 0 : bounds.bottom - bounds.top + 1,
       columnCount: bounds === undefined ? 0 : bounds.right - bounds.left + 1,
@@ -453,6 +490,7 @@ export function describeOoxml(
       ),
       imageCount: sheet.facts.images.length,
       imageCountExact: false,
+      chartCount: sheet.facts.charts.length,
       autoFilterRef: sheet.autoFilter ?? null,
       frozenRowCount: sheet.facts.panes.rows,
       frozenColumnCount: sheet.facts.panes.columns,

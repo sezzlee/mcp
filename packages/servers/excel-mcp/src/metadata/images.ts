@@ -1,6 +1,6 @@
 import { limits } from "../platform/limits.js";
 import type { MetadataLimitation } from "./support.js";
-import type { AnchorCell, OoxmlImage } from "./spreadsheetml/images.js";
+import type { AnchorCell, OoxmlImage } from "./spreadsheetml/drawing.js";
 import { formatRectangle } from "../grid/range.js";
 
 export interface SheetImage {

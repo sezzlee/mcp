@@ -10,11 +10,14 @@ import {
   type OoxmlConditionalBlock,
 } from "../../../src/metadata/spreadsheetml/conditional-formats.js";
 import {
-  imageScan,
-  paneScan,
+  drawingScan,
+  type OoxmlChartFrame,
   type OoxmlImage,
+} from "../../../src/metadata/spreadsheetml/drawing.js";
+import {
+  paneScan,
   type OoxmlPanes,
-} from "../../../src/metadata/spreadsheetml/images.js";
+} from "../../../src/metadata/spreadsheetml/panes.js";
 import {
   tableScan,
   type OoxmlTable,
@@ -56,6 +59,8 @@ export interface SheetJsWorkbook {
     readonly OoxmlConditionalBlock[]
   >;
   readonly images: ReadonlyMap<string, readonly OoxmlImage[]>;
+  readonly charts: ReadonlyMap<string, readonly OoxmlChartFrame[]>;
+  readonly chartSheets: ReadonlySet<string>;
   readonly panes: ReadonlyMap<string, OoxmlPanes>;
   readonly media: ReadonlyMap<string, MediaEntry>;
 }
@@ -133,6 +138,7 @@ export function parseSheetJs(bytes: Buffer, path: string): SheetJsWorkbook {
     readonly OoxmlConditionalBlock[]
   >();
   const images = new Map<string, readonly OoxmlImage[]>();
+  const charts = new Map<string, readonly OoxmlChartFrame[]>();
   const panes = new Map<string, OoxmlPanes>();
   const media = new Map<string, MediaEntry>();
   opc.mediaParts.forEach((part, index) => {
@@ -151,7 +157,9 @@ export function parseSheetJs(bytes: Buffer, path: string): SheetJsWorkbook {
       name,
       scanAlone(opc, sheetPart, conditionalFormatScan()),
     );
-    images.set(name, scanAlone(opc, sheetPart, imageScan(opc, sheetPart)));
+    const drawing = scanAlone(opc, sheetPart, drawingScan(opc, sheetPart));
+    images.set(name, drawing.images);
+    charts.set(name, drawing.charts);
     panes.set(name, scanAlone(opc, sheetPart, paneScan()));
   }
   return {
@@ -161,6 +169,8 @@ export function parseSheetJs(bytes: Buffer, path: string): SheetJsWorkbook {
     tables,
     conditionalFormats,
     images,
+    charts,
+    chartSheets: opc.chartSheets,
     panes,
     media,
   };
@@ -460,6 +470,33 @@ export function describeSheetJs(
   options: DescribeOptions,
 ): WorkbookDescription {
   const sheets = loaded.sheetNames.map((name, ordinal): SheetSummary => {
+    const isChartSheet = loaded.chartSheets.has(name);
+    if (isChartSheet) {
+      return {
+        name,
+        index: ordinal + 1,
+        state: stateOf(loaded.book, name),
+        kind: "chartsheet",
+        usedRange: null,
+        rowCount: 0,
+        columnCount: 0,
+        declaredRowCount: 0,
+        declaredColumnCount: 0,
+        mergeCount: 0,
+        dataValidationRuleCount: 0,
+        dataValidationRuleCountExact: true,
+        formulaCellCount: 0,
+        cachedFormulaValueCount: 0,
+        tableCount: 0,
+        conditionalFormatRuleCount: 0,
+        imageCount: loaded.images.get(name)?.length ?? 0,
+        imageCountExact: false,
+        chartCount: loaded.charts.get(name)?.length ?? 0,
+        autoFilterRef: null,
+        frozenRowCount: 0,
+        frozenColumnCount: 0,
+      };
+    }
     const sheet = sheetOf(loaded, name);
     const bounds = boundsOf(sheet);
     const declared = declaredBoundsOf(sheet);
@@ -468,6 +505,7 @@ export function describeSheetJs(
       name,
       index: ordinal + 1,
       state: stateOf(loaded.book, name),
+      kind: "worksheet",
       usedRange: bounds === undefined ? null : formatRange(bounds),
       rowCount: bounds === undefined ? 0 : bounds.bottom - bounds.top + 1,
       columnCount: bounds === undefined ? 0 : bounds.right - bounds.left + 1,
@@ -484,6 +522,7 @@ export function describeSheetJs(
       ),
       imageCount: loaded.images.get(name)?.length ?? 0,
       imageCountExact: false,
+      chartCount: loaded.charts.get(name)?.length ?? 0,
       autoFilterRef: autoFilterOf(sheet) ?? null,
       frozenRowCount: loaded.panes.get(name)?.rows ?? 0,
       frozenColumnCount: loaded.panes.get(name)?.columns ?? 0,

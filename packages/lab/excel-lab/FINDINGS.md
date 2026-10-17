@@ -287,12 +287,55 @@ stored out of order are sorted once, and the counts still include both, as befor
 What the peak still holds is transient: the reader builds a cell object per cell before storing it,
 and V8 collects them late.
 
+## Charts
+
+`get_charts` reads DrawingML chart parts (`xl/charts`). Chart sheets report
+`kind: "chartsheet"` and `chartCount` from `describe_workbook`, and `read_sheet` refuses them with
+`chart_sheet` pointing at `get_charts`. Markup Compatibility picks one `AlternateContent` branch so
+a chartEx frame is not counted twice. Layer 1 covers type, title, legend, axes, series refs and
+cached points (capped). Layer 2 adds secondary axes (`axPos` r/t), axis min/max/logBase and number
+format, series trendline types, `c15:filtered*` as `hidden`, and `pivotSource`.
+
+Run `2026-10-17T17-42-39.464Z` · `chart-testdata` only · 557 files, all probed, no crash or
+timeout. `get_charts` answered 651 times with 0 errors. Frames reported: 584 (`describe` chartCount
+sum matches). Plots: bar 298, line 136, scatter 57, pie 47, area 17, stock 14, doughnut 13, radar 7,
+ofPie 4, bubble 2 (595 plot areas; combos add more than one). `unsupported: chartEx` on 19 frames.
+24 chart sheets refused as `chart_sheet` by `read_sheet` / `get_merged_ranges`. Largest
+`get_charts` answer was 13 KiB; none hit the 512 KiB budget and none truncated.
+
+Run `2026-10-17T17-45-25.837Z` · the six original sources · 480 files, compared to
+`2026-10-17T16-42-58.907Z`. Every outcome change is either the new `get_charts` probe call (375
+files) or `empty_sheet` → `chart_sheet` on the 9 chart-sheet workbooks (103 sheet refusals). The 73
+response diffs are only `describe_workbook` adding `kind` and `chartCount`. Truly empty sheets stay
+at 78 `empty_sheet` answers.
+
+Run `2026-10-17T17-50-54.240Z` · `chart-testdata` after layer 2 · 557 files, 0 outcome changes vs
+layer 1; 537 `get_charts` response diffs are additive fields. On that source: secondary axes 32,
+logBase 1, min/max 11, numberFormat on 724 axes, trendlines 19, pivotSource 1, external refs 11.
+Hidden series are absent from `chart-testdata` (10 of 58 series on
+`us-datagov/…/WeatherStationDataSummary-9-16-24…xlsx`).
+
+openpyxl 3.1.5 census on that run (type + series count per sheet): 618 sheet agreements, 33
+mismatches. Series-count gaps are dual-plot / secondary-axis files where openpyxl exposes fewer
+series than the DrawingML plots; the 4 type gaps are `ofPie` vs openpyxl's `ProjectedPieChart`.
+Report: `openpyxl-chart-parity.json` beside the run.
+
+LibreOffice 26.8.1 (temporary cask) converted all 557 `chart-testdata` xlsx files to ods with 0
+failures. ODF `chart:class` counts: bar 1039, line 465, scatter 157, circle 119, area 47, radar 22,
+add-in 18, stock 13, ring 13, histogram 7, bubble 6, filled-radar 4; `chart:surface` 0. Compared to
+`get_charts` on the same run (`libreoffice-odf-parity.json`): types agree 540, LO-only 8 (chartEx /
+histogram / funnel / pareto frames we mark `unsupported` and LO emits as bar), ours-only 5
+(combo/doughnut branches LO drops), hard conflict 4 — all `ofPie` vs LO `circle`/`pie` (same charts;
+treating ofPie ≡ pie leaves 0 conflicts). Ranges: 426 equal, 94 partial (subset or A1 vs A1:A1
+normalization), 37 mismatch (named ranges, external `[n]` refs LO rewrites to file URLs, chartEx
+data we do not expose). A hand-built ODS with `chart:surface` exported back to xlsx as `c:barChart`,
+so LibreOffice cannot supply a DrawingML surface fixture; surface remains absent from the corpus.
+
 ## Next steps
 
 1. Measure how long a read holds the main thread, and how many corpus files have more than one
    large sheet, to decide whether reading belongs in a worker.
-2. Report chart sheets honestly, then read charts. A chart stores both the cell ranges it plots
-   and a cached copy of their values, so every chart is a built-in check against the cells.
-3. Examine the 13 CSV files and decide on single-byte encodings.
-4. Extend the oracle beyond empty sheets to cell values, and keep a small hand-checked gold set for
+2. Examine the 13 CSV files and decide on single-byte encodings.
+3. Extend the oracle beyond empty sheets to cell values, and keep a small hand-checked gold set for
    the cells where the readers disagree.
+4. Then `xml-mcp` (`libxml2-wasm` is a separate decision).
