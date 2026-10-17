@@ -7,7 +7,7 @@ const primitivesMessage =
 const modelMessage =
   "model/ carries the vocabulary as types only; it may not import a runtime layer or a package.";
 const xmlMessage =
-  "xml/ reads a part with saxes; the container and the archive are above it.";
+  "xml/ tokenizes a part itself; the container and the archive are above it, and saxes is only the test oracle.";
 const zipMessage =
   "zip/ indexes the archive; the container layer is above it, and part parsing is not its job.";
 const containerMessage =
@@ -55,7 +55,7 @@ export default defineConfig({
     {
       files: ["src/xml/**/*.ts"],
       rules: restrict(xmlMessage, {
-        paths: ["fflate"],
+        paths: ["fflate", "saxes"],
         folders: ["**/zip/**", "**/container/**"],
       }),
     },

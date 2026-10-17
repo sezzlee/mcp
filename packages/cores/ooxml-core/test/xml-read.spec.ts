@@ -57,6 +57,20 @@ describe("readXmlPart", () => {
     expect(text.join("")).toBe("hi");
   });
 
+  it("reports a CDATA section as text", () => {
+    const text: string[] = [];
+    reader().readXmlPart(
+      `<root xmlns="${ns}"><a><![CDATA[1 < 2]]></a></root>`,
+      "part.xml",
+      {
+        onText(chunk) {
+          text.push(chunk);
+        },
+      },
+    );
+    expect(text.join("")).toBe("1 < 2");
+  });
+
   it("refuses a part that declares a DOCTYPE", () => {
     const error = expectRefusal(
       () =>
@@ -68,6 +82,24 @@ describe("readXmlPart", () => {
       "corrupt_package",
     );
     expect(error.message).toContain("DOCTYPE");
+  });
+
+  it("lets a visitor's own error through unchanged and stops reading", () => {
+    const refusal = new Error("the visitor refuses this part");
+    const seen: string[] = [];
+    expect(() =>
+      reader().readXmlPart(
+        `<root xmlns="${ns}"><a/><b/><c/></root>`,
+        "part.xml",
+        {
+          onOpen(node) {
+            seen.push(node.local);
+            if (node.local === "a") throw refusal;
+          },
+        },
+      ),
+    ).toThrow(refusal);
+    expect(seen).toStrictEqual(["root", "a"]);
   });
 
   it("refuses a part that is not well-formed", () => {

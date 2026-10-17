@@ -20,7 +20,7 @@ export const drawingKind = z
   .enum(["picture", "chart", "pivotTable", "sparkline"])
   .optional()
   .describe(
-    "Drawing kind. Only 'picture' can be read; the other kinds are refused rather than reported as absent.",
+    "Drawing kind. Only 'picture' can be read here; use get_charts for charts. Pivot tables and sparklines are refused rather than reported as absent.",
   );
 
 export const delimiter = z

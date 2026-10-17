@@ -112,12 +112,12 @@ export type {
   LoadedWorkbook,
 } from "./format/document.js";
 export {
-  describeSheetJs,
-  parseSheetJs,
+  describeOoxml,
+  ooxmlSheetView,
+  parseOoxml,
   selectSheetName,
-  sheetjsSheetView,
-} from "./format/sheetjs-workbook.js";
-export type { SheetJsWorkbook } from "./format/sheetjs-workbook.js";
+} from "./format/ooxml-workbook.js";
+export type { OoxmlWorkbook } from "./format/ooxml-workbook.js";
 export type {
   DocumentMeta,
   SheetSummary,

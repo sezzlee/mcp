@@ -42,14 +42,25 @@ export function createXlsxOpener(
   };
 }
 
+/**
+ * Guard: an empty list for an unread kind would mean "none", not "unread".
+ * Charts have their own tool; pivot tables and sparklines stay refused.
+ */
 export function assertPictureKind(kind: string | undefined): void {
   if (kind === undefined || kind === "picture") {
     return;
   }
+  if (kind === "chart") {
+    throw new SezzleeExcelError(
+      "unsupported_object_kind",
+      "get_images cannot read chart objects; use get_charts.",
+      "Call get_charts to list charts and series on this sheet.",
+    );
+  }
   throw new SezzleeExcelError(
     "unsupported_object_kind",
-    `get_images cannot read ${kind} objects; the reader never unzips xl/charts or xl/pivotCache, so an empty list would be a lie rather than an answer.`,
-    "Call describe_workbook and read the capabilities block; charts, pivotTables and sparklines are false for every format.",
+    `get_images cannot read ${kind} objects; the reader never opens xl/pivotCache or sparkline markup, so an empty list would be a lie rather than an answer.`,
+    "Call describe_workbook and read the capabilities block; pivotTables and sparklines are false for every format.",
   );
 }
 

@@ -68,7 +68,7 @@ describe("collectValidations", () => {
     );
     const report = collectValidations(
       "Data",
-      loaded.workbook.validations.get("Data"),
+      loaded.workbook.facts("Data").validations,
     );
 
     expect(report.coveredCellCount).toBeGreaterThan(5000);

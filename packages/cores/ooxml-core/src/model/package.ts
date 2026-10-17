@@ -1,3 +1,5 @@
+import type { XmlVisitor } from "./xml.js";
+
 export type ContainerKind = "zip" | "cfb" | "unknown";
 
 export interface PartEntry {
@@ -20,6 +22,14 @@ export interface PartEntry {
 export interface PartSource {
   readonly entries: readonly PartEntry[];
   read(path: string): Uint8Array | undefined;
+  /**
+   * Hands a part's bytes to `onChunk` in order, holding no more than a chunk of
+   * them, and checks the whole as `read` does once the last is handed on. A
+   * source without it is read whole and handed on as one chunk.
+   *
+   * @returns false when the part is absent.
+   */
+  stream?(path: string, onChunk: (chunk: Uint8Array) => void): boolean;
 }
 
 export type Relationship =
@@ -48,6 +58,14 @@ export interface OpcPackage {
    * and empty; collapsing the two drops a legal empty part instead of scanning it.
    */
   part(path: string): string | undefined;
+  /**
+   * Scans a part with the package's XML reader as it is inflated and decoded,
+   * keeping none of its text; a part `part` already decoded is scanned from
+   * that text.
+   *
+   * @returns false when the part is absent.
+   */
+  scanPart(path: string, visitor: XmlVisitor): boolean;
   partBytes(path: string): Uint8Array | undefined;
   partSize(path: string): number | undefined;
   readonly parts: readonly PartEntry[];

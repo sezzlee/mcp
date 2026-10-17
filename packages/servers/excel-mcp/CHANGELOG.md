@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.8.0
+
+### Tool surface
+
+- `describe_workbook` reports each sheet's `kind` (`worksheet` or `chartsheet`) and `chartCount`. A chart sheet is no longer described as an empty grid.
+- `read_sheet`, `aggregate_sheet` and `find_in_sheet` refuse a chart sheet with `chart_sheet` instead of `empty_sheet`, and `get_merged_ranges` refuses it instead of answering with no merges; recovery points at `get_charts`.
+- New tool `get_charts`: type, title, axes, series cell references and cached points. `capabilities.charts` is `true` for `.xlsx`. `get_images` with `kind: "chart"` still refuses and names `get_charts`.
+- `get_charts` also reports secondary axes (the axes the first plot does not use), axis min/max/logBase and number format, series trendline types, series filtered out in Excel (`c15:filtered*Series`) as `hidden`, and `pivotSource` when the chart is pivot-backed. Cached points keep the cache's `numberFormat`, multi-level categories keep their outer `levels`, and series past the per-chart cap are counted in `omittedSeries`. A one-cell anchored chart reports its top-left `cell` and size instead of a range, and a `chartId` the sheet does not have is refused as `invalid_argument`.
+- A tool called without `sheetName` lands on the first visible worksheet, skipping chart sheets; `get_charts` may land on a chart sheet.
+- Markup Compatibility (`mc:AlternateContent`) is applied when reading drawings, so a chartEx frame is reported once rather than as its placeholder shape.
+
+### Compatibility changes
+
+- **SheetJS is no longer a runtime dependency.** Cells, number formats, dates, formulas, hyperlinks, merges, the auto filter, the declared range, sheet states and defined names are read from the OOXML parts by the server's own reader over `@sezzlee/ooxml-core`, so a workbook is unzipped once instead of twice. `@e965/xlsx` stays as a dev dependency: the test suite compares the reader against it, cell by cell, over every fixture workbook. Parts of the reader derive from SheetJS (Apache-2.0); `THIRD-PARTY-NOTICES.md` lists them and ships in the tarball.
+- **`get_images` no longer reports a one-cell range for a one-cell anchor.** Such a picture is anchored by its top-left cell and a size, so it now carries `cell` and `widthPx`/`heightPx` instead of a `range` naming that single cell, which read as if the picture fitted in it (49 of 797 corpus pictures). `widthPx` and `heightPx` are whole pixels now, in `get_images` and `get_charts`.
+- `parseSheetJs`, `describeSheetJs`, `sheetjsSheetView` and the `SheetJsWorkbook` type are replaced by `parseOoxml`, `describeOoxml`, `ooxmlSheetView` and `OoxmlWorkbook`. `selectSheetName` takes an `OoxmlWorkbook`.
+- A damaged archive is refused with `corrupt_workbook`: every part is checked against its CRC-32, and every part's local header must agree with the central directory, so two zip readers cannot see two different files in the same bytes. A truncated workbook that still starts with a zip header is `corrupt_workbook`; bytes that are not a zip at all stay `not_a_workbook`, whose `recovery` now says the file is probably not a spreadsheet.
+- A shared string table that declares a DOCTYPE, and a cell in row 0, are refused with `corrupt_workbook`. ECMA-376 forbids both; SheetJS read through them.
+- Two merged ranges that overlap are refused with `corrupt_workbook` when a row they share is read. Excel repairs such a file; no corpus workbook has one.
+- A sheet listing more than 66,530 hyperlinks, the most Excel keeps on one sheet, is refused with `file_too_large`.
+- A malformed worksheet is refused with `corrupt_workbook` by the calls that read that sheet instead of when the workbook opens, so the workbook's other sheets stay readable. `describe_workbook` reads every sheet and still refuses. `OoxmlWorkbook` reads a sheet's validations, tables, conditional formats, images and panes through `facts(sheetName)`.
+
+- The OOXML parts are read by `@sezzlee/ooxml-core`'s own XML tokenizer instead of `saxes`, 2.2 times faster on the largest corpus parts. Text in a CDATA section, which the `saxes` reader dropped, is now read. A part that is not valid UTF-8, or that names UTF-16 without a byte order mark, is refused with `corrupt_workbook` instead of being read with replacement characters.
+
+### Resource bounds
+
+- A cell's hyperlink is looked up in a per-sheet index instead of a scan over every link, and building the index visits at most 1,000,000 covered cells. A link anchored on a huge range no longer costs a loop over every row it names.
+- A row's merged ranges are found through an interval tree instead of a scan over every merge; a sheet with 100,000 merges read row by row went from 14 s to under half a second.
+- A shared formula's later cells keep a reference to their group and are expanded when read. Expanding them up front let 40,000 cells of one 8,000-character formula hold 760 MB.
+
+### Memory
+
+- A sheet's cells are kept as typed arrays, one per field, instead of an object per cell with a value object of its own: about 21 bytes a cell where it took 120 to 300. A described workbook retains 61–75% less memory on the four largest corpus files (the largest from 1.2 GiB to 0.3 GiB) and peak memory while reading falls by a third or more, at the same speed.
+
+- Every worksheet, the shared string table, the styles and each table and drawing part are inflated, decoded and scanned a chunk at a time, and their text is not kept. On three of the four largest corpus files a described workbook retains 19–27% less heap, and the largest reads in a 1.3 GiB heap where it needed 1.6 GiB. Files under 1 MB read up to 5% slower.
+- A damaged part is still refused, but a fault met while scanning it can be reported before its CRC-32 mismatch, and a part that inflates past its declared size is stopped at the first byte over, so the refusal no longer states how far it expands.
+
+### Speed
+
+- A worksheet part is scanned once, when a tool first needs that sheet, with every part reader fed from that one pass. Opening a workbook scanned every sheet five times and reading a sheet's cells three more, so `describe_workbook` scanned each sheet eight times and `read_sheet` scanned every sheet of the workbook. Measured A/B against the build before the shared pass on the corpus, with the same answers on every file, the four largest files and files of 1–10 MB read 2.7 times faster, and files of 0.1–1 MB 2.2 times faster.
+
+### Reading
+
+- Strict OOXML workbooks (`purl.oclc.org` namespaces) are read like Transitional ones.
+- A cell with no `s` attribute takes cell format 0, as ECMA-376 says, instead of `General`.
+- A chart sheet declares no rows or columns; SheetJS reported a range drawn from the chart's series.
+- Raw carriage returns in cell text are normalised to line feeds, as XML 1.0 end-of-line handling requires.
+- A relationships part that is not well-formed is named in the `corrupt_workbook` message; the part it belongs to was named instead.
+
+## 0.7.1
+
+- The package declares its MCP Registry name, `io.github.sezzlee/excel` (`mcpName`). No code changed.
+
 ## 0.7.0
 
 ### Compatibility changes
@@ -14,7 +67,9 @@
 - `describe_workbook`'s `includeDefinedNames` no longer mentions ExcelJS, which is not present at runtime.
 - `aggregate_sheet`'s truncation `hint` no longer tells a caller that already passed `orderBy: "metric"` to set it; it suggests raising `maxGroups` or adding a `where` clause instead.
 
-## Unreleased — Excel/file-core hardening
+## Before 0.7.0 — Excel/file-core hardening
+
+Everything in this section first shipped in 0.7.0, the first published version.
 
 ### Compatibility changes
 

@@ -1,7 +1,13 @@
-import { unzipSync, type UnzipFileInfo } from "fflate";
+import { Inflate, unzipSync, type UnzipFileInfo } from "fflate";
 import type { OoxmlErrorCode, OoxmlErrorFactory } from "../model/errors.js";
 import type { PartEntry, PartSource } from "../model/package.js";
 import type { OoxmlLimits } from "../limits.js";
+import { crc32 } from "../primitives/crc32.js";
+import {
+  localDataOffset,
+  localHeaderAgrees,
+  readDirectory,
+} from "./directory.js";
 
 interface Refusal {
   readonly code: OoxmlErrorCode;
@@ -10,6 +16,20 @@ interface Refusal {
 
 const stored = 0;
 const deflated = 8;
+/**
+ * Guard: `fflate`'s inflater cannot cap its output, and the declared size is
+ * checked as each push returns, so one push may inflate past it before the
+ * check: deflate expands at most about 1032:1, so a 16 KiB slice bounds that
+ * overshoot to about 16 MiB, where the whole entry would otherwise be.
+ */
+const sliceBytes = 1 << 14;
+
+interface Declared {
+  readonly size: number;
+  readonly compressedSize: number;
+  readonly compression: number;
+}
+const zipMagic = [0x50, 0x4b] as const;
 
 /**
  * Guard: ECMA-376 Part 2 restricts a part name to the RFC 3986 pchar ASCII
@@ -74,7 +94,7 @@ export function createZipSource(
 ): PartSource {
   const { fail, limits } = environment;
   const entries: PartEntry[] = [];
-  const declared = new Map<string, number>();
+  const declared = new Map<string, Declared>();
   let refusal: Refusal | undefined;
 
   const inspect = (entry: UnzipFileInfo): boolean => {
@@ -107,7 +127,11 @@ export function createZipSource(
       refusal = tooBig;
       return false;
     }
-    declared.set(entry.name, entry.originalSize);
+    declared.set(entry.name, {
+      size: entry.originalSize,
+      compressedSize: entry.size,
+      compression: entry.compression,
+    });
     entries.push({ path: entry.name, sizeBytes: entry.originalSize });
     return false;
   };
@@ -120,8 +144,14 @@ export function createZipSource(
   try {
     unzipSync(bytes, { filter: inspect });
   } catch (error) {
+    /**
+     * Guard: bytes that open with the zip signature are an archive, so one that
+     * fails to index is damaged, not something other than a package; the two
+     * call for different advice (re-save it, or check what the file is).
+     */
+    const signed = zipMagic.every((byte, index) => bytes[index] === byte);
     throw fail(
-      "not_a_package",
+      signed ? "corrupt_package" : "not_a_package",
       `The archive could not be read: ${error instanceof Error ? error.message : String(error)}.`,
     );
   }
@@ -132,36 +162,112 @@ export function createZipSource(
       `The archive carries ${String(entries.length)} parts, over the ${String(limits.maxPartCount)} part ceiling.`,
     );
   }
+  const directory = readDirectory(bytes);
+  if (directory === undefined) {
+    throw fail(
+      "corrupt_package",
+      "The archive's central directory could not be walked.",
+    );
+  }
 
-  const read = (path: string): Uint8Array | undefined => {
-    const size = declared.get(path);
-    if (size === undefined) return undefined;
-    let found: Uint8Array | undefined;
-    try {
-      found = unzipSync(bytes, { filter: (entry) => entry.name === path })[
-        path
-      ];
-    } catch (error) {
+  /**
+   * Guard: the inflater's output is handed on only after `push` returns, so
+   * an error the consumer throws reaches the caller as itself and is never
+   * reported as a failed decompression.
+   */
+  const stream = (
+    path: string,
+    onChunk: (chunk: Uint8Array) => void,
+  ): boolean => {
+    const entry = declared.get(path);
+    if (entry === undefined) return false;
+    const record = directory.get(path);
+    if (record === undefined || !localHeaderAgrees(bytes, path, record)) {
       throw fail(
         "corrupt_package",
-        `'${path}' could not be decompressed: ${error instanceof Error ? error.message : String(error)}.`,
+        `'${path}' has a local header that disagrees with the central directory.`,
       );
     }
-    if (found === undefined) {
-      throw fail("corrupt_package", `'${path}' vanished from the archive.`);
+    const start = localDataOffset(bytes, record);
+    const end = start + entry.compressedSize;
+    if (end > bytes.length) {
+      throw fail(
+        "corrupt_package",
+        `'${path}' could not be decompressed: its data runs past the end of the archive.`,
+      );
+    }
+    let produced = 0;
+    let crc = 0;
+    /**
+     * Guard: the directory's declared size is what every size gate was
+     * applied to, so an entry that inflates past it has bypassed them; it is
+     * stopped at the first byte over, before the excess is used.
+     */
+    const take = (chunk: Uint8Array): void => {
+      produced += chunk.length;
+      if (produced > entry.size) {
+        throw fail(
+          "corrupt_package",
+          `'${path}' declares ${String(entry.size)} bytes but expands to more.`,
+        );
+      }
+      crc = crc32(chunk, crc);
+      if (chunk.length > 0) onChunk(chunk);
+    };
+    if (entry.compression === stored) {
+      for (let at = start; at < end; at += sliceBytes) {
+        take(bytes.subarray(at, Math.min(end, at + sliceBytes)));
+      }
+    } else {
+      const inflated: Uint8Array[] = [];
+      const inflater = new Inflate((chunk) => {
+        inflated.push(chunk);
+      });
+      for (let at = start; ; at += sliceBytes) {
+        const next = Math.min(end, at + sliceBytes);
+        try {
+          inflater.push(bytes.subarray(at, next), next === end);
+        } catch (error) {
+          throw fail(
+            "corrupt_package",
+            `'${path}' could not be decompressed: ${error instanceof Error ? error.message : String(error)}.`,
+          );
+        }
+        for (const chunk of inflated.splice(0)) take(chunk);
+        if (next === end) break;
+      }
+    }
+    if (produced !== entry.size) {
+      throw fail(
+        "corrupt_package",
+        `'${path}' declares ${String(entry.size)} bytes but expands to ${String(produced)}.`,
+      );
     }
     /**
-     * Guard: the directory's declared size is what every size gate was applied
-     * to, so an entry that inflates to a different length has bypassed them.
+     * Guard: a damaged deflate stream can still inflate to the declared length,
+     * and `fflate` checks no CRC, so without this a flipped byte reaches the
+     * part readers as a plausible wrong value instead of failing.
      */
-    if (found.length !== size) {
+    if (crc !== record.crc32) {
       throw fail(
         "corrupt_package",
-        `'${path}' declares ${String(size)} bytes but expands to ${String(found.length)}.`,
+        `'${path}' fails its CRC-32 check; the archive is damaged.`,
       );
     }
-    return found;
+    return true;
   };
 
-  return { entries, read };
+  const read = (path: string): Uint8Array | undefined => {
+    const entry = declared.get(path);
+    if (entry === undefined) return undefined;
+    const whole = new Uint8Array(entry.size);
+    let at = 0;
+    stream(path, (chunk) => {
+      whole.set(chunk, at);
+      at += chunk.length;
+    });
+    return whole;
+  };
+
+  return { entries, read, stream };
 }

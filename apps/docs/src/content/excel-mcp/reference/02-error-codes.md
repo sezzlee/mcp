@@ -1,6 +1,6 @@
 # Error codes
 
-> Generated from the error-code union types of `@sezzlee/excel-mcp` 0.7.1.
+> Generated from the error-code union types of `@sezzlee/excel-mcp` 0.8.0.
 
 A tool that fails answers with `isError: true` and one text item holding a JSON object with three fields: `error`, a stable machine code from this page; `message`, what went wrong; and `recovery`, what the next call should do differently. Branch on `error`, never on `message`.
 
@@ -28,7 +28,7 @@ The text item, parsed:
 }
 ```
 
-The server has 30 codes.
+The server has 31 codes.
 
 ## Arguments and paging
 
@@ -56,16 +56,16 @@ The server has 30 codes.
 
 ## File content
 
-| Code                      | Meaning                                                                                                                                                                                                                                        |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `not_a_workbook`          | The bytes are not a workbook: no zip header, or a zip with no workbook part inside, such as a `.docx` renamed to `.xlsx`.                                                                                                                      |
-| `encrypted_workbook`      | The file is password-protected or saved in the legacy binary `.xls` format. Save an unprotected `.xlsx` copy.                                                                                                                                  |
-| `corrupt_workbook`        | The file is a zip with a workbook part, but the part cannot be parsed. The message carries the parser's own explanation.                                                                                                                       |
-| `undecodable_text`        | A CSV cannot be decoded as text: it contains NUL bytes near its start, which means a binary file or UTF-16 without a byte-order mark, or it starts with a UTF-32 byte-order mark. Pass `encoding: "utf-16le"` or `"utf-16be"` for UTF-16 text. |
-| `ambiguous_delimiter`     | Two delimiters fit the first 20 lines of a CSV equally well. Pass `delimiter`.                                                                                                                                                                 |
-| `numeric_overflow`        | A cell or a comparison value holds a number outside the finite range, such as `Infinity`.                                                                                                                                                      |
-| `unsupported_for_format`  | The file's format cannot carry what was asked for, such as `get_tables` or `headerScan` on a CSV. `describe_workbook` lists what each file supports in its `capabilities` block.                                                               |
-| `unsupported_object_kind` | `get_images` was asked for charts, pivot tables or sparklines. The server cannot read these in any format, so it refuses rather than answer with an empty list.                                                                                |
+| Code                      | Meaning                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `not_a_workbook`          | The bytes are not a workbook: not a zip archive at all, or a zip with no workbook part or no worksheet inside, such as a `.docx` renamed to `.xlsx`.                                                                                                                                                                                                                                              |
+| `encrypted_workbook`      | The file is password-protected or saved in the legacy binary `.xls` format. Save an unprotected `.xlsx` copy.                                                                                                                                                                                                                                                                                     |
+| `corrupt_workbook`        | The file is a damaged workbook: a zip archive that cannot be indexed, a part that fails its CRC-32 check or whose local header disagrees with the central directory, or a part that is not well-formed XML or valid UTF-8 or that breaks a SpreadsheetML rule. A damaged sheet is refused only by the calls that read it, `describe_workbook` included. The message names the part and the fault. |
+| `undecodable_text`        | A CSV cannot be decoded as text: it contains NUL bytes near its start, which means a binary file or UTF-16 without a byte-order mark, or it starts with a UTF-32 byte-order mark. Pass `encoding: "utf-16le"` or `"utf-16be"` for UTF-16 text.                                                                                                                                                    |
+| `ambiguous_delimiter`     | Two delimiters fit the first 20 lines of a CSV equally well. Pass `delimiter`.                                                                                                                                                                                                                                                                                                                    |
+| `numeric_overflow`        | A cell or a comparison value holds a number outside the finite range, such as `Infinity`.                                                                                                                                                                                                                                                                                                         |
+| `unsupported_for_format`  | The file's format cannot carry what was asked for, such as `get_tables` or `headerScan` on a CSV. `describe_workbook` lists what each file supports in its `capabilities` block.                                                                                                                                                                                                                  |
+| `unsupported_object_kind` | `get_images` was asked for charts, pivot tables or sparklines. Charts belong to `get_charts`; pivot tables and sparklines are unread in every format, so the server refuses rather than answer with an empty list.                                                                                                                                                                                |
 
 ## Sheets, columns and headers
 
@@ -74,6 +74,7 @@ The server has 30 codes.
 | `unknown_sheet`        | No sheet has that name. Names are case-sensitive; the recovery lists the sheets that exist.                                                                                 |
 | `ambiguous_sheet`      | Two sheets have names that are the same after Unicode normalization, so neither can be addressed. Rename one in the workbook.                                               |
 | `empty_sheet`          | The sheet has no cells with values.                                                                                                                                         |
+| `chart_sheet`          | The sheet is a chart sheet: it holds a chart, not a cell grid. Call `get_charts`.                                                                                           |
 | `unknown_column`       | A column named in `groupBy`, `metrics` or `where` is neither a header in the range nor an A1 letter. The recovery lists the named columns.                                  |
 | `ambiguous_column`     | A column reference matches more than one column: two columns share the header text, or the text is both a header and another column's letter. Address the column by letter. |
 | `unknown_header_row`   | `headerScan` found no row that qualifies as a header. Pass `headerRow`, or `headerRow: 0` to read without headers.                                                          |

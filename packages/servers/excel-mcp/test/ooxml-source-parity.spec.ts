@@ -3,7 +3,7 @@ import * as XLSX from "@e965/xlsx";
 import { describe, expect, inject, it } from "vitest";
 import { openPackage } from "../src/metadata/spreadsheetml/package.js";
 import { zipSource } from "../src/metadata/spreadsheetml/reader.js";
-import { sheetJsSource } from "./fixtures/sheetjs-source.js";
+import { sheetJsSource } from "./fixtures/sheetjs/source.js";
 
 const fixtures = () => inject("fixtures");
 

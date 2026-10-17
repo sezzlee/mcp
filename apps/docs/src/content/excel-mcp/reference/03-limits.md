@@ -1,6 +1,6 @@
 # Limits
 
-> Generated from the exported `limits` object of `@sezzlee/excel-mcp` 0.7.1.
+> Generated from the exported `limits` object of `@sezzlee/excel-mcp` 0.8.0.
 
 Every limit is fixed at build time; none is configurable. A call that would cross one either answers with `truncated: true` and a way to continue, or fails with `resource_limit`.
 
@@ -54,4 +54,9 @@ Every limit is fixed at build time; none is configurable. A call that would cros
 | Columns `get_tables` reports for one table                                             | 256   |
 | Rules `get_conditional_formats` reports for one sheet                                  | 200   |
 | Pictures `get_images` reports for one sheet                                            | 200   |
+| Charts `get_charts` reports for one sheet                                              | 200   |
+| Cached series points `get_charts` returns per series when `maxPoints` is omitted       | 200   |
+| Largest `maxPoints` for `get_charts`                                                   | 2,000 |
+| Cached series points one `get_charts` answer may return across every series            | 5,000 |
+| Series one chart may declare before further series are dropped                         | 255   |
 | Ranges reported for one validation or conditional-format rule before `rangesTruncated` | 64    |

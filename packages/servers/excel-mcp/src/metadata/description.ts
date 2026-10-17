@@ -6,10 +6,13 @@ export interface DocumentMeta {
   readonly modifiedAt: string;
 }
 
+export type SheetKind = "worksheet" | "chartsheet";
+
 export interface SheetSummary {
   readonly name: string;
   readonly index: number;
   readonly state: string;
+  readonly kind: SheetKind;
   readonly usedRange: string | null;
   readonly rowCount: number;
   readonly columnCount: number;
@@ -24,6 +27,7 @@ export interface SheetSummary {
   readonly conditionalFormatRuleCount: number | null;
   readonly imageCount: number | null;
   readonly imageCountExact: boolean;
+  readonly chartCount: number | null;
   readonly autoFilterRef: string | null;
   readonly frozenRowCount: number | null;
   readonly frozenColumnCount: number | null;

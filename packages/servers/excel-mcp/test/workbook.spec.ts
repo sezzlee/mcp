@@ -5,7 +5,7 @@ import {
   resolveWorkbookPath,
   type SandboxedPath,
 } from "../src/platform/paths.js";
-import { selectSheetName } from "../src/format/sheetjs-workbook.js";
+import { selectSheetName } from "../src/format/ooxml-workbook.js";
 import { requireSheetBounds } from "../src/grid/sheet.js";
 import {
   clearDocumentCache,

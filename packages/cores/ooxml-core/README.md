@@ -25,7 +25,7 @@ format nouns belong there, not in this package.
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `reader`    | `createOoxmlReader`, `OoxmlEnvironment`, `OoxmlReader`                                                                                                   |
 | `container` | `classifyContainerMagic`; `extensionOf`, `normalisePartPath`, `relationshipsPathFor`, `resolveTarget`                                                    |
-| `xml`       | `ooxmlNamespaces`, `XmlPartReader`                                                                                                                       |
+| `xml`       | `ooxmlNamespaces`, `selectAlternateContent`, `XmlPartReader`                                                                                             |
 | `limits`    | `ooxmlLimits`, `OoxmlLimits`                                                                                                                             |
 | `model`     | `OoxmlErrorCode`, `OoxmlErrorFactory`; `ContainerKind`, `ContentTypes`, `OpcPackage`, `PartEntry`, `PartSource`, `Relationship`; `XmlNode`, `XmlVisitor` |
 
@@ -37,7 +37,8 @@ format nouns belong there, not in this package.
   archive — are ECMA-376 vocabulary and are allowed.
 - **Names no `@sezzlee/*` package.** The error factory and the part source both arrive by
   injection, so `@e965/xlsx` never enters this package.
-- **`saxes` and `fflate` are its only runtime dependencies.**
+- **`fflate` is its only runtime dependency.** `saxes` is a dev dependency, the oracle the
+  tokenizer is fuzzed against.
 
 ## Design notes
 
@@ -47,10 +48,13 @@ and a machine-checked worker module graph with it. An OOXML part's schema is **k
 read is a single forward pass. Random access happens _between_ parts, which the `PartSource` index
 already covers. So there is no worker, no pool and no WASM here.
 
-**Zip.** Two passes over `fflate`: a counting pass indexes the directory without inflating
-anything and applies the deny list; the read pass inflates only the requested part. The size gates
-run during the counting pass — a gate applied after inflation is not a gate. Three gates work
-together, because one threshold alone either rejects real files or lets a bomb through:
+**Zip.** A counting pass over `fflate` indexes the directory without inflating anything and applies
+the deny list. The core then walks the central directory itself for the two facts `fflate` does not
+expose, each entry's CRC-32 and the offset of its local header (`src/zip/directory.ts`). The read
+pass inflates only the requested part, from that offset, with `fflate`'s streaming `Inflate` fed 16
+KiB at a time. The size gates run during the counting pass — a gate applied after inflation is not a
+gate. Three gates work together, because one threshold alone either rejects real files or lets a
+bomb through:
 
 | Gate                     | Value   | Basis                                                                                  |
 | ------------------------ | ------- | -------------------------------------------------------------------------------------- |
@@ -59,16 +63,55 @@ together, because one threshold alone either rejects real files or lets a bomb t
 | `ratioFloorBytes`        | 16 MiB  | Below this, ratio is not checked — a small, highly repetitive part is normal           |
 | `maxDecodedPackageBytes` | 512 MiB | Bounds the sum of many parts that each stay under their own limit                      |
 
-**Known limitation.** Per-entry zip encryption (PKWARE) is **not detected**: `fflate`'s
-general-purpose flag bit is not exposed to the filter callback. A document Office actually
-encrypts is already a CFB container, not a zip, and `classifyContainerMagic` catches it outside
-the package. An encrypted entry fails as a corrupt part instead.
+**Integrity.** The read pass checks each inflated part against its CRC-32 and each local header
+against the central directory, so a damaged archive fails as `corrupt_package` and two zip readers
+cannot be shown two different parts under one name. A part that inflates past the size the directory
+declares, the size every gate above was applied to, is stopped at the first byte over. Bytes that
+start with a zip signature but do not index are `corrupt_package`; bytes that do not are
+`not_a_package`.
+
+**The tokenizer.** `src/xml/tokenizer.ts` reads XML 1.0 for an OOXML part: elements, attributes,
+text, CDATA, comments and processing instructions, the five predefined entities and character
+references. A DOCTYPE is refused, so no other entity can exist. `src/xml/scope.ts` resolves names
+against Namespaces in XML 1.0. Every check is linear in the part: names are validated once and
+remembered, repeated attributes are found through a set, and namespace bindings live in one map that
+an element restores when it closes. Input may arrive in chunks; a construct cut by a chunk boundary
+is retried only once the buffer has doubled. It replaced `saxes` (archived upstream since 2021)
+after a benchmark on the largest corpus parts showed it 2.2 times faster with the same events on
+every part (`packages/lab/excel-lab/FINDINGS.md`). What proves it:
+
+| Test                           | What it checks                                                                                                                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `test/xml-tokenizer.spec.ts`   | the rules with expected values from the specifications, inputs that would be quadratic in a naive scan, and 6,000 seeded mutations compared with `saxes` read whole and in random chunks         |
+| `test/xml-conformance.spec.ts` | the W3C XML Conformance Test Suite, gated on `SEZZLEE_CORPUS`: every not-well-formed case whose error lies outside a DTD refused, every well-formed one read and matched to its canonical output |
+
+**Encoding.** A part is decoded by its byte order mark, and decoding is fatal on a malformed
+sequence: a replacing decoder would turn damaged bytes into U+FFFD, a legal character. A part that
+names UTF-16 without a byte order mark, or a code page this reader does not decode, is refused.
+
+**Streaming.** `scanPart` inflates a part from its offset in the archive, checks its length and
+CRC-32 as it goes, decodes it and feeds the tokenizer a chunk at a time, and keeps none of its
+text, so a large part costs a chunk of memory instead of its whole decoded length. A damaged part is
+still refused, once its last chunk is checked; a fault the tokenizer or the decoder meets on the way
+is reported first. `part` decodes a part whole and memoises it, for the small parts read more than
+once. Both count a part against the decoding budget once. A long text or attribute value is copied
+before a visitor sees it, so a value it keeps does not pin the chunk it was cut from.
+
+**Visitor errors.** An error thrown by an `XmlVisitor` callback stops the scan and reaches the
+caller unchanged. Only a failure of the XML itself becomes `corrupt_package`.
+
+**Known limitation.** Per-entry zip encryption (PKWARE) is **not detected**: `fflate`'s filter
+callback does not expose the general-purpose flag bit, and the core's own directory walk reads only
+the CRC-32 and the local header offset. A document Office actually encrypts is already a CFB
+container, not a zip, and `classifyContainerMagic` catches it outside the package. An encrypted
+entry fails as a corrupt part instead.
 
 ## Rejected alternatives
 
 - **An in-house zip reader.** About 330 lines and a 30-case test matrix as a precondition.
   `fflate` is mature, MIT, dependency-free, and its `filter` callback still leaves the bomb gate to
-  this package.
+  this package. The core reads only the two central-directory fields `fflate` does not expose;
+  indexing and inflation stay in `fflate`.
 - **A `file-core` dependency for `asciiLower`.** A twelve-line function would pull in the MCP SDK
   and zod peers and invert the layering; it is copied instead (`src/primitives/text.ts`).
 - **An in-process BIFF8 or Word binary reader.** Thousands of lines of parser for an effectively

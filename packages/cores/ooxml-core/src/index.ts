@@ -11,6 +11,7 @@ export {
   resolveTarget,
 } from "./container/names.js";
 export { ooxmlNamespaces } from "./xml/namespaces.js";
+export { selectAlternateContent } from "./xml/compatibility.js";
 export { ooxmlLimits, type OoxmlLimits } from "./limits.js";
 export type { XmlPartReader } from "./xml/read.js";
 export type { OoxmlErrorCode, OoxmlErrorFactory } from "./model/errors.js";

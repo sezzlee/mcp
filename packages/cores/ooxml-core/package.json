@@ -1,6 +1,6 @@
 {
   "name": "@sezzlee/ooxml-core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shared reader for OOXML containers: zip part source, OPC package, relationships, content types, single-pass XML part scanning.",
   "keywords": [
     "ooxml",
@@ -50,8 +50,7 @@
     "prepack": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc"
   },
   "dependencies": {
-    "fflate": "^0.8.3",
-    "saxes": "^6.0.0"
+    "fflate": "^0.8.3"
   },
   "devDependencies": {
     "@sezzlee/oxlint-config": "workspace:*",
@@ -60,6 +59,7 @@
     "@vitest/coverage-v8": "3.2.7",
     "jszip": "3.10.1",
     "oxlint": "1.85.0",
+    "saxes": "^6.0.0",
     "typescript": "7.0.2",
     "vitest": "^3.2.4"
   }

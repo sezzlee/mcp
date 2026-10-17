@@ -14,12 +14,12 @@ nothing:
 
 ```sh
 excel describe_workbook --tool-arg filePath=sales.xlsx \
-  | jq -c '.sheets[] | {name, tableCount, dataValidationRuleCount, conditionalFormatRuleCount, mergeCount, imageCount}'
+  | jq -c '.sheets[] | {name, tableCount, dataValidationRuleCount, conditionalFormatRuleCount, mergeCount, imageCount, chartCount}'
 ```
 
 ```json
-{"name":"Orders","tableCount":1,"dataValidationRuleCount":1,"conditionalFormatRuleCount":1,"mergeCount":0,"imageCount":0}
-{"name":"Targets","tableCount":0,"dataValidationRuleCount":0,"conditionalFormatRuleCount":0,"mergeCount":0,"imageCount":0}
+{"name":"Orders","tableCount":1,"dataValidationRuleCount":1,"conditionalFormatRuleCount":1,"mergeCount":0,"imageCount":0,"chartCount":0}
+{"name":"Targets","tableCount":0,"dataValidationRuleCount":0,"conditionalFormatRuleCount":0,"mergeCount":0,"imageCount":0,"chartCount":0}
 ```
 
 ## Formulas as well as values
@@ -106,7 +106,7 @@ excel get_conditional_formats --tool-arg filePath=sales.xlsx | jq -c '.rules[]'
 A list rule is the set of values a column accepts. A formatting rule is reported as its condition,
 here a total over 800, not as the colors it applies.
 
-## Merged cells and pictures
+## Merged cells, pictures and charts
 
 ```sh
 excel get_merged_ranges --tool-arg filePath=report.xlsx | jq -c '.merges'
@@ -116,27 +116,28 @@ excel get_merged_ranges --tool-arg filePath=report.xlsx | jq -c '.merges'
 ["A1:H1"]
 ```
 
-`get_images` lists each embedded picture's anchor, size and extension, not the image itself. Charts,
-pivot tables and sparklines are refused:
+`get_images` lists each embedded picture's anchor, size and extension, not the image itself.
+`get_charts` lists each chart's type, title, axes and series, with the series' cell references and
+cached values ([tool reference](/docs/excel-mcp/tools)). Pivot tables and sparklines are refused:
 
 ```sh
-excel get_images --tool-arg filePath=sales.xlsx kind=chart
+excel get_images --tool-arg filePath=sales.xlsx kind=pivotTable
 ```
 
 ```text
 {"error":{"code":"tool_is_error","message":"Tool 'get_images' returned isError:true."}}
 {
   "error": "unsupported_object_kind",
-  "message": "get_images cannot read chart objects; the reader never unzips xl/charts or xl/pivotCache, so an empty list would be a lie rather than an answer.",
-  "recovery": "Call describe_workbook and read the capabilities block; charts, pivotTables and sparklines are false for every format."
+  "message": "get_images cannot read pivotTable objects; the reader never opens xl/pivotCache or sparkline markup, so an empty list would be a lie rather than an answer.",
+  "recovery": "Call describe_workbook and read the capabilities block; pivotTables and sparklines are false for every format."
 }
 ```
 
-:::details[Why charts are refused instead of listed as none]
+:::details[Why pivot tables are refused instead of listed as none]
 
-"This sheet has no charts" and "I cannot see charts" lead an agent to different answers. An empty
-list would say the first while meaning the second, so the server refuses, and `describe_workbook`
-states the ceiling up front: `charts`, `pivotTables` and `sparklines` are `false` in every file's
-`capabilities` block. Absence is reported only when the server looked and found nothing.
+"This sheet has no pivot tables" and "I cannot see pivot tables" lead an agent to different
+answers. An empty list would say the first while meaning the second, so the server refuses, and
+`describe_workbook` states the ceiling up front: `pivotTables` and `sparklines` are `false` in every
+file's `capabilities` block. Absence is reported only when the server looked and found nothing.
 
 :::

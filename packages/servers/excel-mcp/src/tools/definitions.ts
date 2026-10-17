@@ -147,10 +147,36 @@ export const toolDefinitions = {
 
   get_images: {
     description:
-      "List the pictures embedded in a worksheet: anchor range, byte size and file extension. Charts, pivot tables and sparklines cannot be read and are refused rather than reported as absent.",
+      "List the pictures embedded in a worksheet: the cells a picture spans (range), or its top-left cell and pixel size when only those are anchored (cell), plus byte size and file extension. Charts belong to get_charts; pivot tables and sparklines are refused rather than reported as absent.",
     inputSchema: z.object({ filePath, sheetName, kind: drawingKind }),
     annotations: readOnly,
   },
+
+  get_charts: {
+    description:
+      "List charts on a worksheet or chart sheet: type, title, axes (including secondary axes, scale and number format), series cell references and cached point values, trendline types, user-filtered series as hidden, and pivot source when present. Cached values may be stale; read the ref with read_sheet for current cells. Appearance (colours, fonts) is not reported.",
+    inputSchema: z.object({
+      filePath,
+      sheetName,
+      chartId: z
+        .int()
+        .min(1)
+        .optional()
+        .describe(
+          "1-based chart index on the sheet. Omit to list every chart up to the per-sheet cap.",
+        ),
+      maxPoints: z
+        .int()
+        .min(1)
+        .max(limits.maxChartPointsHard)
+        .optional()
+        .describe(
+          `Cached points per series, default ${limits.maxChartPointsDefault}, at most ${limits.maxChartPointsHard}.`,
+        ),
+    }),
+    annotations: readOnly,
+  },
+
   aggregate_sheet: {
     description:
       "Group rows and compute totals, averages, extremes and counts over a sheet in one call. Use this instead of paging a large sheet. Columns are named by header text or by A1 letter.",

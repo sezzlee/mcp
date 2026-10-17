@@ -52,7 +52,7 @@ const xlsx: FormatCapabilities = {
   conditionalFormats: true,
   images: true,
   frozenPanes: true,
-  charts: false,
+  charts: true,
   pivotTables: false,
   sparklines: false,
 };

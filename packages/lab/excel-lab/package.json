@@ -1,0 +1,34 @@
+{
+  "name": "@sezzlee/excel-lab",
+  "version": "0.0.0",
+  "description": "Corpus harness for the Excel MCP server: runs the built server over a local corpus, one file per process. Never published, never imported.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "corpus": "node src/cli.ts",
+    "compare": "node src/compare-cli.ts",
+    "lint": "oxlint --deny-warnings",
+    "check-types": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@sezzlee/excel-mcp": "workspace:*",
+    "@sezzlee/ooxml-core": "workspace:*",
+    "@sezzlee/oxlint-config": "workspace:*",
+    "@sezzlee/typescript-config": "workspace:*",
+    "@types/node": "^24.3.0",
+    "@types/sax": "1.2.7",
+    "fflate": "^0.8.3",
+    "oxlint": "1.85.0",
+    "sax": "1.6.1",
+    "saxes": "6.0.0",
+    "typescript": "7.0.2",
+    "vitest": "^3.2.4",
+    "zod": "^4.5.4"
+  }
+}

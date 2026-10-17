@@ -25,7 +25,7 @@ async function facets(sheet: string) {
   const loaded = await loadXlsx(await pathTo("facets.xlsx"));
   return collectConditionalFormats(
     sheet,
-    loaded.workbook.conditionalFormats.get(sheet) ?? [],
+    loaded.workbook.facts(sheet).conditionalFormats,
   );
 }
 

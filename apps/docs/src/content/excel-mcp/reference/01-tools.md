@@ -1,10 +1,10 @@
 # Tools
 
-> Generated from the `tools/list` answer (server name `sezzlee-excel`) of `@sezzlee/excel-mcp` 0.7.1.
+> Generated from the `tools/list` answer (server name `sezzlee-excel`) of `@sezzlee/excel-mcp` 0.8.0.
 
 The descriptions are the text the server publishes to every client, so your agent reads exactly what this page shows. Every input schema is closed: an argument a tool does not list here, or a value of the wrong type, is refused with `invalid_argument` and never silently ignored.
 
-10 tools: `list_workbooks`, `describe_workbook`, `read_sheet`, `get_merged_ranges`, `get_data_validations`, `get_tables`, `get_conditional_formats`, `get_images`, `aggregate_sheet`, `find_in_sheet`.
+11 tools: `list_workbooks`, `describe_workbook`, `read_sheet`, `get_merged_ranges`, `get_data_validations`, `get_tables`, `get_conditional_formats`, `get_images`, `get_charts`, `aggregate_sheet`, `find_in_sheet`.
 
 ## `list_workbooks`
 
@@ -98,7 +98,7 @@ Annotations: read-only, idempotent, closed world.
 
 ## `get_images`
 
-List the pictures embedded in a worksheet: anchor range, byte size and file extension. Charts, pivot tables and sparklines cannot be read and are refused rather than reported as absent.
+List the pictures embedded in a worksheet: the cells a picture spans (range), or its top-left cell and pixel size when only those are anchored (cell), plus byte size and file extension. Charts belong to get_charts; pivot tables and sparklines are refused rather than reported as absent.
 
 Annotations: read-only, idempotent, closed world.
 
@@ -106,7 +106,20 @@ Annotations: read-only, idempotent, closed world.
 | ----------- | ----------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `filePath`  | string                                                      | yes      | Workbook path relative to the server root, as returned by list_workbooks.                                                                                    |
 | `sheetName` | string                                                      |          | Case-sensitive worksheet name with NFC equivalence; no case-insensitive fallback. Defaults to the first visible sheet. Unknown names return available names. |
-| `kind`      | `"picture"` \| `"chart"` \| `"pivotTable"` \| `"sparkline"` |          | Drawing kind. Only 'picture' can be read; the other kinds are refused rather than reported as absent.                                                        |
+| `kind`      | `"picture"` \| `"chart"` \| `"pivotTable"` \| `"sparkline"` |          | Drawing kind. Only 'picture' can be read here; use get_charts for charts. Pivot tables and sparklines are refused rather than reported as absent.            |
+
+## `get_charts`
+
+List charts on a worksheet or chart sheet: type, title, axes (including secondary axes, scale and number format), series cell references and cached point values, trendline types, user-filtered series as hidden, and pivot source when present. Cached values may be stale; read the ref with read_sheet for current cells. Appearance (colours, fonts) is not reported.
+
+Annotations: read-only, idempotent, closed world.
+
+| Argument    | Type             | Required | Description                                                                                                                                                  |
+| ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `filePath`  | string           | yes      | Workbook path relative to the server root, as returned by list_workbooks.                                                                                    |
+| `sheetName` | string           |          | Case-sensitive worksheet name with NFC equivalence; no case-insensitive fallback. Defaults to the first visible sheet. Unknown names return available names. |
+| `chartId`   | integer (≥ 1)    |          | 1-based chart index on the sheet. Omit to list every chart up to the per-sheet cap.                                                                          |
+| `maxPoints` | integer (1–2000) |          | Cached points per series, default 200, at most 2000.                                                                                                         |
 
 ## `aggregate_sheet`
 

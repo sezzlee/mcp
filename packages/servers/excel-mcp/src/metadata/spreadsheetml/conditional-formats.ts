@@ -1,5 +1,4 @@
-import type { OpcPackage } from "./package.js";
-import { namespaces, readXmlPart } from "./xml.js";
+import { namespaces, type PartScan, type XmlVisitor } from "./xml.js";
 
 export interface OoxmlThreshold {
   readonly type: string;
@@ -65,20 +64,16 @@ interface RuleDraft {
   cfvo: OoxmlThreshold[];
 }
 
-export function readConditionalFormats(
-  opc: OpcPackage,
-  sheetPart: string,
-): readonly OoxmlConditionalBlock[] {
-  const xml = opc.part(sheetPart);
-  if (xml === undefined) return [];
-
+export function conditionalFormatScan(): PartScan<
+  readonly OoxmlConditionalBlock[]
+> {
   const blocks: OoxmlConditionalBlock[] = [];
   let currentRef: string | undefined;
   let currentRules: RuleDraft[] | undefined;
   let rule: RuleDraft | undefined;
   let formulaText: string | undefined;
 
-  readXmlPart(xml, sheetPart, {
+  const visitor: XmlVisitor = {
     onOpen(node) {
       if (node.uri !== namespaces.spreadsheetml) return;
       switch (node.local) {
@@ -189,7 +184,6 @@ export function readConditionalFormats(
         currentRef = undefined;
       }
     },
-  });
-
-  return blocks;
+  };
+  return { visitor, finish: () => blocks };
 }
