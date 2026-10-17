@@ -63,15 +63,15 @@ would have, it would fail. These five files are the yardstick for the new reader
 
 The server answered 206 calls with an error. These are deliberate answers, not crashes.
 
-| Tool · code                                          | Count                  | Where                                | Reading                                                               |
-| ---------------------------------------------------- | ---------------------- | ------------------------------------ | --------------------------------------------------------------------- |
-| `read_sheet` · `empty_sheet`                         | 181 sheets in 55 files | mostly `us-datagov` (119)            | 78 truly empty, 103 chart sheets (see Correctness check)              |
-| `describe_workbook` · `undecodable_text`             | 13                     | all CSV: uk 5, eu 4, tr-ckan 3, us 1 | probably Windows-1254 or Latin-1; not yet examined                    |
-| `describe_workbook` · `corrupt_workbook`             | 5                      | `apache-testdata`                    | damaged on purpose upstream; the diagnosis itself is not yet verified |
-| `describe_workbook` · `file_too_large`               | 2                      | `us-datagov` CSV                     | over the size limit                                                   |
-| `read_sheet` · `ambiguous_header_row`                | 2                      | `uk-datagov`                         | the header row is unclear; the server refuses rather than guesses     |
-| `read_sheet`, `get_merged_ranges` · `resource_limit` | 1 + 1                  | one `tr-ckan` file                   | over a resource limit                                                 |
-| `describe_workbook` · `encrypted_workbook`           | 1                      | `apache-testdata`                    | encrypted, as expected                                                |
+| Tool · code                                          | Count                  | Where                                | Reading                                                                 |
+| ---------------------------------------------------- | ---------------------- | ------------------------------------ | ----------------------------------------------------------------------- |
+| `read_sheet` · `empty_sheet`                         | 181 sheets in 55 files | mostly `us-datagov` (119)            | 78 truly empty, 103 chart sheets (see Correctness check)                |
+| `describe_workbook` · `undecodable_text`             | 13                     | all CSV: uk 5, eu 4, tr-ckan 3, us 1 | no BOM; 3 Turkish files are windows-1254, the other 10 are windows-1252 |
+| `describe_workbook` · `corrupt_workbook`             | 5                      | `apache-testdata`                    | damaged on purpose upstream; the diagnosis itself is not yet verified   |
+| `describe_workbook` · `file_too_large`               | 2                      | `us-datagov` CSV                     | over the size limit                                                     |
+| `read_sheet` · `ambiguous_header_row`                | 2                      | `uk-datagov`                         | the header row is unclear; the server refuses rather than guesses       |
+| `read_sheet`, `get_merged_ranges` · `resource_limit` | 1 + 1                  | one `tr-ckan` file                   | over a resource limit                                                   |
+| `describe_workbook` · `encrypted_workbook`           | 1                      | `apache-testdata`                    | encrypted, as expected                                                  |
 
 ## Correctness check
 
@@ -107,17 +107,25 @@ the server read as full (TÜİK, 1848 cells) confirmed that the oracle does repo
   value.
 - **Defined names** appear in 149 workbooks; `describe_workbook` already marks its list as partial
   for sheet-local names.
-- **CSV encodings**: 13 files are refused as undecodable; whether they are readable in a
-  single-byte encoding has not been checked.
+- **CSV encodings**: 13 files have no byte-order mark and are not UTF-8, so the default
+  decode refuses them. The reader already accepts `windows-1254`, `iso-8859-9` and
+  `windows-1252` when the caller passes `encoding`. Three `tr-ckan` files are Turkish
+  (İ/ı, byte `0xDD`/`0xFD`): windows-1252 turns those into Ý/ý. The other ten are Western
+  European punctuation and accents (£, é, µ, en dash), which windows-1252 reads correctly.
+  A single-byte encoding never fails to decode, so guessing one silently is the hazard.
 
 ## What we know and what we do not
 
-| Known                                   | Not yet known                                        |
-| --------------------------------------- | ---------------------------------------------------- |
-| No file crashes or hangs the server     | Whether the cell values it returns are right         |
-| Memory is the limit on large files      | Whether the 5 `corrupt_workbook` diagnoses are right |
-| No sheet with data is reported as empty | What encoding the 13 refused CSV files use           |
-| 103 chart sheets are reported as empty  | Sheets 26 and later of 11 workbooks                  |
+| Known                                   | Not yet known                                                        |
+| --------------------------------------- | -------------------------------------------------------------------- |
+| No file crashes or hangs the server     | Whether cell values agree across the corpus                          |
+| Memory is the limit on large files      | Whether the 5 `corrupt_workbook` diagnoses are right                 |
+| No sheet with data is reported as empty | Whether a CSV without a BOM should guess windows-1252 / windows-1254 |
+| 103 chart sheets are reported as empty  | Sheets 26 and later of 11 workbooks                                  |
+
+The cell check is openpyxl 3.1.5 against a run's `read_sheet` pages (formula text and cached value, returned range only). It lives outside this repository, beside the empty-sheet check. A date serial against a datetime is recorded as `date_format`, not as a wrong value.
+
+Run `2026-10-17T17-45-25.837Z`, the 392 xlsx and xlsm files (1,326 sheets, no oracle error): 1,238,677 cells agree. Every other cell falls in a class that is not a wrong value. 1,644 are a time of day written as an instant on 1899-12-31. 617 are the same instant within a millisecond, where the serial lands on `.999` and openpyxl rounds up to the next second. 288 strings are cut at 512 characters. 1,356 empty strings are cells openpyxl does not return, and 270 cached blanks come from a formula whose text matches. 61 covered cells of a merge are empty here and filled by openpyxl. 43 texts contain a carriage return that openpyxl still shows as `_x000D_`. 224 formulas differ only by the `_xlfn.` compatibility prefix, and the cached value matches; 6 more differ in formula text with the same displayed value. Two dates, `bug60858.xlsx` N2 and one cell in a contracts register, are one day apart: the adjustment for the phantom 29 February 1900, which openpyxl does not apply the same way. Run `2026-10-17T17-50-54.240Z`, all 557 chart workbooks: 8,891 agree and 7 differ, the same time and blank cases. Reports: `oracle/cells.jsonl` beside each run.
 
 ## Replacing SheetJS
 
@@ -293,8 +301,9 @@ and V8 collects them late.
 `kind: "chartsheet"` and `chartCount` from `describe_workbook`, and `read_sheet` refuses them with
 `chart_sheet` pointing at `get_charts`. Markup Compatibility picks one `AlternateContent` branch so
 a chartEx frame is not counted twice. Layer 1 covers type, title, legend, axes, series refs and
-cached points (capped). Layer 2 adds secondary axes (`axPos` r/t), axis min/max/logBase and number
-format, series trendline types, `c15:filtered*` as `hidden`, and `pivotSource`.
+cached points (capped). Layer 2 adds secondary axes, axis min/max/logBase and number format, series
+trendline types, filtered series as `hidden`, and `pivotSource`. The rules for secondary axes and
+hidden series changed after review; see "After review" below.
 
 Run `2026-10-17T17-42-39.464Z` · `chart-testdata` only · 557 files, all probed, no crash or
 timeout. `get_charts` answered 651 times with 0 errors. Frames reported: 584 (`describe` chartCount
@@ -312,8 +321,8 @@ at 78 `empty_sheet` answers.
 Run `2026-10-17T17-50-54.240Z` · `chart-testdata` after layer 2 · 557 files, 0 outcome changes vs
 layer 1; 537 `get_charts` response diffs are additive fields. On that source: secondary axes 32,
 logBase 1, min/max 11, numberFormat on 724 axes, trendlines 19, pivotSource 1, external refs 11.
-Hidden series are absent from `chart-testdata` (10 of 58 series on
-`us-datagov/…/WeatherStationDataSummary-9-16-24…xlsx`).
+That run reported 10 of 58 series on `us-datagov/…/WeatherStationDataSummary-9-16-24…xlsx` as
+hidden; they are not (see below).
 
 openpyxl 3.1.5 census on that run (type + series count per sheet): 618 sheet agreements, 33
 mismatches. Series-count gaps are dual-plot / secondary-axis files where openpyxl exposes fewer
@@ -331,11 +340,50 @@ normalization), 37 mismatch (named ranges, external `[n]` refs LO rewrites to fi
 data we do not expose). A hand-built ODS with `chart:surface` exported back to xlsx as `c:barChart`,
 so LibreOffice cannot supply a DrawingML surface fixture; surface remains absent from the corpus.
 
+### After review
+
+The first reader tracked its place in a chart part with flags, and a review found answers that were
+wrong on corpus files. The reader now matches every element under its parent (ECMA-376 Part 1,
+§21.2), which removed these at the root:
+
+- **Cached numbers came back as strings.** A value was a number only when it equalled its shortest
+  spelling, but Excel writes 17 significant digits (`68.599999999999994`). 93 of 778 charts and
+  316,450 of 1,009,198 cached numbers were returned as strings. A number cache is now numbers and a
+  text cache stays text, with the cache's `numberFormat`.
+- **A title linked to a cell was empty.** `title/tx/strRef` was read as series data, so the title
+  came back as `{ text: "" }` with no ref (12 titles in the corpus).
+- **A label could become the series name.** Any `c:tx` inside a series, including a data label's
+  or a trendline label's, was taken as the name of a series that had none.
+- **Hidden series were wrong both ways.** Any `filtered*` element inside a series marked it hidden.
+  The 10 "hidden" series in `WeatherStationDataSummary` carry `c15:filteredSeriesTitle` and
+  `c15:filteredCategoryTitle` and are plotted like any other. The series Excel filters out sit as
+  `c15:ser` under `c15:filtered*Series` (MS-ODRAWXML, `CT_FilteredBubbleSer` and its siblings) and
+  were never read. Only those are `hidden` now; the corpus has none.
+- **Multi-level categories were dropped** (`multiLvlStrRef`, 14 series); they now keep their outer
+  `levels`.
+- **Secondary axes came from `axPos`.** An axis is now secondary when the first plot does not use
+  it; 56 axes, against 32 before.
+- Series past the per-chart cap are counted in `omittedSeries` and mark the answer truncated; a
+  chart part that is absent is `unsupported: "missing"` instead of an empty chart; a one-cell anchor reports its top-left `cell` and size instead of a one-cell range, in `get_images` too (49 of 797 corpus pictures), and sizes are whole pixels; an unknown `chartId` is
+  `invalid_argument`; a call without `sheetName` skips chart sheets except in `get_charts`.
+
+The validation runs compared types, series counts and ranges, never cached values or title text,
+which is why the first two went through. The missing check is now done: every cached point of a
+single-area reference is compared with the cell the reader returns for it. 40,671 points agree
+(35,722 numbers, 3,411 texts, 116 text caches of numeric cells, 989 errors, 433 blanks). 1,554
+number points are 0 where the cell holds an error and 6 where it holds text, which is how Excel
+plots both. 9 points differ, all in LibreOffice test files built for the case: `hidden_cells` and
+`plotVisOnly` (a hidden row is left out of the cache), `barchart_totalsrow` and `tdf81396`. 61
+references were not checked (unions, external workbooks, names) and 14 span two dimensions.
+
+Run `2026-10-17T21-12-10.995Z` · all 1,037 files, compared to `2026-10-17T17-50-54.240Z` and
+`2026-10-17T17-45-25.837Z`: 0 outcome changes, and every response that changed is a `get_charts`
+answer. The 559 strings left in value series are `#N/A` (394) and text X values of scatter
+charts, both written as text by Excel.
+
 ## Next steps
 
-1. Measure how long a read holds the main thread, and how many corpus files have more than one
-   large sheet, to decide whether reading belongs in a worker.
-2. Examine the 13 CSV files and decide on single-byte encodings.
-3. Extend the oracle beyond empty sheets to cell values, and keep a small hand-checked gold set for
-   the cells where the readers disagree.
-4. Then `xml-mcp` (`libxml2-wasm` is a separate decision).
+1. Decide whether a CSV that is not UTF-8 should stay refused until the caller passes
+   `encoding`, or guess windows-1254 when the bytes contain Turkish letters and windows-1252
+   otherwise, and report that guess.
+2. Then `xml-mcp` (`libxml2-wasm` is a separate decision).
