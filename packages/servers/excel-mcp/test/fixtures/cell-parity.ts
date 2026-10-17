@@ -21,7 +21,7 @@ export type CellMismatch =
       readonly theirs: readonly string[];
     }
   | {
-      readonly kind: "describe" | "view";
+      readonly kind: "describe" | "facts" | "view";
       readonly sheet: string;
       readonly field: string;
       readonly ours: unknown;
@@ -75,9 +75,11 @@ function rowsOf(view: SheetView, withCovered: boolean): readonly number[] {
 
 /**
  * Compares the two format adapters on the same bytes: each sheet's
- * `describe_workbook` summary, and its view as the grid layer reads it — the
- * rows and columns it reports as populated, with and without merge
- * continuations, and the snapshot of every one of those cells.
+ * `describe_workbook` summary; its facts (validations, tables, conditional
+ * formats, images, panes), which the reader takes from one shared pass and the
+ * reference from each part reader's own pass; and its view as the grid layer
+ * reads it — the rows and columns it reports as populated, with and without
+ * merge continuations, and the snapshot of every one of those cells.
  *
  * @returns `reference_refused` when SheetJS cannot read the bytes, otherwise
  *   at most `limit` mismatches. A failure of the OOXML reader is thrown, never
@@ -164,6 +166,21 @@ export function compareWorkbook(bytes: Buffer, limit = 20): CellComparison {
       });
     }
   });
+  for (const name of workbook.sheetNames) {
+    for (const field of [
+      "validations",
+      "tables",
+      "conditionalFormats",
+      "images",
+      "panes",
+    ] as const) {
+      const ours = workbook[field].get(name);
+      const theirs = reference[field].get(name);
+      if (!isDeepStrictEqual(ours, theirs)) {
+        report({ kind: "facts", sheet: name, field, ours, theirs });
+      }
+    }
+  }
   for (const name of workbook.sheetNames) {
     const view = ooxmlSheetView(workbook, name);
     const other = sheetjsSheetView(reference, name);

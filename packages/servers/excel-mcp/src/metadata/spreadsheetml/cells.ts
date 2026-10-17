@@ -2,8 +2,7 @@ import { asciiUpper } from "@sezzlee/file-core";
 import { maxColumn, maxRow } from "../../grid/range.js";
 import { SezzleeExcelError } from "../../platform/errors.js";
 import { cellText, stringItemVisitor } from "./shared-strings.js";
-import type { WorkbookPackage } from "./package.js";
-import { namespaces, readXmlPart } from "./xml.js";
+import { namespaces, type PartScan, type XmlVisitor } from "./xml.js";
 
 export type RawValue =
   | { readonly kind: "number"; readonly value: number }
@@ -191,13 +190,10 @@ interface CellDraft {
  * them. A row or cell without an `r` attribute follows the one before it, as
  * ECMA-376 allows.
  */
-export function readCells(
-  opc: WorkbookPackage,
+export function cellScan(
   sheetPart: string,
   strings: readonly string[],
-): readonly RawCell[] {
-  const xml = opc.part(sheetPart);
-  if (xml === undefined) return [];
+): PartScan<readonly RawCell[]> {
   const cells: RawCell[] = [];
   let inSheetData = false;
   let row = 0;
@@ -209,7 +205,7 @@ export function readCells(
     if (cell !== undefined) cell.inline = value;
   });
 
-  readXmlPart(xml, sheetPart, {
+  const visitor: XmlVisitor = {
     onOpen(node) {
       if (node.uri !== namespaces.spreadsheetml) return;
       if (cell !== undefined) {
@@ -285,6 +281,6 @@ export function readCells(
         cell = undefined;
       }
     },
-  });
-  return cells;
+  };
+  return { visitor, finish: () => cells };
 }

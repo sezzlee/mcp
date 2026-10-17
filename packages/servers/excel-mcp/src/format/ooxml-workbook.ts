@@ -6,11 +6,8 @@ import type {
   SheetSummary,
   WorkbookDescription,
 } from "../metadata/description.js";
-import { readCells, type RawCell } from "../metadata/spreadsheetml/cells.js";
-import {
-  readConditionalFormats,
-  type OoxmlConditionalBlock,
-} from "../metadata/spreadsheetml/conditional-formats.js";
+import type { RawCell } from "../metadata/spreadsheetml/cells.js";
+import type { OoxmlConditionalBlock } from "../metadata/spreadsheetml/conditional-formats.js";
 import {
   formulaSources,
   formulaText,
@@ -18,14 +15,11 @@ import {
 } from "../metadata/spreadsheetml/formula-text.js";
 import {
   hyperlinkIndex,
-  readHyperlinks,
   type HyperlinkIndex,
 } from "../metadata/spreadsheetml/hyperlinks.js";
-import {
-  readFrozenPanes,
-  readImages,
-  type OoxmlImage,
-  type OoxmlPanes,
+import type {
+  OoxmlImage,
+  OoxmlPanes,
 } from "../metadata/spreadsheetml/images.js";
 import {
   openPackage,
@@ -33,22 +27,17 @@ import {
 } from "../metadata/spreadsheetml/package.js";
 import { zipSource } from "../metadata/spreadsheetml/reader.js";
 import { readSharedStrings } from "../metadata/spreadsheetml/shared-strings.js";
-import {
-  declaredBounds,
-  readSheetLayout,
-} from "../metadata/spreadsheetml/sheet-layout.js";
+import { declaredBounds } from "../metadata/spreadsheetml/sheet-layout.js";
 import {
   readNumberFormats,
   type NumberFormats,
 } from "../metadata/spreadsheetml/styles.js";
+import type { OoxmlTable } from "../metadata/spreadsheetml/tables.js";
+import type { OoxmlValidations } from "../metadata/spreadsheetml/validations.js";
 import {
-  readTables,
-  type OoxmlTable,
-} from "../metadata/spreadsheetml/tables.js";
-import {
-  readValidations,
-  type OoxmlValidations,
-} from "../metadata/spreadsheetml/validations.js";
+  readSheetContent,
+  readSheetFacts,
+} from "../metadata/spreadsheetml/worksheet.js";
 import { metadataLimitations } from "../metadata/support.js";
 import type { CellSnapshot } from "../grid/cell-value.js";
 import { formatCellRef, formatRange, type GridBounds } from "../grid/range.js";
@@ -160,11 +149,11 @@ function readSheet(
   part: string,
   strings: readonly string[],
 ): OoxmlSheet {
-  const cells = readCells(opc, part, strings);
+  const content = readSheetContent(opc, part, strings);
+  const { cells, layout } = content;
   const sources = formulaSources(cells);
   const formulas = new Map<RawCell, FormulaSource>();
-  const links = hyperlinkIndex(readHyperlinks(opc, part));
-  const layout = readSheetLayout(opc, part);
+  const links = hyperlinkIndex(content.links);
   const slots: (Slot[] | undefined)[] = [];
   let bounds: GridBounds | undefined;
   let formulaCellCount = 0;
@@ -250,11 +239,12 @@ export function parseOoxml(bytes: Buffer, path: string): OoxmlWorkbook {
     });
   });
   for (const [name, sheetPart] of opc.sheetParts) {
-    validations.set(name, readValidations(opc, sheetPart, opc.date1904));
-    tables.set(name, readTables(opc, sheetPart));
-    conditionalFormats.set(name, readConditionalFormats(opc, sheetPart));
-    images.set(name, readImages(opc, sheetPart));
-    panes.set(name, readFrozenPanes(opc, sheetPart));
+    const facts = readSheetFacts(opc, sheetPart);
+    validations.set(name, facts.validations);
+    tables.set(name, facts.tables);
+    conditionalFormats.set(name, facts.conditionalFormats);
+    images.set(name, facts.images);
+    panes.set(name, facts.panes);
   }
   const strings = readSharedStrings(opc);
   const sheets = new Map<string, OoxmlSheet>();

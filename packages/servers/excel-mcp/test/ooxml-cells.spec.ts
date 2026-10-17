@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { readCells } from "../src/metadata/spreadsheetml/cells.js";
+import { cellScan } from "../src/metadata/spreadsheetml/cells.js";
 import { openPackage } from "../src/metadata/spreadsheetml/package.js";
 import { zipSource } from "../src/metadata/spreadsheetml/reader.js";
-import { readHyperlinks } from "../src/metadata/spreadsheetml/hyperlinks.js";
+import { hyperlinkScan } from "../src/metadata/spreadsheetml/hyperlinks.js";
 import {
   declaredBounds,
-  readSheetLayout,
+  layoutScan,
 } from "../src/metadata/spreadsheetml/sheet-layout.js";
 import { readSharedStrings } from "../src/metadata/spreadsheetml/shared-strings.js";
 import { readNumberFormats } from "../src/metadata/spreadsheetml/styles.js";
@@ -14,6 +14,9 @@ import {
   rawWorkbook,
   type RawWorkbookOptions,
 } from "./fixtures/raw-workbook.js";
+import { scanAlone } from "./fixtures/scan-alone.js";
+
+const sheet = "xl/worksheets/sheet1.xml";
 
 async function workbook(options: RawWorkbookOptions) {
   const opc = openPackage(zipSource(await rawWorkbook(options)));
@@ -21,9 +24,9 @@ async function workbook(options: RawWorkbookOptions) {
   return {
     strings,
     formats: readNumberFormats(opc),
-    links: () => readHyperlinks(opc, "xl/worksheets/sheet1.xml"),
-    layout: () => readSheetLayout(opc, "xl/worksheets/sheet1.xml"),
-    cells: () => readCells(opc, "xl/worksheets/sheet1.xml", strings),
+    links: () => scanAlone(opc, sheet, hyperlinkScan(opc, sheet)),
+    layout: () => scanAlone(opc, sheet, layoutScan()),
+    cells: () => scanAlone(opc, sheet, cellScan(sheet, strings)),
   };
 }
 
@@ -53,7 +56,7 @@ describe("readSharedStrings", () => {
   });
 });
 
-describe("readCells", () => {
+describe("cellScan", () => {
   it("reads every cell type ECMA-376 defines", async () => {
     const { cells } = await workbook({
       sharedStrings: "<si><t>Adet</t></si>",
@@ -213,7 +216,7 @@ describe("readNumberFormats", () => {
   });
 });
 
-describe("readHyperlinks", () => {
+describe("hyperlinkScan", () => {
   it("joins the relationship target and the location, and skips links that name neither", async () => {
     const { links } = await workbook({
       sheetData: "",
@@ -251,7 +254,7 @@ describe("readHyperlinks", () => {
   });
 });
 
-describe("readSheetLayout", () => {
+describe("layoutScan", () => {
   it("reads the sheet's own merges, auto filter and declared dimension", async () => {
     const { layout } = await workbook({
       beforeSheetData: '<dimension ref="A1:D20"/>',

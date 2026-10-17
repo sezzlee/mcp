@@ -1,8 +1,7 @@
 import { asciiUpper } from "@sezzlee/file-core";
 import { limits } from "../../platform/limits.js";
 import { parseCellRef } from "../../grid/range.js";
-import type { OpcPackage } from "./package.js";
-import { namespaces, readXmlPart } from "./xml.js";
+import { namespaces, type PartScan, type XmlVisitor } from "./xml.js";
 
 export type ValidationFormula = string | number | Date;
 
@@ -119,21 +118,12 @@ function identityOf(draft: Draft): string {
   ]);
 }
 
-export function readValidations(
-  opc: OpcPackage,
-  sheetPart: string,
-  date1904 = false,
-): OoxmlValidations {
-  const xml = opc.part(sheetPart);
-  if (xml === undefined) {
-    return { rules: [], coveredCellCount: 0, rangesTruncated: false };
-  }
-
+export function validationScan(date1904: boolean): PartScan<OoxmlValidations> {
   const drafts: Draft[] = [];
   let current: Draft | undefined;
   let formulaText: string | undefined;
 
-  readXmlPart(xml, sheetPart, {
+  const visitor: XmlVisitor = {
     onOpen(node) {
       if (node.uri !== namespaces.spreadsheetml) return;
       if (node.local === "dataValidation") {
@@ -191,8 +181,11 @@ export function readValidations(
         current = undefined;
       }
     },
-  });
+  };
+  return { visitor, finish: () => validationsOf(drafts) };
+}
 
+function validationsOf(drafts: readonly Draft[]): OoxmlValidations {
   const grouped = new Map<string, Draft>();
   let coveredCellCount = 0;
   for (const draft of drafts) {

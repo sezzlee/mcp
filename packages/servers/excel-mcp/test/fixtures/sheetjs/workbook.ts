@@ -6,21 +6,21 @@ import { SezzleeExcelError } from "../../../src/platform/errors.js";
 import { openPackage } from "../../../src/metadata/spreadsheetml/package.js";
 import { zipSource } from "../../../src/metadata/spreadsheetml/reader.js";
 import {
-  readConditionalFormats,
+  conditionalFormatScan,
   type OoxmlConditionalBlock,
 } from "../../../src/metadata/spreadsheetml/conditional-formats.js";
 import {
-  readFrozenPanes,
-  readImages,
+  imageScan,
+  paneScan,
   type OoxmlImage,
   type OoxmlPanes,
 } from "../../../src/metadata/spreadsheetml/images.js";
 import {
-  readTables,
+  tableScan,
   type OoxmlTable,
 } from "../../../src/metadata/spreadsheetml/tables.js";
 import {
-  readValidations,
+  validationScan,
   type OoxmlValidations,
 } from "../../../src/metadata/spreadsheetml/validations.js";
 import { limits } from "../../../src/platform/limits.js";
@@ -31,6 +31,7 @@ import {
   parseCellRef,
   type GridBounds,
 } from "../../../src/grid/range.js";
+import { scanAlone } from "../scan-alone.js";
 import { sheetjsSnapshot, type SheetJsCell } from "./cell.js";
 import {
   presentIndices,
@@ -144,11 +145,14 @@ export function parseSheetJs(bytes: Buffer, path: string): SheetJsWorkbook {
   for (const name of book.SheetNames) {
     const sheetPart = opc.sheetParts.get(name);
     if (sheetPart === undefined) continue;
-    validations.set(name, readValidations(opc, sheetPart, date1904));
-    tables.set(name, readTables(opc, sheetPart));
-    conditionalFormats.set(name, readConditionalFormats(opc, sheetPart));
-    images.set(name, readImages(opc, sheetPart));
-    panes.set(name, readFrozenPanes(opc, sheetPart));
+    validations.set(name, scanAlone(opc, sheetPart, validationScan(date1904)));
+    tables.set(name, scanAlone(opc, sheetPart, tableScan(opc, sheetPart)));
+    conditionalFormats.set(
+      name,
+      scanAlone(opc, sheetPart, conditionalFormatScan()),
+    );
+    images.set(name, scanAlone(opc, sheetPart, imageScan(opc, sheetPart)));
+    panes.set(name, scanAlone(opc, sheetPart, paneScan()));
   }
   return {
     book,

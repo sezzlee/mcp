@@ -1,5 +1,10 @@
 import type { OpcPackage } from "./package.js";
-import { namespaces, readXmlPart } from "./xml.js";
+import {
+  namespaces,
+  readXmlPart,
+  type PartScan,
+  type XmlVisitor,
+} from "./xml.js";
 
 export type AnchorKind = "oneCell" | "twoCell" | "absolute";
 
@@ -55,21 +60,27 @@ function emptyCell(): CellDraft {
   return { column: 0, columnOffset: 0, row: 0, rowOffset: 0 };
 }
 
-function drawingPartOf(opc: OpcPackage, sheetPart: string): string | undefined {
-  const xml = opc.part(sheetPart);
-  if (xml === undefined) return undefined;
+export function imageScan(
+  opc: OpcPackage,
+  sheetPart: string,
+): PartScan<readonly OoxmlImage[]> {
   let relationshipId: string | undefined;
-  readXmlPart(xml, sheetPart, {
+  const visitor: XmlVisitor = {
     onOpen(node) {
       if (node.uri !== namespaces.spreadsheetml || node.local !== "drawing") {
         return;
       }
       relationshipId ??= node.attr("id", namespaces.officeRelationships);
     },
-  });
-  if (relationshipId === undefined) return undefined;
-  const relationship = opc.relationshipsFor(sheetPart).get(relationshipId);
-  return relationship?.kind === "internal" ? relationship.target : undefined;
+  };
+  const finish = (): readonly OoxmlImage[] => {
+    if (relationshipId === undefined) return [];
+    const relationship = opc.relationshipsFor(sheetPart).get(relationshipId);
+    return relationship?.kind === "internal"
+      ? imagesIn(opc, relationship.target)
+      : [];
+  };
+  return { visitor, finish };
 }
 
 /**
@@ -82,12 +93,7 @@ function drawingPartOf(opc: OpcPackage, sheetPart: string): string | undefined {
  * namespace and both meaning something else; matching the tag name alone would
  * silently read the wrong one.
  */
-export function readImages(
-  opc: OpcPackage,
-  sheetPart: string,
-): readonly OoxmlImage[] {
-  const drawingPart = drawingPartOf(opc, sheetPart);
-  if (drawingPart === undefined) return [];
+function imagesIn(opc: OpcPackage, drawingPart: string): readonly OoxmlImage[] {
   const xml = opc.part(drawingPart);
   if (xml === undefined) return [];
 
@@ -216,16 +222,11 @@ export interface OoxmlPanes {
  * Only a frozen pane pins rows or columns; a plain split is a scroll divider
  * measured in points, and reporting it as frozen rows would be wrong.
  */
-export function readFrozenPanes(
-  opc: OpcPackage,
-  sheetPart: string,
-): OoxmlPanes {
-  const xml = opc.part(sheetPart);
-  if (xml === undefined) return { rows: 0, columns: 0 };
+export function paneScan(): PartScan<OoxmlPanes> {
   let rows = 0;
   let columns = 0;
   let seen = false;
-  readXmlPart(xml, sheetPart, {
+  const visitor: XmlVisitor = {
     onOpen(node) {
       if (
         seen ||
@@ -240,6 +241,6 @@ export function readFrozenPanes(
       rows = Number.parseInt(node.attr("ySplit") ?? "0", 10) || 0;
       columns = Number.parseInt(node.attr("xSplit") ?? "0", 10) || 0;
     },
-  });
-  return { rows, columns };
+  };
+  return { visitor, finish: () => ({ rows, columns }) };
 }

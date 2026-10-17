@@ -210,10 +210,40 @@ The parser is now the largest share of a profile because `excel-mcp` scans each 
 reader: cells, hyperlinks, layout, validations, tables, images and panes. Reading every sheet part
 once is the next speed step; reading parts as they inflate is the memory step.
 
+## Two passes per sheet
+
+Every part reader of a worksheet now runs as a visitor on a shared scan. Opening a workbook scans
+each sheet once for its facts (validations, tables, conditional formats, images, panes), where five
+readers scanned it in turn; reading a sheet's cells scans it once more for cells, hyperlinks and
+layout, where three did. A probe's `describe_workbook` and `read_sheet` scanned each sheet eight
+times and now scan it twice.
+
+| Files                   | Before | After  | Change           |
+| ----------------------- | ------ | ------ | ---------------- |
+| Four largest (14–42 MB) | 86 s   | 40 s   | 2.2 times faster |
+| Ten of 1–9 MB           | 19 s   | 8.8 s  | 2.2 times faster |
+| Eight of 0.1–1 MB       | 2.6 s  | 1.4 s  | 1.9 times faster |
+| Twelve under 100 KB     | 0.52 s | 0.45 s | 1.2 times faster |
+
+A/B against the previous commit, three runs each, alternated, median taken. Every call answered
+byte for byte the same on all 34 files in every run, and a full corpus run matched the previous one
+on all 480 files, refusals included. Peak memory did not improve and moved by up to 8% per file (the
+Izmir water file 2030 → 2185 MiB): it is the decoded parts and the cell objects, not the scans.
+
+One pass for all eight readers, reading a sheet only when a tool first needs it, measured 2.7 times
+faster on the largest files. It was not kept: a malformed worksheet would then be refused only by
+the tools that read it, where today opening the workbook refuses it. `test/ooxml-sheet-faults.spec.ts`
+pins where each fault surfaces, including the order the hyperlink reader's faults keep behind the
+cell reader's.
+
+The shared pass is held to each reader's own pass: the parity comparison checks every sheet's
+validations, tables, conditional formats, images and panes against a reference that scans the part
+once per reader, over the fixtures and the 388 corpus files SheetJS reads.
+
 ## Next steps
 
-1. Performance, measured A/B on the large files: scan each sheet part once, stream inflation and
-   parsing, and store cells compactly.
+1. Memory, measured A/B on the large files: stream inflation and parsing so a part is never held as
+   one decoded string, and store cells compactly.
 2. Report chart sheets honestly, then read charts. A chart stores both the cell ranges it plots
    and a cached copy of their values, so every chart is a built-in check against the cells.
 3. Examine the 13 CSV files and decide on single-byte encodings.

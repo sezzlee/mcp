@@ -19,6 +19,10 @@
 - A row's merged ranges are found through an interval tree instead of a scan over every merge; a sheet with 100,000 merges read row by row went from 14 s to under half a second.
 - A shared formula's later cells keep a reference to their group and are expanded when read. Expanding them up front let 40,000 cells of one 8,000-character formula hold 760 MB.
 
+### Speed
+
+- A worksheet part is scanned twice instead of eight times: once when the workbook opens, for its data validations, tables, conditional formats, images and frozen panes, and once when its cells are first read, for its cells, hyperlinks, merges, auto filter and declared range. Every part reader is fed from one of those two passes, and every answer and every refusal is the one the eight scans gave. Measured A/B against the previous build on the corpus, with the same answers on every file, the four largest files read 2.2 times faster and files of 0.1–10 MB 1.9–2.2 times faster.
+
 ### Reading
 
 - Strict OOXML workbooks (`purl.oclc.org` namespaces) are read like Transitional ones.

@@ -1,8 +1,8 @@
 import { maxColumn, type GridBounds } from "../../grid/range.js";
 import { SezzleeExcelError } from "../../platform/errors.js";
-import type { WorkbookPackage } from "./package.js";
+import type { Relationship, WorkbookPackage } from "./package.js";
 import { rangeOf } from "./sheet-layout.js";
-import { namespaces, readXmlPart } from "./xml.js";
+import { namespaces, type PartScan, type XmlVisitor } from "./xml.js";
 
 export interface Hyperlink extends GridBounds {
   readonly href: string;
@@ -22,44 +22,83 @@ const maxHyperlinksPerSheet = 66_530;
  */
 const maxIndexedCells = 1_000_000;
 
+type Relationships =
+  | {
+      readonly kind: "read";
+      readonly byId: ReadonlyMap<string, Relationship>;
+    }
+  | { readonly kind: "refused"; readonly error: unknown };
+
 /**
  * Reads the hyperlinks a worksheet anchors on its cells. The target is the
  * relationship's, followed by `#location` when the link also names a place in
  * that target; a link with a location alone points inside the workbook
  * (`#Sheet2!A1`). A link with neither, or with an anchor that names no cells,
  * carries nothing and is skipped.
+ *
+ * Guard: a fault met here — relationships that cannot be read, or one link
+ * past the ceiling — is raised by `finish`, not where it is met, so it follows
+ * any fault the cell reader meets in the same pass, as it did when this reader
+ * scanned the part after it. The relationships are read even when the sheet
+ * has no hyperlink, as they were then, so a broken relationships part is still
+ * refused.
  */
-export function readHyperlinks(
+export function hyperlinkScan(
   opc: WorkbookPackage,
   sheetPart: string,
-): readonly Hyperlink[] {
-  const xml = opc.part(sheetPart);
-  if (xml === undefined) return [];
-  const rels = opc.relationshipsFor(sheetPart);
+): PartScan<readonly Hyperlink[]> {
   const links: Hyperlink[] = [];
-  readXmlPart(xml, sheetPart, {
+  let overflowed = false;
+  let relationships: Relationships | undefined;
+  const relationshipsOf = (): Relationships => {
+    if (relationships === undefined) {
+      try {
+        relationships = {
+          kind: "read",
+          byId: opc.relationshipsFor(sheetPart),
+        };
+      } catch (error) {
+        relationships = { kind: "refused", error };
+      }
+    }
+    return relationships;
+  };
+  const visitor: XmlVisitor = {
     onOpen(node) {
+      if (overflowed) return;
       if (node.uri !== namespaces.spreadsheetml) return;
       if (node.local !== "hyperlink") return;
+      const rels = relationshipsOf();
+      if (rels.kind === "refused") return;
       const ref = node.attr("ref");
       const bounds = ref === undefined ? undefined : rangeOf(ref);
       if (bounds === undefined) return;
       const id = node.attr("id", namespaces.officeRelationships);
-      const target = id === undefined ? undefined : rels.get(id)?.target;
+      const target = id === undefined ? undefined : rels.byId.get(id)?.target;
       const location = node.attr("location");
       const suffix = location === undefined ? "" : `#${location}`;
       if (target === undefined && location === undefined) return;
       if (links.length === maxHyperlinksPerSheet) {
-        throw new SezzleeExcelError(
-          "file_too_large",
-          `'${sheetPart}' carries more than ${String(maxHyperlinksPerSheet)} hyperlinks, the most Excel keeps on one sheet.`,
-          "Open the file in Excel and re-save it as .xlsx.",
-        );
+        overflowed = true;
+        return;
       }
       links.push({ ...bounds, href: `${target ?? ""}${suffix}` });
     },
-  });
-  return links;
+  };
+  const finish = (): readonly Hyperlink[] => {
+    if (opc.part(sheetPart) === undefined) return links;
+    const rels = relationshipsOf();
+    if (rels.kind === "refused") throw rels.error;
+    if (overflowed) {
+      throw new SezzleeExcelError(
+        "file_too_large",
+        `'${sheetPart}' carries more than ${String(maxHyperlinksPerSheet)} hyperlinks, the most Excel keeps on one sheet.`,
+        "Open the file in Excel and re-save it as .xlsx.",
+      );
+    }
+    return links;
+  };
+  return { visitor, finish };
 }
 
 export interface HyperlinkIndex {

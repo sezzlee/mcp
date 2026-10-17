@@ -8,5 +8,5 @@ export const namespaces = {
   drawing: "http://schemas.openxmlformats.org/drawingml/2006/main",
 } as const;
 
-export { readXmlPart } from "./reader.js";
+export { fanOut, readXmlPart, scanPart, type PartScan } from "./reader.js";
 export type { XmlNode, XmlVisitor } from "@sezzlee/ooxml-core";

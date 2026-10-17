@@ -1,6 +1,5 @@
 import { parseCellRef, type GridBounds } from "../../grid/range.js";
-import type { WorkbookPackage } from "./package.js";
-import { namespaces, readXmlPart } from "./xml.js";
+import { namespaces, type PartScan, type XmlVisitor } from "./xml.js";
 
 export interface SheetLayout {
   readonly merges: readonly GridBounds[];
@@ -42,21 +41,16 @@ export function rangeOf(ref: string): GridBounds | undefined {
  * writes `A1` for an empty sheet, and reporting a declared size of one row
  * there would contradict the sheet's own empty used range.
  */
-export function readSheetLayout(
-  opc: WorkbookPackage,
-  sheetPart: string,
-): SheetLayout {
-  const xml = opc.part(sheetPart);
+export function layoutScan(): PartScan<SheetLayout> {
   const merges: GridBounds[] = [];
   let autoFilter: string | undefined;
   let dimension: GridBounds | undefined;
   let rows: { first: number; last: number } | undefined;
-  if (xml === undefined) return { merges, autoFilter, dimension, rows };
   let depth = 0;
   let inMergeCells = false;
   let inSheetData = false;
   let row = 0;
-  readXmlPart(xml, sheetPart, {
+  const visitor: XmlVisitor = {
     onOpen(node) {
       depth += 1;
       if (node.uri !== namespaces.spreadsheetml) return;
@@ -102,8 +96,11 @@ export function readSheetLayout(
       }
       depth -= 1;
     },
-  });
-  return { merges, autoFilter, dimension, rows };
+  };
+  return {
+    visitor,
+    finish: () => ({ merges, autoFilter, dimension, rows }),
+  };
 }
 
 /**
