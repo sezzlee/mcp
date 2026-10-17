@@ -2,7 +2,7 @@
   "extends": ["//"],
   "tasks": {
     "build": { "inputs": ["$TURBO_DEFAULT$", "!test/**", "!vitest.config.ts"] },
-    "test": { "dependsOn": ["build"] },
+    "test": { "dependsOn": ["build"], "env": ["SEZZLEE_CORPUS", "TZ"] },
     "test:coverage": { "dependsOn": ["build"], "outputs": ["coverage/**"] }
   }
 }

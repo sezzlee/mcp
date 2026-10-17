@@ -1,5 +1,5 @@
 import type { OpcPackage } from "./package.js";
-import { namespaces, readXmlPart } from "./xml.js";
+import { namespaces, scanPart, type PartScan, type XmlVisitor } from "./xml.js";
 
 export interface OoxmlTableColumn {
   readonly name?: string;
@@ -25,30 +25,7 @@ interface ColumnDraft {
   filterButton?: boolean;
 }
 
-function tablePartsOf(opc: OpcPackage, sheetPart: string): readonly string[] {
-  const xml = opc.part(sheetPart);
-  if (xml === undefined) return [];
-  const relationshipIds: string[] = [];
-  readXmlPart(xml, sheetPart, {
-    onOpen(node) {
-      if (node.uri !== namespaces.spreadsheetml) return;
-      if (node.local !== "tablePart") return;
-      const id = node.attr("id", namespaces.officeRelationships);
-      if (id !== undefined) relationshipIds.push(id);
-    },
-  });
-  if (relationshipIds.length === 0) return [];
-  const rels = opc.relationshipsFor(sheetPart);
-  return relationshipIds
-    .map((id) => rels.get(id))
-    .filter((relationship) => relationship?.kind === "internal")
-    .map((relationship) => relationship.target);
-}
-
 function readTable(opc: OpcPackage, tablePart: string): OoxmlTable | undefined {
-  const xml = opc.part(tablePart);
-  if (xml === undefined) return undefined;
-
   let name: string | undefined;
   let displayName: string | undefined;
   let ref: string | undefined;
@@ -60,7 +37,7 @@ function readTable(opc: OpcPackage, tablePart: string): OoxmlTable | undefined {
   let filterColumnOrdinal = 0;
   let inAutoFilter = false;
 
-  readXmlPart(xml, tablePart, {
+  scanPart(opc, tablePart, {
     onOpen(node) {
       if (node.uri !== namespaces.spreadsheetml) return;
       switch (node.local) {
@@ -142,11 +119,27 @@ function readTable(opc: OpcPackage, tablePart: string): OoxmlTable | undefined {
  * part name carries no meaning — resolving the relationship is the only correct
  * way to find it.
  */
-export function readTables(
+export function tableScan(
   opc: OpcPackage,
   sheetPart: string,
-): readonly OoxmlTable[] {
-  return tablePartsOf(opc, sheetPart)
-    .map((part) => readTable(opc, part))
-    .filter((table): table is OoxmlTable => table !== undefined);
+): PartScan<readonly OoxmlTable[]> {
+  const relationshipIds: string[] = [];
+  const visitor: XmlVisitor = {
+    onOpen(node) {
+      if (node.uri !== namespaces.spreadsheetml) return;
+      if (node.local !== "tablePart") return;
+      const id = node.attr("id", namespaces.officeRelationships);
+      if (id !== undefined) relationshipIds.push(id);
+    },
+  };
+  const finish = (): readonly OoxmlTable[] => {
+    if (relationshipIds.length === 0) return [];
+    const rels = opc.relationshipsFor(sheetPart);
+    return relationshipIds
+      .map((id) => rels.get(id))
+      .filter((relationship) => relationship?.kind === "internal")
+      .map((relationship) => readTable(opc, relationship.target))
+      .filter((table): table is OoxmlTable => table !== undefined);
+  };
+  return { visitor, finish };
 }

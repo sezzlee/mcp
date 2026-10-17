@@ -64,6 +64,12 @@ spec, a guard comment or the package README.
 - **`docx-mcp` and `pptx-mcp`.** Further OOXML servers over `@sezzlee/ooxml-core`. Moving media
   selection from path prefixes to content types is the generalisation they need; `excel-mcp` keeps
   its prefix so its result set does not change.
+- **`excel-mcp` peak memory.** A read workbook retains about seven times its file size, but the
+  peak while reading is still 1.2 GiB for the largest corpus file: the cell reader allocates an
+  object per cell before storing it, and V8 collects them late
+  (`packages/lab/excel-lab/FINDINGS.md`).
+- **ZIP64 coverage in `ooxml-core`.** The local-header check reads a ZIP64 entry's offset from its
+  extra field; no fixture exercises that path yet.
 
 ## llm-mcp
 

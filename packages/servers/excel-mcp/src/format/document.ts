@@ -25,12 +25,13 @@ import { assertReadableFormat } from "../platform/paths.js";
 import type { SheetSource, SheetView } from "../grid/sheet.js";
 import { vocabulary } from "../platform/vocabulary.js";
 import {
-  describeSheetJs,
-  parseSheetJs,
+  assertWorksheet,
+  describeOoxml,
+  ooxmlSheetView,
+  parseOoxml,
   selectSheetName,
-  sheetjsSheetView,
-  type SheetJsWorkbook,
-} from "./sheetjs-workbook.js";
+  type OoxmlWorkbook,
+} from "./ooxml-workbook.js";
 import type {
   DocumentMeta,
   WorkbookDescription,
@@ -39,7 +40,7 @@ import { declaredTablesOf } from "../metadata/tables.js";
 
 interface XlsxBody {
   readonly format: "xlsx";
-  readonly workbook: SheetJsWorkbook;
+  readonly workbook: OoxmlWorkbook;
 }
 
 interface CsvBody {
@@ -75,7 +76,7 @@ async function parseDocument(
     return { format, table };
   }
   assertReadableFormat(bytes.subarray(0, 8), context.displayPath);
-  const workbook = parseSheetJs(bytes, context.displayPath);
+  const workbook = parseOoxml(bytes, context.displayPath);
   return { format, workbook };
 }
 
@@ -143,10 +144,11 @@ export function documentSheet(
     return csvSheetView(loaded.table);
   }
   const name = selectSheetName(loaded.workbook, sheetName);
-  return sheetjsSheetView(
+  assertWorksheet(loaded.workbook, name);
+  return ooxmlSheetView(
     loaded.workbook,
     name,
-    declaredTablesOf(loaded.workbook.tables.get(name) ?? []),
+    declaredTablesOf(loaded.workbook.sheet(name).facts.tables),
   );
 }
 
@@ -175,7 +177,7 @@ export function describeDocument(
   const body =
     loaded.format === "csv"
       ? describeCsv(loaded.table, meta)
-      : describeSheetJs(loaded.workbook, meta, { includeDefinedNames });
+      : describeOoxml(loaded.workbook, meta, { includeDefinedNames });
   return {
     ...body,
     format: loaded.format,

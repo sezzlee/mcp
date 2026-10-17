@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import { collectImages } from "../src/metadata/images.js";
 import { createWorkbookRoot } from "../src/platform/paths.js";
-import { parseSheetJs } from "../src/format/sheetjs-workbook.js";
+import { parseOoxml } from "../src/format/ooxml-workbook.js";
 import { createHandlers } from "../src/tools/handlers.js";
 
 function payload(result: CallToolResult): Record<string, unknown> {
@@ -53,8 +53,8 @@ describe("the OOXML image reader agrees with ExcelJS", () => {
       heightPx: image.range?.ext?.height,
     }));
 
-    const parsed = parseSheetJs(bytes, "images.xlsx");
-    const actual = (parsed.images.get("R") ?? []).map((image) => ({
+    const parsed = parseOoxml(bytes, "images.xlsx");
+    const actual = parsed.facts("R").images.map((image) => ({
       anchor: image.anchor,
       fromCol: image.from?.column,
       fromRow: image.from?.row,
@@ -76,12 +76,8 @@ describe("the OOXML image reader agrees with ExcelJS", () => {
     });
     sheet.addImage(media, "A1:B2");
     const bytes = Buffer.from(await workbook.xlsx.writeBuffer());
-    const parsed = parseSheetJs(bytes, "media.xlsx");
-    const report = collectImages(
-      "R",
-      parsed.images.get("R") ?? [],
-      parsed.media,
-    );
+    const parsed = parseOoxml(bytes, "media.xlsx");
+    const report = collectImages("R", parsed.facts("R").images, parsed.media);
     expect(report.count).toBe(1);
     expect(report.images[0]).toMatchObject({
       imageId: 0,

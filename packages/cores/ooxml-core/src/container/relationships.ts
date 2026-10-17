@@ -6,19 +6,25 @@ import { resolveTarget } from "./names.js";
 /**
  * Reads one `.rels` part.
  *
- * @param xml the decoded relationships part.
- * @param ownerPath the part the relationships belong to, used to resolve
+ * @param part.xml the decoded relationships part.
+ * @param part.relsPath the relationships part's own path, which a refusal
+ * names.
+ * @param part.ownerPath the part the relationships belong to, used to resolve
  * relative targets.
  * @param readXmlPart the part reader to scan it with.
  * @returns the relationships keyed by Id.
  */
 export function readRelationships(
-  xml: string,
-  ownerPath: string,
+  part: {
+    readonly xml: string;
+    readonly relsPath: string;
+    readonly ownerPath: string;
+  },
   readXmlPart: XmlPartReader,
 ): ReadonlyMap<string, Relationship> {
+  const { xml, relsPath, ownerPath } = part;
   const resolved = new Map<string, Relationship>();
-  readXmlPart(xml, ownerPath, {
+  readXmlPart(xml, relsPath, {
     onOpen(node) {
       if (
         node.uri !== ooxmlNamespaces.packageRelationships ||

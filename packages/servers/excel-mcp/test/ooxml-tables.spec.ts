@@ -2,7 +2,7 @@ import { describe, expect, inject, it } from "vitest";
 import ExcelJS from "exceljs";
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import { createWorkbookRoot } from "../src/platform/paths.js";
-import { parseSheetJs } from "../src/format/sheetjs-workbook.js";
+import { parseOoxml } from "../src/format/ooxml-workbook.js";
 import { collectTables, declaredTablesOf } from "../src/metadata/tables.js";
 import { createHandlers } from "../src/tools/handlers.js";
 
@@ -72,8 +72,8 @@ describe("the OOXML table reader agrees with ExcelJS", () => {
       }))
       .sort((left, right) => (left.name! < right.name! ? -1 : 1));
 
-    const parsed = parseSheetJs(bytes, "tables.xlsx");
-    const actual = [...(parsed.tables.get("T") ?? [])]
+    const parsed = parseOoxml(bytes, "tables.xlsx");
+    const actual = [...parsed.facts("T").tables]
       .map((table) => ({
         name: table.name,
         ref: table.ref,
@@ -97,7 +97,7 @@ describe("the OOXML table reader agrees with ExcelJS", () => {
     const sheet = workbook.addWorksheet("T");
     sheet.getCell("A1").value = "a";
     const bytes = Buffer.from(await workbook.xlsx.writeBuffer());
-    expect(parseSheetJs(bytes, "empty.xlsx").tables.get("T")).toEqual([]);
+    expect(parseOoxml(bytes, "empty.xlsx").facts("T").tables).toEqual([]);
   });
 
   it("keeps a missing column name as a null position", async () => {
@@ -115,13 +115,13 @@ describe("the OOXML table reader agrees with ExcelJS", () => {
     const tableXml = await zip.file("xl/tables/table1.xml")!.async("string");
     zip.file("xl/tables/table1.xml", tableXml.replace(' name="two"', ""));
     const bytes = await zip.generateAsync({ type: "nodebuffer" });
-    const parsed = parseSheetJs(bytes, "missing.xlsx");
-    expect(declaredTablesOf(parsed.tables.get("T") ?? [])[0]?.columns).toEqual([
+    const parsed = parseOoxml(bytes, "missing.xlsx");
+    expect(declaredTablesOf(parsed.facts("T").tables)[0]?.columns).toEqual([
       "one",
       null,
       "three",
     ]);
-    const report = collectTables("T", parsed.tables.get("T") ?? []);
+    const report = collectTables("T", parsed.facts("T").tables);
     expect(report.warnings?.[0]).toContain("missing column names");
   });
 });

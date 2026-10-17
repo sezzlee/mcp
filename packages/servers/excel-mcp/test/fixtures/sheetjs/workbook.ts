@@ -1,49 +1,53 @@
 import { canonical } from "@sezzlee/file-core";
 import * as XLSX from "@e965/xlsx";
-import { conditionalFormatRuleCountOf } from "../metadata/conditional-formats.js";
-import type { MediaEntry } from "../metadata/images.js";
-import { SezzleeExcelError } from "../platform/errors.js";
-import { openPackage } from "../metadata/spreadsheetml/package.js";
-import { zipSource } from "../metadata/spreadsheetml/reader.js";
+import { conditionalFormatRuleCountOf } from "../../../src/metadata/conditional-formats.js";
+import type { MediaEntry } from "../../../src/metadata/images.js";
+import { SezzleeExcelError } from "../../../src/platform/errors.js";
+import { openPackage } from "../../../src/metadata/spreadsheetml/package.js";
+import { zipSource } from "../../../src/metadata/spreadsheetml/reader.js";
 import {
-  readConditionalFormats,
+  conditionalFormatScan,
   type OoxmlConditionalBlock,
-} from "../metadata/spreadsheetml/conditional-formats.js";
+} from "../../../src/metadata/spreadsheetml/conditional-formats.js";
 import {
-  readFrozenPanes,
-  readImages,
+  drawingScan,
+  type OoxmlChartFrame,
   type OoxmlImage,
+} from "../../../src/metadata/spreadsheetml/drawing.js";
+import {
+  paneScan,
   type OoxmlPanes,
-} from "../metadata/spreadsheetml/images.js";
+} from "../../../src/metadata/spreadsheetml/panes.js";
 import {
-  readTables,
+  tableScan,
   type OoxmlTable,
-} from "../metadata/spreadsheetml/tables.js";
+} from "../../../src/metadata/spreadsheetml/tables.js";
 import {
-  readValidations,
+  validationScan,
   type OoxmlValidations,
-} from "../metadata/spreadsheetml/validations.js";
-import { limits } from "../platform/limits.js";
-import { metadataLimitations } from "../metadata/support.js";
+} from "../../../src/metadata/spreadsheetml/validations.js";
+import { limits } from "../../../src/platform/limits.js";
+import { metadataLimitations } from "../../../src/metadata/support.js";
 import {
   formatCellRef,
   formatRange,
   parseCellRef,
   type GridBounds,
-} from "../grid/range.js";
-import { sheetjsSnapshot, type SheetJsCell } from "./sheetjs-cell.js";
+} from "../../../src/grid/range.js";
+import { scanAlone } from "../scan-alone.js";
+import { sheetjsSnapshot, type SheetJsCell } from "./cell.js";
 import {
   presentIndices,
   type DeclaredTable,
   type Populated,
   type RowView,
   type SheetView,
-} from "../grid/sheet.js";
+} from "../../../src/grid/sheet.js";
 import type {
   DocumentMeta,
   SheetSummary,
   WorkbookDescription,
-} from "../metadata/description.js";
+} from "../../../src/metadata/description.js";
 
 export interface SheetJsWorkbook {
   readonly book: XLSX.WorkBook;
@@ -55,6 +59,8 @@ export interface SheetJsWorkbook {
     readonly OoxmlConditionalBlock[]
   >;
   readonly images: ReadonlyMap<string, readonly OoxmlImage[]>;
+  readonly charts: ReadonlyMap<string, readonly OoxmlChartFrame[]>;
+  readonly chartSheets: ReadonlySet<string>;
   readonly panes: ReadonlyMap<string, OoxmlPanes>;
   readonly media: ReadonlyMap<string, MediaEntry>;
 }
@@ -132,6 +138,7 @@ export function parseSheetJs(bytes: Buffer, path: string): SheetJsWorkbook {
     readonly OoxmlConditionalBlock[]
   >();
   const images = new Map<string, readonly OoxmlImage[]>();
+  const charts = new Map<string, readonly OoxmlChartFrame[]>();
   const panes = new Map<string, OoxmlPanes>();
   const media = new Map<string, MediaEntry>();
   opc.mediaParts.forEach((part, index) => {
@@ -144,11 +151,16 @@ export function parseSheetJs(bytes: Buffer, path: string): SheetJsWorkbook {
   for (const name of book.SheetNames) {
     const sheetPart = opc.sheetParts.get(name);
     if (sheetPart === undefined) continue;
-    validations.set(name, readValidations(opc, sheetPart, date1904));
-    tables.set(name, readTables(opc, sheetPart));
-    conditionalFormats.set(name, readConditionalFormats(opc, sheetPart));
-    images.set(name, readImages(opc, sheetPart));
-    panes.set(name, readFrozenPanes(opc, sheetPart));
+    validations.set(name, scanAlone(opc, sheetPart, validationScan(date1904)));
+    tables.set(name, scanAlone(opc, sheetPart, tableScan(opc, sheetPart)));
+    conditionalFormats.set(
+      name,
+      scanAlone(opc, sheetPart, conditionalFormatScan()),
+    );
+    const drawing = scanAlone(opc, sheetPart, drawingScan(opc, sheetPart));
+    images.set(name, drawing.images);
+    charts.set(name, drawing.charts);
+    panes.set(name, scanAlone(opc, sheetPart, paneScan()));
   }
   return {
     book,
@@ -157,6 +169,8 @@ export function parseSheetJs(bytes: Buffer, path: string): SheetJsWorkbook {
     tables,
     conditionalFormats,
     images,
+    charts,
+    chartSheets: opc.chartSheets,
     panes,
     media,
   };
@@ -174,7 +188,7 @@ function stateOf(book: XLSX.WorkBook, name: string): string {
   }
 }
 
-export function sheetNameSummary(loaded: SheetJsWorkbook): string {
+function sheetNameSummary(loaded: SheetJsWorkbook): string {
   return loaded.sheetNames
     .map((name) => {
       const state = stateOf(loaded.book, name);
@@ -183,7 +197,7 @@ export function sheetNameSummary(loaded: SheetJsWorkbook): string {
     .join(", ");
 }
 
-export function selectSheetName(
+function selectSheetName(
   loaded: SheetJsWorkbook,
   sheetName: string | undefined,
 ): string {
@@ -456,6 +470,33 @@ export function describeSheetJs(
   options: DescribeOptions,
 ): WorkbookDescription {
   const sheets = loaded.sheetNames.map((name, ordinal): SheetSummary => {
+    const isChartSheet = loaded.chartSheets.has(name);
+    if (isChartSheet) {
+      return {
+        name,
+        index: ordinal + 1,
+        state: stateOf(loaded.book, name),
+        kind: "chartsheet",
+        usedRange: null,
+        rowCount: 0,
+        columnCount: 0,
+        declaredRowCount: 0,
+        declaredColumnCount: 0,
+        mergeCount: 0,
+        dataValidationRuleCount: 0,
+        dataValidationRuleCountExact: true,
+        formulaCellCount: 0,
+        cachedFormulaValueCount: 0,
+        tableCount: 0,
+        conditionalFormatRuleCount: 0,
+        imageCount: loaded.images.get(name)?.length ?? 0,
+        imageCountExact: false,
+        chartCount: loaded.charts.get(name)?.length ?? 0,
+        autoFilterRef: null,
+        frozenRowCount: 0,
+        frozenColumnCount: 0,
+      };
+    }
     const sheet = sheetOf(loaded, name);
     const bounds = boundsOf(sheet);
     const declared = declaredBoundsOf(sheet);
@@ -464,6 +505,7 @@ export function describeSheetJs(
       name,
       index: ordinal + 1,
       state: stateOf(loaded.book, name),
+      kind: "worksheet",
       usedRange: bounds === undefined ? null : formatRange(bounds),
       rowCount: bounds === undefined ? 0 : bounds.bottom - bounds.top + 1,
       columnCount: bounds === undefined ? 0 : bounds.right - bounds.left + 1,
@@ -480,6 +522,7 @@ export function describeSheetJs(
       ),
       imageCount: loaded.images.get(name)?.length ?? 0,
       imageCountExact: false,
+      chartCount: loaded.charts.get(name)?.length ?? 0,
       autoFilterRef: autoFilterOf(sheet) ?? null,
       frozenRowCount: loaded.panes.get(name)?.rows ?? 0,
       frozenColumnCount: loaded.panes.get(name)?.columns ?? 0,

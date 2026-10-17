@@ -23,7 +23,7 @@ async function loadXlsx(path: SandboxedPath): Promise<LoadedWorkbook> {
 
 async function facets(sheet: string) {
   const loaded = await loadXlsx(await pathTo("facets.xlsx"));
-  return collectTables(sheet, loaded.workbook.tables.get(sheet) ?? []);
+  return collectTables(sheet, loaded.workbook.facts(sheet).tables);
 }
 
 describe("collectTables", () => {

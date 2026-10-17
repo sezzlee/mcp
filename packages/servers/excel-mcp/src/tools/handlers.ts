@@ -7,10 +7,11 @@ import {
 } from "../platform/paths.js";
 import { findInSheet, readSheet } from "../grid/read-sheet.js";
 import { collectConditionalFormats } from "../metadata/conditional-formats.js";
+import { collectCharts } from "../metadata/charts.js";
 import { collectImages } from "../metadata/images.js";
 import { collectTables } from "../metadata/tables.js";
 import { collectValidations } from "../metadata/validations.js";
-import { selectSheetName } from "../format/sheetjs-workbook.js";
+import { selectSheetName } from "../format/ooxml-workbook.js";
 import {
   createDocumentCache,
   csvReportOf,
@@ -153,7 +154,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         const sheet = selectSheetName(loaded.workbook, args.sheetName);
         return json(
           withMode(
-            collectValidations(sheet, loaded.workbook.validations.get(sheet)),
+            collectValidations(sheet, loaded.workbook.facts(sheet).validations),
             loaded.mode,
           ),
         );
@@ -167,7 +168,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         const sheet = selectSheetName(loaded.workbook, args.sheetName);
         return json(
           withMode(
-            collectTables(sheet, loaded.workbook.tables.get(sheet) ?? []),
+            collectTables(sheet, loaded.workbook.facts(sheet).tables),
             loaded.mode,
           ),
         );
@@ -183,7 +184,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
           withMode(
             collectConditionalFormats(
               sheet,
-              loaded.workbook.conditionalFormats.get(sheet) ?? [],
+              loaded.workbook.facts(sheet).conditionalFormats,
             ),
             loaded.mode,
           ),
@@ -201,8 +202,34 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
           withMode(
             collectImages(
               sheet,
-              loaded.workbook.images.get(sheet) ?? [],
+              loaded.workbook.facts(sheet).images,
               loaded.workbook.media,
+            ),
+            loaded.mode,
+          ),
+        );
+      },
+    ),
+
+    get_charts: guard(
+      { root: root.real, tool: "get_charts" },
+      async (args, tool) => {
+        const loaded = await openXlsx(args.filePath, tool);
+        const sheet = selectSheetName(loaded.workbook, args.sheetName);
+        return json(
+          withMode(
+            collectCharts(
+              loaded.workbook.opc,
+              sheet,
+              loaded.workbook.facts(sheet).charts,
+              {
+                ...(args.chartId === undefined
+                  ? {}
+                  : { chartId: args.chartId }),
+                ...(args.maxPoints === undefined
+                  ? {}
+                  : { maxPoints: args.maxPoints }),
+              },
             ),
             loaded.mode,
           ),

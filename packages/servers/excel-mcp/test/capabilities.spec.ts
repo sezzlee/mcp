@@ -68,7 +68,7 @@ describe("declared capabilities match observed behaviour", () => {
     conditionalFormats: (filePath) =>
       handlers.get_conditional_formats({ filePath }),
     images: (filePath) => handlers.get_images({ filePath }),
-    charts: (filePath) => handlers.get_images({ filePath, kind: "chart" }),
+    charts: (filePath) => handlers.get_charts({ filePath }),
     pivotTables: (filePath) =>
       handlers.get_images({ filePath, kind: "pivotTable" }),
     sparklines: (filePath) =>
@@ -84,10 +84,10 @@ describe("declared capabilities match observed behaviour", () => {
     "tables",
     "conditionalFormats",
     "images",
+    "charts",
   ];
 
   const unreadable: readonly (keyof FormatCapabilities)[] = [
-    "charts",
     "pivotTables",
     "sparklines",
   ];
@@ -177,10 +177,12 @@ describe("declared capabilities match observed behaviour", () => {
       tableCount: null,
       conditionalFormatRuleCount: null,
       imageCount: null,
+      chartCount: null,
       autoFilterRef: null,
       frozenRowCount: null,
       frozenColumnCount: null,
     });
+    expect(sheet?.["kind"]).toBe("worksheet");
     expect(body["dateSystem"]).toBeNull();
   });
 

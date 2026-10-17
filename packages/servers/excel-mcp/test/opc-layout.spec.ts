@@ -89,6 +89,7 @@ describe("OPC layouts Excel accepts but ExcelJS cannot read", () => {
           "get_tables",
           "get_conditional_formats",
           "get_images",
+          "get_charts",
         ] as const) {
           const result = await handlers[tool]({ filePath: file });
           expect(result.isError).not.toBe(true);

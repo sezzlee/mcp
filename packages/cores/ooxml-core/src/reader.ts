@@ -3,7 +3,7 @@ import type { OoxmlErrorFactory } from "./model/errors.js";
 import type { OpcPackage, PartSource } from "./model/package.js";
 import type { XmlVisitor } from "./model/xml.js";
 import { openPackage } from "./container/package.js";
-import { createXmlPartReader } from "./xml/read.js";
+import { createXmlPartReader, createXmlPartStreamer } from "./xml/read.js";
 import { createZipSource } from "./zip/source.js";
 
 export interface OoxmlEnvironment {
@@ -28,9 +28,11 @@ export function createOoxmlReader(environment: OoxmlEnvironment): OoxmlReader {
   const limits: OoxmlLimits = { ...ooxmlLimits, ...environment.limits };
   const fail = environment.fail;
   const readXmlPart = createXmlPartReader(fail);
+  const streamXmlPart = createXmlPartStreamer(fail);
   return {
     zipSource: (bytes) => createZipSource(bytes, { fail, limits }),
-    openPackage: (source) => openPackage(source, { fail, limits, readXmlPart }),
+    openPackage: (source) =>
+      openPackage(source, { fail, limits, readXmlPart, streamXmlPart }),
     readXmlPart,
   };
 }

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "corpus": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "env": ["SEZZLEE_CORPUS"]
+    },
+    "test": {
+      "cache": false
+    }
+  }
+}

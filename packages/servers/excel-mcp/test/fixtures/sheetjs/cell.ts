@@ -1,5 +1,6 @@
-import type { CellFacts, CellSnapshot } from "../grid/cell-value.js";
-import { SezzleeExcelError } from "../platform/errors.js";
+import type { CellFacts, CellSnapshot } from "../../../src/grid/cell-value.js";
+import { SezzleeExcelError } from "../../../src/platform/errors.js";
+import { formatDate } from "../../../src/format/cell-date.js";
 
 export interface SheetJsCell {
   readonly t?: string;
@@ -25,24 +26,6 @@ const errorText: Readonly<Record<number, string>> = {
   0x2a: "#N/A",
   0x2b: "#GETTING_DATA",
 };
-
-function hasTimeToken(numberFormat: string | undefined): boolean {
-  if (numberFormat === undefined) {
-    return false;
-  }
-  const stripped = numberFormat
-    .replace(/"[^"]*"/g, "")
-    .replace(/\[[^\]]*\]/g, "");
-  return /[hs]/i.test(stripped);
-}
-
-function formatDate(value: Date, numberFormat: string | undefined): string {
-  const iso = value.toISOString();
-  if (iso.endsWith("T00:00:00.000Z") && !hasTimeToken(numberFormat)) {
-    return iso.slice(0, 10);
-  }
-  return iso;
-}
 
 function factsOf(cell: SheetJsCell): CellFacts {
   const value = cell.v;

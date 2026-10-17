@@ -10,9 +10,11 @@ interface Mapping {
 }
 
 const reSave = "Open the file in Excel and re-save it as .xlsx.";
+const notASpreadsheet =
+  "The file is probably not a spreadsheet; check what it really is before reading it.";
 
 const mappings: Readonly<Record<OoxmlErrorCode, Mapping>> = {
-  not_a_package: { code: "not_a_workbook", recovery: reSave },
+  not_a_package: { code: "not_a_workbook", recovery: notASpreadsheet },
   legacy_binary_container: {
     code: "encrypted_workbook",
     recovery: "Save an unprotected copy in .xlsx format.",

@@ -7,7 +7,6 @@ RUNTIME_FIELDS = ("dependencies", "peerDependencies", "optionalDependencies")
 REQUIRED_ENTRY = "package/dist/index.js"
 EXACT_PINS = {
     "@sezzlee/xml-mcp": {"libxml2-wasm": "0.7.2"},
-    "@sezzlee/excel-mcp": {"@e965/xlsx": "0.20.3"},
     "@sezzlee/pdf-mcp": {"@firecrawl/pdf-inspector": "1.23.0"},
     # pdf.js 5 and @napi-rs/canvas 1.x fail at ctx.fill(path) the moment a glyph
     # is drawn, so a caret on either turns every text page into a crash.

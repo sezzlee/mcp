@@ -4,6 +4,9 @@
   "tasks": {
     "build": {
       "inputs": ["$TURBO_DEFAULT$", "!test/**", "!vitest.config.ts"]
+    },
+    "test": {
+      "env": ["SEZZLEE_CORPUS"]
     }
   }
 }
