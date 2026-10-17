@@ -1,10 +1,5 @@
 import type { OpcPackage } from "./package.js";
-import {
-  namespaces,
-  readXmlPart,
-  type PartScan,
-  type XmlVisitor,
-} from "./xml.js";
+import { namespaces, scanPart, type PartScan, type XmlVisitor } from "./xml.js";
 
 export interface OoxmlTableColumn {
   readonly name?: string;
@@ -31,9 +26,6 @@ interface ColumnDraft {
 }
 
 function readTable(opc: OpcPackage, tablePart: string): OoxmlTable | undefined {
-  const xml = opc.part(tablePart);
-  if (xml === undefined) return undefined;
-
   let name: string | undefined;
   let displayName: string | undefined;
   let ref: string | undefined;
@@ -45,7 +37,7 @@ function readTable(opc: OpcPackage, tablePart: string): OoxmlTable | undefined {
   let filterColumnOrdinal = 0;
   let inAutoFilter = false;
 
-  readXmlPart(xml, tablePart, {
+  scanPart(opc, tablePart, {
     onOpen(node) {
       if (node.uri !== namespaces.spreadsheetml) return;
       switch (node.local) {

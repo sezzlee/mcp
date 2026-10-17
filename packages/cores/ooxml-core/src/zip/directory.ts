@@ -119,3 +119,15 @@ export function localHeaderAgrees(
   const nameLength = u16(bytes, at + 26);
   return latin1.decode(bytes.subarray(at + 30, at + 30 + nameLength)) === name;
 }
+
+/**
+ * @returns where an entry's compressed bytes start: past its local header,
+ *   whose name and extra field lengths may differ from the central entry's.
+ */
+export function localDataOffset(
+  bytes: Uint8Array,
+  record: DirectoryRecord,
+): number {
+  const at = record.localOffset;
+  return at + 30 + u16(bytes, at + 26) + u16(bytes, at + 28);
+}

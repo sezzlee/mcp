@@ -86,7 +86,7 @@ export function hyperlinkScan(
     },
   };
   const finish = (): readonly Hyperlink[] => {
-    if (opc.part(sheetPart) === undefined) return links;
+    if (opc.partSize(sheetPart) === undefined) return links;
     const rels = relationshipsOf();
     if (rels.kind === "refused") throw rels.error;
     if (overflowed) {

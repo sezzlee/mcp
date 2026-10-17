@@ -1,5 +1,5 @@
 import type { WorkbookPackage } from "./package.js";
-import { namespaces, readXmlPart, type XmlVisitor } from "./xml.js";
+import { namespaces, scanPart, type XmlVisitor } from "./xml.js";
 
 const escapedCharacter = /_x([0-9A-Fa-f]{4})_/g;
 
@@ -81,11 +81,9 @@ export function stringItemVisitor(
 export function readSharedStrings(opc: WorkbookPackage): readonly string[] {
   const path = opc.sharedStringsPart;
   if (path === undefined) return [];
-  const xml = opc.part(path);
-  if (xml === undefined) return [];
   const strings: string[] = [];
-  readXmlPart(
-    xml,
+  scanPart(
+    opc,
     path,
     stringItemVisitor("si", (text) => strings.push(text)),
   );

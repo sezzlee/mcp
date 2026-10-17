@@ -1,5 +1,5 @@
 import type { WorkbookPackage } from "./package.js";
-import { namespaces, readXmlPart } from "./xml.js";
+import { namespaces, scanPart } from "./xml.js";
 
 /**
  * The formats ECMA-376 Part 1 §18.8.30 assigns to the built-in ids, as SheetJS
@@ -110,10 +110,9 @@ export function readNumberFormats(opc: WorkbookPackage): NumberFormats {
   const custom = new Map<number, string>();
   const formatIds: number[] = [];
   const path = opc.stylesPart;
-  const xml = path === undefined ? undefined : opc.part(path);
-  if (path !== undefined && xml !== undefined) {
+  if (path !== undefined) {
     let block: "numFmts" | "cellXfs" | undefined;
-    readXmlPart(xml, path, {
+    scanPart(opc, path, {
       onOpen(node) {
         if (node.uri !== namespaces.spreadsheetml) return;
         if (node.local === "numFmts" || node.local === "cellXfs") {

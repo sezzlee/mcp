@@ -84,6 +84,14 @@ every part (`packages/lab/excel-lab/FINDINGS.md`). What proves it:
 sequence: a replacing decoder would turn damaged bytes into U+FFFD, a legal character. A part that
 names UTF-16 without a byte order mark, or a code page this reader does not decode, is refused.
 
+**Streaming.** `scanPart` inflates a part from its offset in the archive, checks its length and
+CRC-32 as it goes, decodes it and feeds the tokenizer a chunk at a time, and keeps none of its
+text, so a large part costs a chunk of memory instead of its whole decoded length. A damaged part is
+still refused, once its last chunk is checked; a fault the tokenizer or the decoder meets on the way
+is reported first. `part` decodes a part whole and memoises it, for the small parts read more than
+once. Both count a part against the decoding budget once. A long text or attribute value is copied
+before a visitor sees it, so a value it keeps does not pin the chunk it was cut from.
+
 **Visitor errors.** An error thrown by an `XmlVisitor` callback stops the scan and reaches the
 caller unchanged. Only a failure of the XML itself becomes `corrupt_package`.
 

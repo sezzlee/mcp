@@ -240,10 +240,33 @@ The shared pass is held to each reader's own pass: the parity comparison checks 
 validations, tables, conditional formats, images and panes against a reference that scans the part
 once per reader, over the fixtures and the 388 corpus files SheetJS reads.
 
+## Reading parts as they inflate
+
+`ooxml-core` now inflates a part from its offset in the archive, checks its length and CRC-32 as it
+goes, decodes it and tokenizes it a chunk at a time, and keeps none of its text; every worksheet,
+the shared string table, the styles and each table and drawing part are read this way. Peak RSS is
+the wrong measure here: with an 8 GiB heap allowed, V8 collects late and RSS moves with when it did.
+Two measures that do not depend on it:
+
+| File (four largest) | Heap retained after `describe_workbook`, before → after | Smallest heap that reads it, before → after |
+| ------------------- | ------------------------------------------------------- | ------------------------------------------- |
+| Izmir water use     | 1492 → 1144 MiB                                         | 1537–1792 → 1281–1344 MiB                   |
+| Genome samples      | 868 → 630 MiB                                           | 833–960 → 577–704 MiB                       |
+| Izmir social aid    | 851 → 656 MiB                                           | 833–960 → 833–960 MiB                       |
+| 15-minute weather   | 308 → 249 MiB                                           | 321–448 → under 321 MiB                     |
+
+Streaming alone barely moved the genome and weather files. V8 cuts a substring of 13 or more
+characters as a view that keeps its parent alive, so every shared string and formula a sheet kept
+pinned the chunk it was read from, and the chunks together were the whole text again. The tokenizer
+now copies the long values it hands on, which is what freed them.
+
+Speed is unchanged within noise on the large files and up to 5% slower on files under 1 MB (30–50
+ms a call), measured A/B against the previous commit with every answer the same on all 34 files.
+What a read workbook still retains is its cells, each an object with a value object of its own.
+
 ## Next steps
 
-1. Memory, measured A/B on the large files: stream inflation and parsing so a part is never held as
-   one decoded string, and store cells compactly.
+1. Memory, measured on the large files: store cells compactly instead of an object per cell.
 2. Report chart sheets honestly, then read charts. A chart stores both the cell ranges it plots
    and a cached copy of their values, so every chart is a built-in check against the cells.
 3. Examine the 13 CSV files and decide on single-byte encodings.

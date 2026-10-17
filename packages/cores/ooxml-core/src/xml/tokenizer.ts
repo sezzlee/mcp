@@ -60,6 +60,16 @@ const declaration =
  */
 const maxRememberedNames = 4096;
 
+/**
+ * Guard: V8 cuts a substring of 13 or more characters as a view that keeps
+ * the whole string it was cut from alive, so a value a visitor keeps would
+ * pin the buffer it came from, and a part read in chunks would stay resident
+ * through the values kept from it. Copying the long ones lets each chunk go;
+ * shorter ones are copied by V8 already.
+ */
+const detached = (value: string): string =>
+  value.length < 13 ? value : (" " + value).slice(1);
+
 const nameStartRanges: readonly (readonly [number, number])[] = [
   [0x3a, 0x3a],
   [0x41, 0x5a],
@@ -241,7 +251,7 @@ export function createTokenizer(sink: TokenSink): Tokenizer {
     checkChars(raw, at);
     const close = raw.indexOf("]]>");
     if (close !== -1) fail("']]>' in text", at + close);
-    sink.text(decode(lineEnds(raw), at));
+    sink.text(detached(decode(lineEnds(raw), at)));
   };
 
   /** @returns the offset after the tag, or -1 when the buffer ends inside it. */
@@ -318,7 +328,10 @@ export function createTokenizer(sink: TokenSink): Tokenizer {
           fail(`attribute '${attribute}' is repeated`, nameStart);
         seen.add(attribute);
       }
-      attributes.push({ name: attribute, value: decode(spaced, cursor + 1) });
+      attributes.push({
+        name: attribute,
+        value: detached(decode(spaced, cursor + 1)),
+      });
       cursor = close + 1;
     }
     if (sawRoot && open.length === 0) fail("a second root element", lt);
@@ -390,7 +403,7 @@ export function createTokenizer(sink: TokenSink): Tokenizer {
     if (open.length === 0) fail("CDATA outside the root element", lt);
     const raw = buffer.slice(lt + 9, close);
     checkChars(raw, lt + 9);
-    sink.text(lineEnds(raw));
+    sink.text(detached(lineEnds(raw)));
     return close + 3;
   };
 

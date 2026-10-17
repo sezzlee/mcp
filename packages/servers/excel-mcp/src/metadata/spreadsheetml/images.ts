@@ -1,10 +1,5 @@
 import type { OpcPackage } from "./package.js";
-import {
-  namespaces,
-  readXmlPart,
-  type PartScan,
-  type XmlVisitor,
-} from "./xml.js";
+import { namespaces, scanPart, type PartScan, type XmlVisitor } from "./xml.js";
 
 export type AnchorKind = "oneCell" | "twoCell" | "absolute";
 
@@ -94,16 +89,13 @@ export function imageScan(
  * silently read the wrong one.
  */
 function imagesIn(opc: OpcPackage, drawingPart: string): readonly OoxmlImage[] {
-  const xml = opc.part(drawingPart);
-  if (xml === undefined) return [];
-
   const anchors: AnchorDraft[] = [];
   let anchor: AnchorDraft | undefined;
   let target: "from" | "to" | undefined;
   let text: string | undefined;
   let field: string | undefined;
 
-  readXmlPart(xml, drawingPart, {
+  const found = scanPart(opc, drawingPart, {
     onOpen(node) {
       if (node.uri === namespaces.spreadsheetDrawing) {
         const kind = anchorKinds[node.local];
@@ -184,6 +176,7 @@ function imagesIn(opc: OpcPackage, drawingPart: string): readonly OoxmlImage[] {
       }
     },
   });
+  if (!found) return [];
 
   const rels = opc.relationshipsFor(drawingPart);
   return anchors.map((draft): OoxmlImage => {

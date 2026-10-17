@@ -20,6 +20,11 @@
 - A row's merged ranges are found through an interval tree instead of a scan over every merge; a sheet with 100,000 merges read row by row went from 14 s to under half a second.
 - A shared formula's later cells keep a reference to their group and are expanded when read. Expanding them up front let 40,000 cells of one 8,000-character formula hold 760 MB.
 
+### Memory
+
+- Every worksheet, the shared string table, the styles and each table and drawing part are inflated, decoded and scanned a chunk at a time, and their text is not kept. On three of the four largest corpus files a described workbook retains 19–27% less heap, and the largest reads in a 1.3 GiB heap where it needed 1.6 GiB. Files under 1 MB read up to 5% slower.
+- A damaged part is still refused, but a fault met while scanning it can be reported before its CRC-32 mismatch, and a part that inflates past its declared size is stopped at the first byte over, so the refusal no longer states how far it expands.
+
 ### Speed
 
 - A worksheet part is scanned once, when a tool first needs that sheet, with every part reader fed from that one pass. Opening a workbook scanned every sheet five times and reading a sheet's cells three more, so `describe_workbook` scanned each sheet eight times and `read_sheet` scanned every sheet of the workbook. Measured A/B against the build before the shared pass on the corpus, with the same answers on every file, the four largest files and files of 1–10 MB read 2.7 times faster, and files of 0.1–1 MB 2.2 times faster.

@@ -52,16 +52,16 @@ function transitional(node: XmlNode): XmlNode {
 }
 
 /**
- * Scans one part, presenting a Strict-conformant element as its Transitional
- * twin, so every part reader handles both conformance classes unchanged.
+ * Presents a Strict-conformant element as its Transitional twin, so every
+ * part reader handles both conformance classes unchanged.
  *
  * Guard: an element already in a Transitional namespace is passed through
  * as it is, with no wrapper; this sits on the path of every cell of every
  * sheet, and only Strict files pay for the translation.
  */
-export const readXmlPart: XmlPartReader = (xml, partName, visitor) => {
+function transitionalVisitor(visitor: XmlVisitor): XmlVisitor {
   const { onOpen, onClose, onText } = visitor;
-  reader.readXmlPart(xml, partName, {
+  return {
     ...(onOpen === undefined
       ? {}
       : {
@@ -75,7 +75,12 @@ export const readXmlPart: XmlPartReader = (xml, partName, visitor) => {
             onClose(local, transitionalOf.get(uri) ?? uri),
         }),
     ...(onText === undefined ? {} : { onText }),
-  });
+  };
+}
+
+/** Scans one decoded part, Strict read as Transitional. */
+export const readXmlPart: XmlPartReader = (xml, partName, visitor) => {
+  reader.readXmlPart(xml, partName, transitionalVisitor(visitor));
 };
 
 /**
@@ -125,18 +130,19 @@ export function fanOut(visitors: readonly XmlVisitor[]): XmlVisitor {
 }
 
 /**
- * Scans `part` once with `visitor`, or not at all when the package lacks it.
+ * Scans `part` as it is inflated, Strict read as Transitional, keeping none of
+ * its text.
  *
- * Guard: the readers of a worksheet share a pass through `fanOut`, one for
- * its facts and one for its cells. Tokenizing is the largest share of a
- * profile, and each reader scanning the part on its own tokenized a sheet
- * eight times.
+ * @returns false when the package lacks the part.
+ *
+ * Guard: the readers of a worksheet share one pass through `fanOut`.
+ * Tokenizing is the largest share of a profile, and each reader scanning the
+ * part on its own tokenized a sheet eight times.
  */
 export function scanPart(
   opc: OpcPackage,
   part: string,
   visitor: XmlVisitor,
-): void {
-  const xml = opc.part(part);
-  if (xml !== undefined) readXmlPart(xml, part, visitor);
+): boolean {
+  return opc.scanPart(part, transitionalVisitor(visitor));
 }

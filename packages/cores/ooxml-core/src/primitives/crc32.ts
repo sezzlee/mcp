@@ -13,9 +13,12 @@ const table = (() => {
 /**
  * The CRC-32 (ISO 3309, reflected polynomial 0xEDB88320) a zip directory
  * records for each entry's uncompressed bytes.
+ *
+ * @param previous the CRC of the bytes before these, so an entry read in
+ *   chunks is checked chunk by chunk; 0 for the first.
  */
-export function crc32(bytes: Uint8Array): number {
-  let crc = 0xffffffff;
+export function crc32(bytes: Uint8Array, previous = 0): number {
+  let crc = (previous ^ 0xffffffff) >>> 0;
   for (const byte of bytes) {
     crc = (table[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
   }
