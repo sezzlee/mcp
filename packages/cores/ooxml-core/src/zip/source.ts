@@ -16,7 +16,13 @@ interface Refusal {
 
 const stored = 0;
 const deflated = 8;
-const sliceBytes = 1 << 16;
+/**
+ * Guard: `fflate`'s inflater cannot cap its output, and the declared size is
+ * checked as each push returns, so one push may inflate past it before the
+ * check: deflate expands at most about 1032:1, so a 16 KiB slice bounds that
+ * overshoot to about 16 MiB, where the whole entry would otherwise be.
+ */
+const sliceBytes = 1 << 14;
 
 interface Declared {
   readonly size: number;
