@@ -128,10 +128,12 @@ excel aggregate_sheet --tool-arg filePath=sales.xlsx \
   located by value or formula.
 - **Structure**: sheets, used ranges, defined names, merged cells, Excel Tables, data validation,
   conditional formatting and embedded pictures.
+- **Charts**, on a worksheet or a chart sheet: type, title, axes, and each series' cell references
+  and cached values.
 - **CSV files**, with the delimiter and encoding detected and every value kept as the exact text.
 
-Charts, pivot tables and sparklines cannot be read. The server says so instead of answering with an
-empty list.
+Pivot tables and sparklines cannot be read. The server says so instead of answering with an empty
+list.
 
 :::details[Why it cannot read outside the folder]
 

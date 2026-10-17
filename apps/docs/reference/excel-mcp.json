@@ -40,9 +40,9 @@
       {
         "title": "File content",
         "codes": {
-          "not_a_workbook": "The bytes are not a workbook: no zip header, or a zip with no workbook part inside, such as a `.docx` renamed to `.xlsx`.",
+          "not_a_workbook": "The bytes are not a workbook: not a zip archive at all, or a zip with no workbook part or no worksheet inside, such as a `.docx` renamed to `.xlsx`.",
           "encrypted_workbook": "The file is password-protected or saved in the legacy binary `.xls` format. Save an unprotected `.xlsx` copy.",
-          "corrupt_workbook": "The file is a zip with a workbook part, but the part cannot be parsed. The message carries the parser's own explanation.",
+          "corrupt_workbook": "The file is a damaged workbook: a zip archive that cannot be indexed, a part that fails its CRC-32 check or whose local header disagrees with the central directory, or a part that is not well-formed XML or valid UTF-8 or that breaks a SpreadsheetML rule. A damaged sheet is refused only by the calls that read it, `describe_workbook` included. The message names the part and the fault.",
           "undecodable_text": "A CSV cannot be decoded as text: it contains NUL bytes near its start, which means a binary file or UTF-16 without a byte-order mark, or it starts with a UTF-32 byte-order mark. Pass `encoding: \"utf-16le\"` or `\"utf-16be\"` for UTF-16 text.",
           "ambiguous_delimiter": "Two delimiters fit the first 20 lines of a CSV equally well. Pass `delimiter`.",
           "numeric_overflow": "A cell or a comparison value holds a number outside the finite range, such as `Infinity`.",

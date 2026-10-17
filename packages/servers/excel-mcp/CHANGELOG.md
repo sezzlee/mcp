@@ -5,7 +5,7 @@
 ### Tool surface
 
 - `describe_workbook` reports each sheet's `kind` (`worksheet` or `chartsheet`) and `chartCount`. A chart sheet is no longer described as an empty grid.
-- `read_sheet`, `aggregate_sheet` and `find_in_sheet` refuse a chart sheet with `chart_sheet` instead of `empty_sheet`; recovery points at `get_charts`.
+- `read_sheet`, `aggregate_sheet` and `find_in_sheet` refuse a chart sheet with `chart_sheet` instead of `empty_sheet`, and `get_merged_ranges` refuses it instead of answering with no merges; recovery points at `get_charts`.
 - New tool `get_charts`: type, title, axes, series cell references and cached points. `capabilities.charts` is `true` for `.xlsx`. `get_images` with `kind: "chart"` still refuses and names `get_charts`.
 - `get_charts` also reports secondary axes (the axes the first plot does not use), axis min/max/logBase and number format, series trendline types, series filtered out in Excel (`c15:filtered*Series`) as `hidden`, and `pivotSource` when the chart is pivot-backed. Cached points keep the cache's `numberFormat`, multi-level categories keep their outer `levels`, and series past the per-chart cap are counted in `omittedSeries`. A one-cell anchored chart reports its top-left `cell` and size instead of a range, and a `chartId` the sheet does not have is refused as `invalid_argument`.
 - A tool called without `sheetName` lands on the first visible worksheet, skipping chart sheets; `get_charts` may land on a chart sheet.
@@ -49,6 +49,10 @@
 - Raw carriage returns in cell text are normalised to line feeds, as XML 1.0 end-of-line handling requires.
 - A relationships part that is not well-formed is named in the `corrupt_workbook` message; the part it belongs to was named instead.
 
+## 0.7.1
+
+- The package declares its MCP Registry name, `io.github.sezzlee/excel` (`mcpName`). No code changed.
+
 ## 0.7.0
 
 ### Compatibility changes
@@ -63,7 +67,9 @@
 - `describe_workbook`'s `includeDefinedNames` no longer mentions ExcelJS, which is not present at runtime.
 - `aggregate_sheet`'s truncation `hint` no longer tells a caller that already passed `orderBy: "metric"` to set it; it suggests raising `maxGroups` or adding a `where` clause instead.
 
-## Unreleased — Excel/file-core hardening
+## Before 0.7.0 — Excel/file-core hardening
+
+Everything in this section first shipped in 0.7.0, the first published version.
 
 ### Compatibility changes
 

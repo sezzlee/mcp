@@ -31,19 +31,19 @@ Requires Node.js 22 or 24 on macOS (x64, arm64), glibc Linux (x64, arm64) or Win
 
 ## Tools
 
-| Tool                      | What it does                                                                                                                                   |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list_workbooks`          | Lists readable files under the root; the `filePath` it returns is passed to other tools verbatim                                               |
-| `describe_workbook`       | Sheets, used ranges, counts of merges, validations, tables and formulas, defined names                                                         |
-| `read_sheet`              | A cell range as a compact grid: hoisted column headers plus row arrays                                                                         |
-| `aggregate_sheet`         | Server-side count/sum/average/min/max and grouping, instead of paging a large sheet                                                            |
-| `find_in_sheet`           | Cells whose value or formula matches a query                                                                                                   |
-| `get_tables`              | Excel Tables: range, header and totals rows, column names and letters                                                                          |
-| `get_data_validations`    | Validation rules, regrouped into rectangular ranges                                                                                            |
-| `get_conditional_formats` | Conditional formatting rules as predicates                                                                                                     |
-| `get_merged_ranges`       | Merged cell ranges                                                                                                                             |
-| `get_images`              | Embedded pictures: anchor, size, extension. Charts belong to `get_charts`; pivot tables and sparklines are refused                             |
-| `get_charts`              | Charts: type, title, axes (incl. secondary, scale, format), series refs/points, trendlines, hidden series, pivot source. Chart sheets included |
+| Tool                      | What it does                                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `list_workbooks`          | Lists readable files under the root; the `filePath` it returns is passed to other tools verbatim                                                 |
+| `describe_workbook`       | Sheets and their kind (worksheet or chart sheet), used ranges, counts of merges, validations, tables, formulas, images and charts, defined names |
+| `read_sheet`              | A cell range as a compact grid: hoisted column headers plus row arrays                                                                           |
+| `aggregate_sheet`         | Server-side count/sum/average/min/max and grouping, instead of paging a large sheet                                                              |
+| `find_in_sheet`           | Cells whose value or formula matches a query                                                                                                     |
+| `get_tables`              | Excel Tables: range, header and totals rows, column names and letters                                                                            |
+| `get_data_validations`    | Validation rules, regrouped into rectangular ranges                                                                                              |
+| `get_conditional_formats` | Conditional formatting rules as predicates                                                                                                       |
+| `get_merged_ranges`       | Merged cell ranges                                                                                                                               |
+| `get_images`              | Embedded pictures: anchor, size, extension. Charts belong to `get_charts`; pivot tables and sparklines are refused                               |
+| `get_charts`              | Charts: type, title, axes (incl. secondary, scale, format), series refs/points, trendlines, hidden series, pivot source. Chart sheets included   |
 
 Every argument, error code and limit is listed in the [reference](https://docs.sezzlee.app/docs/excel-mcp/tools).
 
@@ -61,9 +61,9 @@ The OOXML parts are read namespace-aware by `@sezzlee/ooxml-core`'s own XML toke
 | `get_images`              | worksheet `drawing` → sheet rels → `xl/drawings/*.xml` → `a:blip r:embed` → drawing rels → `xl/media/*`. `twoCell`, `oneCell` and `absolute` anchors are all reported. Only a two-cell anchor gets a `range`; a one-cell anchor gets its top-left `cell` and its size in whole pixels, because the cells that size covers depend on column widths, and an absolute anchor gets the size alone. `get_charts` places a chart the same way                                                                                                                                                                                                                                   |
 | `get_charts`              | worksheet or chart sheet `drawing` → chart / chartEx frames → `xl/charts/*.xml` for type, title, axes (min/max/log, number format), series refs and cached points, trendlines and `pivotSource`. Every element is matched under its parent, so a data label's `c:tx` is never a series name. A number cache is returned as numbers and a text cache as text, with the cache's `numberFormat`; a multi-level category keeps its outer `levels`. An axis is `secondary` when the first plot does not use it. A series under `c15:filtered*Series` is listed as `hidden`. Markup Compatibility chooses one `AlternateContent` branch. `chartEx` is reported as `unsupported` |
 
-`describe_workbook` marks each sheet's `kind` as `worksheet` or `chartsheet` and reports `chartCount`. A chart sheet is refused by `read_sheet` as `chart_sheet` with recovery pointing at `get_charts`. A call without `sheetName` lands on the first visible worksheet, never on a chart sheet, except `get_charts`, which takes the first visible sheet of either kind. Pivot tables and sparklines remain unread. `get_images` with `kind: "chart"` still returns `unsupported_object_kind` and points at `get_charts`.
+`describe_workbook` marks each sheet's `kind` as `worksheet` or `chartsheet` and reports `chartCount`. A chart sheet is refused by `read_sheet`, `aggregate_sheet`, `find_in_sheet` and `get_merged_ranges` as `chart_sheet`, with recovery pointing at `get_charts`. A call without `sheetName` lands on the first visible worksheet, never on a chart sheet, except `get_charts`, which takes the first visible sheet of either kind. Pivot tables and sparklines remain unread. `get_images` with `kind: "chart"` still returns `unsupported_object_kind` and points at `get_charts`.
 
-A corrupt-file claim is split into three codes, and none substitutes for another: `not_a_workbook` (no zip header, or a zip with no workbook part), `encrypted_workbook` (an OLE2/CFB header — password-protected or legacy binary) and `corrupt_workbook` (the workbook part exists but does not parse). `internal_error` carries no `recovery`: there is no known next call, and pretending there is one sends the agent off to repair a file that is fine.
+A corrupt-file claim is split into three codes, and none substitutes for another: `not_a_workbook` (not a zip archive, or a zip with no workbook part or no worksheet), `encrypted_workbook` (an OLE2/CFB header — password-protected or legacy binary) and `corrupt_workbook` (a damaged archive: a part that fails its CRC-32 check, a local header that disagrees with the central directory, or a part that is not well-formed XML or valid UTF-8). A damaged worksheet is refused only by the calls that read that sheet, so the workbook's other sheets stay readable. `internal_error` carries no `recovery`: there is no known next call, and pretending there is one sends the agent off to repair a file that is fine.
 
 ## Development
 
