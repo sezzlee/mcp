@@ -89,6 +89,19 @@ describe("relationships", () => {
   it("reports an empty map for a part with no relationships", () => {
     expect(openSample().relationshipsFor("doc/notes.xml").size).toBe(0);
   });
+
+  it("names the relationships part, not its owner, when it is not well-formed", () => {
+    const opened = openWith({
+      "[Content_Types].xml": minimalContentTypes,
+      "doc/main.xml": "<a/>",
+      "doc/_rels/main.xml.rels": "<Relationships",
+    });
+    const error = expectRefusal(
+      () => opened.relationshipsFor("doc/main.xml"),
+      "corrupt_package",
+    );
+    expect(error.message).toMatch(/^'doc\/_rels\/main\.xml\.rels' is not/);
+  });
 });
 
 describe("parts", () => {

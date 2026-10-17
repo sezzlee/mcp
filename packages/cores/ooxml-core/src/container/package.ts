@@ -99,7 +99,7 @@ export function openPackage(
     const resolved =
       xml === undefined
         ? new Map<string, Relationship>()
-        : readRelationships(xml, owner, readXmlPart);
+        : readRelationships({ xml, relsPath, ownerPath: owner }, readXmlPart);
     relationshipCache.set(owner, resolved);
     return resolved;
   };

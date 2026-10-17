@@ -25,6 +25,7 @@
 - A cell with no `s` attribute takes cell format 0, as ECMA-376 says, instead of `General`.
 - A chart sheet declares no rows or columns; SheetJS reported a range drawn from the chart's series.
 - Raw carriage returns in cell text are normalised to line feeds, as XML 1.0 end-of-line handling requires.
+- A relationships part that is not well-formed is named in the `corrupt_workbook` message; the part it belongs to was named instead.
 
 ## 0.7.0
 
