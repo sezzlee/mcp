@@ -26,6 +26,17 @@ excel read_sheet --tool-arg filePath=orders.csv | jq -c '.values[], .csv'
 `"012"` keeps its leading zero and `"4"` stays a string. When two delimiters fit equally well, the
 call fails with `ambiguous_delimiter`; pass `delimiter` as `comma`, `semicolon`, `tab` or `pipe`.
 
+:::details[What formulaLikeCellCount counts]
+
+A CSV holds no formulas, so a cell that starts with `=` comes back as the text it is.
+`formulaLikeCellCount` counts the cells LibreOffice runs as a formula when it opens the file: `=`
+followed by anything. Excel may also run a cell that starts with `+`, `-` or `@`, the prefixes
+[OWASP lists for CSV injection](https://owasp.org/www-community/attacks/CSV_Injection); those are
+not counted, because almost every such cell is a negative number or a dash. Whatever the count,
+a cell's text is data for the agent, never an instruction.
+
+:::
+
 ## Add up numeric text
 
 A numeric metric skips text, so a CSV column sums to `null` until you ask for numbers:
@@ -83,6 +94,50 @@ excel read_sheet --tool-arg filePath=cities.csv encoding=windows-1254 \
 ["İstanbul","3"]
 ["İzmir","5"]
 ```
+
+## Find a broken quote
+
+A quote that opens a field must close it, and a quote inside an unquoted field is not allowed. The
+server refuses such a file and names the line instead of guessing where the field ends:
+
+```sh
+printf 'Order,Note\n1001,"Leave at the door"\n1002,Ring "twice"\n' \
+  > ~/sezzlee-sheets/notes.csv
+excel read_sheet --tool-arg filePath=notes.csv
+```
+
+```text
+{"error":{"code":"tool_is_error","message":"Tool 'read_sheet' returned isError:true."}}
+{
+  "error": "corrupt_workbook",
+  "message": "'notes.csv' is not well-formed CSV: a quote inside an unquoted field on line 3.",
+  "recovery": "Check the quoting around the reported line and re-save the file."
+}
+```
+
+Quote the whole field and double the quotes inside it:
+
+```sh
+printf 'Order,Note\n1001,"Leave at the door"\n1002,"Ring ""twice"""\n' \
+  > ~/sezzlee-sheets/notes.csv
+excel read_sheet --tool-arg filePath=notes.csv | jq -c '.values[]'
+```
+
+```json
+["1001","Leave at the door"]
+["1002","Ring \"twice\""]
+```
+
+:::details[How records are split]
+
+The server reads RFC 4180 quoting: a field is quoted only when its first character is a quote, two
+quotes inside it stand for one, and delimiters and line breaks inside it are data. Outside quotes,
+CRLF, LF and CR each end a record, even when one file mixes them, so a line break Excel stores
+inside a cell (Alt+Enter) stays in its cell. `lineBreak` reports the breaks that end records. A
+malformed file is refused rather than repaired, because a repair is a guess about which records
+belong together, and a wrong guess shifts every value after it without an error.
+
+:::
 
 ## Know what a CSV cannot answer
 

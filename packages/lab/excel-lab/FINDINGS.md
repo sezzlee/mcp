@@ -381,9 +381,108 @@ Run `2026-10-17T21-12-10.995Z` · all 1,037 files, compared to `2026-10-17T17-50
 answer. The 559 strings left in value series are `#N/A` (394) and text X values of scatter
 charts, both written as text by Excel.
 
+## Replacing csv-parse
+
+### A corpus for CSV
+
+The 88 CSV files above are well-formed: none has a stray, unclosed or misplaced quote, none is
+tab or pipe separated, and only 4 hold a line break inside quotes. They say nothing about
+malformed or hostile input, so six sources were added (`SOURCE.md` in each records the commit,
+license and what was left out):
+
+| Source             | Files | What it holds                                                                                                                                                                | Ground truth                                             |
+| ------------------ | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `csv-pollock`      | 2,289 | Pollock (PVLDB 16(8)): one clean table with one pollution each: extra or missing delimiters, stray quotes, changed delimiters, quote or escape characters, record delimiters | clean table and dialect per file                         |
+| `csv-duckdb`       | 794   | DuckDB's CSV reader test inputs, 278 of them from fuzzers                                                                                                                    | none                                                     |
+| `csv-w3c`          | 137   | W3C CSV on the Web test inputs                                                                                                                                               | none                                                     |
+| `csv-synthetic`    | 63    | generated here: dialects, quoting, encodings, line endings, malformed quoting, limits, quote bombs, injection payloads                                                       | records built before serializing, or the chosen contract |
+| `csv-spectrum`     | 12    | the csv-spectrum acid test                                                                                                                                                   | expected records                                         |
+| `csv-wrangling-uk` | 600   | UK public-sector files from the CSV Wrangling study, 18 of them tab separated; the license is presumed OGL                                                                   | the dialect people annotated                             |
+
+A third reader, Python 3.9's `csv` with `strict=True`, kept outside this repository, agrees with
+every synthetic table it can read; it cannot read a NUL byte.
+
+### What csv-parse did
+
+csv-parse 7 keeps the first line break form it meets. A file that switches from CRLF to LF reads
+the LF as field data, so records merge without an error: DuckDB's `afl/ignore_errors/47.csv` is
+3 records to csv-parse and 50 to Python and to the tokenizer. A switch from LF to CRLF leaves a
+carriage return at the end of a field. The first 88 real-world files never hit this, because
+their bare LFs are Excel line breaks inside quotes; 4 of the 600 UK files do. One of them ends one
+record with CRLF and 181 with CR: csv-parse reported 183 records, one of them ragged, where Python
+and the tokenizer read 182.
+
+csv-parse also appends a NUL that follows a closing quote to the field, while any other character
+there is refused. No corpus file has one; the fuzzer found it.
+
+### The tokenizer
+
+`src/format/csv-tokenizer.ts` is one RFC 4180 state machine: a field is quoted only when it starts
+with a quote, anything after a closing quote but a delimiter or line break is a fault, and CRLF,
+LF and CR each end a record outside quotes. The field and cell budgets are checked in the same
+pass, so the separate width scan before csv-parse is gone. It is checked three ways:
+
+- **Known answers** from RFC 4180 and the contract above (`test/csv-tokenizer.spec.ts`).
+- **csv-parse as oracle**, configured with `record_delimiter: ["\r\n", "\n", "\r"]`, which is
+  the tokenizer's contract written by a second implementation: 20,000 generated texts in the
+  test (300,000 in a longer run) and all 3,983 corpus CSV files
+  (`test/corpus-csv-parity.spec.ts`) read the same, refusals included and with the same reason.
+  The only departure is the NUL after a closing quote.
+- **The server, file by file**, against csv-parse's runs (`2026-10-18T12-15-16.462Z`,
+  `2026-10-18T12-30-40.176Z`, and for the UK files the A/B rounds below):
+
+| Result                         | Files | Why                                                                  |
+| ------------------------------ | ----- | -------------------------------------------------------------------- |
+| Every answer identical         | 2,957 | including all 88 first real-world files and 596 of the 600 UK files  |
+| Same refusal, new message      | 1,011 | the message names the fault and line instead of csv-parse's wording  |
+| Records differ                 | 13    | line breaks mix outside quotes, 4 of them UK files                   |
+| Refused by csv-parse, now read | 2     | CRLF records with a last LF record: csv-parse saw text after a quote |
+
+Speed and memory, A/B: the build before the change (a worktree at `main`) and the new one ran
+the same sources alternately, three times each, median taken per file.
+
+| Files                         | Before | After  | Change                                                                                       |
+| ----------------------------- | ------ | ------ | -------------------------------------------------------------------------------------------- |
+| `csv-synthetic`, 63 files     | 5.3 s  | 2.3 s  | the 16 MiB single field: 2348 ms to 100 ms, 253 to 175 MiB                                   |
+| `csv-wrangling-uk`, 600 files | 13.5 s | 14.4 s | process start dominates; the three largest files it parses (4–10 MB) 1.9 to 2.6 times faster |
+
+One case got worse: 8M doubled quotes in one 16 MiB field take 244 ms against 208 ms and peak at
+281 MiB against 194 MiB, the cost of unescaping one 16 MiB string. The 31 s that
+`hardening.spec.ts` records for 16 MiB on the darwin-x64 runner was csv-parse; that runner has
+not measured the tokenizer yet.
+
+### The delimiter sniffer needs no change
+
+Measured against every annotated dialect in the corpus, the sniffer (unchanged by this work)
+names the delimiter right for all 600 UK files, all 134 annotated W3C files, all 42 synthetic
+tables and 2,287 of 2,289 Pollock files. The two Pollock files use a space and `, ` as their
+delimiter, which the server does not offer.
+
+### Found on the way
+
+`encoding: "windows-1252"` returned the bytes 0x80 to 0x9F as C1 control characters: Node 24.12's
+`TextDecoder` decodes that label as ISO-8859-1. Four of the ten real-world windows-1252 files hold
+such bytes (curly quotes, dashes). They are now mapped through the WHATWG index; the claim above
+that windows-1252 reads those ten files correctly held only for their accented letters.
+
+csv-spectrum's `location_coordinates.csv` expects `37°36'37.8"N` to be read with its quote as
+data. RFC 4180 forbids a quote in an unquoted field; the server refuses it, as csv-parse did.
+
+### What formulaLikeCellCount counts
+
+LibreOffice 26.8.1, opening a CSV with formula evaluation on, runs a cell only when it starts with
+`=` and has more after it: `+cmd|…`, `-2+3+cmd|…`, `-A1` and `@SUM(1+9)` stay text, `-5` and
+`-1e5` become numbers, a lone `=` stays text, and a leading tab or space is dropped without
+evaluating. The count now follows that: a lone `=` is no longer counted. OWASP's `+`, `-` and `@`
+prefixes describe Excel, which was not available to measure; 256,000 corpus cells start with `-`
+and are numbers or a dash, so counting the prefix alone would bury the signal. The cases and
+LibreOffice's answers are kept beside the corpus in `_tools/csv/formula-like`.
+
 ## Next steps
 
 1. Decide whether a CSV that is not UTF-8 should stay refused until the caller passes
    `encoding`, or guess windows-1254 when the bytes contain Turkish letters and windows-1252
    otherwise, and report that guess.
-2. Then `xml-mcp` (`libxml2-wasm` is a separate decision).
+2. Measure what Excel runs when it opens a CSV, with the cases in `_tools/csv/formula-like`, and
+   widen `formulaLikeCellCount` only for what it measures.
+3. Then `xml-mcp` (`libxml2-wasm` is a separate decision).
