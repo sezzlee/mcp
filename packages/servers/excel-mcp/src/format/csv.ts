@@ -13,7 +13,7 @@ import {
   type DelimiterName,
   type EncodingName,
 } from "../platform/delimited.js";
-import { readRecords, type CsvFault } from "./csv-tokenizer.js";
+import { readRecords, type CsvFault, type LineBreak } from "./csv-tokenizer.js";
 
 export const csvSheetName = "csv";
 
@@ -24,7 +24,7 @@ export interface CsvReport {
   readonly encoding: string;
   readonly encodingSource: "explicit" | "bom" | "default";
   readonly hadBom: boolean;
-  readonly lineBreak: "lf" | "crlf" | "cr" | "mixed" | "none";
+  readonly lineBreak: LineBreak;
   readonly recordCount: number;
   readonly columnCount: number;
   readonly raggedRecordCount: number;
@@ -273,20 +273,6 @@ export function sniffDelimiter(
   return { delimiter: best.name, delimiterSource: "sniffed" };
 }
 
-function detectLineBreak(text: string): CsvReport["lineBreak"] {
-  const crlf = /\r\n/.test(text);
-  const bareLf = /(^|[^\r])\n/.test(text);
-  const bareCr = /\r(?!\n)/.test(text);
-  const kinds = [crlf, bareLf, bareCr].filter(Boolean).length;
-  if (kinds === 0) {
-    return "none";
-  }
-  if (kinds > 1) {
-    return "mixed";
-  }
-  return crlf ? "crlf" : bareLf ? "lf" : "cr";
-}
-
 function malformed(path: string, reason: string): SezzleeExcelError {
   return new SezzleeExcelError(
     "corrupt_workbook",
@@ -409,7 +395,7 @@ export async function parseCsv(
       encoding: decoded.encoding,
       encodingSource: decoded.encodingSource,
       hadBom: decoded.hadBom,
-      lineBreak: detectLineBreak(decoded.text),
+      lineBreak: parsed.lineBreak,
       recordCount: rows.length,
       columnCount,
       raggedRecordCount,

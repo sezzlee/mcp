@@ -10,13 +10,38 @@ export type CsvFault =
   | { readonly kind: "too_many_columns"; readonly line: number }
   | { readonly kind: "too_many_cells"; readonly line: number };
 
+export type LineBreak = "lf" | "crlf" | "cr" | "mixed" | "none";
+
 export type CsvRecords =
-  | { readonly kind: "records"; readonly records: string[][] }
+  | {
+      readonly kind: "records";
+      readonly records: string[][];
+      readonly lineBreak: LineBreak;
+    }
   | { readonly kind: "fault"; readonly fault: CsvFault };
 
 const quote = 0x22;
 const lineFeed = 0x0a;
 const carriageReturn = 0x0d;
+
+const seenLf = 1;
+const seenCrlf = 2;
+const seenCr = 4;
+
+function lineBreakOf(seen: number): LineBreak {
+  switch (seen) {
+    case 0:
+      return "none";
+    case seenLf:
+      return "lf";
+    case seenCrlf:
+      return "crlf";
+    case seenCr:
+      return "cr";
+    default:
+      return "mixed";
+  }
+}
 
 function lineAt(text: string, position: number): number {
   let line = 1;
@@ -58,9 +83,10 @@ export function readRecords(
   const separator = delimiter.charCodeAt(0);
   const end = text.length;
   const records: string[][] = [];
-  if (end === 0) return { kind: "records", records };
+  if (end === 0) return { kind: "records", records, lineBreak: "none" };
   let record: string[] = [];
   let cells = 0;
+  let seen = 0;
   let i = 0;
   for (;;) {
     let value: string;
@@ -111,12 +137,17 @@ export function readRecords(
     records.push(record);
     record = [];
     if (i >= end) break;
-    i +=
-      text.charCodeAt(i) === carriageReturn &&
-      text.charCodeAt(i + 1) === lineFeed
-        ? 2
-        : 1;
+    if (text.charCodeAt(i) === lineFeed) {
+      seen |= seenLf;
+      i += 1;
+    } else if (text.charCodeAt(i + 1) === lineFeed) {
+      seen |= seenCrlf;
+      i += 2;
+    } else {
+      seen |= seenCr;
+      i += 1;
+    }
     if (i >= end) break;
   }
-  return { kind: "records", records };
+  return { kind: "records", records, lineBreak: lineBreakOf(seen) };
 }

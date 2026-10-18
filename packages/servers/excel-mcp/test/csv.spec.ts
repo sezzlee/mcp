@@ -226,6 +226,12 @@ describe("record shape", () => {
     expect((await open("simple.csv")).table.report.lineBreak).toBe("lf");
   });
 
+  it("reports the record breaks, not the line breaks inside quoted fields", async () => {
+    const bytes = Buffer.from('ad,not\r\n1,"iki\nsatır"\r\n2,x\r\n');
+    const table = await parseCsv(bytes, bytes.length, {}, "alt-enter.csv");
+    expect(table.report.lineBreak).toBe("crlf");
+  });
+
   it("hoists a header-only file into columns and returns no rows", async () => {
     const result = readSheet(await openSource("header-only.csv"), base);
     expect(result.columns.map((column) => column.header)).toEqual([

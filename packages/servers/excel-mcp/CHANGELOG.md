@@ -10,6 +10,7 @@
 
 ### Reading
 
+- `csv.lineBreak` reports the line breaks that end records. A CRLF file whose quoted fields hold Excel's Alt+Enter line breaks was reported `mixed`; it is now `crlf`.
 - `encoding: "windows-1252"` decodes the bytes 0x80 to 0x9F as the WHATWG index does (€, curly quotes, en and em dashes, …, ™). Node 24's decoder returned them as C1 control characters.
 
 ## 0.8.0

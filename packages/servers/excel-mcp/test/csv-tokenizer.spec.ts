@@ -86,6 +86,24 @@ describe("line breaks that mix outside quotes", () => {
   });
 });
 
+describe("the line break form of the records", () => {
+  it.each([
+    ["no line break", "a,b", "none"],
+    ["LF", "a\nb\n", "lf"],
+    ["CRLF", "a\r\nb", "crlf"],
+    ["CR", "a\rb\r", "cr"],
+    ["LF inside quotes of a CRLF file", 'a\r\n"b\nc"\r\n', "crlf"],
+    ["CRLF inside quotes of an LF file", '"a\r\nb"\nc\n', "lf"],
+    ["only inside quotes", '"a\nb"', "none"],
+    ["CRLF then LF", "a\r\nb\nc", "mixed"],
+  ] as const)("%s", (_, text, expected) => {
+    expect(readRecords(text, ",", roomy)).toMatchObject({
+      kind: "records",
+      lineBreak: expected,
+    });
+  });
+});
+
 describe("malformed quoting is refused, never repaired", () => {
   it.each([
     [
