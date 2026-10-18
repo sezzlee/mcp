@@ -1,6 +1,6 @@
 {
   "name": "@sezzlee/excel-mcp",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "mcpName": "io.github.sezzlee/excel",
   "description": "Read-only MCP server that lets AI agents read local Excel workbooks (.xlsx, .xlsm, .csv): cells, formulas, tables and defined names, sandboxed to one folder.",
   "keywords": [
