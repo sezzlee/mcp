@@ -10,6 +10,7 @@ import {
   resolveWorkbookPath,
 } from "../src/platform/paths.js";
 import { readSheet, type ReadSheetOptions } from "../src/grid/read-sheet.js";
+import { parseCsv } from "../src/format/csv.js";
 
 const base: ReadSheetOptions = {
   maxCells: 2000,
@@ -141,6 +142,36 @@ describe("encoding", () => {
 
   it("refuses UTF-16 without a byte-order mark instead of returning NUL-laced text", async () => {
     expect(await codeOf(() => open("utf16.csv"))).toBe("undecodable_text");
+  });
+
+  it("decodes windows-1252 punctuation that Excel writes", async () => {
+    const bytes = Buffer.from([
+      0x93, 0x61, 0x94, 0x2c, 0x96, 0x2c, 0x80, 0x35, 0x2c, 0x85, 0x2c, 0x99,
+    ]);
+    const table = await parseCsv(
+      bytes,
+      bytes.length,
+      { encoding: "windows-1252" },
+      "punctuation.csv",
+    );
+    expect(table.rows).toEqual([["“a”", "–", "€5", "…", "™"]]);
+  });
+
+  it("decodes every windows-1252 byte from 0x80 to 0x9F as the WHATWG index does", async () => {
+    const whatwg = [
+      0x20ac, 0x0081, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6,
+      0x2030, 0x0160, 0x2039, 0x0152, 0x008d, 0x017d, 0x008f, 0x0090, 0x2018,
+      0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x02dc, 0x2122, 0x0161,
+      0x203a, 0x0153, 0x009d, 0x017e, 0x0178,
+    ];
+    const bytes = Buffer.from(whatwg.map((_, index) => 0x80 + index));
+    const table = await parseCsv(
+      bytes,
+      bytes.length,
+      { encoding: "windows-1252", delimiter: "comma" },
+      "high.csv",
+    );
+    expect(table.rows).toEqual([[String.fromCodePoint(...whatwg)]]);
   });
 
   it("decodes UTF-16 when told", async () => {

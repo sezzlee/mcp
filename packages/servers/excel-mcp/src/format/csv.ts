@@ -104,6 +104,23 @@ function detectBom(bytes: Buffer): BomMatch | undefined {
   return undefined;
 }
 
+/**
+ * Guard: Node 24.12's TextDecoder decodes windows-1252 as ISO-8859-1, so the
+ * bytes 0x80 to 0x9F (€, curly quotes, dashes, …, ™) came back as C1 control
+ * characters. They are mapped here through the WHATWG index-windows-1252; a
+ * decoder that is already right leaves only the five unmapped bytes, which map
+ * to themselves.
+ */
+const windows1252High =
+  "€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008DŽ\u008F\u0090‘’“”•–—˜™š›œ\u009DžŸ";
+
+function repairWindows1252(text: string): string {
+  return text.replace(
+    /[\u0080-\u009f]/g,
+    (character) => windows1252High[character.charCodeAt(0) - 0x80] ?? character,
+  );
+}
+
 interface Decoded {
   readonly text: string;
   readonly encoding: string;
@@ -140,6 +157,7 @@ function decode(
   let text: string;
   try {
     text = decoder.decode(bytes);
+    if (decoder.encoding === "windows-1252") text = repairWindows1252(text);
   } catch {
     throw new SezzleeExcelError(
       "undecodable_text",
