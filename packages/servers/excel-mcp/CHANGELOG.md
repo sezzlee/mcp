@@ -10,6 +10,7 @@
 
 ### Reading
 
+- `csv.formulaLikeCellCount` counts a cell that starts with `=` and has more after it, the cells LibreOffice runs as formulas when it opens a CSV. A cell holding only `=` is no longer counted.
 - `csv.lineBreak` reports the line breaks that end records. A CRLF file whose quoted fields hold Excel's Alt+Enter line breaks was reported `mixed`; it is now `crlf`.
 - `encoding: "windows-1252"` decodes the bytes 0x80 to 0x9F as the WHATWG index does (€, curly quotes, en and em dashes, …, ™). Node 24's decoder returned them as C1 control characters.
 

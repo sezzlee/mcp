@@ -221,6 +221,28 @@ describe("record shape", () => {
     );
   });
 
+  it("counts the cells LibreOffice 26.8 runs as formulas when it opens the file", async () => {
+    const cells = [
+      "=1+1",
+      "= not a formula",
+      "=",
+      "+cmd|' /C calc'!A0",
+      "-2+3+cmd|' /C calc'!A0",
+      "@SUM(1+9)",
+      "-5",
+      "-",
+      "\t=1+1",
+    ];
+    const bytes = Buffer.from(cells.map((cell) => `"${cell}"`).join("\r\n"));
+    const table = await parseCsv(
+      bytes,
+      bytes.length,
+      { delimiter: "comma" },
+      "prefixes.csv",
+    );
+    expect(table.report.formulaLikeCellCount).toBe(2);
+  });
+
   it("reports the line break form", async () => {
     expect((await open("crlf.csv")).table.report.lineBreak).toBe("crlf");
     expect((await open("simple.csv")).table.report.lineBreak).toBe("lf");

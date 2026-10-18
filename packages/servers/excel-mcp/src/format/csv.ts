@@ -317,6 +317,17 @@ function faultError(fault: CsvFault, path: string): SezzleeExcelError {
   }
 }
 
+/**
+ * Guard: counts the cells LibreOffice 26.8.1 runs as formulas when it opens a
+ * CSV with formula evaluation on: `=` followed by anything. A `+`, `-` or `@`
+ * prefix stays text there, and 256,000 corpus cells start with `-` as a number
+ * or a dash, so counting OWASP's wider prefix list would bury the signal.
+ * Excel has not been measured.
+ */
+function isFormulaLike(field: string): boolean {
+  return field.length > 1 && field.startsWith("=");
+}
+
 export async function parseCsv(
   bytes: Buffer,
   sizeBytes: number,
@@ -362,7 +373,7 @@ export async function parseCsv(
       raggedRecordCount += 1;
     }
     for (const field of record) {
-      if (field.startsWith("=")) {
+      if (isFormulaLike(field)) {
         formulaLikeCellCount += 1;
       }
     }
