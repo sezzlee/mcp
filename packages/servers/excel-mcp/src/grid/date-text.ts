@@ -67,11 +67,11 @@ const orderedForm = new RegExp(
   `^(\\d{1,2})([/-])(\\d{1,2})\\2(\\d{4})${time}$`,
 );
 const dayNameForm = new RegExp(
-  `^(\\d{1,2})[ .-]?(\\p{L}+)\\.?[ .-]?(\\d{4})${time}$`,
+  `^(\\d{1,2})[ .-]?(\\p{L}{1,12})\\.?[ .-]?(\\d{4})${time}$`,
   "u",
 );
 const nameDayForm = new RegExp(
-  `^(\\p{L}+)\\.? (\\d{1,2}),? (\\d{4})${time}$`,
+  `^(\\p{L}{1,12})\\.? (\\d{1,2}),? (\\d{4})${time}$`,
   "u",
 );
 
@@ -79,8 +79,17 @@ function asciiLowerOf(text: string | undefined): string | undefined {
   return text === undefined ? undefined : asciiLower(text);
 }
 
-function normalize(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
+/**
+ * Guard: every date form read here fits in well under 64 characters, and a
+ * cell may hold 32,767. Longer text is never offered to the date expressions,
+ * so no cell can make them scan for long.
+ */
+const maxDateChars = 64;
+
+function normalize(text: string): string | undefined {
+  return text.length > maxDateChars
+    ? undefined
+    : text.replace(/\s+/g, " ").trim();
 }
 
 function numberAt(match: RegExpExecArray, at: number): number {
@@ -275,7 +284,8 @@ function civilOf(parsed: Parsed, order: DateOrder): Civil {
  * with slashes or dashes.
  */
 export function readDateText(text: string, order: DateOrder): DateReading {
-  const parsed = parseDate(normalize(text));
+  const normalized = normalize(text);
+  const parsed = normalized === undefined ? undefined : parseDate(normalized);
   if (parsed === undefined) return { kind: "text" };
   const iso = canonicalOf(civilOf(parsed, order));
   return iso === undefined ? { kind: "text" } : { kind: "date", iso };
@@ -295,7 +305,8 @@ export function sniffDateOrder(values: Iterable<string>): OrderDecision {
   const orders = ["dmy", "mdy"] as const;
   let split: string | undefined;
   for (const value of values) {
-    const parsed = parseDate(normalize(value));
+    const normalized = normalize(value);
+    const parsed = normalized === undefined ? undefined : parseDate(normalized);
     if (parsed === undefined) continue;
     const readings = orders.map((order) => canonicalOf(civilOf(parsed, order)));
     orders.forEach((order, at) => {
@@ -352,8 +363,8 @@ const tokens: readonly Token[] = [
 
 const tokenSource: Readonly<Record<Token, string>> = {
   yyyy: "(\\d{4})",
-  MMMM: "(\\p{L}+)",
-  MMM: "(\\p{L}+)\\.?",
+  MMMM: "(\\p{L}{1,12})",
+  MMM: "(\\p{L}{1,12})\\.?",
   MM: "(\\d{2})",
   M: "(\\d{1,2})",
   dd: "(\\d{2})",
@@ -368,6 +379,16 @@ const tokenSource: Readonly<Record<Token, string>> = {
 };
 
 const literals = new Set([".", "/", "-", ":", ",", " ", "T"]);
+
+const tokenFamilies: readonly (readonly Token[])[] = [
+  ["yyyy"],
+  ["MMMM", "MMM", "MM", "M"],
+  ["dd", "d"],
+  ["HH", "H", "hh", "h"],
+  ["mm"],
+  ["ss"],
+  ["a"],
+];
 
 /**
  * Guard: only `.` and `/` are escaped. Under the `u` flag an escape of any
@@ -445,8 +466,20 @@ export class DateFormat {
         kind: "invalid",
         reason: "The pattern needs a year (yyyy), a month and a day.",
       };
-    if (new Set(fields).size !== fields.length)
-      return { kind: "invalid", reason: "A token appears twice." };
+    /**
+     * Guard: one token per family. Two month names side by side (`MMMMMMM`
+     * splits into MMMM and MMM) would put two unbounded letter groups next to
+     * each other, an expression that backtracks quadratically on a long cell.
+     */
+    if (
+      tokenFamilies.some(
+        (family) => fields.filter((field) => family.includes(field)).length > 1,
+      )
+    )
+      return {
+        kind: "invalid",
+        reason: "A month, a day, an hour or another field appears twice.",
+      };
     if (has("h", "hh") !== has("a"))
       return {
         kind: "invalid",
@@ -459,7 +492,9 @@ export class DateFormat {
   }
 
   read(text: string): DateReading {
-    const match = this.#expression.exec(normalize(text));
+    const normalized = normalize(text);
+    const match =
+      normalized === undefined ? null : this.#expression.exec(normalized);
     if (match === null) return { kind: "text" };
     const field = (...names: Token[]): string | undefined => {
       const at = this.#fields.findIndex((name) => names.includes(name));
@@ -501,7 +536,8 @@ export function orderedPatternOf(
   example: string,
   order: DateOrder,
 ): string | undefined {
-  const match = orderedForm.exec(normalize(example));
+  const normalized = normalize(example);
+  const match = normalized === undefined ? null : orderedForm.exec(normalized);
   if (match === null) return undefined;
   const separator = match[2] ?? "/";
   const head = order === "dmy" ? ["dd", "MM"] : ["MM", "dd"];

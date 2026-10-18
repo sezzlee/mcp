@@ -66,6 +66,8 @@ describe("readDateText", () => {
     ["", "dmy"],
     ["2023", "dmy"],
     ["12:30", "dmy"],
+    [`02.01.2023${" ".repeat(60)}x`, "dmy"],
+    [`${"a".repeat(13)} 1, 2026`, "dmy"],
   ] as const)("leaves %j as text", (text, order) => {
     expect(readDateText(text, order)).toEqual({ kind: "text" });
   });
@@ -150,6 +152,9 @@ describe("DateFormat", () => {
     ["dd.MM", "year"],
     ["yyyy-dd", "month"],
     ["dd.MM.yyyy.dd", "twice"],
+    ["dd MMMMMMM yyyy", "twice"],
+    ["d.M.yyyy dd", "twice"],
+    ["dd.MM.yyyy HH:mm h", "twice"],
     ["dd/MM/yyyy h:mm", "12-hour"],
     ["(.*)+", "neither"],
     ["dd.MM.yyyy'T'", "neither"],
