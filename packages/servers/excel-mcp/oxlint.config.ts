@@ -13,19 +13,25 @@ const formatMessage =
 const workerMessage =
   "The regex worker entry stays free of the server surface; it answers over the message port and the main side builds the error.";
 
-const parserPackages = ["csv-parse", "csv-parse/sync"];
-
 /**
- * Guard: SheetJS is the test oracle the OOXML reader is compared against, so it
- * is a dev dependency. An import from src would pass every local check and
- * fail only for a consumer installing the tarball. Every src override carries
- * the ban, because an override replaces the rule's options instead of merging.
+ * Guard: SheetJS and csv-parse are the test oracles the OOXML reader and the
+ * CSV tokenizer are compared against, so they are dev dependencies. An import
+ * from src would pass every local check and fail only for a consumer
+ * installing the tarball. Every src override carries the ban, because an
+ * override replaces the rule's options instead of merging.
  */
-const oracle = {
-  name: "@e965/xlsx",
-  message:
-    "@e965/xlsx is the test oracle and a dev dependency; src reads workbooks through the OOXML reader.",
-};
+const oracles = [
+  {
+    name: "@e965/xlsx",
+    message:
+      "@e965/xlsx is the test oracle and a dev dependency; src reads workbooks through the OOXML reader.",
+  },
+  ...["csv-parse", "csv-parse/sync"].map((name) => ({
+    name,
+    message:
+      "csv-parse is the test oracle and a dev dependency; src reads CSV through format/csv-tokenizer.",
+  })),
+];
 
 /**
  * Guard: the platform layer may name the container reader, because sniffing the
@@ -34,7 +40,6 @@ const oracle = {
  */
 const containerPackages = ["@sezzlee/ooxml-core"];
 
-const formatPackages = [...parserPackages, ...containerPackages];
 const serverPackages = [
   "@sezzlee/file-core",
   "@modelcontextprotocol/server",
@@ -56,7 +61,7 @@ const restrict = (
   "no-restricted-imports": [
     "error",
     {
-      paths: [...paths.map((name) => ({ name, message })), oracle],
+      paths: [...paths.map((name) => ({ name, message })), ...oracles],
       patterns: [{ group: [...folders, ...entrypoints], message }],
     },
   ],
@@ -70,7 +75,7 @@ export default defineConfig({
     {
       files: ["src/**/*.ts"],
       rules: {
-        "no-restricted-imports": ["error", { paths: [oracle] }],
+        "no-restricted-imports": ["error", { paths: oracles }],
       },
     },
     {
@@ -85,7 +90,6 @@ export default defineConfig({
     {
       files: ["src/platform/**/*.ts"],
       rules: restrict(platformMessage, {
-        paths: parserPackages,
         folders: [
           "**/grid/**",
           "**/metadata/**",
@@ -97,7 +101,7 @@ export default defineConfig({
     {
       files: ["src/grid/**/*.ts"],
       rules: restrict(gridMessage, {
-        paths: formatPackages,
+        paths: containerPackages,
         folders: ["**/metadata/**", "**/format/**", "**/tools/**"],
       }),
     },
@@ -116,7 +120,7 @@ export default defineConfig({
       rules: {
         "no-console": "error",
         ...restrict(workerMessage, {
-          paths: [...serverPackages, ...formatPackages],
+          paths: [...serverPackages, ...containerPackages],
           folders: [
             "**/platform/**",
             "**/grid/**",

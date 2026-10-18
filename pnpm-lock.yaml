@@ -605,9 +605,6 @@ importers:
       '@sezzlee/ooxml-core':
         specifier: workspace:^
         version: link:../../cores/ooxml-core
-      csv-parse:
-        specifier: ^7.0.2
-        version: 7.0.2
       zod:
         specifier: ^4.5.4
         version: 4.6.5
@@ -630,6 +627,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: 3.2.7
         version: 3.2.7(supports-color@10.2.2)(vitest@3.2.7(@types/debug@4.1.13)(@types/node@24.19.0)(jiti@2.7.0)(lightningcss@1.33.0)(sugarss@5.0.1(postcss@8.5.26))(supports-color@10.2.2)(yaml@2.9.1))
+      csv-parse:
+        specifier: ^7.0.2
+        version: 7.0.2
       exceljs:
         specifier: ^4.4.0
         version: 4.4.0
