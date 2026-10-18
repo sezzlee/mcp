@@ -1,6 +1,6 @@
 import type { CellFacts, CellSnapshot } from "../../../src/grid/cell-value.js";
 import { SezzleeExcelError } from "../../../src/platform/errors.js";
-import { formatDate } from "../../../src/format/cell-date.js";
+import { formatDate, isTimeOnlyFormat } from "../../../src/format/cell-date.js";
 
 export interface SheetJsCell {
   readonly t?: string;
@@ -45,7 +45,12 @@ function factsOf(cell: SheetJsCell): CellFacts {
     return { value: null };
   }
   if (value instanceof Date) {
-    return { value: formatDate(value, cell.z) };
+    return {
+      value:
+        typeof cell.z === "string" && isTimeOnlyFormat(cell.z)
+          ? value.toISOString().slice(11, 19)
+          : formatDate(value, cell.z),
+    };
   }
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {

@@ -1,7 +1,13 @@
 import type { CellFacts, CellSnapshot } from "../grid/cell-value.js";
 import type { RawValue } from "../metadata/spreadsheetml/cells.js";
 import { SezzleeExcelError } from "../platform/errors.js";
-import { formatDate, isDateFormat, serialToDate } from "./cell-date.js";
+import {
+  formatDate,
+  isDateFormat,
+  isTimeOnlyFormat,
+  serialToClock,
+  serialToDate,
+} from "./cell-date.js";
 
 const zoneSuffix = /(?:[Zz]|[+-]\d{2}:?\d{2})$/;
 
@@ -39,6 +45,10 @@ function factsOf(
         );
       }
       if (!isDateFormat(numberFormat)) return { value: value.value };
+      if (isTimeOnlyFormat(numberFormat)) {
+        const clock = serialToClock(value.value, date1904);
+        return { value: clock ?? value.value };
+      }
       const instant = serialToDate(value.value, date1904);
       return instant === undefined
         ? { value: value.value }
