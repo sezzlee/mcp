@@ -120,9 +120,20 @@
           "maxAggregateCellVisits": "Cells one `aggregate_sheet` call may read before it is refused with `resource_limit`",
           "maxMetrics": "Metrics in one `aggregate_sheet` call",
           "maxConditions": "Conditions in one `where` filter",
-          "maxColumnSpecs": "Entries in one `aggregate_sheet` `columns` list",
+          "maxColumnSpecs": "Shared column specifications accepted by profile_sheet, read_sheet, find_in_sheet and aggregate_sheet",
           "maxInValues": "Values in one `in` condition",
           "headerScanRows": "Rows at the top of the range that `headerScan` examines"
+        }
+      },
+      {
+        "title": "Column profiles",
+        "keys": {
+          "maxProfileRowsDefault": "Data rows sampled by profile_sheet when maxRows is omitted",
+          "maxProfileRowsHard": "Largest maxRows for profile_sheet",
+          "maxProfileColumnsDefault": "Columns profiled when maxColumns is omitted",
+          "maxProfileColumnsHard": "Largest maxColumns for profile_sheet",
+          "maxProfileCells": "Cells in one rectangular profile sample; a prefix is returned with omitted rows counted",
+          "maxProfileDistinct": "Distinct values retained per profiled column; larger cardinalities are lower bounds and topValuesComplete is false"
         }
       },
       {

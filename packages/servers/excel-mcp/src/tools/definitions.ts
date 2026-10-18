@@ -18,8 +18,37 @@ import {
   filePath,
   groupAxis,
   rowConditions,
+  readingHintsSchema,
   sheetName,
 } from "./schemas.js";
+
+const typedOptions = {
+  columns: columnSpecs,
+  ...readingHintsSchema,
+  columnMode: z
+    .enum(["auto", "header", "letter"])
+    .optional()
+    .describe(
+      "Resolve column names automatically (default), by header text, or by A1 letter. Letter mode avoids duplicate/colliding headers.",
+    ),
+};
+
+const profileHeaders = {
+  headerRow: z
+    .int()
+    .min(0)
+    .max(1_048_576)
+    .optional()
+    .describe(
+      "Header row, default 1. Use 0 for no headers; cannot combine with headerScan=true.",
+    ),
+  headerScan: z
+    .boolean()
+    .optional()
+    .describe(
+      "Prove a header row from the sheet, default false. Ambiguous headers are refused.",
+    ),
+};
 
 export const toolDefinitions = {
   list_workbooks: {
@@ -73,6 +102,13 @@ export const toolDefinitions = {
         .describe(
           "A1 range such as B2:D40, B:D or 2:40. Defaults to the used range.",
         ),
+      ...typedOptions,
+      includeTyped: z
+        .boolean()
+        .optional()
+        .describe(
+          "Add a parallel typedValues grid while preserving raw values, default false. Requires explicit columns (for example from profile_sheet). Missing or unreadable typed cells are null and counted. Interpretation is fixed across cursor pages.",
+        ),
       cursor: z
         .string()
         .optional()
@@ -123,6 +159,44 @@ export const toolDefinitions = {
     }),
     annotations: readOnly,
   },
+  profile_sheet: {
+    description:
+      "Profile a bounded rectangular prefix: types and confidence, formats, missing and distinct values, extrema, frequent values, unreadable examples and identifier signals. Returns reusable columns plus explicit sampling limits. This inspects cell contents.",
+    inputSchema: z.object({
+      filePath,
+      sheetName,
+      range: z
+        .string()
+        .optional()
+        .describe("A1 range including any header row, default used range."),
+      ...profileHeaders,
+      ...typedOptions,
+      mergedCells: z
+        .enum(["master", "repeat"])
+        .optional()
+        .describe("Merged cell policy, default master."),
+      maxRows: z
+        .int()
+        .min(1)
+        .max(limits.maxProfileRowsHard)
+        .optional()
+        .describe(
+          "Maximum sampled data rows, default 1000. A rectangular prefix is also bounded by maxProfileCells; omissions are reported.",
+        ),
+      maxColumns: z
+        .int()
+        .min(1)
+        .max(limits.maxProfileColumnsHard)
+        .optional()
+        .describe(
+          "Maximum profiled columns, default 16, hard maximum 64. Extra columns are counted as omitted.",
+        ),
+      delimiter,
+      encoding,
+    }),
+    annotations: readOnly,
+  },
+
   get_merged_ranges: {
     description: "List the merged cell ranges of a worksheet.",
     inputSchema: z.object({ filePath, sheetName }),
@@ -229,7 +303,7 @@ export const toolDefinitions = {
             fn: z
               .enum(metricFunctions)
               .describe(
-                "count counts matched rows. countValues counts non-empty cells; countDistinct counts distinct stored values. sum, avg, stddev, median, p50, p90 and percentile read numeric text column by column and exclude identifiers. stddev is the sample deviation. Percentiles use exact linear interpolation (Excel PERCENTILE.INC), bounded across the call. min/max compare one kind per group; a mixed group is refused.",
+                "countTrue/countFalse count valid boolean values; trueRatio is true divided by all valid booleans (null if none). count counts matched rows. countValues counts non-empty cells; countDistinct counts distinct stored values. sum, avg, stddev, median, p50, p90 and percentile read numeric text column by column and exclude identifiers. stddev is the sample deviation. Percentiles use exact linear interpolation (Excel PERCENTILE.INC), bounded across the call. min/max compare one kind per group; a mixed group is refused.",
               ),
             column: columnRef.optional(),
             percentile: z
@@ -287,6 +361,7 @@ export const toolDefinitions = {
           "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
         ),
       columns: columnSpecs,
+      ...readingHintsSchema,
       mergedCells: z
         .enum(["master", "repeat"])
         .optional()
@@ -332,6 +407,8 @@ export const toolDefinitions = {
           "Text to find, or a JavaScript regular expression of at most 256 characters when matchMode is regex.",
         ),
       sheetName,
+      ...profileHeaders,
+      ...typedOptions,
       matchMode: z
         .enum(["contains", "exact", "regex"])
         .optional()

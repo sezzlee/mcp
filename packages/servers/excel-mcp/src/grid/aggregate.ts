@@ -11,12 +11,15 @@ import { limits } from "../platform/limits.js";
 import {
   explicitReading,
   rawReading,
+  rawReadingFor,
   readAsOf,
   readingWarnings,
   sniffedReading,
   typedCell,
   type ColumnReading,
   type ColumnSpec,
+  type ColumnNeeds,
+  type ReadingHints,
   type ReadAs,
 } from "./column-reading.js";
 import {
@@ -32,16 +35,24 @@ import {
   type Census,
   type ComparableKind,
   type Condition,
+  type ReadingNeed,
   type TypedCell,
 } from "./predicate.js";
 import { columnToLetters, formatRange, resolveRange } from "./range.js";
-import { isUncachedFormula, presentScalar, resolveCell } from "./cell-value.js";
+import {
+  isCellDuration,
+  isUncachedFormula,
+  presentScalar,
+  resolveCell,
+} from "./cell-value.js";
 import type { RowView } from "./sheet.js";
 import { requireSheetBounds, type SheetSource } from "./sheet.js";
 import {
   addMetric,
   finishMetric,
   isNumericMetric,
+  isBooleanMetric,
+  mergeMetricMeaning,
   metricKind,
   metricLabel,
   newMetricStates,
@@ -49,6 +60,7 @@ import {
   type MetricFunction,
   type MetricRequest,
   type MetricState,
+  type MetricMeaning,
 } from "./aggregate-metrics.js";
 import {
   compileGroup,
@@ -62,7 +74,7 @@ import {
 
 export type { MetricFunction, MetricRequest } from "./aggregate-metrics.js";
 
-export interface AggregateOptions {
+export interface AggregateOptions extends ReadingHints {
   readonly sheetName?: string;
   readonly range?: string;
   readonly groupBy?: readonly GroupRequest[];
@@ -102,6 +114,10 @@ export interface AggregateColumn {
   readonly width?: number;
   readonly origin?: number;
   readonly interval?: "[lower, upper)";
+  readonly unit?: "fraction" | "seconds";
+  readonly currency?: string;
+  readonly mixedUnits?: true;
+  readonly mixedCurrencies?: true;
 }
 
 export interface GroupingResult {
@@ -186,6 +202,11 @@ function samplesOf(tally: Tally): string {
   return [...tally.samples].map((sample) => `'${sample}'`).join(", ");
 }
 
+function keyLabel(value: CellScalar): string {
+  const shown = presentScalar(value);
+  return isCellDuration(shown) ? `${shown.durationSeconds} s` : String(shown);
+}
+
 function readGrid(
   rowView: RowView | undefined,
   column: number,
@@ -223,6 +244,9 @@ function compareKeys(
     ) {
       const order = compareWithin(kind, a, b, caseSensitive);
       if (order !== 0) return order;
+    } else if (isCellDuration(a) && isCellDuration(b)) {
+      if (a.durationSeconds !== b.durationSeconds)
+        return a.durationSeconds < b.durationSeconds ? -1 : 1;
     } else {
       const text = JSON.stringify(a);
       const otherText = JSON.stringify(b);
@@ -384,6 +408,7 @@ export function aggregateSheet(
     sheet.populatedRows({ from: startRow, to: bounds.bottom, withCovered });
 
   const readings = new Map<number, ColumnReading>();
+  const fallbackReading = rawReadingFor(options);
   for (const spec of options.columns ?? []) {
     const column = resolveColumn(index, spec.column, options.columnMode);
     if (readings.has(column))
@@ -392,14 +417,17 @@ export function aggregateSheet(
         `columns names ${columnToLetters(column)} twice.`,
         "Give each column one entry.",
       );
-    readings.set(column, explicitReading(spec));
+    readings.set(column, explicitReading(spec, options));
   }
-  const needs = new Map<number, { number: boolean; date: boolean }>();
-  const need = (column: number, kinds: readonly ComparableKind[]): void => {
+  const needs = new Map<number, ColumnNeeds>();
+  const need = (column: number, kinds: readonly ReadingNeed[]): void => {
     const current = needs.get(column) ?? { number: false, date: false };
     needs.set(column, {
       number: current.number || kinds.includes("number"),
       date: current.date || kinds.includes("date"),
+      time: current.time || kinds.includes("time"),
+      duration: current.duration || kinds.includes("duration"),
+      boolean: current.boolean || kinds.includes("boolean"),
     });
   };
   for (const plan of plans.values()) need(plan.column, groupNeeds(plan));
@@ -409,13 +437,20 @@ export function aggregateSheet(
     for (const condition of entry.conditions)
       need(condition.column, kindsRead(condition.condition));
     if (entry.column === undefined) continue;
-    if (isNumericMetric(entry.metric.fn)) need(entry.column, ["number"]);
+    if (isNumericMetric(entry.metric.fn))
+      need(entry.column, ["number", "duration"]);
+    if (isBooleanMetric(entry.metric.fn)) need(entry.column, ["boolean"]);
     if (entry.metric.fn === "min" || entry.metric.fn === "max")
-      need(entry.column, ["number", "date"]);
+      need(entry.column, ["number", "date", "time", "duration"]);
   }
   const sniffed = [...needs].filter(
     ([column, wanted]) =>
-      !readings.has(column) && (wanted.number || wanted.date),
+      !readings.has(column) &&
+      (wanted.number ||
+        wanted.date ||
+        wanted.time ||
+        wanted.duration ||
+        wanted.boolean),
   );
   if (sniffed.length > 0) {
     const texts = new Map<number, string[]>(
@@ -426,12 +461,14 @@ export function aggregateSheet(
       for (const [column, values] of texts) {
         visit();
         const value = readGrid(rowView, column, options.mergedCells).value;
-        if (typeof value === "string" && classify(value) === "text")
-          values.push(value);
+        if (typeof value === "string") values.push(value);
       }
     }
     for (const [column, wanted] of sniffed)
-      readings.set(column, sniffedReading(texts.get(column) ?? [], wanted));
+      readings.set(
+        column,
+        sniffedReading(texts.get(column) ?? [], wanted, options),
+      );
   }
 
   let storedGroups = 0;
@@ -514,6 +551,7 @@ export function aggregateSheet(
 
   const census = new Map<number, Census>();
   const unreadable = new Map<number, Tally>();
+  const unreadableBooleans = new Map<number, Tally>();
   const identifiers = new Map<number, Tally>();
   const currencies = new Map<number, Set<string>>();
   const groupFailures = new Map<GroupPlan, Tally>();
@@ -555,7 +593,10 @@ export function aggregateSheet(
       if (existing !== undefined) return existing;
       const read = readGrid(rowView, column, options.mergedCells);
       if (read.uncachedFormula) uncachedFormulas += weight;
-      const cell = typedCell(read.value, readings.get(column) ?? rawReading);
+      const cell = typedCell(
+        read.value,
+        readings.get(column) ?? fallbackReading,
+      );
       rowCells.set(column, cell);
       return cell;
     };
@@ -590,6 +631,7 @@ export function aggregateSheet(
     if (targets.length === 0) return;
     const countedColumns = new Set<number>();
     const numericColumns = new Set<number>();
+    const booleanColumns = new Set<number>();
     const pivotId = JSON.stringify(pivot?.values ?? []);
     const absent = typedCell(null, rawReading);
     metricColumns.forEach((entry, slot) => {
@@ -598,6 +640,19 @@ export function aggregateSheet(
         include && entry.column !== undefined && entry.metric.fn !== "count"
           ? cellAt(entry.column)
           : absent;
+      if (
+        include &&
+        entry.column !== undefined &&
+        isBooleanMetric(entry.metric.fn) &&
+        !booleanColumns.has(entry.column)
+      ) {
+        booleanColumns.add(entry.column);
+        if (!cell.missing && typeof cell.as("boolean") !== "boolean") {
+          const tally = unreadableBooleans.get(entry.column) ?? tallyOf();
+          unreadableBooleans.set(entry.column, tally);
+          note(tally, cell.raw, weight);
+        }
+      }
       if (
         include &&
         entry.column !== undefined &&
@@ -731,6 +786,7 @@ export function aggregateSheet(
         let skipped = 0;
         let filtered = 0;
         let kindUsed: ComparableKind | undefined;
+        let meaning: MetricMeaning | undefined;
         for (const group of page) {
           const state = (
             pivot === undefined ? group.metrics : group.pivots.get(pivot[0])
@@ -739,12 +795,25 @@ export function aggregateSheet(
           skipped += state?.skipped ?? 0;
           filtered += state?.filtered ?? 0;
           kindUsed ??= metricKind(state);
+          meaning = mergeMetricMeaning(meaning, state?.meaning);
         }
+        if (meaning?.mixedUnits)
+          warnings.push(
+            `${metricLabel(entry.metric)} combines plain numbers, fractions or duration seconds; no common unit is assigned.`,
+          );
+        if (
+          meaning?.mixedCurrencies &&
+          (entry.column === undefined ||
+            (currencies.get(entry.column)?.size ?? 0) < 2)
+        )
+          warnings.push(
+            `${metricLabel(entry.metric)} combines different or unlabelled currencies without conversion; no common currency is assigned.`,
+          );
         return {
           label:
             pivot === undefined
               ? metricLabel(entry.metric)
-              : `${pivot[1].values.map((value) => String(presentScalar(value))).join(" / ")}: ${metricLabel(entry.metric)}`,
+              : `${pivot[1].values.map(keyLabel).join(" / ")}: ${metricLabel(entry.metric)}`,
           ...(entry.column === undefined
             ? {}
             : { letter: columnToLetters(entry.column) }),
@@ -754,6 +823,20 @@ export function aggregateSheet(
           skipped,
           ...(filtered === 0 ? {} : { filtered }),
           ...(kindUsed === undefined ? {} : { kindUsed }),
+          ...(entry.metric.fn === "trueRatio"
+            ? { unit: "fraction" as const }
+            : meaning !== undefined &&
+                !meaning.mixedUnits &&
+                meaning.unit !== "number"
+              ? { unit: meaning.unit }
+              : {}),
+          ...(meaning?.currency === undefined || meaning.mixedCurrencies
+            ? {}
+            : { currency: meaning.currency }),
+          ...(meaning?.mixedUnits ? { mixedUnits: true as const } : {}),
+          ...(meaning?.mixedCurrencies
+            ? { mixedCurrencies: true as const }
+            : {}),
           ...(entry.metric.percentile === undefined
             ? {}
             : { percentile: entry.metric.percentile }),
@@ -802,11 +885,7 @@ export function aggregateSheet(
         ),
       );
       const bucket = collisions.get(label) ?? new Set<string>();
-      bucket.add(
-        group.key.values
-          .map((value) => String(presentScalar(value)))
-          .join(" / "),
-      );
+      bucket.add(group.key.values.map(keyLabel).join(" / "));
       collisions.set(label, bucket);
     }
     for (const bucket of collisions.values())
@@ -873,6 +952,10 @@ export function aggregateSheet(
   for (const [column, tally] of identifiers)
     warnings.push(
       `${columnToLetters(column)}: ${count(tally.count, "cell looks like an identifier", "cells look like identifiers")} (a leading zero or more than 15 digits), such as ${samplesOf(tally)}; the totals exclude them. If they are quantities, pass columns [{"column":"${columnToLetters(column)}","type":"number","decimal":"."}].`,
+    );
+  for (const [column, tally] of unreadableBooleans)
+    warnings.push(
+      `${columnToLetters(column)}: ${count(tally.count, "cell does", "cells do")} not read as a boolean, such as ${samplesOf(tally)}; boolean metrics exclude them.`,
     );
   if (uncachedFormulas > 0)
     warnings.push(

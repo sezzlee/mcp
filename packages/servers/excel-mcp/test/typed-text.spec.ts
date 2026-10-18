@@ -125,9 +125,15 @@ describe("a Turkish CSV", () => {
     expect(body(result)["readAs"]).toEqual({
       B: [{ type: "number", decimal: ",", group: "." }],
     });
-    expect(warningsOf(result)).toContain(
+    expect(warningsOf(result)).not.toContain(
       "B: 1 text cell does not read as a number, such as 'N/A'; the totals exclude them.",
     );
+    expect(body(result)["columnStats"]).toEqual({
+      B: { texts: 5, textNumbers: 4, missingLiterals: 1 },
+    });
+    expect(body(result)["columns"]).toEqual([
+      expect.objectContaining({ counted: 4, skipped: 1 }),
+    ]);
   });
 
   it("filters day-first dates against ISO bounds", async () => {

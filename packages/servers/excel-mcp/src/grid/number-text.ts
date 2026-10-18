@@ -7,6 +7,7 @@ export type NumberMarks =
 export type NumberUnit =
   | { readonly kind: "plain" }
   | { readonly kind: "percent" }
+  | { readonly kind: "permille" }
   | { readonly kind: "currency"; readonly code: string };
 
 export type NumberReading =
@@ -39,9 +40,13 @@ export const markCandidates = [
 ] as const satisfies readonly NumberMarks[];
 
 const plain: NumberUnit = { kind: "plain" };
+const currencyCodes = new Set(Intl.supportedValuesOf("currency"));
 
 const unitTokens: readonly (readonly [string, NumberUnit])[] = [
   ["%", { kind: "percent" }],
+  ["٪", { kind: "percent" }],
+  ["‰", { kind: "permille" }],
+  ["؉", { kind: "permille" }],
   ["₺", { kind: "currency", code: "TRY" }],
   ["TRY", { kind: "currency", code: "TRY" }],
   ["TL", { kind: "currency", code: "TRY" }],
@@ -51,14 +56,24 @@ const unitTokens: readonly (readonly [string, NumberUnit])[] = [
   ["GBP", { kind: "currency", code: "GBP" }],
   ["USD", { kind: "currency", code: "USD" }],
   ["$", { kind: "currency", code: "$" }],
+  ["₹", { kind: "currency", code: "INR" }],
+  ["₽", { kind: "currency", code: "RUB" }],
+  ["¥", { kind: "currency", code: "¥" }],
+  ["￥", { kind: "currency", code: "¥" }],
+  ["₩", { kind: "currency", code: "₩" }],
 ];
 
 const spaceLike = /[    ]/g;
 const letter = /\p{L}/u;
 const exponent = /[eE][+-]?\d+$/;
 const digitsOnly = /^\d*$/;
-const groupHead = /^[1-9]\d{0,2}$/;
-const groupTail = /^\d{3}$/;
+
+interface NumberSyntax {
+  readonly decimal: string;
+  readonly group: string;
+  readonly primary?: number;
+  readonly secondary?: number;
+}
 
 interface Affixed {
   readonly negative: boolean;
@@ -83,6 +98,10 @@ function unitAtStart(
     if (rest === "" || letter.test(rest.charAt(0))) continue;
     return { unit, rest };
   }
+  const code = text.slice(0, 3);
+  const rest = text.slice(3).trimStart();
+  if (currencyCodes.has(code) && rest !== "" && !letter.test(rest.charAt(0)))
+    return { unit: { kind: "currency", code }, rest };
   return undefined;
 }
 
@@ -95,6 +114,14 @@ function unitAtEnd(
     if (rest === "" || letter.test(rest.charAt(rest.length - 1))) continue;
     return { unit, rest };
   }
+  const code = text.slice(-3);
+  const rest = text.slice(0, -3).trimEnd();
+  if (
+    currencyCodes.has(code) &&
+    rest !== "" &&
+    !letter.test(rest.charAt(rest.length - 1))
+  )
+    return { unit: { kind: "currency", code }, rest };
   return undefined;
 }
 
@@ -140,7 +167,7 @@ function isIdentifier(body: string): boolean {
 
 function wholeDigits(
   whole: string,
-  group: NumberMarks["group"],
+  syntax: NumberSyntax,
   leadingZeros: boolean,
 ): string | undefined {
   if (digitsOnly.test(whole)) {
@@ -148,13 +175,22 @@ function wholeDigits(
       ? undefined
       : whole;
   }
-  if (group === "none") return undefined;
-  const [head, ...tail] = whole.split(group);
+  if (syntax.group === "none") return undefined;
+  const [head, ...tail] = whole.split(syntax.group);
+  const primary = syntax.primary ?? 3;
+  const secondary = syntax.secondary ?? 3;
   if (
     head === undefined ||
     tail.length === 0 ||
-    !groupHead.test(head) ||
-    !tail.every((part) => groupTail.test(part))
+    head === "" ||
+    head.startsWith("0") ||
+    !digitsOnly.test(head) ||
+    head.length > secondary ||
+    !tail.every(
+      (part, at) =>
+        digitsOnly.test(part) &&
+        part.length === (at === tail.length - 1 ? primary : secondary),
+    )
   )
     return undefined;
   return head + tail.join("");
@@ -162,7 +198,7 @@ function wholeDigits(
 
 function canonicalOf(
   body: string,
-  marks: NumberMarks,
+  marks: NumberSyntax,
   leadingZeros = false,
 ): string | undefined {
   const power = exponent.exec(body);
@@ -171,7 +207,7 @@ function canonicalOf(
   if (parts.length > 2) return undefined;
   const [whole = "", fraction = ""] = parts;
   if (!digitsOnly.test(fraction)) return undefined;
-  const digits = wholeDigits(whole, marks.group, leadingZeros);
+  const digits = wholeDigits(whole, marks, leadingZeros);
   if (digits === undefined || (digits === "" && fraction === ""))
     return undefined;
   const point = fraction === "" ? "" : `.${fraction}`;
@@ -190,6 +226,14 @@ export function readNumberText(
   marks: NumberMarks,
   identifiers: "refuse" | "read" = "refuse",
 ): NumberReading {
+  return readWithSyntax(text, marks, identifiers);
+}
+
+function readWithSyntax(
+  text: string,
+  marks: NumberSyntax,
+  identifiers: "refuse" | "read",
+): NumberReading {
   const affixed = affixesOf(normalize(text));
   if (affixed === undefined) return { kind: "text" };
   const reads = identifiers === "read";
@@ -205,9 +249,201 @@ export function readNumberText(
   const signed = affixed.negative ? -magnitude : magnitude;
   return {
     kind: "number",
-    value: affixed.unit.kind === "percent" ? signed / 100 : signed,
+    value:
+      affixed.unit.kind === "percent"
+        ? signed / 100
+        : affixed.unit.kind === "permille"
+          ? signed / 1000
+          : signed,
     unit: affixed.unit,
   };
+}
+
+/**
+ * An explicit decimal numeral system compiled from the host's Intl data.
+ * Symbols, digit mappings and primary/secondary grouping widths are decided
+ * once; reading a cell makes no Intl call and never selects the host locale.
+ */
+export class NumberLocale {
+  readonly locale: string;
+  readonly numberingSystem: string;
+  readonly decimal: string;
+  readonly group: string;
+  readonly #syntax: NumberSyntax;
+  readonly #digits: ReadonlyMap<string, string>;
+  readonly #symbols: readonly (readonly [string, string])[];
+
+  private constructor(
+    locale: string,
+    numberingSystem: string,
+    syntax: NumberSyntax,
+    digits: ReadonlyMap<string, string>,
+    symbols: readonly (readonly [string, string])[],
+  ) {
+    this.locale = locale;
+    this.numberingSystem = numberingSystem;
+    this.decimal = syntax.decimal;
+    this.group = syntax.group;
+    this.#syntax = {
+      ...syntax,
+      group: syntax.group.replace(spaceLike, " ").replaceAll("’", "'"),
+    };
+    this.#digits = digits;
+    this.#symbols = symbols;
+  }
+
+  static compile(
+    locale: string,
+    numberingSystem?: string,
+  ):
+    | { readonly kind: "locale"; readonly locale: NumberLocale }
+    | { readonly kind: "invalid"; readonly reason: string } {
+    try {
+      if (locale.length === 0 || locale.length > 128)
+        return {
+          kind: "invalid",
+          reason:
+            "The locale must be a supported BCP 47 language tag of at most 128 characters.",
+        };
+      const requested = new Intl.Locale(locale);
+      const canonical = requested.toString();
+      if (
+        Intl.NumberFormat.supportedLocalesOf([canonical], {
+          localeMatcher: "lookup",
+        }).length === 0
+      )
+        return {
+          kind: "invalid",
+          reason: `Locale '${locale}' is not supported by this runtime.`,
+        };
+      if (
+        numberingSystem !== undefined &&
+        requested.numberingSystem !== undefined &&
+        numberingSystem !== requested.numberingSystem
+      )
+        return {
+          kind: "invalid",
+          reason: "numberingSystem conflicts with the locale's nu extension.",
+        };
+      const wanted = numberingSystem ?? requested.numberingSystem;
+      const options = {
+        useGrouping: true,
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+        ...(wanted === undefined ? {} : { numberingSystem: wanted }),
+      } as const;
+      const formatter = new Intl.NumberFormat(canonical, options);
+      const resolved = formatter.resolvedOptions();
+      if (wanted !== undefined && resolved.numberingSystem !== wanted)
+        return {
+          kind: "invalid",
+          reason: `Numbering system '${wanted}' is not supported as a decimal positional system.`,
+        };
+      const digitFormatter = new Intl.NumberFormat(canonical, {
+        useGrouping: false,
+        maximumFractionDigits: 0,
+        numberingSystem: resolved.numberingSystem,
+      });
+      const digits = new Map<string, string>();
+      for (let value = 0; value < 10; value += 1) {
+        const digit = digitFormatter
+          .formatToParts(value)
+          .filter((part) => part.type === "integer")
+          .map((part) => part.value)
+          .join("");
+        if ([...digit].length !== 1 || digits.has(digit))
+          return {
+            kind: "invalid",
+            reason:
+              "Only decimal positional systems with ten distinct digits can be read.",
+          };
+        digits.set(digit, String(value));
+      }
+      const parts = formatter.formatToParts(1234567890123.5);
+      const decimal = parts.find((part) => part.type === "decimal")?.value;
+      const group =
+        parts.find((part) => part.type === "group")?.value ?? "none";
+      const widths = parts
+        .filter((part) => part.type === "integer")
+        .map((part) => [...part.value].length);
+      if (decimal === undefined)
+        return {
+          kind: "invalid",
+          reason: "The locale does not expose a decimal separator.",
+        };
+      const signParts = new Intl.NumberFormat(canonical, {
+        ...options,
+        signDisplay: "always",
+      }).formatToParts(1);
+      const percentParts = new Intl.NumberFormat(canonical, {
+        style: "percent",
+        numberingSystem: resolved.numberingSystem,
+      }).formatToParts(0.5);
+      const scientificParts = new Intl.NumberFormat(canonical, {
+        notation: "scientific",
+        numberingSystem: resolved.numberingSystem,
+      }).formatToParts(1234);
+      const symbols: (readonly [string, string])[] = [];
+      const minus = formatter
+        .formatToParts(-1)
+        .find((part) => part.type === "minusSign")?.value;
+      const plus = signParts.find((part) => part.type === "plusSign")?.value;
+      const percent = percentParts.find(
+        (part) => part.type === "percentSign",
+      )?.value;
+      const power = scientificParts.find(
+        (part) => part.type === "exponentSeparator",
+      )?.value;
+      for (const [symbol, replacement] of [
+        [power, "E"],
+        [minus, "-"],
+        [plus, "+"],
+        [percent, "%"],
+      ] as const)
+        if (symbol !== undefined && symbol !== replacement)
+          symbols.push([symbol, replacement]);
+      return {
+        kind: "locale",
+        locale: new NumberLocale(
+          resolved.locale,
+          resolved.numberingSystem,
+          {
+            decimal,
+            group,
+            primary: widths.at(-1) ?? 3,
+            secondary: widths.at(-2) ?? 3,
+          },
+          digits,
+          symbols,
+        ),
+      };
+    } catch {
+      return {
+        kind: "invalid",
+        reason:
+          "The locale or numbering system is not supported by this runtime.",
+      };
+    }
+  }
+
+  read(text: string, identifiers: "refuse" | "read" = "refuse"): NumberReading {
+    if (
+      text.length > 512 ||
+      /[\p{Cc}\p{Cf}]/u.test(text.replace(/[\u061c\u200e\u200f]/g, ""))
+    )
+      return { kind: "text" };
+    let source = text
+      .trim()
+      .replace(/^[\u061c\u200e\u200f]+|[\u061c\u200e\u200f]+$/g, "")
+      .trim();
+    if (/\p{Cf}/u.test(source)) return { kind: "text" };
+    for (const [symbol, replacement] of this.#symbols)
+      source = source.replaceAll(symbol, replacement);
+    source = [...source]
+      .map((character) => this.#digits.get(character) ?? character)
+      .join("");
+    return readWithSyntax(source, this.#syntax, identifiers);
+  }
 }
 
 function shapeOf(body: string): string {

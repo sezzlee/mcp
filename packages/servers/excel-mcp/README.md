@@ -35,6 +35,7 @@ Requires Node.js 22 or 24 on macOS (x64, arm64), glibc Linux (x64, arm64) or Win
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `list_workbooks`          | Lists readable files under the root; the `filePath` it returns is passed to other tools verbatim                                                 |
 | `describe_workbook`       | Sheets and their kind (worksheet or chart sheet), used ranges, counts of merges, validations, tables, formulas, images and charts, defined names |
+| `profile_sheet`           | Bounded type and quality profiles with reusable column specifications                                                                            |
 | `read_sheet`              | A cell range as a compact grid: hoisted column headers plus row arrays                                                                           |
 | `aggregate_sheet`         | Grouped summaries, calendar and numeric buckets, bounded pivots, conditional metrics and exact percentiles                                       |
 | `find_in_sheet`           | Cells whose value or formula matches a query                                                                                                     |
@@ -49,7 +50,7 @@ Every argument, error code and limit is listed in the [reference](https://docs.s
 
 ## How text is read as numbers and dates
 
-A CSV holds only text, and a workbook may store numbers and dates as text too. `read_sheet` and `find_in_sheet` return that text as written. `aggregate_sheet` reads it as a number or a date only where a metric or a `where` operand needs one, and decides the format per column from every value in the range: the decimal and thousands separators (`1.234,50`, `1,234.50`, `1 234,50`, `1'234.50`), and whether slash dates put the day or the month first. The marks or order that read the most values win. When the winners read some value differently (`1.234`, `01/02/2023`) the column is ambiguous: none of those values is read, and a warning names the `columns` entry that settles it. Accounting parentheses, a leading or trailing `%` (read as a ratio) and a currency symbol or code are understood; dotted dates are day first, and Turkish and English month names are read.
+A CSV holds only text, and a workbook may store numbers and dates as text too. `read_sheet` and default `find_in_sheet` return that text as written. `aggregate_sheet` reads it as a number or a date only where a metric or a `where` operand needs one, and decides the format per column from every value in the range: the decimal and thousands separators (`1.234,50`, `1,234.50`, `1 234,50`, `1'234.50`), and whether slash dates put the day or the month first. The marks or order that read the most values win. When the winners read some value differently (`1.234`, `01/02/2023`) the column is ambiguous: none of those values is read, and a warning names the `columns` entry that settles it. Accounting parentheses, a leading or trailing `%` (read as a ratio) and a currency symbol or code are understood; dotted dates are day first, and Turkish and English month names are read.
 
 A digit run with a leading zero or more than 15 digits is an identifier and is never summed unless `columns` declares the column a number. A column whose amounts name more than one currency is summed as written and reported. Every value a call could not read, compare or sum is counted in `warnings` with examples, and `readAs` reports how each column's text was read. A time-only number format (`h:mm`, `hh:mm:ss AM/PM`) is returned as `HH:mm:ss`; an elapsed `[h]` format is a duration and is still returned as a date.
 
@@ -88,6 +89,62 @@ shared. `compact` reduces repeated provenance while retaining loss and ambiguity
 The 2,000-row, 15-column commerce regression in `test/aggregate-analysis.spec.ts` checks an
 overall total, country, category, payment and 36 monthly breakdowns in one response under 8 KiB.
 
+## Profile and reuse a column interpretation
+
+`profile_sheet` samples a rectangular prefix (1,000 data rows and 16 columns by default), with
+hard limits of 5,000 rows, 64 columns and 64,000 cells. It reports sampled and omitted rows and
+columns. Confidence is the dominant readable kind divided by non-missing sampled values; it is
+not a probability about unseen data. Each profile reports formats, missing counts, a distinct
+count, extrema, frequent values, unreadable examples and identifier signals. Distinct tracking
+stops at 1,000 values per column; the count becomes a lower bound and the reported frequencies
+are explicitly incomplete. Tied or ambiguous kinds remain mixed.
+
+The result's `columns` array and `columnMode: "letter"` can be passed directly to the other grid
+tools. A recommended number column always includes `identifiers: "refuse"`, so leading-zero
+or long digit identifiers beyond the sampled prefix are still excluded and counted. An explicit
+number column supplied by the caller keeps the earlier default `identifiers: "read"`.
+
+`read_sheet` preserves its raw `values`. With explicit `columns` and `includeTyped: true`, it adds
+a parallel `typedValues` grid. Missing and unreadable cells become null only in this added grid;
+the `typed` diagnostics distinguish them and include bounded examples. Columns left unspecified
+keep their original type. The interpretation, locale and literal lists travel in the cursor;
+conflicting options are refused. `find_in_sheet` with `columns` searches canonical values in those
+columns, returns raw `value` plus `typedValue`, and counts conversion failures over the scanned
+populated cells. Without `columns`, searches keep their existing raw-text behavior.
+
+### Locales, missing values, booleans and durations
+
+CSV decoding accepts explicit UTF-8/UTF-16, Windows-1251/1252/1254/1256, ISO-8859-9,
+Shift_JIS, GB18030, Big5 and EUC-KR. Legacy encodings are never guessed, and malformed multibyte
+sequences are refused. The same encoding selection is retained in paging cursors.
+
+An explicit number column may provide `locale` and `numberingSystem` instead of decimal/group
+marks, for example `{"column":"Amount","type":"number","locale":"ar-EG","numberingSystem":"arab"}`.
+Decimal digit systems, local separators, signs and grouping sizes are compiled from the runtime's
+Intl data, including Indian 3+2 grouping. Unsupported locales or numbering systems are refused.
+A date column accepts a fixed `format`, an explicit `order`, or unambiguous dates. An explicit
+locale supplies Gregorian month names, including format and standalone forms. Non-Gregorian
+calendar requests are refused. Omitting the locale retains deterministic existing numeric/date
+inference; it never selects the host locale. Unicode decimal digits are normalized without
+turning circled digits, Roman numerals or arbitrary compatibility characters into quantities.
+
+`missingValues`, `trueValues` and `falseValues` are configurable lists, with per-column overrides.
+Default missing tokens are N/A, NULL, -, — and #N/A. Null and blank strings are always missing;
+`missingValues: []` preserves the other tokens as literal text. A stored Excel error is still an
+error. True tokens are true, yes, y, Evet and E; false tokens are false, no, n, Hayır and H.
+Matching folds case and accents, accepts configured tokens in any script, and rejects overlapping
+lists. Numeric zero and one are not automatically treated as booleans. `countTrue`, `countFalse`
+and `trueRatio` operate on valid booleans; the ratio is null when none are readable.
+
+A `time` column reads a clock such as `8:15` as `08:15:00`. A `duration` column reads elapsed
+hours or fixed ISO day/time durations, for example `25:30` or `P1DT2H`, into
+`{"durationSeconds":91800}` or `{"durationSeconds":93600}`. Calendar years/months and leap seconds
+are refused. Numeric duration metrics use seconds and report the unit. Automatic duration
+reading requires a duration cue in the column; pure clocks are not summed as durations.
+Percent and per-mille quantities are fractions, with unit metadata; currency labels are retained
+without exchange-rate conversion. See the [CSV profile recipe](../../../../apps/docs/src/content/excel-mcp/recipes/07-profile-and-read-global-data.md)
+and the reproducible generator/fuzz instructions in the repository's lab.
+
 ## How the metadata is read
 
 Every tool reads the OOXML parts directly through `@sezzlee/ooxml-core`: cells, number formats, formulas, hyperlinks, merges and defined names as much as data validation, Excel Tables, conditional formatting, images and frozen panes. No spreadsheet library is present at runtime. SheetJS and exceljs are dev dependencies: exceljs writes the test fixtures, and SheetJS is the reference the cell reader is compared against.
@@ -102,7 +159,7 @@ The OOXML parts are read namespace-aware by `@sezzlee/ooxml-core`'s own XML toke
 | `get_images`              | worksheet `drawing` → sheet rels → `xl/drawings/*.xml` → `a:blip r:embed` → drawing rels → `xl/media/*`. `twoCell`, `oneCell` and `absolute` anchors are all reported. Only a two-cell anchor gets a `range`; a one-cell anchor gets its top-left `cell` and its size in whole pixels, because the cells that size covers depend on column widths, and an absolute anchor gets the size alone. `get_charts` places a chart the same way                                                                                                                                                                                                                                   |
 | `get_charts`              | worksheet or chart sheet `drawing` → chart / chartEx frames → `xl/charts/*.xml` for type, title, axes (min/max/log, number format), series refs and cached points, trendlines and `pivotSource`. Every element is matched under its parent, so a data label's `c:tx` is never a series name. A number cache is returned as numbers and a text cache as text, with the cache's `numberFormat`; a multi-level category keeps its outer `levels`. An axis is `secondary` when the first plot does not use it. A series under `c15:filtered*Series` is listed as `hidden`. Markup Compatibility chooses one `AlternateContent` branch. `chartEx` is reported as `unsupported` |
 
-`describe_workbook` marks each sheet's `kind` as `worksheet` or `chartsheet` and reports `chartCount`. A chart sheet is refused by `read_sheet`, `aggregate_sheet`, `find_in_sheet` and `get_merged_ranges` as `chart_sheet`, with recovery pointing at `get_charts`. A call without `sheetName` lands on the first visible worksheet, never on a chart sheet, except `get_charts`, which takes the first visible sheet of either kind. Pivot tables and sparklines remain unread. `get_images` with `kind: "chart"` still returns `unsupported_object_kind` and points at `get_charts`.
+`describe_workbook` marks each sheet's `kind` as `worksheet` or `chartsheet` and reports `chartCount`. A chart sheet is refused by `read_sheet`, `profile_sheet`, `aggregate_sheet`, `find_in_sheet` and `get_merged_ranges` as `chart_sheet`, with recovery pointing at `get_charts`. A call without `sheetName` lands on the first visible worksheet, never on a chart sheet, except `get_charts`, which takes the first visible sheet of either kind. Pivot tables and sparklines remain unread. `get_images` with `kind: "chart"` still returns `unsupported_object_kind` and points at `get_charts`.
 
 A corrupt-file claim is split into three codes, and none substitutes for another: `not_a_workbook` (not a zip archive, or a zip with no workbook part or no worksheet), `encrypted_workbook` (an OLE2/CFB header — password-protected or legacy binary) and `corrupt_workbook` (a damaged archive: a part that fails its CRC-32 check, a local header that disagrees with the central directory, or a part that is not well-formed XML or valid UTF-8). A damaged worksheet is refused only by the calls that read that sheet, so the workbook's other sheets stay readable. A CSV is split into records by the server's own RFC 4180 tokenizer, where CRLF, LF and CR each end a record outside quotes; malformed quoting is `corrupt_workbook` with the fault and its line, and is never repaired. `internal_error` carries no `recovery`: there is no known next call, and pretending there is one sends the agent off to repair a file that is fine.
 

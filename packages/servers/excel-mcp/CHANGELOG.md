@@ -4,6 +4,9 @@
 
 ### Compatibility changes
 
+- Missing literals N/A, NULL, -, — and #N/A now count as missing during typed operations, as do blank strings. Raw reads remain unchanged, and stored Excel errors remain errors. Literal lists are configurable, including an empty missing-token override.
+- Invalid ISO offset hours/minutes and impossible canonical dates or clocks are no longer accepted by typed comparisons.
+
 - **`coerceText` is removed from `aggregate_sheet`.** Text is always read as a number or a date where a metric or a `where` operand needs one, so a CSV sums and filters without any option. A call that still passes `coerceText` is refused as `invalid_argument`. `columnStats` no longer has `numericTexts`; it has `textNumbers` (text read as a number), `identifiers` and `times`.
 - **Separators are decided per column.** `1.234,50`, `1,234.50`, `1 234,50` and `1'234.50` are read, as are accounting parentheses, `%` before or after the digits (as a ratio) and a currency symbol or code. A column whose values read differently under the winning separators is not read, and a warning names the `columns` entry to pass. Before, only `1234.50` was read and `1.234,50` summed to `null` without a warning.
 - **Dates written as text match ISO operands.** `02.01.2023`, `2.1.2023`, `25/12/2023`, `12/25/2023`, `2023/01/02`, `18 Ekim 2026` and `October 18, 2026`, with or without a time, compare against `2023-01-02`. Slash and dash dates are read day first or month first from the column's values, and an undecidable column is reported, never guessed.
@@ -16,6 +19,13 @@
 
 ### Tool surface
 
+- CSV encoding selection adds Windows-1251, Windows-1256, Shift_JIS, GB18030, Big5 and EUC-KR. Every selected decoder is strict; invalid sequences are refused and decoding is never guessed from replacement characters.
+
+- New `profile_sheet` returns bounded statistical profiles, confidence, sampling scope, unreadable examples, identifier signals and reusable `columns`. Profile-generated numeric plans refuse identifiers even outside the sampled prefix.
+- Shared closed `columns` support text, number, date, boolean, time and duration in profile, aggregate, read and find. Explicit locales and numbering systems extend number/date reading globally; unrecognized locales and ambiguous interpretations are refused.
+- `read_sheet` optionally adds `typedValues` without changing raw values; column interpretation and token lists remain fixed across cursor pages. `find_in_sheet` optionally searches canonical values while returning raw values and conversion diagnostics.
+- `countTrue`, `countFalse` and `trueRatio` count valid booleans. CSV clock and fixed elapsed-duration text are readable; duration metrics use seconds, while percent/per-mille metrics retain fraction units.
+
 - `aggregate_sheet` takes `columns`, a list of entries such as `{"column":"Tutar","type":"number","decimal":",","group":"."}`, `{"column":"Tarih","type":"date","format":"dd.MM.yyyy"}` or `{"column":"Hesap","type":"text"}`. A date `format` is built from a closed token set and is never run as a regular expression.
 - `aggregate_sheet` answers with `readAs`, how each column's text was read, when any was.
 - `min` and `max` compare text read as numbers or dates in their own kind, and times as times.
@@ -24,6 +34,8 @@
 - `median`, `p50`, `p90` and `percentile` use exact inclusive linear interpolation. Each metric accepts its own `where` and reports `filtered` separately from `counted` and `skipped`.
 
 ### Resource bounds
+
+- Column profiles retain at most 64,000 sampled cells, 64 columns and 1,000 distinct values per column, with explicit omissions and lower-bound flags. Shared column lists accept at most 64 entries. Typed reads and searches include their added values and diagnostics in the response budget; cursor interpretation is bounded to the existing token limit.
 
 - Dense pivot output is limited to 10,000 metric cells before allocation. Percentiles share samples for identical selections and refuse more than 1,000,000 retained values across the call. Exact distinct counts have their own global 1,000,000-value bound; all grouping sets share the group and metric-state budgets.
 

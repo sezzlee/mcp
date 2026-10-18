@@ -1,9 +1,9 @@
 import { SezzleeExcelError } from "../platform/errors.js";
 import { limits } from "../platform/limits.js";
-import type { CellScalar } from "./cell-value.js";
+import { isCellDuration, type CellScalar } from "./cell-value.js";
 import { resolveColumn, type ColumnIndex, type ColumnMode } from "./columns.js";
 import { readDateText } from "./date-text.js";
-import { classify, type ComparableKind, type TypedCell } from "./predicate.js";
+import { classify, type ReadingNeed, type TypedCell } from "./predicate.js";
 import { columnToLetters } from "./range.js";
 
 export const dateParts = [
@@ -179,9 +179,10 @@ export function compileGroup(
   };
 }
 
-export function groupNeeds(plan: GroupPlan): readonly ComparableKind[] {
-  if (plan.kind === "date") return ["date"];
-  return plan.kind === "value" ? [] : ["number"];
+export function groupNeeds(plan: GroupPlan): readonly ReadingNeed[] {
+  if (plan.kind === "date")
+    return plan.by === "hour" ? ["date", "time"] : ["date"];
+  return plan.kind === "value" ? [] : ["number", "duration"];
 }
 
 function valueOf(value: CellScalar, order: CellScalar = value): GroupValue {
@@ -256,25 +257,21 @@ function widthValue(
 
 export function groupValue(plan: GroupPlan, cell: TypedCell): GroupValue {
   if (plan.kind === "value") {
-    const number = cell.number();
-    return valueOf(number.kind === "number" ? number.value : cell.as("date"));
+    const value = cell.value();
+    return valueOf(
+      value,
+      isCellDuration(value) ? value.durationSeconds : value,
+    );
   }
-  if (
-    cell.raw === null ||
-    (typeof cell.raw === "string" && cell.raw.trim() === "")
-  )
-    return valueOf(null);
+  if (cell.missing) return valueOf(null);
   if (plan.kind === "date") {
+    if (plan.by === "hour") {
+      const time = cell.as("time");
+      if (typeof time === "string" && classify(time) === "time")
+        return valueOf(Number(time.slice(0, 2)));
+    }
     const read = cell.as("date");
     if (typeof read !== "string") return { kind: "unreadable" };
-    if (plan.by === "hour" && classify(read) === "time") {
-      const hour = Number(read.slice(0, 2));
-      const minute = Number(read.slice(3, 5));
-      const second = Number(read.slice(6, 8));
-      return hour < 24 && minute < 60 && second < 60
-        ? valueOf(hour)
-        : { kind: "unreadable" };
-    }
     if (classify(read) !== "date") return { kind: "unreadable" };
     const date = readDateText(read, "dmy");
     return date.kind === "date"

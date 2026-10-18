@@ -6,7 +6,18 @@ export interface CellError {
   readonly error: string;
 }
 
-export type CellScalar = string | number | boolean | null | CellError;
+export interface CellDuration {
+  readonly durationSeconds: number;
+}
+
+export type CellScalar =
+  string | number | boolean | null | CellError | CellDuration;
+
+export function isCellDuration(value: CellScalar): value is CellDuration {
+  return (
+    value !== null && typeof value === "object" && "durationSeconds" in value
+  );
+}
 
 export type CellNote =
   | {

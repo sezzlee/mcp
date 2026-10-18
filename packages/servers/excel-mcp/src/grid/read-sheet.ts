@@ -1,3 +1,16 @@
+import type { ColumnSpec, ReadingHints } from "./column-spec.js";
+import { readingHintsOf } from "./column-spec.js";
+import { buildColumnIndex, type ColumnMode } from "./columns.js";
+import {
+  explicitPlans,
+  observeTyped,
+  typedReports,
+  recordTyped,
+  reportTyped,
+  reserveTyped,
+  type TypedObservation,
+  type TypedReport,
+} from "./column-plans.js";
 import {
   canonical,
   createPageBudget,
@@ -6,6 +19,8 @@ import {
 } from "@sezzlee/file-core";
 import {
   normalizeCell,
+  presentScalar,
+  isCellDuration,
   resolveCell,
   type CellNote,
   type CellScalar,
@@ -48,7 +63,10 @@ export interface ColumnInfo {
   readonly numberFormat: string | null;
 }
 
-export interface ReadSheetOptions {
+export interface ReadSheetOptions extends ReadingHints {
+  readonly columns?: readonly ColumnSpec[];
+  readonly columnMode?: ColumnMode;
+  readonly includeTyped?: boolean;
   readonly sheetName?: string;
   readonly range?: string;
   readonly cursor?: string;
@@ -72,6 +90,11 @@ export interface ReadSheetResult {
   readonly headerRowSource: HeaderRowSource;
   readonly columns: readonly ColumnInfo[];
   readonly values: readonly (readonly CellScalar[])[];
+  readonly typedValues?: readonly (readonly CellScalar[])[];
+  readonly typed?: {
+    readonly scope: "returnedRows";
+    readonly columns: readonly TypedReport[];
+  };
   readonly cellNotes?: Readonly<Record<string, CellNote>>;
   readonly merges?: readonly string[];
   readonly returnedRows: number;
@@ -200,6 +223,25 @@ export function readSheet(
     window.headerRow,
     normalizeOptions,
   );
+  const plans = explicitPlans(
+    buildColumnIndex(
+      window.sheet.name,
+      window.bounds,
+      window.headerRow,
+      headers,
+    ),
+    options.columns,
+    options.columnMode ?? "auto",
+    options,
+  );
+  if (options.includeTyped === true && plans.size === 0)
+    throw new SezzleeExcelError(
+      "invalid_argument",
+      "includeTyped requires explicit columns.",
+      "Use profile_sheet to obtain reusable columns, then pass them to read_sheet.",
+    );
+  const reports = typedReports(plans);
+  const typedValues: CellScalar[][] = [];
   const numberFormats: (string | null)[] = new Array(width).fill(null);
   const values: CellScalar[][] = [];
   const cellNotes: Record<string, CellNote> = {};
@@ -236,8 +278,8 @@ export function readSheet(
     }
     return built;
   };
-  const cursorAt = (row: number): string =>
-    encodeCursor({
+  const cursorAt = (row: number): string => {
+    const token = encodeCursor({
       v: 2,
       f: source.stamp,
       s: window.sheet.name,
@@ -248,6 +290,14 @@ export function readSheet(
       g: window.mergedCells,
       h: window.headerRow,
       o: {
+        ...readingHintsOf(options),
+        ...(options.columns === undefined ? {} : { columns: options.columns }),
+        ...(options.columnMode === undefined
+          ? {}
+          : { columnMode: options.columnMode }),
+        ...(options.includeTyped === undefined
+          ? {}
+          : { includeTyped: options.includeTyped }),
         valueMode: window.valueMode,
         mergedCells: window.mergedCells,
         headerRow: window.headerRow,
@@ -261,6 +311,14 @@ export function readSheet(
           : { encoding: options.encoding }),
       },
     });
+    if (token.length > 16_384)
+      throw new SezzleeExcelError(
+        "resource_limit",
+        "The column interpretation exceeds the cursor budget.",
+        "Use fewer column specifications or shorter literal token lists.",
+      );
+    return token;
+  };
   const hintFor = (rows: number): string =>
     `${rows} rows remain. Prefer aggregate_sheet for totals, find_in_sheet to locate a value, or a narrower range over paging.`;
 
@@ -273,6 +331,15 @@ export function readSheet(
       headerRowSource: window.headerRowSource,
       columns: columnsFrom(new Array<string | null>(width).fill(null)),
       values: [],
+      ...(options.includeTyped === true
+        ? {
+            typedValues: [],
+            typed: {
+              scope: "returnedRows",
+              columns: reserveTyped(reports, options.maxCells),
+            },
+          }
+        : {}),
       cellNotes: {},
       merges,
       returnedRows: options.maxCells,
@@ -299,6 +366,12 @@ export function readSheet(
     }
     const row = window.sheet.rowAt(rowNumber);
     const line: CellScalar[] = [];
+    const typedLine: CellScalar[] = [];
+    const observations: {
+      readonly column: number;
+      readonly raw: CellScalar;
+      readonly observation: TypedObservation;
+    }[] = [];
     const rowNotes: Record<string, CellNote> = {};
     const discovered: { readonly offset: number; readonly format: string }[] =
       [];
@@ -308,6 +381,24 @@ export function readSheet(
       column += 1
     ) {
       const snapshot = row?.cellAt(column);
+      if (options.includeTyped === true) {
+        const raw =
+          snapshot === undefined
+            ? null
+            : resolveCell(snapshot, normalizeOptions);
+        const plan = plans.get(column);
+        if (plan === undefined)
+          typedLine.push(
+            snapshot === undefined
+              ? null
+              : normalizeCell(snapshot, normalizeOptions).value,
+          );
+        else {
+          const observation = observeTyped(raw, plan);
+          typedLine.push(presentScalar(observation.value));
+          observations.push({ column, raw, observation });
+        }
+      }
       if (snapshot === undefined) {
         line.push(null);
         continue;
@@ -327,7 +418,14 @@ export function readSheet(
     }
     const notes = Object.keys(rowNotes).length > 0 ? [rowNotes] : [];
     const formats = discovered.map((found) => found.format);
-    if (!budget.admit(line, ...notes, ...formats)) {
+    if (
+      !budget.admit(
+        line,
+        ...(options.includeTyped === true ? [typedLine] : []),
+        ...notes,
+        ...formats,
+      )
+    ) {
       truncationReason = "maxPayloadBytes";
       break;
     }
@@ -341,6 +439,16 @@ export function readSheet(
       }
     }
     values.push(line);
+    if (options.includeTyped === true) {
+      typedValues.push(typedLine);
+      for (const item of observations)
+        recordTyped(
+          reports.get(item.column),
+          item.observation,
+          formatCellRef(rowNumber, item.column),
+          item.raw,
+        );
+    }
     returnedCells += width;
     nextRow = rowNumber + 1;
   }
@@ -376,6 +484,15 @@ export function readSheet(
     headerRowSource: window.headerRowSource,
     columns,
     values,
+    ...(options.includeTyped === true
+      ? {
+          typedValues,
+          typed: {
+            scope: "returnedRows" as const,
+            columns: reportTyped(reports),
+          },
+        }
+      : {}),
     ...(Object.keys(cellNotes).length > 0 ? { cellNotes } : {}),
     ...(merges.length > 0 ? { merges } : {}),
     returnedRows: values.length,
@@ -389,7 +506,12 @@ export function readSheet(
   };
 }
 
-export interface FindOptions {
+export interface FindOptions extends ReadingHints {
+  readonly extraEnvelopeBytes?: number;
+  readonly columns?: readonly ColumnSpec[];
+  readonly columnMode?: ColumnMode;
+  readonly headerRow?: number;
+  readonly headerRowSource?: HeaderRowSource;
   readonly signal?: AbortSignal;
   readonly query: string;
   readonly sheetName?: string;
@@ -405,6 +527,7 @@ export interface FindMatch {
   readonly row: number;
   readonly column: number;
   readonly value: CellScalar;
+  readonly typedValue?: CellScalar;
 }
 
 export interface FindResult {
@@ -415,6 +538,11 @@ export interface FindResult {
   readonly scannedCells: number;
   readonly matching: Matching;
   readonly matches: readonly FindMatch[];
+  readonly truncationReason?: "maxPayloadBytes";
+  readonly typed?: {
+    readonly scope: "scannedCells";
+    readonly columns: readonly TypedReport[];
+  };
 }
 
 export type Matching = "exact" | "canonical" | "folded" | "regex";
@@ -468,7 +596,45 @@ async function findWithMatcher(
     mergePolicy: "master",
     includeHyperlinks: false,
   };
+  const headers = readHeaderRow(
+    sheet,
+    bounds,
+    options.headerRow ?? 1,
+    normalizeOptions,
+  );
+  const plans = explicitPlans(
+    buildColumnIndex(sheet.name, bounds, options.headerRow ?? 1, headers),
+    options.columns,
+    options.columnMode ?? "auto",
+    options,
+  );
+  const reports = typedReports(plans);
+  const budget = createPageBudget({
+    maxBytes: limits.maxPayloadBytes,
+    reserveBytes:
+      measureJson({
+        sheet: sheet.name,
+        range: formatRange(bounds),
+        total: 17_179_869_184,
+        scannedCells: 17_179_869_184,
+        truncated: true,
+        matching: "canonical",
+        matches: [],
+        ...(plans.size === 0 || options.searchIn === "formulas"
+          ? {}
+          : {
+              typed: {
+                scope: "scannedCells",
+                columns: reserveTyped(reports, 17_179_869_184),
+              },
+            }),
+      }) + (options.extraEnvelopeBytes ?? 0),
+  });
   const found: FindMatch[] = [];
+  const admitMatch = (match: FindMatch): void => {
+    if (found.length < options.maxResults && budget.admit(match))
+      found.push(match);
+  };
   let total = 0;
   let scannedCells = 0;
   let batch: {
@@ -487,7 +653,7 @@ async function findWithMatcher(
       offset += entry.texts.length;
       if (matched) {
         total += 1;
-        if (found.length < options.maxResults) found.push(entry.match);
+        admitMatch(entry.match);
       }
     }
     batch = [];
@@ -519,9 +685,33 @@ async function findWithMatcher(
       }
       scannedCells += 1;
       const haystacks: string[] = [];
-      if (options.searchIn !== "formulas") {
-        haystacks.push(renderScalar(resolveCell(snapshot, normalizeOptions)));
-      }
+      const plan =
+        rowNumber === (options.headerRow ?? 1) ? undefined : plans.get(column);
+      const raw = resolveCell(snapshot, normalizeOptions);
+      const observation =
+        plan === undefined || options.searchIn === "formulas"
+          ? undefined
+          : observeTyped(raw, plan);
+      if (observation !== undefined)
+        recordTyped(
+          reports.get(column),
+          observation,
+          formatCellRef(rowNumber, column),
+          raw,
+        );
+      if (options.searchIn !== "formulas")
+        haystacks.push(
+          renderScalar(observation === undefined ? raw : observation.value),
+        );
+      const match: FindMatch = {
+        address: formatCellRef(rowNumber, column),
+        row: rowNumber,
+        column,
+        value: normalizeCell(snapshot, normalizeOptions).value,
+        ...(observation === undefined
+          ? {}
+          : { typedValue: presentScalar(observation.value) }),
+      };
       if (
         options.searchIn !== "values" &&
         typeof snapshot.formula === "string"
@@ -537,12 +727,7 @@ async function findWithMatcher(
           );
         if (batchBytes + bytes > 65530) await flush();
         batch.push({
-          match: {
-            address: formatCellRef(rowNumber, column),
-            row: rowNumber,
-            column,
-            value: normalizeCell(snapshot, normalizeOptions).value,
-          },
+          match,
           texts: haystacks,
         });
         batchBytes += bytes;
@@ -553,14 +738,7 @@ async function findWithMatcher(
         continue;
       }
       total += 1;
-      if (found.length < options.maxResults) {
-        found.push({
-          address: formatCellRef(rowNumber, column),
-          row: rowNumber,
-          column,
-          value: normalizeCell(snapshot, normalizeOptions).value,
-        });
-      }
+      admitMatch(match);
     }
   }
   await flush();
@@ -572,6 +750,15 @@ async function findWithMatcher(
     scannedCells,
     matching: matcher?.matching ?? "regex",
     matches: found,
+    ...(budget.refused ? { truncationReason: "maxPayloadBytes" as const } : {}),
+    ...(plans.size === 0 || options.searchIn === "formulas"
+      ? {}
+      : {
+          typed: {
+            scope: "scannedCells" as const,
+            columns: reportTyped(reports),
+          },
+        }),
   };
 }
 
@@ -580,7 +767,7 @@ function renderScalar(value: CellScalar): string {
     return "";
   }
   if (typeof value === "object") {
-    return value.error;
+    return isCellDuration(value) ? String(value.durationSeconds) : value.error;
   }
   return String(value);
 }

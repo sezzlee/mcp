@@ -73,10 +73,6 @@ spec, a guard comment or the package README.
 
 ## Excel analysis and typed data
 
-- **Reusable column profiles.** A bounded profile with independent type evidence, identifier
-  protection and a closed `columns` contract shared by reading, finding and aggregation.
-- **Global text formats.** Explicit locale and numbering-system contracts, missing and boolean
-  literals, clock and duration text, with deterministic corpus generation and fuzz regressions.
 - **Rich workbook values.** In-cell images and their alternative text, array anchors, elapsed
   durations, error distributions, table addressing and saved row visibility. Linked entities
   require a verified fixture before their fields can be claimed as supported.

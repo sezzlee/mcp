@@ -5,6 +5,8 @@ import {
   resolveWorkbookPath,
   type WorkbookRoot,
 } from "../platform/paths.js";
+import { profileSheet } from "../grid/profile-sheet.js";
+import { readingHintsOf } from "../grid/column-spec.js";
 import { findInSheet, readSheet } from "../grid/read-sheet.js";
 import { collectConditionalFormats } from "../metadata/conditional-formats.js";
 import { collectCharts } from "../metadata/charts.js";
@@ -118,6 +120,14 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               : { sheetName: args.sheetName }),
             ...(args.range === undefined ? {} : { range: args.range }),
             ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
+            ...readingHintsOf(args),
+            ...(args.columns === undefined ? {} : { columns: args.columns }),
+            ...(args.columnMode === undefined
+              ? {}
+              : { columnMode: args.columnMode }),
+            ...(args.includeTyped === undefined
+              ? {}
+              : { includeTyped: args.includeTyped }),
             maxCells: args.maxCells ?? limits.maxCellsDefault,
             valueMode: args.valueMode ?? "values",
             mergedCells: args.mergedCells ?? "master",
@@ -136,6 +146,33 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         ),
       );
     }),
+
+    profile_sheet: guard(
+      { root: root.real, tool: "profile_sheet" },
+      async (args) => {
+        assertHeaderScan(args, args.filePath);
+        const loaded = await openFor(args.filePath, csvOptionsOf(args));
+        return json(
+          withCsv(
+            profileSheet(sheetSource(loaded), {
+              ...readingHintsOf(args),
+              ...(args.sheetName === undefined
+                ? {}
+                : { sheetName: args.sheetName }),
+              ...(args.range === undefined ? {} : { range: args.range }),
+              ...resolveHeaderRow(loaded, args),
+              ...(args.columns === undefined ? {} : { columns: args.columns }),
+              columnMode: args.columnMode ?? "auto",
+              mergedCells: args.mergedCells ?? "master",
+              maxRows: args.maxRows ?? limits.maxProfileRowsDefault,
+              maxColumns: args.maxColumns ?? limits.maxProfileColumnsDefault,
+            }),
+            csvReportOf(loaded),
+            loaded.mode,
+          ),
+        );
+      },
+    ),
 
     get_merged_ranges: guard(
       { root: root.real, tool: "get_merged_ranges" },
@@ -250,6 +287,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         return json(
           withAggregateEnvelope(
             aggregateSheet(sheetSource(loaded), {
+              ...readingHintsOf(args),
               ...(args.sheetName === undefined
                 ? {}
                 : { sheetName: args.sheetName }),
@@ -285,6 +323,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
     find_in_sheet: guard(
       { root: root.real, tool: "find_in_sheet" },
       async (args, _tool, signal) => {
+        assertHeaderScan(args, args.filePath);
         const loaded = await openFor(args.filePath, csvOptionsOf(args));
         rejectForCsv(
           loaded,
@@ -295,8 +334,17 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         return json(
           withCsv(
             await findInSheet(sheetSource(loaded), {
+              extraEnvelopeBytes:
+                modeEnvelopeBytes +
+                (csvReportOf(loaded) === undefined
+                  ? 0
+                  : measureJson({ csv: csvReportOf(loaded) })),
               ...(signal === undefined ? {} : { signal }),
               query: args.query,
+              ...readingHintsOf(args),
+              ...resolveHeaderRow(loaded, args),
+              ...(args.columns === undefined ? {} : { columns: args.columns }),
+              columnMode: args.columnMode ?? "auto",
               ...(args.sheetName === undefined
                 ? {}
                 : { sheetName: args.sheetName }),

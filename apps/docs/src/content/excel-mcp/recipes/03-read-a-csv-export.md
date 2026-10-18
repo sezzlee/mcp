@@ -74,7 +74,14 @@ read and a warning names the `columns` entry that settles it.
 Dates follow the same rule against an ISO operand: `02.01.2023` is 2 January, and a column of
 `01/02/2023`-style dates is read day first or month first only when one of its values proves which.
 
+To inspect an unfamiliar file first, use [profile_sheet and reuse its columns](/docs/excel-mcp/profile-and-read-global-data).
+Explicit locales cover other digit systems, grouping sizes and Gregorian month names. Typed
+reading adds a parallel grid while preserving the raw values shown above.
+
 ## Fix the encoding
+
+Explicit legacy choices also include Windows-1251/1256, Shift_JIS, GB18030, Big5 and EUC-KR.
+No legacy encoding is guessed; truncated multibyte sequences are refused.
 
 Without a byte-order mark the server assumes UTF-8 and refuses a file that is not, rather than show
 broken characters. A file saved by Turkish Excel:
@@ -90,12 +97,12 @@ excel read_sheet --tool-arg filePath=cities.csv
 {
   "error": "undecodable_text",
   "message": "'cities.csv' is not valid utf-8 text.",
-  "recovery": "Pass encoding explicitly: 'windows-1254' (Turkish Excel), 'iso-8859-9', 'windows-1252', 'utf-16le' or 'utf-16be'."
+  "recovery": "Pass the file's known encoding explicitly, or save it as UTF-8. Legacy encodings are never guessed."
 }
 ```
 
 The first line comes from the Inspector; the object under it is the server's answer. Pass the
-encoding it suggests:
+known encoding of this export:
 
 ```sh
 excel read_sheet --tool-arg filePath=cities.csv encoding=windows-1254 \

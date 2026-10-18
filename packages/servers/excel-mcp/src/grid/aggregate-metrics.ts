@@ -5,6 +5,7 @@ import {
   compareWithin,
   type ComparableKind,
   type Condition,
+  type NumberRead,
   type TypedCell,
 } from "./predicate.js";
 
@@ -12,6 +13,9 @@ export const metricFunctions = [
   "count",
   "countValues",
   "countDistinct",
+  "countTrue",
+  "countFalse",
+  "trueRatio",
   "sum",
   "avg",
   "min",
@@ -50,11 +54,20 @@ interface MetricCounts {
   counted: number;
   skipped: number;
   filtered: number;
+  meaning?: MetricMeaning;
+}
+
+export interface MetricMeaning {
+  readonly unit: "number" | "fraction" | "seconds";
+  readonly currency: string | undefined;
+  readonly mixedUnits: boolean;
+  readonly mixedCurrencies: boolean;
 }
 
 export type MetricState = MetricCounts &
   (
     | { readonly kind: "count" }
+    | { readonly kind: "boolean"; trueCount: number }
     | { readonly kind: "distinct"; readonly values: Set<string> }
     | { readonly kind: "sum"; readonly sums: SumState }
     | { readonly kind: "extreme"; extreme: Extreme | undefined }
@@ -72,6 +85,47 @@ export function isNumericMetric(fn: MetricFunction): boolean {
 
 export function isQuantile(fn: MetricFunction): boolean {
   return fn === "median" || fn === "p50" || fn === "p90" || fn === "percentile";
+}
+
+export function isBooleanMetric(fn: MetricFunction): boolean {
+  return fn === "countTrue" || fn === "countFalse" || fn === "trueRatio";
+}
+
+export function mergeMetricMeaning(
+  left: MetricMeaning | undefined,
+  right: MetricMeaning | undefined,
+): MetricMeaning | undefined {
+  if (left === undefined) return right;
+  if (right === undefined) return left;
+  return {
+    unit: left.unit,
+    currency: left.currency,
+    mixedUnits: left.mixedUnits || right.mixedUnits || left.unit !== right.unit,
+    mixedCurrencies:
+      left.mixedCurrencies ||
+      right.mixedCurrencies ||
+      left.currency !== right.currency,
+  };
+}
+
+function rememberMeaning(
+  state: MetricState,
+  read: Extract<NumberRead, { kind: "number" }>,
+): void {
+  const current = state.meaning;
+  const unit = read.unit ?? "number";
+  if (
+    current !== undefined &&
+    current.unit === unit &&
+    current.currency === read.currency
+  )
+    return;
+  state.meaning = mergeMetricMeaning(current, {
+    unit,
+    currency: read.currency,
+    mixedUnits: false,
+    mixedCurrencies: false,
+  });
 }
 
 export function validateMetric(metric: MetricRequest): void {
@@ -121,6 +175,10 @@ export function newMetricStates(
       case "count":
       case "countValues":
         return { ...counts, kind: "count" };
+      case "countTrue":
+      case "countFalse":
+      case "trueRatio":
+        return { ...counts, kind: "boolean", trueCount: 0 };
       case "countDistinct":
         return { ...counts, kind: "distinct", values: new Set() };
       case "sum":
@@ -182,9 +240,11 @@ function extremeOf(cell: TypedCell): Extreme | undefined {
   const date = cell.as("date");
   if (typeof date === "string" && classify(date) === "date")
     return { kind: "date", value: date };
-  return typeof cell.raw === "string"
-    ? { kind: classify(cell.raw) === "time" ? "time" : "text", value: cell.raw }
-    : undefined;
+  const time = cell.as("time");
+  if (typeof time === "string" && classify(time) === "time")
+    return { kind: "time", value: time };
+  const value = cell.value();
+  return typeof value === "string" ? { kind: "text", value } : undefined;
 }
 
 export function addMetric(
@@ -203,11 +263,21 @@ export function addMetric(
     state.counted += context.weight;
     return;
   }
-  if (cell.raw === null) {
+  if (cell.missing) {
     state.skipped += context.weight;
     return;
   }
   switch (state.kind) {
+    case "boolean": {
+      const value = cell.as("boolean");
+      if (typeof value !== "boolean") {
+        state.skipped += context.weight;
+        return;
+      }
+      state.counted += context.weight;
+      if (value) state.trueCount += context.weight;
+      return;
+    }
     case "count":
       state.counted += context.weight;
       return;
@@ -227,6 +297,10 @@ export function addMetric(
         return;
       }
       state.counted += context.weight;
+      if (candidate.kind === "number") {
+        const read = cell.number();
+        if (read.kind === "number") rememberMeaning(state, read);
+      }
       if (state.extreme === undefined) {
         state.extreme = candidate;
         return;
@@ -256,6 +330,7 @@ export function addMetric(
     return;
   }
   state.counted += context.weight;
+  rememberMeaning(state, number);
   switch (state.kind) {
     case "sum":
       accumulate(state.sums, number.value);
@@ -309,10 +384,20 @@ export function finishMetric(
   if (state === undefined)
     return metric.fn === "count" ||
       metric.fn === "countValues" ||
-      metric.fn === "countDistinct"
+      metric.fn === "countDistinct" ||
+      metric.fn === "countTrue" ||
+      metric.fn === "countFalse"
       ? 0
       : null;
   switch (state.kind) {
+    case "boolean":
+      return metric.fn === "countTrue"
+        ? state.trueCount
+        : metric.fn === "countFalse"
+          ? state.counted - state.trueCount
+          : state.counted === 0
+            ? null
+            : state.trueCount / state.counted;
     case "count":
       return state.counted;
     case "distinct":

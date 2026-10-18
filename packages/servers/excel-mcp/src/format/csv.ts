@@ -151,8 +151,7 @@ function decode(
       : bom !== undefined
         ? "bom"
         : "default";
-  const strict = chosen.startsWith("utf-");
-  const decoder = new TextDecoder(chosen, { fatal: strict, ignoreBOM: false });
+  const decoder = new TextDecoder(chosen, { fatal: true, ignoreBOM: false });
   let text: string;
   try {
     text = decoder.decode(bytes);
@@ -161,7 +160,7 @@ function decode(
     throw new SezzleeExcelError(
       "undecodable_text",
       `'${path}' is not valid ${chosen} text.`,
-      "Pass encoding explicitly: 'windows-1254' (Turkish Excel), 'iso-8859-9', 'windows-1252', 'utf-16le' or 'utf-16be'.",
+      "Pass the file's known encoding explicitly, or save it as UTF-8. Legacy encodings are never guessed.",
     );
   }
   const hadBom = bom !== undefined;

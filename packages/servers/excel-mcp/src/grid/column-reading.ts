@@ -1,6 +1,14 @@
-import type { CellScalar } from "./cell-value.js";
+import { fold } from "@sezzlee/file-core";
+import { isCellDuration, type CellScalar } from "./cell-value.js";
+import type { ColumnSpec, ReadingHints } from "./column-spec.js";
+import {
+  readDurationText,
+  readTimeText,
+  sniffTemporal,
+} from "./temporal-text.js";
 import {
   DateFormat,
+  DateLocale,
   orderedPatternOf,
   readDateText,
   sniffDateOrder,
@@ -8,6 +16,7 @@ import {
   type DateReading,
 } from "./date-text.js";
 import {
+  NumberLocale,
   markCandidates,
   readNumberText,
   sniffNumberMarks,
@@ -18,25 +27,22 @@ import { SezzleeExcelError } from "../platform/errors.js";
 import {
   classify,
   finiteNumber,
-  type ComparableKind,
+  type ReadableKind,
   type NumberRead,
   type TypedCell,
 } from "./predicate.js";
 
-export type ColumnSpec =
-  | {
-      readonly column: string;
-      readonly type: "number";
-      readonly decimal: "." | ",";
-      readonly group?: "none" | "." | "," | " " | "'" | undefined;
-    }
-  | { readonly column: string; readonly type: "date"; readonly format: string }
-  | { readonly column: string; readonly type: "text" };
+export type { ColumnSpec, ReadingHints } from "./column-spec.js";
 
 type NumberPlan =
   | {
       readonly kind: "marks";
       readonly marks: NumberMarks;
+      readonly identifiers: "refuse" | "read";
+    }
+  | {
+      readonly kind: "locale";
+      readonly locale: NumberLocale;
       readonly identifiers: "refuse" | "read";
     }
   | {
@@ -50,86 +56,282 @@ type DatePlan =
   | { readonly kind: "order"; readonly order: DateOrder }
   | { readonly kind: "unordered" }
   | { readonly kind: "format"; readonly format: DateFormat }
+  | {
+      readonly kind: "locale";
+      readonly locale: DateLocale;
+      readonly order?: DateOrder;
+    }
   | { readonly kind: "ambiguous"; readonly example: string }
   | { readonly kind: "off" };
+
+interface Tokens {
+  readonly missing: ReadonlySet<string>;
+  readonly yes: ReadonlySet<string>;
+  readonly no: ReadonlySet<string>;
+  readonly maxMissingLength: number;
+  readonly maxBooleanLength: number;
+}
 
 export interface ColumnReading {
   readonly number: NumberPlan;
   readonly date: DatePlan;
+  readonly time: boolean;
+  readonly duration: boolean;
+  readonly boolean: boolean;
+  readonly tokens: Tokens;
+  readonly target?: ColumnSpec["type"];
   readonly source: "explicit" | "sniffed";
 }
+
+const defaultMissing = ["N/A", "NULL", "-", "—", "#N/A"];
+const defaultTrue = ["true", "yes", "y", "Evet", "E"];
+const defaultFalse = ["false", "no", "n", "Hayır", "H"];
+
+function tokenSet(
+  values: readonly string[],
+  label: string,
+): ReadonlySet<string> {
+  if (
+    values.length > 64 ||
+    values.some((value) => value.length > 128 || value.trim() === "")
+  )
+    throw new SezzleeExcelError(
+      "invalid_argument",
+      `${label} accepts at most 64 nonblank tokens of at most 128 characters.`,
+    );
+  return new Set(values.map((value) => fold(value.trim())));
+}
+
+function tokensOf(hints: ReadingHints): Tokens {
+  const missing = tokenSet(
+    hints.missingValues ?? defaultMissing,
+    "missingValues",
+  );
+  const yes = tokenSet(hints.trueValues ?? defaultTrue, "trueValues");
+  const no = tokenSet(hints.falseValues ?? defaultFalse, "falseValues");
+  if (
+    [...yes].some((value) => no.has(value) || missing.has(value)) ||
+    [...no].some((value) => missing.has(value))
+  )
+    throw new SezzleeExcelError(
+      "invalid_argument",
+      "missingValues, trueValues and falseValues overlap after case/accent folding.",
+    );
+  return {
+    missing,
+    yes,
+    no,
+    maxMissingLength: Math.max(0, ...[...missing].map((value) => value.length)),
+    maxBooleanLength: Math.max(
+      0,
+      ...[...yes, ...no].map((value) => value.length),
+    ),
+  };
+}
+
+const defaultTokens = tokensOf({});
 
 export const rawReading: ColumnReading = {
   number: { kind: "off" },
   date: { kind: "off" },
+  time: false,
+  duration: false,
+  boolean: false,
+  tokens: defaultTokens,
   source: "sniffed",
 };
+
+export function rawReadingFor(hints: ReadingHints = {}): ColumnReading {
+  if (hints.numberingSystem !== undefined && hints.locale === undefined)
+    throw new SezzleeExcelError(
+      "invalid_argument",
+      "numberingSystem requires an explicit locale.",
+    );
+  if (
+    hints.missingValues === undefined &&
+    hints.trueValues === undefined &&
+    hints.falseValues === undefined
+  )
+    return rawReading;
+  return { ...rawReading, tokens: tokensOf(hints) };
+}
 
 export interface ColumnNeeds {
   readonly number: boolean;
   readonly date: boolean;
+  readonly time?: boolean;
+  readonly duration?: boolean;
+  readonly boolean?: boolean;
 }
 
-function marksOf(
-  spec: Extract<ColumnSpec, { type: "number" }>,
-  label: string,
-): NumberMarks {
-  const group = spec.group ?? (spec.decimal === "," ? "." : ",");
-  if (spec.decimal === "." && group !== ".") return { decimal: ".", group };
-  if (spec.decimal === "," && group !== ",") return { decimal: ",", group };
+function numberLocale(locale: string, numberingSystem?: string): NumberLocale {
+  const compiled = NumberLocale.compile(locale, numberingSystem);
+  if (compiled.kind === "invalid")
+    throw new SezzleeExcelError("invalid_argument", compiled.reason);
+  return compiled.locale;
+}
+
+function dateLocale(locale?: string): DateLocale {
+  const compiled = DateLocale.compile(locale);
+  if (compiled.kind === "invalid")
+    throw new SezzleeExcelError("invalid_argument", compiled.reason);
+  return compiled.locale;
+}
+
+function marksOf(spec: Extract<ColumnSpec, { type: "number" }>): NumberMarks {
+  const decimal = spec.decimal;
+  if (decimal === undefined)
+    throw new SezzleeExcelError(
+      "invalid_argument",
+      `columns entry '${spec.column}': number requires decimal or locale.`,
+    );
+  const group = spec.group ?? (decimal === "," ? "." : ",");
+  if (decimal === "." && group !== ".") return { decimal: ".", group };
+  if (decimal === "," && group !== ",") return { decimal: ",", group };
   throw new SezzleeExcelError(
     "invalid_argument",
-    `columns entry '${label}': decimal and group cannot both be '${spec.decimal}'.`,
+    `columns entry '${spec.column}': decimal and group cannot both be '${decimal}'.`,
     'Pass group "none" for numbers written without a thousands separator.',
   );
 }
 
-export function explicitReading(spec: ColumnSpec): ColumnReading {
+export function explicitReading(
+  spec: ColumnSpec,
+  hints: ReadingHints = {},
+): ColumnReading {
+  const base = {
+    ...rawReadingFor({
+      ...hints,
+      ...(spec.missingValues === undefined
+        ? {}
+        : { missingValues: spec.missingValues }),
+      ...(spec.type !== "boolean"
+        ? {}
+        : {
+            ...(spec.trueValues === undefined
+              ? {}
+              : { trueValues: spec.trueValues }),
+            ...(spec.falseValues === undefined
+              ? {}
+              : { falseValues: spec.falseValues }),
+          }),
+    }),
+    target: spec.type,
+    source: "explicit" as const,
+  };
   switch (spec.type) {
-    case "number":
+    case "number": {
+      const locale =
+        spec.locale ?? (spec.decimal === undefined ? hints.locale : undefined);
+      const numberingSystem =
+        spec.numberingSystem ??
+        (locale === undefined ? undefined : hints.numberingSystem);
+      if (
+        (spec.locale !== undefined &&
+          (spec.decimal !== undefined || spec.group !== undefined)) ||
+        (spec.numberingSystem !== undefined && locale === undefined) ||
+        (locale !== undefined && spec.group !== undefined)
+      )
+        throw new SezzleeExcelError(
+          "invalid_argument",
+          `columns entry '${spec.column}': locale excludes decimal/group, and numberingSystem requires locale.`,
+        );
       return {
-        number: {
-          kind: "marks",
-          marks: marksOf(spec, spec.column),
-          identifiers: "read",
-        },
-        date: { kind: "off" },
-        source: "explicit",
+        ...base,
+        number:
+          locale === undefined
+            ? {
+                kind: "marks",
+                marks: marksOf(spec),
+                identifiers: spec.identifiers ?? "read",
+              }
+            : {
+                kind: "locale",
+                locale: numberLocale(locale, numberingSystem),
+                identifiers: spec.identifiers ?? "read",
+              },
       };
+    }
     case "date": {
-      const compiled = DateFormat.compile(spec.format);
+      if (spec.format !== undefined && spec.order !== undefined)
+        throw new SezzleeExcelError(
+          "invalid_argument",
+          `columns entry '${spec.column}': format and order cannot be combined.`,
+        );
+      if (spec.format === undefined)
+        return {
+          ...base,
+          date: {
+            kind: "locale",
+            locale: dateLocale(spec.locale ?? hints.locale),
+            ...(spec.order === undefined ? {} : { order: spec.order }),
+          },
+        };
+      const compiled = DateFormat.compile(
+        spec.format,
+        spec.locale ?? hints.locale,
+      );
       if (compiled.kind === "invalid")
         throw new SezzleeExcelError(
           "invalid_argument",
           `columns entry '${spec.column}': format '${spec.format}' cannot be read: ${compiled.reason}`,
-          "Build the format from yyyy, MM, M, MMM, MMMM, dd, d, HH, H, hh, h, mm, ss, a and the separators . / - : , space and T, for example dd.MM.yyyy.",
+          "Use a closed Gregorian date pattern, for example dd.MM.yyyy or d MMMM yyyy.",
         );
-      return {
-        number: { kind: "off" },
-        date: { kind: "format", format: compiled.format },
-        source: "explicit",
-      };
+      return { ...base, date: { kind: "format", format: compiled.format } };
     }
+    case "boolean":
+      return { ...base, boolean: true };
+    case "time":
+      return { ...base, time: true };
+    case "duration":
+      return { ...base, duration: true };
     case "text":
-      return rawReading;
+      return base;
     default: {
-      const _exhaustive: never = spec;
-      return _exhaustive;
+      const exhaustive: never = spec;
+      return exhaustive;
     }
   }
 }
 
-/**
- * Decides a column's readings from every text value it holds in the range.
- * Values the decision cannot read are left to the caller to count.
- */
+/** Decides bounded per-column readings; the caller counts values they cannot read. */
 export function sniffedReading(
   texts: readonly string[],
   needs: ColumnNeeds,
+  hints: ReadingHints = {},
 ): ColumnReading {
-  const number = needs.number ? numberPlanOf(texts) : { kind: "off" as const };
-  const date = needs.date ? datePlanOf(texts) : { kind: "off" as const };
-  return { number, date, source: "sniffed" };
+  const base = rawReadingFor(hints);
+  const present = texts.filter((text) => !missingText(text, base.tokens));
+  const temporal = needs.duration ? sniffTemporal(present) : "none";
+  const number: NumberPlan = needs.number
+    ? hints.locale === undefined
+      ? numberPlanOf(present)
+      : {
+          kind: "locale",
+          locale: numberLocale(hints.locale, hints.numberingSystem),
+          identifiers: "refuse",
+        }
+    : { kind: "off" };
+  const date: DatePlan = needs.date
+    ? hints.locale === undefined
+      ? datePlanOf(present)
+      : { kind: "locale", locale: dateLocale(hints.locale) }
+    : { kind: "off" };
+  return {
+    ...base,
+    number,
+    date,
+    time:
+      temporal !== "duration" &&
+      (needs.time === true || needs.duration === true) &&
+      present.some((text) => readTimeText(text).kind === "time"),
+    duration: temporal === "duration",
+    boolean:
+      needs.boolean === true &&
+      present.some(
+        (text) => booleanText(text, { ...base, boolean: true }) !== undefined,
+      ),
+  };
 }
 
 function numberPlanOf(texts: readonly string[]): NumberPlan {
@@ -142,8 +344,8 @@ function numberPlanOf(texts: readonly string[]): NumberPlan {
     case "none":
       return { kind: "off" };
     default: {
-      const _exhaustive: never = decision;
-      return _exhaustive;
+      const exhaustive: never = decision;
+      return exhaustive;
     }
   }
 }
@@ -160,8 +362,8 @@ function datePlanOf(texts: readonly string[]): DatePlan {
     case "none":
       return { kind: "off" };
     default: {
-      const _exhaustive: never = decision;
-      return _exhaustive;
+      const exhaustive: never = decision;
+      return exhaustive;
     }
   }
 }
@@ -187,6 +389,8 @@ function numberText(text: string, plan: NumberPlan): NumberReading {
   switch (plan.kind) {
     case "marks":
       return readNumberText(text, plan.marks, plan.identifiers);
+    case "locale":
+      return plan.locale.read(text, plan.identifiers);
     case "ambiguous":
       return (
         agreed(
@@ -215,6 +419,8 @@ function dateText(text: string, plan: DatePlan): DateReading {
       return readDateText(text, "dmy");
     case "format":
       return plan.format.read(text);
+    case "locale":
+      return plan.locale.read(text, plan.order);
     case "ambiguous": {
       const readings = (["dmy", "mdy"] as const).map((order) =>
         readDateText(text, order),
@@ -240,22 +446,60 @@ function dateText(text: string, plan: DatePlan): DateReading {
 
 const canonicalDecimal = /^[+-]?(?:0|[1-9]\d{0,14})(?:\.\d{1,15})?$/;
 
+function missingText(raw: string, tokens: Tokens): boolean {
+  const text = raw.trim();
+  if (text === "") return true;
+  if (text.length > tokens.maxMissingLength && /^[\u0020-\u007e]*$/.test(text))
+    return false;
+  return tokens.missing.has(fold(text));
+}
+
+function booleanText(raw: string, reading: ColumnReading): boolean | undefined {
+  if (!reading.boolean) return undefined;
+  const text = raw.trim();
+  if (
+    text.length > reading.tokens.maxBooleanLength &&
+    /^[\u0020-\u007e]*$/.test(text)
+  )
+    return undefined;
+  const token = fold(text);
+  return reading.tokens.yes.has(token)
+    ? true
+    : reading.tokens.no.has(token)
+      ? false
+      : undefined;
+}
+
 function numberOf(raw: CellScalar, reading: ColumnReading): NumberRead {
   if (typeof raw === "number")
     return { kind: "number", value: finiteNumber(raw), currency: undefined };
-  if (typeof raw !== "string" || classify(raw) !== "text" || raw.trim() === "")
-    return { kind: "other" };
-  /**
-   * Guard: this bounded subset has no affix, grouping mark or identifier.
-   * This common path reduced the 2-million-cell aggregate benchmark cost;
-   * every other spelling still goes through the general parser's validation.
-   */
+  if (isCellDuration(raw))
+    return {
+      kind: "number",
+      value: finiteNumber(raw.durationSeconds),
+      currency: undefined,
+      unit: "seconds",
+    };
+  if (typeof raw !== "string") return { kind: "other" };
+  if (reading.duration) {
+    const duration = readDurationText(raw);
+    return duration.kind === "duration"
+      ? {
+          kind: "number",
+          value: duration.seconds,
+          currency: undefined,
+          unit: "seconds",
+        }
+      : { kind: "unreadable" };
+  }
+  /** Guard: this finite decimal subset contains no grouping, affix or identifier. */
   if (
     reading.number.kind === "marks" &&
     reading.number.marks.decimal === "." &&
     canonicalDecimal.test(raw)
   )
     return { kind: "number", value: Number(raw), currency: undefined };
+  if (classify(raw) !== "text") return { kind: "other" };
   const read = numberText(raw, reading.number);
   switch (read.kind) {
     case "number":
@@ -263,42 +507,62 @@ function numberOf(raw: CellScalar, reading: ColumnReading): NumberRead {
         kind: "number",
         value: read.value,
         currency: read.unit.kind === "currency" ? read.unit.code : undefined,
+        ...(read.unit.kind === "percent" || read.unit.kind === "permille"
+          ? { unit: "fraction" as const }
+          : {}),
       };
     case "identifier":
       return { kind: "identifier" };
     case "text":
       return { kind: "unreadable" };
     default: {
-      const _exhaustive: never = read;
-      return _exhaustive;
+      const exhaustive: never = read;
+      return exhaustive;
     }
   }
 }
 
-function as(
-  raw: CellScalar,
-  kind: ComparableKind,
-  reading: ColumnReading,
-): CellScalar {
-  if (typeof raw !== "string" || classify(raw) !== "text") return raw;
-  if (kind === "number") {
-    const read = numberText(raw, reading.number);
-    return read.kind === "number" ? read.value : raw;
-  }
-  if (kind === "date") {
-    const read = dateText(raw, reading.date);
-    return read.kind === "date" ? read.iso : raw;
-  }
-  return raw;
-}
-
 export function typedCell(raw: CellScalar, reading: ColumnReading): TypedCell {
+  const missing =
+    raw === null ||
+    (typeof raw === "string" && missingText(raw, reading.tokens));
   let numeric: NumberRead | undefined;
-  return {
-    raw,
-    as: (kind) => as(raw, kind, reading),
-    number: () => (numeric ??= numberOf(raw, reading)),
+  const number = (): NumberRead =>
+    (numeric ??= missing ? { kind: "other" } : numberOf(raw, reading));
+  const as = (kind: ReadableKind): CellScalar => {
+    if (missing) return null;
+    if (kind === "number") {
+      const read = number();
+      return read.kind === "number" ? read.value : raw;
+    }
+    if (typeof raw !== "string") return raw;
+    if (kind === "boolean") return booleanText(raw, reading) ?? raw;
+    if (kind === "time" && reading.time) {
+      const read = readTimeText(raw);
+      return read.kind === "time" ? read.value : raw;
+    }
+    if (kind === "date") {
+      const read = dateText(raw, reading.date);
+      return read.kind === "date" ? read.iso : raw;
+    }
+    return raw;
   };
+  const value = (): CellScalar => {
+    if (missing) return null;
+    if (reading.target === "text" || typeof raw !== "string") return raw;
+    if (reading.duration) {
+      const read = number();
+      if (read.kind === "number" && read.unit === "seconds")
+        return { durationSeconds: read.value };
+      return raw;
+    }
+    for (const kind of ["boolean", "date", "time"] as const) {
+      const normalized = as(kind);
+      if (normalized !== raw) return normalized;
+    }
+    return reading.number.kind === "off" ? raw : as("number");
+  };
+  return { raw, missing, as, value, number };
 }
 
 export type ReadAs =
@@ -309,7 +573,20 @@ export type ReadAs =
     }
   | { readonly type: "date" }
   | { readonly type: "date"; readonly order: DateOrder }
-  | { readonly type: "date"; readonly format: string };
+  | { readonly type: "date"; readonly format: string; readonly locale?: string }
+  | {
+      readonly type: "number";
+      readonly locale: string;
+      readonly numberingSystem: string;
+      readonly decimal: string;
+      readonly group: string;
+    }
+  | {
+      readonly type: "date";
+      readonly locale?: string;
+      readonly order?: DateOrder;
+    }
+  | { readonly type: "boolean" | "time" | "duration" | "text" };
 
 export function readAsOf(reading: ColumnReading): readonly ReadAs[] {
   const out: ReadAs[] = [];
@@ -319,6 +596,18 @@ export function readAsOf(reading: ColumnReading): readonly ReadAs[] {
       decimal: reading.number.marks.decimal,
       group: reading.number.marks.group,
     });
+  if (reading.number.kind === "locale")
+    out.push({
+      type: "number",
+      locale: reading.number.locale.locale,
+      numberingSystem: reading.number.locale.numberingSystem,
+      decimal: reading.number.locale.decimal,
+      group: reading.number.locale.group,
+    });
+  if (reading.boolean) out.push({ type: "boolean" });
+  if (reading.time) out.push({ type: "time" });
+  if (reading.duration) out.push({ type: "duration" });
+  if (reading.target === "text") out.push({ type: "text" });
   switch (reading.date.kind) {
     case "order":
       out.push({ type: "date", order: reading.date.order });
@@ -326,8 +615,25 @@ export function readAsOf(reading: ColumnReading): readonly ReadAs[] {
     case "unordered":
       out.push({ type: "date" });
       break;
+    case "locale":
+      out.push({
+        type: "date",
+        ...(reading.date.locale.locale === undefined
+          ? {}
+          : { locale: reading.date.locale.locale }),
+        ...(reading.date.order === undefined
+          ? {}
+          : { order: reading.date.order }),
+      });
+      break;
     case "format":
-      out.push({ type: "date", format: reading.date.format.pattern });
+      out.push({
+        type: "date",
+        format: reading.date.format.pattern,
+        ...(reading.date.format.locale === undefined
+          ? {}
+          : { locale: reading.date.format.locale }),
+      });
       break;
     default:
       break;

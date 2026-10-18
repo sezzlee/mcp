@@ -1,14 +1,32 @@
 import { fold } from "@sezzlee/file-core";
-import type { CellError, CellScalar } from "./cell-value.js";
+import {
+  isCellDuration,
+  type CellError,
+  type CellScalar,
+} from "./cell-value.js";
+import { readDateText } from "./date-text.js";
+import { isCanonicalTime } from "./temporal-text.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 
 export type CellKind =
-  "number" | "date" | "time" | "text" | "boolean" | "error" | "empty";
+  | "number"
+  | "duration"
+  | "date"
+  | "time"
+  | "text"
+  | "boolean"
+  | "error"
+  | "empty";
 
 export type ComparableKind = "number" | "date" | "time" | "text";
 
+export type ReadableKind = ComparableKind | "boolean";
+
+export type ReadingNeed = ReadableKind | "duration";
+
 export const kindPrecedence: readonly CellKind[] = [
   "number",
+  "duration",
   "date",
   "time",
   "text",
@@ -18,7 +36,6 @@ export const kindPrecedence: readonly CellKind[] = [
 ];
 
 const isoDate = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}\.\d{3}Z)?$/;
-const clockTime = /^\d{2}:\d{2}:\d{2}$/;
 
 export function classify(value: CellScalar): CellKind {
   if (value === null) {
@@ -31,10 +48,11 @@ export function classify(value: CellScalar): CellKind {
     return "boolean";
   }
   if (typeof value === "object") {
-    return "error";
+    return isCellDuration(value) ? "duration" : "error";
   }
-  if (isoDate.test(value)) return "date";
-  return clockTime.test(value) ? "time" : "text";
+  if (isoDate.test(value) && readDateText(value, "dmy").kind === "date")
+    return "date";
+  return isCanonicalTime(value) ? "time" : "text";
 }
 
 export function finiteNumber(value: number): number {
@@ -51,6 +69,7 @@ export type NumberRead =
       readonly kind: "number";
       readonly value: number;
       readonly currency: string | undefined;
+      readonly unit?: "fraction" | "seconds";
     }
   | { readonly kind: "identifier" }
   | { readonly kind: "unreadable" }
@@ -62,7 +81,9 @@ export type NumberRead =
  */
 export interface TypedCell {
   readonly raw: CellScalar;
-  as(kind: ComparableKind): CellScalar;
+  readonly missing: boolean;
+  value(): CellScalar;
+  as(kind: ReadableKind): CellScalar;
   number(): NumberRead;
 }
 
@@ -79,7 +100,8 @@ function orderKey(
     return text.length === 10 ? `${text}T00:00:00.000Z` : text;
   }
   if (kind === "time") {
-    return value as string;
+    const text = value as string;
+    return `${text.slice(0, 8)}${text.slice(9).padEnd(9, "0")}`;
   }
   return caseSensitive ? (value as string) : fold(value as string);
 }
@@ -180,9 +202,10 @@ function comparableKindOf(
   );
 }
 
-export function kindsRead(condition: Condition): readonly ComparableKind[] {
-  if (condition.op === "isNumber") return ["number"];
-  if (condition.op === "isText") return ["number", "date"];
+export function kindsRead(condition: Condition): readonly ReadingNeed[] {
+  if (condition.op === "isNumber") return ["number", "duration"];
+  if (condition.op === "isText")
+    return ["number", "date", "time", "duration", "boolean"];
   if (nullaryOperators.has(condition.op) || condition.op === "isError")
     return [];
   if (textOperators.has(condition.op)) return [];
@@ -194,9 +217,12 @@ export function kindsRead(condition: Condition): readonly ComparableKind[] {
         : [condition.value];
   return [
     ...new Set(
-      operands.flatMap((operand) => {
+      operands.flatMap<ReadingNeed>((operand) => {
         const kind = operandKind(operand);
-        return kind === "number" || kind === "date" ? [kind] : [];
+        if (kind === "number") return ["number", "duration"] as const;
+        return kind === "date" || kind === "time" || kind === "boolean"
+          ? [kind]
+          : [];
       }),
     ),
   ];
@@ -284,15 +310,14 @@ export function evaluate(
 ): Outcome {
   const raw = cell.raw;
   const rawKind = classify(raw);
-  const blank =
-    rawKind === "empty" || (typeof raw === "string" && raw.trim() === "");
+  const blank = cell.missing || (typeof raw === "string" && raw.trim() === "");
   const unmatched: Outcome = blank ? "miss" : "incomparable";
 
   switch (condition.op) {
     case "isEmpty":
-      return verdict(rawKind === "empty");
+      return verdict(cell.missing);
     case "isNotEmpty":
-      return verdict(rawKind !== "empty");
+      return verdict(!cell.missing);
     case "isError":
       return verdict(
         rawKind === "error" &&
@@ -302,11 +327,7 @@ export function evaluate(
     case "isNumber":
       return verdict(cell.number().kind === "number");
     case "isText":
-      return verdict(
-        rawKind === "text" &&
-          cell.number().kind !== "number" &&
-          classify(cell.as("date")) !== "date",
-      );
+      return verdict(!cell.missing && classify(cell.value()) === "text");
     default:
       break;
   }
@@ -342,7 +363,7 @@ export function evaluate(
   const operand = requireOperand(condition);
 
   if (textOperators.has(condition.op)) {
-    if (typeof raw !== "string") return unmatched;
+    if (cell.missing || typeof raw !== "string") return unmatched;
     const haystack = options.caseSensitive ? raw : fold(raw);
     const needle = options.caseSensitive
       ? (operand as string)
@@ -362,7 +383,8 @@ export function evaluate(
       wanted === "number" ||
       wanted === "date" ||
       wanted === "time" ||
-      wanted === "text"
+      wanted === "text" ||
+      wanted === "boolean"
         ? cell.as(wanted)
         : raw;
     const kind = classify(value);
@@ -398,6 +420,7 @@ export function evaluate(
 
 export interface Census {
   numbers: number;
+  durations: number;
   dates: number;
   times: number;
   texts: number;
@@ -406,11 +429,13 @@ export interface Census {
   nulls: number;
   textNumbers: number;
   identifiers: number;
+  missingLiterals: number;
 }
 
 export function emptyCensus(): Census {
   return {
     numbers: 0,
+    durations: 0,
     dates: 0,
     times: 0,
     texts: 0,
@@ -419,6 +444,7 @@ export function emptyCensus(): Census {
     nulls: 0,
     textNumbers: 0,
     identifiers: 0,
+    missingLiterals: 0,
   };
 }
 
@@ -428,9 +454,13 @@ export function emptyCensus(): Census {
  */
 export function record(census: Census, cell: TypedCell): CellKind {
   const kind = classify(cell.raw);
+  if (cell.missing && cell.raw !== null) census.missingLiterals += 1;
   switch (kind) {
     case "number":
       census.numbers += 1;
+      break;
+    case "duration":
+      census.durations += 1;
       break;
     case "date":
       census.dates += 1;

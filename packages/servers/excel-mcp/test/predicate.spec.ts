@@ -155,10 +155,12 @@ describe("text operators", () => {
 });
 
 describe("blank and error operators", () => {
-  it("keeps empty and empty string apart", () => {
+  it("treats blank strings and configured missing literals as empty", () => {
     expect(hits({ column: "a", op: "isEmpty" }, null)).toBe(true);
-    expect(hits({ column: "a", op: "isEmpty" }, "")).toBe(false);
-    expect(hits({ column: "a", op: "isNotEmpty" }, "")).toBe(true);
+    expect(hits({ column: "a", op: "isEmpty" }, "")).toBe(true);
+    expect(hits({ column: "a", op: "isNotEmpty" }, "")).toBe(false);
+    expect(hits({ column: "a", op: "isEmpty" }, " N/A ")).toBe(true);
+    expect(hits({ column: "a", op: "isError" }, { error: "#N/A" })).toBe(true);
   });
 
   it("matches error cells but not error-looking text", () => {
@@ -358,19 +360,23 @@ describe("census", () => {
       true,
       { error: "#N/A" },
       null,
+      { durationSeconds: 5400 },
+      "N/A",
     ] as CellScalar[]) {
       record(census, typedCell(value, reading));
     }
     expect(census).toEqual({
       numbers: 1,
+      durations: 1,
       dates: 1,
       times: 1,
-      texts: 3,
+      texts: 4,
       booleans: 1,
       errors: 1,
       nulls: 1,
       textNumbers: 1,
       identifiers: 1,
+      missingLiterals: 1,
     });
   });
 

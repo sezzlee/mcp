@@ -604,11 +604,97 @@ category, payment and 36-month breakdowns from 2,000 rows and 15 columns in one 
 It returned 50 aggregate rows in 2973 UTF-8 bytes of JSON text, excluding the MCP envelope.
 Every expected total is specified independently in `test/aggregate-analysis.spec.ts`.
 
+### Phase-3 combined characterization
+
+One invocation of the same benchmark worker characterized the uncommitted phase-3 tree
+based on `d071a1ef2e185e6d1525514701f253125898452b`. First call: 2703.629124 ms; cached call:
+2658.669570 ms. First-call peak RSS: 397696 KiB; process peak RSS: 427480 KiB. Both responses
+were 3007 bytes and had SHA-256
+`23e5590c9d6c2c763606af1d18ad1bea0b983fda04fd7b6c7a532d05451a2fd8`.
+All eight groups, 64 known sums and the row/metric counts passed. The five-module
+implementation fingerprint was
+`f98655f7e6f9b9447e1fda0dead7af2874fff8189d834305490d0ce26984de5b`.
+
+The parent runner received empty child stdout in the workspace sandbox, so this sample ran
+the same worker directly with `--max-old-space-size=512`; fixture generation had already
+finished. It therefore has a different launch method from the controlled phase-1 pairs and
+must not be presented as a new paired experiment. The exact executed command was:
+
+```bash
+node --max-old-space-size=512 packages/lab/excel-lab/src/aggregate-bench.ts --worker --out /workspace/scratch/9419ca03a883/excel-benchmark-phase3-current --revision d071a1ef2e185e6d1525514701f253125898452b
+```
+
+The original JSON line and methodology note are in that external output directory. This
+single sample still shows material cost above the old pre-phase-1 baseline. It predates the
+corpus-discovered Myanmar month-alias correction and does not measure localized column
+performance or establish the final phase-3 performance distribution. No further optimization
+or performance rerun was made on the strength of this one sample.
+
+## Global typed corpus evidence
+
+The new original corpus generator and verifier ran on 2026-10-18 with Node v24.19.0,
+ICU 78.3, CLDR 48.0 and Unicode 17.0. It exercises 19 locale/numbering-system configurations
+through real MCP calls. The independent oracle chooses exact quarter-unit amounts, dates,
+booleans and elapsed seconds before Intl formats the input text. Fixture and oracle digests
+are checked before each file is opened. No external private corpus was available or counted.
+
+The first 64-row/configuration test exposed a real bug in the draft global reader: accent
+folding merged Myanmar January abbreviation `ဇန်` with June `ဇွန်`, making the locale fail
+compilation. A fixed regression with independently specified January/June dates failed before
+the change and passed after exact NFC and Unicode case aliases were preserved ahead of
+unambiguous folded aliases. The ambiguous stripped spelling `ဇန` is still refused. The
+same generated suite covers Bengali and Thai month names, not just Latin-script accents.
+The primary Unicode chart and other sources are in [TYPED_TEXT_SOURCES.md](TYPED_TEXT_SOURCES.md).
+
+After that correction the focused lab gate passed all three tests: deterministic fixture/oracle
+digests; every raw and typed cell plus grouped totals, predicates, month buckets and reusable
+profile plans; and rejection of changed input bytes before tool invocation with a saved replay
+failure. Its 19 files contain 1,216 data rows, so it checks 7,296 raw and 7,296 typed cells across
+171 MCP calls. All 19 profile plans are reused successfully, including identifiers appearing
+after the profile sample. Lab lint and type checking also passed through Turbo.
+
+The standalone corpus run used:
+
+```bash
+node packages/lab/excel-lab/src/typed-corpus-cli.ts --out /workspace/scratch/9419ca03a883/excel-global-corpus --seed 1804289383 --rows 250 --revision d071a1ef2e185e6d1525514701f253125898452b
+```
+
+It wrote `/workspace/scratch/9419ca03a883/excel-global-corpus/typed-M4YLku` and passed all
+19 files: 4,750 data rows, 28,500 raw and 28,500 typed cells, 342 MCP calls and 19 reused
+profile plans. Verification took 1069.236280 ms in that process; peak RSS was 201832 KiB.
+These timings characterize a small correctness corpus, not a large-file benchmark. The built
+twelve-module fingerprint was
+`f78fd1d1186fdbd8fa81cb2a001159dd72c668e8f0f2736ae24a0b74abca829b`.
+The revision labels the phase-2 parent; the measured implementation includes uncommitted
+phase-3 changes. The output records generator and verifier runtime versions separately.
+
+The saved `typed-M4YLku` directory was then replayed with `--verify`, without regenerating
+either inputs or expected answers. The same 342 calls and all cell/aggregate checks passed
+with the same implementation fingerprint. That verification took 1238.536673 ms and peaked
+at 197496 KiB. The first report is retained as `typed-results-initial.json`; the latest replay
+is `typed-results.json`. Final lab lint/type checking passed all twelve Turbo tasks.
+
+The focused global parser suite has 40 cases. Its deterministic fuzz case checks 3,000 exact
+number round-trips, 6,000 invalid grouping/control mutations and 3,000 leading-zero identifier
+spellings under both refusal and explicit-read policies per seed. Invalid locale, numbering
+system, calendar, currency and long-text regressions are fixed cases. The six public MCP
+global-locale regressions went from six genuine failures on `ddeced6` to six passes: Arabic
+digits, Indian grouping, French month filtering and three impossible offset components.
+Both the default seed `1804289383` and alternate seed `3435973836` passed the focused
+40-case parser suite. The alternate seed was supplied through Turbo with
+`SEZZLEE_TYPED_FUZZ_SEED`; the package task passes it through and includes it in the cache key.
+
+Six independent legacy-byte fixtures also pass through the public MCP interface, preserving
+their raw identifier strings: windows-1251, windows-1256, Shift_JIS, GB18030, Big5 and EUC-KR.
+Four malformed fixtures ending in known multibyte lead bytes produce `undecodable_text`.
+The focused encoding plus existing CSV gate passed 38 tests. This is bounded evidence for
+those vectors, not proof of complete codec-index conformance or automatic encoding detection.
+
 ## Next steps
 
-1. Decide whether a CSV that is not UTF-8 should stay refused until the caller passes
-   `encoding`, or guess windows-1254 when the bytes contain Turkish letters and windows-1252
-   otherwise, and report that guess.
+1. Keep legacy decoding explicit. The global typed-text work selected a closed encoding list
+   with fatal decoding; no Turkish/Western or global encoding guess is made. Expand it only
+   with independent byte fixtures and clear runtime support.
 2. Measure what Excel runs when it opens a CSV, with the cases in `_tools/csv/formula-like`, and
    widen `formulaLikeCellCount` only for what it measures.
 3. Then `xml-mcp` (`libxml2-wasm` is a separate decision).
