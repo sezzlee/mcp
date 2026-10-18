@@ -11,12 +11,21 @@
 - **`where` counts what it could not compare.** A non-empty cell whose kind still differs from the operand's is reported in `warnings` with the count and examples; before it was a silent non-match although the tool description said it was counted.
 - **Mixed currencies are reported.** A column whose amounts name more than one currency (`₺100` and `€50`) still sums as written, and a warning lists the currencies.
 - **Identifiers are never summed.** Text with a leading zero or more than 15 digits is left out of `sum`, `avg` and `stddev` and reported, unless `columns` declares the column a number.
+- **Empty count results are zero.** `countValues` and `countDistinct` now return zero when no rows match, consistently with `count` and empty pivot combinations. The old whole-range fallback returned null for those two count functions.
+- **Column statistics count cells once.** Repeated metrics over the same column no longer multiply `columnStats` or uncached-formula diagnostics by the number of metrics.
 
 ### Tool surface
 
 - `aggregate_sheet` takes `columns`, a list of entries such as `{"column":"Tutar","type":"number","decimal":",","group":"."}`, `{"column":"Tarih","type":"date","format":"dd.MM.yyyy"}` or `{"column":"Hesap","type":"text"}`. A date `format` is built from a closed token set and is never run as a regular expression.
 - `aggregate_sheet` answers with `readAs`, how each column's text was read, when any was.
 - `min` and `max` compare text read as numbers or dates in their own kind, and times as times.
+- `groupBy` accepts calendar parts, explicit numeric boundaries and fixed decimal widths. Calendar keys use UTC and ISO week-years; unreadable keys are counted separately from missing keys. A plain key follows an explicitly declared or already-required column reading.
+- `pivotBy` produces bounded dense pivot columns. `groupingSets` returns several breakdowns beside the primary result from one scan, and `compact` reduces repeated provenance while keeping diagnostics.
+- `median`, `p50`, `p90` and `percentile` use exact inclusive linear interpolation. Each metric accepts its own `where` and reports `filtered` separately from `counted` and `skipped`.
+
+### Resource bounds
+
+- Dense pivot output is limited to 10,000 metric cells before allocation. Percentiles share samples for identical selections and refuse more than 1,000,000 retained values across the call. Exact distinct counts have their own global 1,000,000-value bound; all grouping sets share the group and metric-state budgets.
 
 ## 0.9.0
 

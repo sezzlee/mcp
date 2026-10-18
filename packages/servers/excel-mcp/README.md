@@ -36,7 +36,7 @@ Requires Node.js 22 or 24 on macOS (x64, arm64), glibc Linux (x64, arm64) or Win
 | `list_workbooks`          | Lists readable files under the root; the `filePath` it returns is passed to other tools verbatim                                                 |
 | `describe_workbook`       | Sheets and their kind (worksheet or chart sheet), used ranges, counts of merges, validations, tables, formulas, images and charts, defined names |
 | `read_sheet`              | A cell range as a compact grid: hoisted column headers plus row arrays                                                                           |
-| `aggregate_sheet`         | Server-side count/sum/average/min/max and grouping, instead of paging a large sheet                                                              |
+| `aggregate_sheet`         | Grouped summaries, calendar and numeric buckets, bounded pivots, conditional metrics and exact percentiles                                       |
 | `find_in_sheet`           | Cells whose value or formula matches a query                                                                                                     |
 | `get_tables`              | Excel Tables: range, header and totals rows, column names and letters                                                                            |
 | `get_data_validations`    | Validation rules, regrouped into rectangular ranges                                                                                              |
@@ -52,6 +52,41 @@ Every argument, error code and limit is listed in the [reference](https://docs.s
 A CSV holds only text, and a workbook may store numbers and dates as text too. `read_sheet` and `find_in_sheet` return that text as written. `aggregate_sheet` reads it as a number or a date only where a metric or a `where` operand needs one, and decides the format per column from every value in the range: the decimal and thousands separators (`1.234,50`, `1,234.50`, `1 234,50`, `1'234.50`), and whether slash dates put the day or the month first. The marks or order that read the most values win. When the winners read some value differently (`1.234`, `01/02/2023`) the column is ambiguous: none of those values is read, and a warning names the `columns` entry that settles it. Accounting parentheses, a leading or trailing `%` (read as a ratio) and a currency symbol or code are understood; dotted dates are day first, and Turkish and English month names are read.
 
 A digit run with a leading zero or more than 15 digits is an identifier and is never summed unless `columns` declares the column a number. A column whose amounts name more than one currency is summed as written and reported. Every value a call could not read, compare or sum is counted in `warnings` with examples, and `readAs` reports how each column's text was read. A time-only number format (`h:mm`, `hh:mm:ss AM/PM`) is returned as `HH:mm:ss`; an elapsed `[h]` format is a duration and is still returned as a date.
+
+## Grouped analysis
+
+`groupBy` accepts a column name or a closed transformation. Calendar groups use UTC after applying
+an explicit timestamp offset. Month and quarter keys include their year, weeks use the ISO
+week-year, weekdays run from Monday 1 to Sunday 7, and hours run from 0 to 23. A plain column
+keeps its stored key unless `columns` explicitly types it or a metric or condition already needs
+a typed reading of that same column. Reading the cells still returns their original values.
+
+Numeric `bins` are strictly increasing boundaries with a separate underflow and overflow group.
+Intervals include their lower boundary and exclude their upper boundary. A fixed `width` uses
+an optional `origin` (zero by default); canonical decimal arithmetic places `0.3` exactly on a
+`0.1` boundary without moving the preceding representable value into that bucket. Boundaries
+that cannot be represented as distinct finite numbers are refused. A missing key forms the
+null group; an unreadable derived key is counted in `ungroupedRows` with examples in `warnings`.
+
+`pivotBy` turns bounded grouping keys into output columns, one column for each key and metric.
+Missing combinations return zero for counts and null for numeric metrics. The complete row-key
+count × pivot-key count × metric count is checked before a dense result is allocated, even when
+the input contains only a few of those combinations. The cap is 10,000 metric cells.
+
+`median`, `p50`, `p90` and `percentile` use exact inclusive linear interpolation (R7), matching
+[Excel's PERCENTILE.INC](https://support.microsoft.com/en-us/excel/functions/percentile-inc-function).
+The percentile argument is between zero and one, inclusive. Samples shared by identical metric
+selections are retained once, with a one-million-value budget across the call. A request that
+exceeds the budget is refused, never silently changed to an approximation. Each metric may
+have its own `where`; these conditions are combined with AND after the call's top-level filter.
+`counted`, `skipped` and `filtered` distinguish usable values, unreadable or missing values, and
+rows excluded by that metric's conditions.
+
+`groupingSets` adds independent breakdowns beside the primary result in one scan. Each set has
+its own grouping keys and diagnostics, while column readings and global resource budgets are
+shared. `compact` reduces repeated provenance while retaining loss and ambiguity diagnostics.
+The 2,000-row, 15-column commerce regression in `test/aggregate-analysis.spec.ts` checks an
+overall total, country, category, payment and 36 monthly breakdowns in one response under 8 KiB.
 
 ## How the metadata is read
 

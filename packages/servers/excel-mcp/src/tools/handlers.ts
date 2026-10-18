@@ -32,7 +32,12 @@ import {
   rejectForCsv,
 } from "./gate.js";
 import { resolveHeaderRow } from "./coerce.js";
-import { modeEnvelopeBytes, withCsv, withMode } from "./envelope.js";
+import {
+  modeEnvelopeBytes,
+  withAggregateEnvelope,
+  withCsv,
+  withMode,
+} from "./envelope.js";
 
 interface CsvOptions {
   readonly delimiter?: DelimiterName;
@@ -243,13 +248,17 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         assertHeaderScan(args, args.filePath);
         const loaded = await openFor(args.filePath, csvOptionsOf(args));
         return json(
-          withCsv(
+          withAggregateEnvelope(
             aggregateSheet(sheetSource(loaded), {
               ...(args.sheetName === undefined
                 ? {}
                 : { sheetName: args.sheetName }),
               ...(args.range === undefined ? {} : { range: args.range }),
               ...(args.groupBy === undefined ? {} : { groupBy: args.groupBy }),
+              ...(args.pivotBy === undefined ? {} : { pivotBy: args.pivotBy }),
+              ...(args.groupingSets === undefined
+                ? {}
+                : { groupingSets: args.groupingSets }),
               metrics: args.metrics,
               ...(args.where === undefined ? {} : { where: args.where }),
               match: args.match ?? "all",
@@ -267,6 +276,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
             }),
             csvReportOf(loaded),
             loaded.mode,
+            args.compact ?? false,
           ),
         );
       },

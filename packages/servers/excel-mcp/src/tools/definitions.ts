@@ -8,6 +8,7 @@ import {
 } from "@sezzlee/file-core";
 import { z } from "zod";
 import { limits } from "../platform/limits.js";
+import { metricFunctions } from "../grid/aggregate-metrics.js";
 import {
   columnRef,
   columnSpecs,
@@ -15,6 +16,8 @@ import {
   drawingKind,
   encoding,
   filePath,
+  groupAxis,
+  rowConditions,
   sheetName,
 } from "./schemas.js";
 
@@ -190,82 +193,69 @@ export const toolDefinitions = {
         .describe(
           "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
         ),
-      groupBy: z
-        .array(columnRef)
-        .max(limits.maxMetrics)
+      groupBy: groupAxis
         .optional()
-        .describe("Columns to group by. Omit for a single whole-range total."),
+        .describe(
+          "Row grouping keys. A plain column keeps raw values unless columns, a filter or a metric already reads that column as numbers or dates. Date parts and bins request that reading explicitly. Omit for a whole-range total.",
+        ),
+      pivotBy: groupAxis
+        .optional()
+        .describe(
+          "Column axis of a dense pivot, with the same key forms as groupBy. Missing combinations have count 0 and other metrics null. The full row-key × pivot-key × metric count is bounded, before maxGroups slicing.",
+        ),
+      groupingSets: z
+        .array(
+          z.strictObject({
+            groupBy: groupAxis.describe(
+              "Keys for this independent breakdown, using the same forms as the primary groupBy. Pass an empty array for a grand total.",
+            ),
+          }),
+        )
+        .min(1)
+        .max(limits.maxGroupingSets)
+        .optional()
+        .describe(
+          "Additional independent groupings computed with the same metrics, filters and pivotBy in one shared scan. Results appear in groupingSets in this order; the primary groupBy result stays in rows. An empty groupBy computes a grand total.",
+        ),
+      compact: z
+        .boolean()
+        .optional()
+        .describe(
+          "Omit repeated CSV format and mode metadata, default false. CSV warnings and nonzero quality counts, typed-reading decisions and aggregation diagnostics remain.",
+        ),
       metrics: z
         .array(
-          z.object({
+          z.strictObject({
             fn: z
-              .enum([
-                "count",
-                "countValues",
-                "countDistinct",
-                "sum",
-                "avg",
-                "min",
-                "max",
-                "stddev",
-              ])
+              .enum(metricFunctions)
               .describe(
-                "count counts matched rows and needs no column. countValues counts the column's non-empty cells, countDistinct its distinct values. sum, avg and stddev read numbers, including text such as 1.234,50, (1,234.50), %20 or ₺95 read column by column; identifiers such as 00123 are never summed. min and max read the kind most of the column holds: numbers, dates, times or text. Other cells are counted as skipped.",
+                "count counts matched rows. countValues counts non-empty cells; countDistinct counts distinct stored values. sum, avg, stddev, median, p50, p90 and percentile read numeric text column by column and exclude identifiers. stddev is the sample deviation. Percentiles use exact linear interpolation (Excel PERCENTILE.INC), bounded across the call. min/max compare one kind per group; a mixed group is refused.",
               ),
             column: columnRef.optional(),
+            percentile: z
+              .number()
+              .min(0)
+              .max(1)
+              .optional()
+              .describe(
+                "Required only for fn percentile: fraction from 0 to 1 inclusive. median and p50 use 0.5, p90 uses 0.9.",
+              ),
+            where: rowConditions
+              .optional()
+              .describe(
+                "Additional filter for this metric only; all conditions must match. It is applied after the top-level filter. filtered counts rows excluded here; skipped counts included rows whose values the metric could not use.",
+              ),
           }),
         )
         .min(1)
         .max(limits.maxMetrics)
         .describe(
-          "Values to compute. Each metric becomes one output column after the groupBy columns, labelled fn(column).",
+          "Values to compute. Each becomes an output column after the group keys, or one column per pivot key. Percentiles sharing a column and identical metric filter share their stored samples.",
         ),
-      where: z
-        .array(
-          z.object({
-            column: columnRef,
-            op: z
-              .enum([
-                "eq",
-                "ne",
-                "lt",
-                "lte",
-                "gt",
-                "gte",
-                "contains",
-                "startsWith",
-                "endsWith",
-                "in",
-                "between",
-                "isEmpty",
-                "isNotEmpty",
-                "isError",
-                "isNumber",
-                "isText",
-              ])
-              .describe(
-                "Comparison and text operators take value; in takes values; between takes values as [low, high], both inclusive and of one kind; isEmpty, isNotEmpty, isError, isNumber and isText take neither.",
-              ),
-            value: z
-              .union([z.string(), z.number(), z.boolean()])
-              .optional()
-              .describe(
-                "Operand of eq, ne, lt, lte, gt, gte, contains, startsWith and endsWith.",
-              ),
-            values: z
-              .array(z.union([z.string(), z.number(), z.boolean()]))
-              .min(1)
-              .max(limits.maxInValues)
-              .optional()
-              .describe(
-                "Operands of in (any of them) and between (exactly two: low and high).",
-              ),
-          }),
-        )
-        .max(limits.maxConditions)
+      where: rowConditions
         .optional()
         .describe(
-          "Row filter. Against a number or an ISO date operand, text such as 1.234,50 or 02.01.2023 is read as a number or a date column by column. A cell that still differs in kind from the operand never matches and is reported in warnings with examples.",
+          "Row filter. Numeric and ISO date operands read text column by column. Incomparable cells are reported with counts and examples.",
         ),
       match: z
         .enum(["all", "any"])

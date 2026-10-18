@@ -40,6 +40,12 @@ Every limit is fixed at build time; none is configurable. A call that would cros
 | Groups `aggregate_sheet` returns when `maxGroups` is omitted                                   | 50         |
 | Largest `maxGroups` for `aggregate_sheet`                                                      | 500        |
 | Distinct groups one `aggregate_sheet` scan may form before it is refused with `resource_limit` | 100,000    |
+| Metric states retained across primary groups, pivots and grouping sets before `resource_limit` | 200,000    |
+| Exact percentile samples retained across all groups and grouping sets before `resource_limit`  | 1,000,000  |
+| Distinct metric values retained across all groups and grouping sets before `resource_limit`    | 1,000,000  |
+| Additional grouping sets in one `aggregate_sheet` call                                         | 8          |
+| Explicit numeric boundaries in one grouping specification                                      | 128        |
+| Metric cells in the complete dense row-key by pivot-key result before allocation               | 10,000     |
 | Cells one `aggregate_sheet` call may read before it is refused with `resource_limit`           | 20,000,000 |
 | Metrics in one `aggregate_sheet` call                                                          | 8          |
 | Conditions in one `where` filter                                                               | 16         |

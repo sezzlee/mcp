@@ -583,6 +583,27 @@ above once in each checkout per round without `--legacy-coerce-text`. The `revis
 then matches and the implementation hashes distinguish the builds. Generation happens in
 the parent, outside the measured worker; no downloaded corpus bytes are needed.
 
+### Phase-2 combined characterization
+
+One fresh worker measured the phase-2 implementation with the same 2,000,000-cell fixture
+after the independent phase-1 comparison. The first call took 2458.200012 ms and the cached
+call 2174.960371 ms. First-call peak RSS was 379520 KiB; the worker's peak was 401676 KiB.
+Both replies were 3007 UTF-8 bytes, and all eight groups and 64 independently specified
+metric sums and counts passed. This is one characterization sample, not a paired performance
+comparison or evidence that the remaining regression has been eliminated.
+
+The checkout was based on `1e5790cd4f5a026af0e76421b6d4bbd838bb2d9e` with the phase-2 changes.
+The benchmark's five-module implementation hash was
+`e88813cc4e1131c48d9d2a1877d40581823d7917aeea3da17fdd531a6eb66bbf`; that fingerprint
+covers the aggregate entry and phase-1 readers, not every new phase-2 helper. Both replies
+had SHA-256 `23e5590c9d6c2c763606af1d18ad1bea0b983fda04fd7b6c7a532d05451a2fd8`.
+Future measurements should identify the complete committed revision as well as this fingerprint.
+
+The separate public-handler commerce regression returns an overall total and country,
+category, payment and 36-month breakdowns from 2,000 rows and 15 columns in one call.
+It returned 50 aggregate rows in 2973 UTF-8 bytes of JSON text, excluding the MCP envelope.
+Every expected total is specified independently in `test/aggregate-analysis.spec.ts`.
+
 ## Next steps
 
 1. Decide whether a CSV that is not UTF-8 should stay refused until the caller passes

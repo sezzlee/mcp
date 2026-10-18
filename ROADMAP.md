@@ -73,8 +73,6 @@ spec, a guard comment or the package README.
 
 ## Excel analysis and typed data
 
-- **Grouped analysis in one call.** Calendar parts and numeric buckets, bounded pivots,
-  exact percentiles with a sample budget, per-metric conditions and grouping sets.
 - **Reusable column profiles.** A bounded profile with independent type evidence, identifier
   protection and a closed `columns` contract shared by reading, finding and aggregation.
 - **Global text formats.** Explicit locale and numbering-system contracts, missing and boolean
