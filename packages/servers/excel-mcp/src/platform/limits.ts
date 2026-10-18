@@ -33,6 +33,7 @@ export const limits = {
   maxAggregateGroups: 100_000,
   maxAggregateCellVisits: 20_000_000,
   maxConditions: 16,
+  maxColumnSpecs: 16,
   maxMetrics: 8,
   maxInValues: 64,
   guidanceRowThreshold: 5_000,

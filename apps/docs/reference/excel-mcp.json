@@ -114,6 +114,7 @@
           "maxAggregateCellVisits": "Cells one `aggregate_sheet` call may read before it is refused with `resource_limit`",
           "maxMetrics": "Metrics in one `aggregate_sheet` call",
           "maxConditions": "Conditions in one `where` filter",
+          "maxColumnSpecs": "Entries in one `aggregate_sheet` `columns` list",
           "maxInValues": "Values in one `in` condition",
           "headerScanRows": "Rows at the top of the range that `headerScan` examines"
         }

@@ -256,7 +256,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               ...resolveHeaderRow(loaded, args),
               columnMode: args.columnMode ?? "auto",
               caseSensitive: args.caseSensitive ?? false,
-              coerceText: args.coerceText ?? false,
+              ...(args.columns === undefined ? {} : { columns: args.columns }),
               mergedCells: args.mergedCells ?? "master",
               orderBy: args.orderBy ?? "group",
               ...(args.orderByMetric === undefined

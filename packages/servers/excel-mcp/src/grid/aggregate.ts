@@ -14,12 +14,23 @@ import {
 } from "./header.js";
 import { limits } from "../platform/limits.js";
 import {
+  explicitReading,
+  rawReading,
+  readAsOf,
+  readingWarnings,
+  sniffedReading,
+  typedCell,
+  type ColumnReading,
+  type ColumnSpec,
+  type ReadAs,
+} from "./column-reading.js";
+import {
   classify,
   compareWithin,
-  coerceNumber,
   emptyCensus,
   evaluate,
   kindPrecedence,
+  kindsRead,
   majorityKind,
   record,
   reportCensus,
@@ -59,7 +70,7 @@ export interface AggregateOptions {
   readonly headerRow: number;
   readonly columnMode: ColumnMode;
   readonly caseSensitive: boolean;
-  readonly coerceText: boolean;
+  readonly columns?: readonly ColumnSpec[];
   readonly mergedCells: "master" | "repeat";
   readonly orderBy: "group" | "metric";
   readonly orderByMetric?: number;
@@ -95,6 +106,7 @@ export interface AggregateResult {
   readonly firstScannedRow: number;
   readonly blankRows: number;
   readonly columnStats?: Readonly<Record<string, Partial<Census>>>;
+  readonly readAs?: Readonly<Record<string, readonly ReadAs[]>>;
   readonly truncated: boolean;
   readonly truncationReason?: "maxGroups";
   readonly hint?: string;
@@ -113,7 +125,7 @@ interface MetricState {
   distinct: Set<string> | undefined;
   extreme:
     | { readonly kind: "number"; readonly value: number }
-    | { readonly kind: "text" | "date"; readonly value: string }
+    | { readonly kind: "date" | "time" | "text"; readonly value: string }
     | undefined;
   mean: number;
   m2: number;
@@ -246,6 +258,36 @@ function finish(metric: MetricRequest, state: MetricState): CellScalar {
   }
 }
 
+const maxSamples = 3;
+
+interface Tally {
+  count: number;
+  readonly samples: Set<string>;
+}
+
+function tallyOf(): Tally {
+  return { count: 0, samples: new Set() };
+}
+
+function note(tally: Tally, value: CellScalar): void {
+  tally.count += 1;
+  if (tally.samples.size < maxSamples)
+    tally.samples.add(
+      typeof value === "string" ? value : JSON.stringify(value),
+    );
+}
+
+function count(value: number, one: string, many: string): string {
+  return `${value} ${value === 1 ? one : many}`;
+}
+
+function samplesOf(tally: Tally): string {
+  return [...tally.samples].map((sample) => `'${sample}'`).join(", ");
+}
+
+const numericMetrics = new Set<MetricFunction>(["sum", "avg", "stddev"]);
+const extremeMetrics = new Set<MetricFunction>(["min", "max"]);
+
 export function aggregateSheet(
   source: SheetSource,
   options: AggregateOptions,
@@ -314,7 +356,6 @@ export function aggregateSheet(
 
   const predicateOptions: PredicateOptions = {
     caseSensitive: options.caseSensitive,
-    coerceText: options.coerceText,
   };
   const census = new Map<number, Census>();
   const censusFor = (column: number): Census => {
@@ -365,6 +406,81 @@ export function aggregateSheet(
       ? Math.max(bounds.top, options.headerRow + 1)
       : bounds.top;
   const withCovered = options.mergedCells === "repeat";
+  const rowsInRange = (): Iterable<number> =>
+    sheet.populatedRows({ from: startRow, to: bounds.bottom, withCovered });
+
+  const readings = new Map<number, ColumnReading>();
+  for (const spec of options.columns ?? []) {
+    const column = resolveColumn(index, spec.column, options.columnMode);
+    if (readings.has(column))
+      throw new SezzleeExcelError(
+        "invalid_argument",
+        `columns names ${columnToLetters(column)} twice.`,
+        "Give each column one entry.",
+      );
+    readings.set(column, explicitReading(spec));
+  }
+  const needs = new Map<number, { number: boolean; date: boolean }>();
+  const need = (column: number, kinds: readonly ComparableKind[]): void => {
+    const current = needs.get(column) ?? { number: false, date: false };
+    needs.set(column, {
+      number: current.number || kinds.includes("number"),
+      date: current.date || kinds.includes("date"),
+    });
+  };
+  for (const entry of conditions)
+    need(entry.column, kindsRead(entry.condition));
+  for (const entry of metricColumns) {
+    if (entry.column === undefined) continue;
+    if (numericMetrics.has(entry.metric.fn)) need(entry.column, ["number"]);
+    if (extremeMetrics.has(entry.metric.fn))
+      need(entry.column, ["number", "date"]);
+  }
+  const sniffed = [...needs].filter(
+    ([column, wanted]) =>
+      !readings.has(column) && (wanted.number || wanted.date),
+  );
+  if (sniffed.length > 0) {
+    const texts = new Map<number, string[]>(
+      sniffed.map(([column]) => [column, []]),
+    );
+    for (const row of rowsInRange()) {
+      const rowView = sheet.rowAt(row);
+      for (const [column, values] of texts) {
+        visit();
+        const value = readGrid(rowView, column, options.mergedCells).value;
+        if (typeof value === "string" && classify(value) === "text")
+          values.push(value);
+      }
+    }
+    for (const [column, wanted] of sniffed)
+      readings.set(column, sniffedReading(texts.get(column) ?? [], wanted));
+  }
+  const readingOf = (column: number): ColumnReading =>
+    readings.get(column) ?? rawReading;
+
+  const extremeCounts = new Map<number, Record<ComparableKind, number>>();
+  const extremeCountsFor = (column: number): Record<ComparableKind, number> => {
+    const existing = extremeCounts.get(column);
+    if (existing !== undefined) return existing;
+    const fresh = { number: 0, date: 0, time: 0, text: 0 };
+    extremeCounts.set(column, fresh);
+    return fresh;
+  };
+
+  const incomparable = conditions.map(() => tallyOf());
+  const unreadable = new Map<number, Tally>();
+  const identifiers = new Map<number, Tally>();
+  const currencies = new Map<number, Set<string>>();
+  const numericOwner = new Map<number, number>();
+  metricColumns.forEach((entry, slot) => {
+    if (
+      entry.column !== undefined &&
+      numericMetrics.has(entry.metric.fn) &&
+      !numericOwner.has(entry.column)
+    )
+      numericOwner.set(entry.column, slot);
+  });
 
   let scannedRows = 0;
   let matchedRows = 0;
@@ -373,22 +489,24 @@ export function aggregateSheet(
 
   const matches = (cellAt: (column: number) => CellScalar): boolean => {
     let matched = conditions.length === 0 ? true : options.match === "all";
-    for (const entry of conditions) {
-      const hit = evaluate(
+    conditions.forEach((entry, at) => {
+      const raw = cellAt(entry.column);
+      const outcome = evaluate(
         entry.condition,
-        cellAt(entry.column),
+        typedCell(raw, readingOf(entry.column)),
         predicateOptions,
       );
+      if (outcome === "incomparable") {
+        const tally = incomparable[at];
+        if (tally !== undefined) note(tally, raw);
+      }
+      const hit = outcome === "match";
       matched = options.match === "all" ? matched && hit : matched || hit;
-    }
+    });
     return matched;
   };
 
-  for (const row of sheet.populatedRows({
-    from: startRow,
-    to: bounds.bottom,
-    withCovered,
-  })) {
+  for (const row of rowsInRange()) {
     scannedRows += 1;
     visit();
     const rowView = sheet.rowAt(row);
@@ -442,45 +560,44 @@ export function aggregateSheet(
         continue;
       }
       const column = entry.column as number;
-      const raw = cellAt(column);
-      const kind = record(censusFor(column), raw);
+      const cell = typedCell(cellAt(column), readingOf(column));
+      const kind = record(censusFor(column), cell);
       if (kind === "empty") {
         state.skipped += 1;
         continue;
       }
-      const value =
-        options.coerceText && kind === "text"
-          ? (coerceNumber(raw) ?? raw)
-          : raw;
-
       if (entry.metric.fn === "countValues") {
         state.counted += 1;
         continue;
       }
       if (entry.metric.fn === "countDistinct") {
         state.counted += 1;
-        state.distinct?.add(JSON.stringify(value));
+        state.distinct?.add(JSON.stringify(cell.raw));
         continue;
       }
       if (entry.metric.fn === "min" || entry.metric.fn === "max") {
-        const kindNow = classify(value);
-        if (kindNow !== "number" && kindNow !== "date" && kindNow !== "text") {
+        const read = cell.number();
+        const date = cell.as("date");
+        const candidate =
+          read.kind === "number"
+            ? { kind: "number" as const, value: read.value }
+            : typeof date === "string" && classify(date) === "date"
+              ? { kind: "date" as const, value: date }
+              : typeof cell.raw === "string"
+                ? {
+                    kind:
+                      classify(cell.raw) === "time"
+                        ? ("time" as const)
+                        : ("text" as const),
+                    value: cell.raw,
+                  }
+                : undefined;
+        if (candidate === undefined) {
           state.skipped += 1;
           continue;
         }
         state.counted += 1;
-        if (kindNow === "number") coerceNumber(value);
-        const candidate =
-          typeof value === "number"
-            ? { kind: "number" as const, value }
-            : typeof value === "string"
-              ? {
-                  kind:
-                    kindNow === "date" ? ("date" as const) : ("text" as const),
-                  value,
-                }
-              : undefined;
-        if (candidate === undefined) continue;
+        extremeCountsFor(column)[candidate.kind] += 1;
         if (state.extreme === undefined) {
           state.extreme = candidate;
           continue;
@@ -489,11 +606,11 @@ export function aggregateSheet(
           throw new SezzleeExcelError(
             "invalid_argument",
             `Metric '${entry.metric.fn}' mixes ${state.extreme.kind} and ${candidate.kind} at ${columnToLetters(column)}${row}.`,
-            "Use a homogeneous range or filter the source values.",
+            "Use a homogeneous range, or filter with where isNumber.",
           );
         const order = compareWithin(
-          kindNow,
-          value,
+          candidate.kind,
+          candidate.value,
           state.extreme.value,
           options.caseSensitive,
         );
@@ -502,12 +619,29 @@ export function aggregateSheet(
         }
         continue;
       }
-      const numeric =
-        typeof value === "number" ? coerceNumber(value) : undefined;
-      if (numeric === undefined) {
+      const read = cell.number();
+      if (read.kind !== "number") {
         state.skipped += 1;
+        if (numericOwner.get(column) === slot) {
+          const tallies =
+            read.kind === "unreadable"
+              ? unreadable
+              : read.kind === "identifier"
+                ? identifiers
+                : undefined;
+          if (tallies !== undefined) {
+            const tally = tallies.get(column) ?? tallyOf();
+            tallies.set(column, tally);
+            note(tally, cell.raw);
+          }
+        }
         continue;
       }
+      if (read.currency !== undefined && numericOwner.get(column) === slot) {
+        const seen = currencies.get(column) ?? new Set<string>();
+        currencies.set(column, seen.add(read.currency));
+      }
+      const numeric = read.value;
       state.counted += 1;
       if (entry.metric.fn === "sum" || entry.metric.fn === "avg")
         accumulate(state.sums, numeric);
@@ -594,10 +728,9 @@ export function aggregateSheet(
         (total, group) => total + (group.metrics[slot]?.skipped ?? 0),
         0,
       );
-      const kindUsed =
-        entry.metric.fn === "min" || entry.metric.fn === "max"
-          ? majorityKind(censusFor(entry.column as number))
-          : undefined;
+      const kindUsed = extremeMetrics.has(entry.metric.fn)
+        ? majorityKind(extremeCountsFor(entry.column as number))
+        : undefined;
       return {
         label: metricLabel(entry.metric),
         ...(entry.column === undefined
@@ -636,6 +769,12 @@ export function aggregateSheet(
     }
   }
 
+  const readAs: Record<string, readonly ReadAs[]> = {};
+  for (const [column, reading] of readings) {
+    const described = readAsOf(reading);
+    if (described.length > 0) readAs[columnToLetters(column)] = described;
+  }
+
   const warnings: string[] = [
     ...headerWarnings(
       sheet,
@@ -672,21 +811,30 @@ export function aggregateSheet(
       );
     }
   }
-  const numericTextColumns = [...census.entries()].filter(
-    ([, counted]) => counted.numericTexts > 0,
-  );
-  if (!options.coerceText && numericTextColumns.length > 0) {
+  for (const [column, reading] of readings)
+    warnings.push(...readingWarnings(reading, columnToLetters(column)));
+  conditions.forEach((entry, at) => {
+    const tally = incomparable[at];
+    if (tally === undefined || tally.count === 0) return;
+    const kinds = kindsRead(entry.condition);
+    const as = kinds.length === 0 ? "the operand" : `a ${kinds.join(" or ")}`;
     warnings.push(
-      `${numericTextColumns
-        .map(
-          ([column, counted]) =>
-            `${columnToLetters(column)} (${counted.numericTexts})`,
-        )
-        .join(
-          ", ",
-        )} hold numeric text such as "1234.50". Pass coerceText true to include them in the totals.`,
+      `where ${entry.condition.column} ${entry.condition.op}: ${count(tally.count, "cell", "cells")} in ${columnToLetters(entry.column)} could not be compared with ${as}, such as ${samplesOf(tally)}; they did not match.`,
     );
-  }
+  });
+  for (const [column, seen] of currencies)
+    if (seen.size > 1)
+      warnings.push(
+        `${columnToLetters(column)}: amounts are written in more than one currency (${[...seen].sort().join(", ")}); the totals add them as written, without conversion.`,
+      );
+  for (const [column, tally] of unreadable)
+    warnings.push(
+      `${columnToLetters(column)}: ${count(tally.count, "text cell does", "text cells do")} not read as a number, such as ${samplesOf(tally)}; the totals exclude them.`,
+    );
+  for (const [column, tally] of identifiers)
+    warnings.push(
+      `${columnToLetters(column)}: ${count(tally.count, "cell looks like an identifier", "cells look like identifiers")} (a leading zero or more than 15 digits), such as ${samplesOf(tally)}; the totals exclude them. If they are quantities, pass columns [{"column":"${columnToLetters(column)}","type":"number","decimal":"."}].`,
+    );
   if (uncachedFormulas > 0) {
     warnings.push(
       `${uncachedFormulas} formula cells in the aggregated columns have no cached value; the totals exclude them.`,
@@ -711,6 +859,7 @@ export function aggregateSheet(
     firstScannedRow: startRow,
     blankRows,
     ...(Object.keys(stats).length > 0 ? { columnStats: stats } : {}),
+    ...(Object.keys(readAs).length > 0 ? { readAs } : {}),
     truncated,
     ...(truncated ? { truncationReason: "maxGroups" as const } : {}),
     ...(truncated

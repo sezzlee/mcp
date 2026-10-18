@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Compatibility changes
+
+- **`coerceText` is removed from `aggregate_sheet`.** Text is always read as a number or a date where a metric or a `where` operand needs one, so a CSV sums and filters without any option. A call that still passes `coerceText` is refused as `invalid_argument`. `columnStats` no longer has `numericTexts`; it has `textNumbers` (text read as a number), `identifiers` and `times`.
+- **Separators are decided per column.** `1.234,50`, `1,234.50`, `1 234,50` and `1'234.50` are read, as are accounting parentheses, `%` before or after the digits (as a ratio) and a currency symbol or code. A column whose values read differently under the winning separators is not read, and a warning names the `columns` entry to pass. Before, only `1234.50` was read and `1.234,50` summed to `null` without a warning.
+- **Dates written as text match ISO operands.** `02.01.2023`, `2.1.2023`, `25/12/2023`, `12/25/2023`, `2023/01/02`, `18 Ekim 2026` and `October 18, 2026`, with or without a time, compare against `2023-01-02`. Slash and dash dates are read day first or month first from the column's values, and an undecidable column is reported, never guessed.
+- **A time-only number format is a time of day.** `h:mm`, `hh:mm;@`, `mm:ss` and their AM/PM forms are returned as `HH:mm:ss` by every tool instead of an instant on 31 December 1899, and compare as times in `where` (`lt "12:00:00"`).
+- **`where` counts what it could not compare.** A non-empty cell whose kind still differs from the operand's is reported in `warnings` with the count and examples; before it was a silent non-match although the tool description said it was counted.
+- **Mixed currencies are reported.** A column whose amounts name more than one currency (`₺100` and `€50`) still sums as written, and a warning lists the currencies.
+- **Identifiers are never summed.** Text with a leading zero or more than 15 digits is left out of `sum`, `avg` and `stddev` and reported, unless `columns` declares the column a number.
+
+### Tool surface
+
+- `aggregate_sheet` takes `columns`, a list of entries such as `{"column":"Tutar","type":"number","decimal":",","group":"."}`, `{"column":"Tarih","type":"date","format":"dd.MM.yyyy"}` or `{"column":"Hesap","type":"text"}`. A date `format` is built from a closed token set and is never run as a regular expression.
+- `aggregate_sheet` answers with `readAs`, how each column's text was read, when any was.
+- `min` and `max` compare text read as numbers or dates in their own kind, and times as times.
+
 ## 0.9.0
 
 ### Compatibility changes

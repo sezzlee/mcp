@@ -43,6 +43,7 @@ Every limit is fixed at build time; none is configurable. A call that would cros
 | Cells one `aggregate_sheet` call may read before it is refused with `resource_limit`           | 20,000,000 |
 | Metrics in one `aggregate_sheet` call                                                          | 8          |
 | Conditions in one `where` filter                                                               | 16         |
+| Entries in one `aggregate_sheet` `columns` list                                                | 16         |
 | Values in one `in` condition                                                                   | 64         |
 | Rows at the top of the range that `headerScan` examines                                        | 20         |
 

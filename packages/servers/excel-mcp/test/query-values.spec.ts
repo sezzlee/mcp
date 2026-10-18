@@ -180,7 +180,6 @@ describe("aggregate_sheet parses a csv the way read_sheet does", () => {
       ...csv,
       groupBy: ["şehir"],
       metrics: [{ fn: "sum", column: "tutar" }],
-      coerceText: true,
     });
     expect(new Map(rowsOf(result) as [string, number][])).toStrictEqual(
       expected,

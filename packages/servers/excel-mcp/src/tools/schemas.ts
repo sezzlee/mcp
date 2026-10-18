@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { limits } from "../platform/limits.js";
 
 export const filePath = z
   .string()
@@ -40,4 +41,43 @@ export const encoding = z
   .optional()
   .describe(
     "CSV text encoding. Detected from the byte-order mark, else utf-8.",
+  );
+
+const columnSpec = { column: columnRef };
+
+export const columnSpecs = z
+  .array(
+    z.discriminatedUnion("type", [
+      z.object({
+        ...columnSpec,
+        type: z.literal("number"),
+        decimal: z
+          .enum([".", ","])
+          .describe("Decimal separator of the column's numbers."),
+        group: z
+          .enum(["none", ".", ",", " ", "'"])
+          .optional()
+          .describe(
+            "Thousands separator. Defaults to '.' for a decimal comma and ',' for a decimal point.",
+          ),
+      }),
+      z.object({
+        ...columnSpec,
+        type: z.literal("date"),
+        format: z
+          .string()
+          .min(1)
+          .max(64)
+          .describe(
+            "Date pattern such as dd.MM.yyyy, MM/dd/yyyy h:mm a or d MMMM yyyy (yyyy MM M MMM MMMM dd d HH H hh h mm ss a). Month names may be Turkish or English.",
+          ),
+      }),
+      z.object({ ...columnSpec, type: z.literal("text") }),
+    ]),
+  )
+  .min(1)
+  .max(limits.maxColumnSpecs)
+  .optional()
+  .describe(
+    "How to read a column's text. Omitted columns are read automatically: text that reads as numbers or dates column by column is compared and summed as such. Use it when a warning names an ambiguous column, or type text to compare a column as written.",
   );

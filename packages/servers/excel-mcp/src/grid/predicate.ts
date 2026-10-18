@@ -1,15 +1,16 @@
 import { fold } from "@sezzlee/file-core";
-import type { CellScalar } from "./cell-value.js";
+import type { CellError, CellScalar } from "./cell-value.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 
 export type CellKind =
-  "number" | "date" | "text" | "boolean" | "error" | "empty";
+  "number" | "date" | "time" | "text" | "boolean" | "error" | "empty";
 
-export type ComparableKind = "number" | "date" | "text";
+export type ComparableKind = "number" | "date" | "time" | "text";
 
 export const kindPrecedence: readonly CellKind[] = [
   "number",
   "date",
+  "time",
   "text",
   "boolean",
   "error",
@@ -17,7 +18,7 @@ export const kindPrecedence: readonly CellKind[] = [
 ];
 
 const isoDate = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}\.\d{3}Z)?$/;
-const numericText = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
+const clockTime = /^\d{2}:\d{2}:\d{2}$/;
 
 export function classify(value: CellScalar): CellKind {
   if (value === null) {
@@ -32,36 +33,37 @@ export function classify(value: CellScalar): CellKind {
   if (typeof value === "object") {
     return "error";
   }
-  return isoDate.test(value) ? "date" : "text";
+  if (isoDate.test(value)) return "date";
+  return clockTime.test(value) ? "time" : "text";
 }
 
-export function isNumericText(value: CellScalar): boolean {
-  return typeof value === "string" && numericText.test(value.trim());
+export function finiteNumber(value: number): number {
+  if (!Number.isFinite(value))
+    throw new SezzleeExcelError(
+      "numeric_overflow",
+      "A numeric value is outside the finite number range.",
+    );
+  return value;
 }
 
-export function coerceNumber(value: CellScalar): number | undefined {
-  if (typeof value === "number") {
-    if (!Number.isFinite(value))
-      throw new SezzleeExcelError(
-        "numeric_overflow",
-        "A numeric value is outside the finite number range.",
-      );
-    return value;
-  }
-  if (isNumericText(value)) {
-    const number = Number(value);
-    if (!Number.isFinite(number))
-      throw new SezzleeExcelError(
-        "numeric_overflow",
-        "Numeric text is outside the finite number range.",
-      );
-    return number;
-  }
-  return undefined;
-}
+export type NumberRead =
+  | {
+      readonly kind: "number";
+      readonly value: number;
+      readonly currency: string | undefined;
+    }
+  | { readonly kind: "identifier" }
+  | { readonly kind: "unreadable" }
+  | { readonly kind: "other" };
 
-function expandDate(value: string): string {
-  return value.length === 10 ? `${value}T00:00:00.000Z` : value;
+/**
+ * A cell as the stored value plus its readings: `as(kind)` is the value read
+ * as that kind when the column's reading allows it, else the stored value.
+ */
+export interface TypedCell {
+  readonly raw: CellScalar;
+  as(kind: ComparableKind): CellScalar;
+  number(): NumberRead;
 }
 
 function orderKey(
@@ -73,7 +75,11 @@ function orderKey(
     return value as number;
   }
   if (kind === "date") {
-    return expandDate(value as string);
+    const text = value as string;
+    return text.length === 10 ? `${text}T00:00:00.000Z` : text;
+  }
+  if (kind === "time") {
+    return value as string;
   }
   return caseSensitive ? (value as string) : fold(value as string);
 }
@@ -121,8 +127,14 @@ export interface Condition {
 
 export interface PredicateOptions {
   readonly caseSensitive: boolean;
-  readonly coerceText: boolean;
 }
+
+/**
+ * `incomparable` is a non-empty cell whose kind, after the column's reading,
+ * differs from the operand's: it is counted and reported, never folded into
+ * an ordinary miss.
+ */
+export type Outcome = "match" | "miss" | "incomparable";
 
 const orderingOperators = new Set<Operator>(["lt", "lte", "gt", "gte"]);
 const textOperators = new Set<Operator>(["contains", "startsWith", "endsWith"]);
@@ -134,7 +146,7 @@ const nullaryOperators = new Set<Operator>([
 ]);
 
 function operandKind(value: PredicateScalar): CellKind {
-  return classify(value as CellScalar);
+  return classify(value);
 }
 
 function requireOperand(condition: Condition): PredicateScalar {
@@ -153,14 +165,41 @@ function comparableKindOf(
   operand: PredicateScalar,
 ): ComparableKind {
   const kind = operandKind(operand);
-  if (kind === "number" || kind === "date" || kind === "text") {
+  if (
+    kind === "number" ||
+    kind === "date" ||
+    kind === "time" ||
+    kind === "text"
+  ) {
     return kind;
   }
   throw new SezzleeExcelError(
     "invalid_argument",
     `Operator '${condition.op}' on column '${condition.column}' cannot compare against a ${kind} value.`,
-    "Compare against a number, an ISO date string, or text.",
+    "Compare against a number, an ISO date string, an HH:mm:ss time, or text.",
   );
+}
+
+export function kindsRead(condition: Condition): readonly ComparableKind[] {
+  if (condition.op === "isNumber") return ["number"];
+  if (condition.op === "isText") return ["number", "date"];
+  if (nullaryOperators.has(condition.op) || condition.op === "isError")
+    return [];
+  if (textOperators.has(condition.op)) return [];
+  const operands =
+    condition.op === "in" || condition.op === "between"
+      ? (condition.values ?? [])
+      : condition.value === undefined
+        ? []
+        : [condition.value];
+  return [
+    ...new Set(
+      operands.flatMap((operand) => {
+        const kind = operandKind(operand);
+        return kind === "number" || kind === "date" ? [kind] : [];
+      }),
+    ),
+  ];
 }
 
 export function validateCondition(
@@ -234,52 +273,56 @@ export function validateCondition(
   }
 }
 
-function textOf(value: CellScalar, caseSensitive: boolean): string | undefined {
-  if (classify(value) !== "text" && classify(value) !== "date") {
-    return undefined;
-  }
-  const text = value as string;
-  return caseSensitive ? text : fold(text);
+function verdict(hit: boolean): Outcome {
+  return hit ? "match" : "miss";
 }
 
 export function evaluate(
   condition: Condition,
-  cell: CellScalar,
+  cell: TypedCell,
   options: PredicateOptions,
-): boolean {
-  const value =
-    options.coerceText && isNumericText(cell)
-      ? (coerceNumber(cell) as CellScalar)
-      : cell;
-  const kind = classify(value);
+): Outcome {
+  const raw = cell.raw;
+  const rawKind = classify(raw);
+  const blank =
+    rawKind === "empty" || (typeof raw === "string" && raw.trim() === "");
+  const unmatched: Outcome = blank ? "miss" : "incomparable";
 
   switch (condition.op) {
     case "isEmpty":
-      return kind === "empty";
+      return verdict(rawKind === "empty");
     case "isNotEmpty":
-      return kind !== "empty";
+      return verdict(rawKind !== "empty");
     case "isError":
-      return (
-        kind === "error" &&
-        (condition.value === undefined ||
-          (value as { error: string }).error === condition.value)
+      return verdict(
+        rawKind === "error" &&
+          (condition.value === undefined ||
+            (raw as CellError).error === condition.value),
       );
     case "isNumber":
-      return kind === "number";
+      return verdict(cell.number().kind === "number");
     case "isText":
-      return kind === "text";
+      return verdict(
+        rawKind === "text" &&
+          cell.number().kind !== "number" &&
+          classify(cell.as("date")) !== "date",
+      );
     default:
       break;
   }
 
   if (condition.op === "in") {
-    return (condition.values ?? []).some((entry) =>
+    const outcomes = (condition.values ?? []).map((entry) =>
       evaluate(
         { column: condition.column, op: "eq", value: entry },
-        value,
+        cell,
         options,
       ),
     );
+    if (outcomes.includes("match")) return "match";
+    return outcomes.every((outcome) => outcome === "incomparable")
+      ? "incomparable"
+      : "miss";
   }
 
   if (condition.op === "between") {
@@ -288,112 +331,133 @@ export function evaluate(
       PredicateScalar,
     ];
     const bound = comparableKindOf(condition, low);
-    if (kind !== bound) {
-      return false;
-    }
-    return (
-      compareWithin(bound, value, low as CellScalar, options.caseSensitive) >=
-        0 &&
-      compareWithin(bound, value, high as CellScalar, options.caseSensitive) <=
-        0
+    const value = cell.as(bound);
+    if (classify(value) !== bound) return unmatched;
+    return verdict(
+      compareWithin(bound, value, low, options.caseSensitive) >= 0 &&
+        compareWithin(bound, value, high, options.caseSensitive) <= 0,
     );
   }
 
   const operand = requireOperand(condition);
 
   if (textOperators.has(condition.op)) {
-    const haystack = textOf(value, options.caseSensitive);
-    if (haystack === undefined) {
-      return false;
-    }
+    if (typeof raw !== "string") return unmatched;
+    const haystack = options.caseSensitive ? raw : fold(raw);
     const needle = options.caseSensitive
       ? (operand as string)
       : fold(operand as string);
     if (condition.op === "contains") {
-      return haystack.includes(needle);
+      return verdict(haystack.includes(needle));
     }
     if (condition.op === "startsWith") {
-      return haystack.startsWith(needle);
+      return verdict(haystack.startsWith(needle));
     }
-    return haystack.endsWith(needle);
+    return verdict(haystack.endsWith(needle));
   }
 
   const wanted = operandKind(operand);
   if (condition.op === "eq" || condition.op === "ne") {
+    const value =
+      wanted === "number" ||
+      wanted === "date" ||
+      wanted === "time" ||
+      wanted === "text"
+        ? cell.as(wanted)
+        : raw;
+    const kind = classify(value);
     const same =
       kind === wanted &&
-      (kind === "text" || kind === "date"
-        ? compareWithin(
-            kind,
+      (kind === "number" || kind === "boolean"
+        ? value === operand
+        : compareWithin(
+            kind as ComparableKind,
             value,
-            operand as CellScalar,
+            operand,
             options.caseSensitive,
-          ) === 0
-        : value === operand);
-    return condition.op === "eq" ? same : !same;
+          ) === 0);
+    if (condition.op === "ne") return verdict(!same);
+    return same ? "match" : kind === wanted ? "miss" : unmatched;
   }
 
   const bound = comparableKindOf(condition, operand);
-  if (kind !== bound) {
-    return false;
-  }
-  const order = compareWithin(
-    bound,
-    value,
-    operand as CellScalar,
-    options.caseSensitive,
-  );
+  const value = cell.as(bound);
+  if (classify(value) !== bound) return unmatched;
+  const order = compareWithin(bound, value, operand, options.caseSensitive);
   if (condition.op === "lt") {
-    return order < 0;
+    return verdict(order < 0);
   }
   if (condition.op === "lte") {
-    return order <= 0;
+    return verdict(order <= 0);
   }
   if (condition.op === "gt") {
-    return order > 0;
+    return verdict(order > 0);
   }
-  return order >= 0;
+  return verdict(order >= 0);
 }
 
 export interface Census {
   numbers: number;
   dates: number;
+  times: number;
   texts: number;
   booleans: number;
   errors: number;
   nulls: number;
-  numericTexts: number;
+  textNumbers: number;
+  identifiers: number;
 }
 
 export function emptyCensus(): Census {
   return {
     numbers: 0,
     dates: 0,
+    times: 0,
     texts: 0,
     booleans: 0,
     errors: 0,
     nulls: 0,
-    numericTexts: 0,
+    textNumbers: 0,
+    identifiers: 0,
   };
 }
 
-export function record(census: Census, value: CellScalar): CellKind {
-  const kind = classify(value);
-  if (kind === "number") {
-    census.numbers += 1;
-  } else if (kind === "date") {
-    census.dates += 1;
-  } else if (kind === "text") {
-    census.texts += 1;
-    if (isNumericText(value)) {
-      census.numericTexts += 1;
+/**
+ * Counts a cell by its stored kind; `textNumbers` and `identifiers` count the
+ * text cells among `texts` that read as a number or look like an identifier.
+ */
+export function record(census: Census, cell: TypedCell): CellKind {
+  const kind = classify(cell.raw);
+  switch (kind) {
+    case "number":
+      census.numbers += 1;
+      break;
+    case "date":
+      census.dates += 1;
+      break;
+    case "time":
+      census.times += 1;
+      break;
+    case "text": {
+      census.texts += 1;
+      const read = cell.number().kind;
+      if (read === "number") census.textNumbers += 1;
+      if (read === "identifier") census.identifiers += 1;
+      break;
     }
-  } else if (kind === "boolean") {
-    census.booleans += 1;
-  } else if (kind === "error") {
-    census.errors += 1;
-  } else {
-    census.nulls += 1;
+    case "boolean":
+      census.booleans += 1;
+      break;
+    case "error":
+      census.errors += 1;
+      break;
+    case "empty":
+      census.nulls += 1;
+      break;
+    default: {
+      const _exhaustive: never = kind;
+      return _exhaustive;
+    }
   }
   return kind;
 }
@@ -411,14 +475,12 @@ export function reportCensus(census: Census): Partial<Census> {
   return out;
 }
 
-export function majorityKind(census: Census): ComparableKind {
-  const counts: Readonly<Record<ComparableKind, number>> = {
-    number: census.numbers,
-    date: census.dates,
-    text: census.texts,
-  };
+/** @returns the comparable kind the most cells were read as; ties go to the earlier kind. */
+export function majorityKind(
+  counts: Readonly<Record<ComparableKind, number>>,
+): ComparableKind {
   let best: ComparableKind = "number";
-  for (const kind of ["number", "date", "text"] as const) {
+  for (const kind of ["number", "date", "time", "text"] as const) {
     if (counts[kind] > counts[best]) {
       best = kind;
     }

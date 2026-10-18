@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { CellScalar } from "../src/grid/cell-value.js";
 import type { SezzleeExcelError } from "../src/platform/errors.js";
 import {
+  explicitReading,
+  rawReading,
+  sniffedReading,
+  typedCell,
+  type ColumnReading,
+} from "../src/grid/column-reading.js";
+import {
   classify,
   compareWithin,
   emptyCensus,
@@ -10,17 +17,28 @@ import {
   record,
   validateCondition,
   type Condition,
+  type Outcome,
   type PredicateOptions,
 } from "../src/grid/predicate.js";
 
-const loose: PredicateOptions = { caseSensitive: false, coerceText: false };
+const loose: PredicateOptions = { caseSensitive: false };
+
+function outcome(
+  condition: Condition,
+  cell: CellScalar,
+  options = loose,
+  reading: ColumnReading = rawReading,
+): Outcome {
+  return evaluate(condition, typedCell(cell, reading), options);
+}
 
 function hits(
   condition: Condition,
   cell: CellScalar,
   options = loose,
+  reading: ColumnReading = rawReading,
 ): boolean {
-  return evaluate(condition, cell, options);
+  return outcome(condition, cell, options, reading) === "match";
 }
 
 function codeOf(action: () => unknown): string {
@@ -37,6 +55,8 @@ describe("classify", () => {
     expect(classify(5)).toBe("number");
     expect(classify("2026-01-15")).toBe("date");
     expect(classify("2026-01-15T09:30:00.000Z")).toBe("date");
+    expect(classify("09:30:00")).toBe("time");
+    expect(classify("9:30")).toBe("text");
     expect(classify("2026-01")).toBe("text");
     expect(classify("")).toBe("text");
     expect(classify(true)).toBe("boolean");
@@ -61,6 +81,23 @@ describe("kind is fixed by the operand", () => {
     ] as CellScalar[]) {
       expect(hits({ column: "a", op: "gt", value: 100 }, cell)).toBe(false);
     }
+  });
+
+  it("reports a non-empty cell of another kind as incomparable, never a blank", () => {
+    expect(outcome({ column: "a", op: "gt", value: 100 }, "text")).toBe(
+      "incomparable",
+    );
+    expect(outcome({ column: "a", op: "eq", value: 100 }, "text")).toBe(
+      "incomparable",
+    );
+    expect(outcome({ column: "a", op: "gt", value: 100 }, null)).toBe("miss");
+    expect(outcome({ column: "a", op: "gt", value: 100 }, 50)).toBe("miss");
+    expect(outcome({ column: "a", op: "in", values: [1, 2] }, "text")).toBe(
+      "incomparable",
+    );
+    expect(outcome({ column: "a", op: "ne", value: 100 }, "text")).toBe(
+      "match",
+    );
   });
 
   it("is not negation-complete across kinds", () => {
@@ -106,7 +143,7 @@ describe("text operators", () => {
   });
 
   it("respect caseSensitive", () => {
-    const strict = { caseSensitive: true, coerceText: false };
+    const strict = { caseSensitive: true };
     expect(
       hits(
         { column: "a", op: "contains", value: "istanbul" },
@@ -198,60 +235,149 @@ describe("validation", () => {
   });
 });
 
-describe("coerceText", () => {
-  const coercing: PredicateOptions = { caseSensitive: false, coerceText: true };
-
-  it("accepts plain numeric text and refuses ambiguous forms", () => {
-    expect(
-      hits({ column: "a", op: "gt", value: 1000 }, "1234.50", coercing),
-    ).toBe(true);
-    expect(
-      hits({ column: "a", op: "gt", value: 1000 }, "1.234,56", coercing),
-    ).toBe(false);
-    expect(hits({ column: "a", op: "gt", value: 1 }, "0x10", coercing)).toBe(
-      false,
-    );
-    expect(hits({ column: "a", op: "gt", value: -1 }, "", coercing)).toBe(
-      false,
-    );
+describe("column readings", () => {
+  const turkishNumbers = explicitReading({
+    column: "a",
+    type: "number",
+    decimal: ",",
   });
 
-  it("is off by default", () => {
+  it("reads text as a number under the column's marks", () => {
+    expect(
+      hits(
+        { column: "a", op: "gt", value: 1000 },
+        "1.234,56",
+        loose,
+        turkishNumbers,
+      ),
+    ).toBe(true);
+    expect(
+      hits(
+        { column: "a", op: "eq", value: 1234.56 },
+        "1.234,56",
+        loose,
+        turkishNumbers,
+      ),
+    ).toBe(true);
+    expect(
+      outcome(
+        { column: "a", op: "gt", value: 1 },
+        "0x10",
+        loose,
+        turkishNumbers,
+      ),
+    ).toBe("incomparable");
+  });
+
+  it("reads sniffed numeric text and leaves identifiers alone", () => {
+    const sniffed = sniffedReading(["1234.50", "99.5"], {
+      number: true,
+      date: false,
+    });
+    expect(
+      hits({ column: "a", op: "gt", value: 1000 }, "1234.50", loose, sniffed),
+    ).toBe(true);
+    expect(
+      outcome({ column: "a", op: "gt", value: 1 }, "00123", loose, sniffed),
+    ).toBe("incomparable");
+    expect(
+      hits({ column: "a", op: "eq", value: "007" }, "007", loose, sniffed),
+    ).toBe(true);
+  });
+
+  it("does not read text a column was never sniffed for", () => {
     expect(hits({ column: "a", op: "gt", value: 1000 }, "1234.50")).toBe(false);
-    expect(hits({ column: "a", op: "eq", value: "007" }, "007")).toBe(true);
+  });
+
+  it("matches a day-first date against an ISO operand", () => {
+    const dotted = sniffedReading(["02.01.2023", "25.12.2023"], {
+      number: false,
+      date: true,
+    });
+    expect(
+      hits(
+        { column: "a", op: "between", values: ["2023-01-01", "2023-01-31"] },
+        "02.01.2023",
+        loose,
+        dotted,
+      ),
+    ).toBe(true);
+    expect(
+      hits(
+        { column: "a", op: "eq", value: "2023-12-25" },
+        "25.12.2023",
+        loose,
+        dotted,
+      ),
+    ).toBe(true);
+  });
+
+  it("refuses to place an ambiguous slash date but reads the ones both orders agree on", () => {
+    const ambiguous = sniffedReading(
+      ["01/02/2023", "03/04/2023", "05/05/2023"],
+      {
+        number: false,
+        date: true,
+      },
+    );
+    const january = {
+      column: "a",
+      op: "between",
+      values: ["2023-01-01", "2023-12-31"],
+    } as const;
+    expect(outcome(january, "01/02/2023", loose, ambiguous)).toBe(
+      "incomparable",
+    );
+    expect(outcome(january, "05/05/2023", loose, ambiguous)).toBe("match");
+  });
+
+  it("compares a time of day as HH:mm:ss", () => {
+    expect(hits({ column: "a", op: "lt", value: "09:00:00" }, "08:15:00")).toBe(
+      true,
+    );
+    expect(outcome({ column: "a", op: "lt", value: "09:00:00" }, "8:15")).toBe(
+      "incomparable",
+    );
   });
 });
 
 describe("census", () => {
-  it("counts every kind and flags numeric text", () => {
+  it("counts every stored kind and the text that reads as a number or an identifier", () => {
+    const reading = sniffedReading(["12", "00123"], {
+      number: true,
+      date: false,
+    });
     const census = emptyCensus();
     for (const value of [
       1,
       "2026-01-15",
+      "09:30:00",
       "x",
       "12",
+      "00123",
       true,
       { error: "#N/A" },
       null,
     ] as CellScalar[]) {
-      record(census, value);
+      record(census, typedCell(value, reading));
     }
-    expect(census).toMatchObject({
+    expect(census).toEqual({
       numbers: 1,
       dates: 1,
-      texts: 2,
+      times: 1,
+      texts: 3,
       booleans: 1,
       errors: 1,
       nulls: 1,
-      numericTexts: 1,
+      textNumbers: 1,
+      identifiers: 1,
     });
   });
 
-  it("picks the majority comparable kind", () => {
-    const census = emptyCensus();
-    record(census, 1);
-    record(census, 2);
-    record(census, "x");
-    expect(majorityKind(census)).toBe("number");
+  it("breaks a tie toward the earlier comparable kind", () => {
+    expect(majorityKind({ number: 2, date: 2, time: 0, text: 1 })).toBe(
+      "number",
+    );
+    expect(majorityKind({ number: 0, date: 1, time: 0, text: 3 })).toBe("text");
   });
 });

@@ -10,6 +10,7 @@ import { z } from "zod";
 import { limits } from "../platform/limits.js";
 import {
   columnRef,
+  columnSpecs,
   delimiter,
   drawingKind,
   encoding,
@@ -209,7 +210,7 @@ export const toolDefinitions = {
                 "stddev",
               ])
               .describe(
-                "count counts matched rows and needs no column. countValues counts the column's non-empty cells, countDistinct its distinct values. sum, avg and stddev read numeric cells; min and max read numbers, dates or text, one kind per column. Other cells are counted as skipped.",
+                "count counts matched rows and needs no column. countValues counts the column's non-empty cells, countDistinct its distinct values. sum, avg and stddev read numbers, including text such as 1.234,50, (1,234.50), %20 or ₺95 read column by column; identifiers such as 00123 are never summed. min and max read the kind most of the column holds: numbers, dates, times or text. Other cells are counted as skipped.",
               ),
             column: columnRef.optional(),
           }),
@@ -264,7 +265,7 @@ export const toolDefinitions = {
         .max(limits.maxConditions)
         .optional()
         .describe(
-          "Row filter. A cell of a different kind from the operand never matches and is counted as skipped.",
+          "Row filter. Against a number or an ISO date operand, text such as 1.234,50 or 02.01.2023 is read as a number or a date column by column. A cell that still differs in kind from the operand never matches and is reported in warnings with examples.",
         ),
       match: z
         .enum(["all", "any"])
@@ -295,12 +296,7 @@ export const toolDefinitions = {
         .describe(
           "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
         ),
-      coerceText: z
-        .boolean()
-        .optional()
-        .describe(
-          'Treat numeric text such as "1234.50" as a number. Off by default.',
-        ),
+      columns: columnSpecs,
       mergedCells: z
         .enum(["master", "repeat"])
         .optional()

@@ -56,7 +56,6 @@ describe("aggregate_sheet bounds the work, not only the answer", () => {
       filePath: "wide.csv",
       groupBy: ["group"],
       metrics: [{ fn: "sum", column: "value" }],
-      coerceText: true,
     });
     expect(result.isError).toBe(true);
     expect(body(result)["error"]).toBe("resource_limit");
