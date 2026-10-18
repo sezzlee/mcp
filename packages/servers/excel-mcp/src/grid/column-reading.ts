@@ -238,11 +238,24 @@ function dateText(text: string, plan: DatePlan): DateReading {
   }
 }
 
+const canonicalDecimal = /^[+-]?(?:0|[1-9]\d{0,14})(?:\.\d{1,15})?$/;
+
 function numberOf(raw: CellScalar, reading: ColumnReading): NumberRead {
   if (typeof raw === "number")
     return { kind: "number", value: finiteNumber(raw), currency: undefined };
   if (typeof raw !== "string" || classify(raw) !== "text" || raw.trim() === "")
     return { kind: "other" };
+  /**
+   * Guard: this bounded subset has no affix, grouping mark or identifier.
+   * This common path reduced the 2-million-cell aggregate benchmark cost;
+   * every other spelling still goes through the general parser's validation.
+   */
+  if (
+    reading.number.kind === "marks" &&
+    reading.number.marks.decimal === "." &&
+    canonicalDecimal.test(raw)
+  )
+    return { kind: "number", value: Number(raw), currency: undefined };
   const read = numberText(raw, reading.number);
   switch (read.kind) {
     case "number":
@@ -280,10 +293,11 @@ function as(
 }
 
 export function typedCell(raw: CellScalar, reading: ColumnReading): TypedCell {
+  let numeric: NumberRead | undefined;
   return {
     raw,
     as: (kind) => as(raw, kind, reading),
-    number: () => numberOf(raw, reading),
+    number: () => (numeric ??= numberOf(raw, reading)),
   };
 }
 

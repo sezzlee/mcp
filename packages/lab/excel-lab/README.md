@@ -73,3 +73,34 @@ SEZZLEE_CORPUS=/path/to/corpus pnpm turbo run corpus --filter=@sezzlee/excel-lab
 
 The `corpus` task builds `@sezzlee/excel-mcp` first, so the run always uses the current source.
 `--help` lists every option.
+
+## Typed aggregate benchmark
+
+`src/aggregate-bench.ts` generates an original, MIT-licensed CSV outside the repository:
+200,000 rows including the header, 10 columns, 2,000,000 cells and exactly 16,000,000 bytes.
+It measures eight grouped sums through the MCP interface and checks every result against
+hand-calculated answers. It does not need the external corpus.
+
+```bash
+pnpm turbo run build --filter=@sezzlee/excel-mcp --ui=stream
+node packages/lab/excel-lab/src/aggregate-bench.ts --out /tmp/excel-aggregate-bench --revision "$(git rev-parse HEAD)" --runs 3
+```
+
+Run the command from the repository root. `--revision` labels the measured checkout with its
+full commit hash; it does not check out that commit or build it. The report also hashes five
+built grid modules, so a local performance change can be distinguished from its base commit.
+`--legacy-coerce-text` adds `coerceText: true` for the pre-typed-text server at `1cc88fe`.
+
+Each trial starts a fresh worker with a 512 MiB V8 heap limit (`--heap-mib` can change it).
+The first call includes opening and parsing the CSV; the second uses the server's workbook
+cache but still reads and hashes the file. Fixture generation and process startup are outside
+the call timings. `maxRssKiB` is the worker's peak resident memory, including native allocations,
+so it is not a measurement of V8 heap usage. A trial fails on a wrong answer, tool error or
+120-second worker timeout.
+
+The output root contains `aggregate-2000000-cells.csv`, `aggregate-fixture.json` with its digest
+and license, and append-only `aggregate-results.jsonl` with timings, environment, peak memory
+and response digests. For a comparison, build isolated checkouts and alternate one invocation
+of each three times; a single `--runs 3` command does not alternate builds. Keep each paired
+experiment in a separate output directory. The measured phase-1 comparison and its limits are
+recorded in [FINDINGS.md](FINDINGS.md#typed-text-aggregate-cost).

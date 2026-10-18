@@ -478,6 +478,111 @@ prefixes describe Excel, which was not available to measure; 256,000 corpus cell
 and are numbers or a dash, so counting the prefix alone would bury the signal. The cases and
 LibreOffice's answers are kept beside the corpus in `_tools/csv/formula-like`.
 
+## Typed-text aggregate cost
+
+Measured on 2026-10-18 with `src/aggregate-bench.ts`, using Node v24.19.0 on Linux x64,
+an AMD EPYC 9V74 80-Core Processor and a 512 MiB V8 heap limit. These are new synthetic
+measurements; the previous machine's external corpus was not available or rerun.
+
+The fixture has exactly 2,000,000 cells (200,000 rows including its header, ten columns) and
+16,000,000 UTF-8 bytes, just below the 16 MiB file limit. Its SHA-256 is
+`1834ad5838fbeb9c3ca47a2c7534642b91829dacef9907671d715c1fa097d00d`.
+Two text dimensions make eight groups; eight numeric text columns contain exact quarter-unit
+amounts. Seven groups have 25,000 data rows and one has 24,999. Every measured call checks all
+eight groups, 64 independently specified sums, scanned and matched row counts, and metric
+counted/skipped totals. A successful response digest alone is not the correctness oracle.
+
+### Before and after phase 1
+
+The pre-phase-1 build at `1cc88fedfba83dd9c1d73542edaa0b583ccdbb61` and the typed-text build at
+`ddeced64c1978cc0760b2c0104f2e62ee3ad0579` ran alternately, three fresh workers each. Each
+worker made the same `aggregate_sheet` call twice. The old build needed `coerceText: true`;
+the new build read the numeric text automatically. Both produced the expected numbers.
+
+| Median of three trials | Before phase 1 |        Phase 1 |             Change |
+| ---------------------- | -------------: | -------------: | -----------------: |
+| First call             |  644.793419 ms | 4255.648355 ms | 6.60 times as long |
+| Cached call            |  410.449058 ms | 4099.916487 ms | 9.99 times as long |
+| First-call peak RSS    |     330324 KiB |     374668 KiB |       13.4% higher |
+| Whole-worker peak RSS  |     367140 KiB |     472580 KiB |       28.7% higher |
+
+First-call trials in milliseconds were `626.679189, 877.275277, 644.793419` before and
+`4255.648355, 4378.779728, 4211.162647` after. Cached-call trials were
+`410.449058, 636.252540, 399.887833` before and `4099.916487, 4276.567782, 4008.620263` after.
+Whole-worker RSS trials in KiB were `367140, 366804, 369056` before and
+`473864, 472580, 462616` after.
+
+Responses grew from 2580 to 3007 bytes because phase 1 adds reading and diagnostic metadata.
+Their numeric answers agree, but the old and new complete payloads are intentionally different.
+Within each build, first and cached responses had identical digests in every trial.
+
+### Bounded follow-up
+
+`typedCell.number()` now retains its numeric reading for that cell, so multiple metrics reuse
+it. Ordinary ASCII decimals with at most 15 integer and 15 fractional digits use a narrow
+validation path when the column has already selected a decimal point. Signs and a single zero
+are allowed; grouping marks, leading-zero identifiers, long digit-only identifiers, exponent
+notation, surrounding whitespace, percent and currency forms still reach the general parser.
+The memoization stores one result per live cell wrapper and retains no column or workbook map.
+
+A second paired experiment compared the unchanged phase-1 build with that same build plus only
+the `column-reading.ts` performance change. Three fresh workers of each build ran alternately.
+The benchmark's five-module implementation hashes distinguish the original build
+(`0e4318e9aa756db3c53d7ecc272e2e7a8ef408f5090c420ea7845782945b122e`) from the optimized build
+(`f003d77054c77eacb763f91196d4596126d2dd3ee0bbfed71cb8addb7d2d01c9`).
+
+| Median of three trials | Unchanged phase 1 | Phase 1 with follow-up |      Change |
+| ---------------------- | ----------------: | ---------------------: | ----------: |
+| First call             |    4429.410809 ms |         1813.679267 ms | 59.1% lower |
+| Cached call            |    4208.984288 ms |         1482.819535 ms | 64.8% lower |
+| First-call peak RSS    |        375444 KiB |             373544 KiB |  0.5% lower |
+| Whole-worker peak RSS  |        469916 KiB |             464408 KiB |  1.2% lower |
+
+First-call trials in milliseconds were `4429.410809, 4383.772509, 5028.649198` before and
+`1941.661050, 1630.332992, 1813.679267` after. Cached-call trials were
+`4148.906556, 4208.984288, 4241.059586` before and `1435.938287, 1482.819535, 1484.193055` after.
+Whole-worker RSS trials in KiB were `469916, 467304, 473908` before and
+`464408, 462152, 468260` after. The tables report medians of per-worker peaks,
+not the largest observed trial. The whole-worker worst observed peaks were 473908 and
+468260 KiB; first-call worst observed peaks were 375736 and 376708 KiB. The small median
+RSS difference does not establish a memory improvement.
+
+All twelve responses in this second experiment were 3007 bytes and had SHA-256
+`0c3efa7abbfdd3dbaf0cf6f302d43fdfa9e7df80bb7b6dd123ee3238a11e0bdc`.
+The additional handler-level compatibility case in `test/typed-text.spec.ts` also passes on
+both builds: it checks repeated metrics and an `isNumber` predicate across ordinary decimals,
+15- and 16-digit integers, leading zeroes, percentages, currency, exponents and grouped text.
+This test preserves existing semantics; it is not evidence of a previously wrong answer.
+The complete Excel package gate on the isolated follow-up build passed through Turbo:
+43 test files and 789 tests passed; the two external-corpus test files were skipped. Build,
+lint and type checking also passed for the Excel server and lab.
+
+The follow-up recovers much of the added time but does not remove the regression. Against the
+earlier pre-phase-1 medians it is still about 2.8 times as long for the first call and 3.6 times
+as long for the cached call. Those ratios span two paired experiments and are indicative,
+not another controlled comparison. Peak memory remains materially above the old baseline.
+This high-repetition ASCII fixture does not establish performance for every locale, mixed
+column or wide workbook. The first call is cold only with respect to the server cache;
+operating-system disk caches were not flushed.
+
+### Reproducing the comparison
+
+Build each isolated checkout through Turbo, then run the same benchmark source in each
+checkout so its static package imports use that build. The before-phase-1 checkout needs a
+copy of this lab file because that commit predates it. For each of three rounds, run these
+commands once in the respective checkout roots (do not use `--runs 3` for alternation):
+
+```bash
+node packages/lab/excel-lab/src/aggregate-bench.ts --out /tmp/excel-aggregate-phase1-pair --revision 1cc88fedfba83dd9c1d73542edaa0b583ccdbb61 --legacy-coerce-text
+node packages/lab/excel-lab/src/aggregate-bench.ts --out /tmp/excel-aggregate-phase1-pair --revision ddeced64c1978cc0760b2c0104f2e62ee3ad0579
+```
+
+For the follow-up experiment, use another output directory and two checkouts at `ddeced6`,
+applying only the `column-reading.ts` performance change to one. Run the second command
+above once in each checkout per round without `--legacy-coerce-text`. The `revision` field
+then matches and the implementation hashes distinguish the builds. Generation happens in
+the parent, outside the measured worker; no downloaded corpus bytes are needed.
+
 ## Next steps
 
 1. Decide whether a CSV that is not UTF-8 should stay refused until the caller passes

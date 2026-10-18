@@ -71,6 +71,85 @@ spec, a guard comment or the package README.
 - **ZIP64 coverage in `ooxml-core`.** The local-header check reads a ZIP64 entry's offset from its
   extra field; no fixture exercises that path yet.
 
+## Excel analysis and typed data
+
+- **Grouped analysis in one call.** Calendar parts and numeric buckets, bounded pivots,
+  exact percentiles with a sample budget, per-metric conditions and grouping sets.
+- **Reusable column profiles.** A bounded profile with independent type evidence, identifier
+  protection and a closed `columns` contract shared by reading, finding and aggregation.
+- **Global text formats.** Explicit locale and numbering-system contracts, missing and boolean
+  literals, clock and duration text, with deterministic corpus generation and fuzz regressions.
+- **Rich workbook values.** In-cell images and their alternative text, array anchors, elapsed
+  durations, error distributions, table addressing and saved row visibility. Linked entities
+  require a verified fixture before their fields can be claimed as supported.
+- **Streaming CSV.** Reading beyond the current 16 MiB byte and two-million-cell limits needs
+  a bounded streaming document contract, stable dialect/type decisions, cancellation and
+  snapshot validation. The architecture below must be reviewed before implementation.
+- **Multiple-source analysis.** Cross-sheet and cross-file joins need an explicit execution
+  owner and cardinality, memory and provenance limits. The options below are design only.
+- **Excel delimiter declarations.** Recognize a leading `sep=;` declaration without treating it
+  as a header, and report the delimiter's source and explicit-argument precedence.
+
+### Streaming CSV: proposed contract, pending approval
+
+The current `chunked` mode is a response policy, not streaming input. `createDocumentStore`
+reads the complete native snapshot, hashes it, and gives parsers a `bufferSource`; the CSV
+adapter materializes the complete table. Raising a byte limit would retain both costs.
+
+1. **Preserve secure access.** Add a format-neutral, cancellable snapshot reader to
+   `file-core-native` and `file-core`. Every open and range read must retain the pinned-root,
+   regular-file and changed-file checks. Do not reopen a path through JavaScript's filesystem
+   API. A bounded, private temporary snapshot is the preferred first implementation because
+   pages and repeated aggregates must read the same bytes. Its disk quota, permissions,
+   cancellation cleanup and cache eviction are part of the contract, not caller conventions.
+   This choice adds disk I/O and must be approved with the native change.
+2. **Separate sequential and random access.** Keep the synchronous `SheetView` for resident
+   workbooks. Introduce an asynchronous row-source contract for CSV scanning, with a known
+   column span, row batches, cancellation and explicit unknown totals until a scan completes.
+   Adapt aggregation, profiling and search to that contract before selecting it for large
+   files. An optional sparse record-offset index supports later pages without retaining cell
+   strings. Quoted newlines, decoder state and CRLF boundaries belong to the tokenizer;
+   a byte offset alone is not a valid row cursor.
+3. **Freeze decisions.** Encoding, `sep=` and delimiter precedence are decided once. Infer
+   types from the first bounded sample of non-missing values, record the sample size and
+   decision version, then freeze the `columns` plan. Later incompatible values increment
+   contradiction, skipped and example counters. Never change a grouping key or previously
+   emitted value after discovering a later row. Explicit `columns` bypass inference.
+4. **Budget every retained resource.** The first proposal is 256 KiB input batches, a 1 MiB
+   record limit, at most 10,000 sampled values per column and 100,000 across columns, and a
+   2 GiB file / 4 GiB aggregate snapshot-disk quota. These are proposed operator limits,
+   not implemented promises. Existing result, group, dense pivot, distinct and percentile
+   limits still apply; exact percentiles fail when their sample budget is exhausted.
+   A bounded time and cell-visit budget is required even when input can be streamed.
+5. **Bind continuation to the snapshot.** A cursor carries the snapshot identity, dialect,
+   frozen type-plan identity and next complete record. Eviction or a changed source returns
+   a restartable error. Responses state whether totals and diagnostics cover a page, a
+   sample or a completed scan. Aggregate results are emitted only after the scan completes.
+
+Acceptance requires independent CSV oracles across every chunk boundary of multibyte text,
+escaped quotes, CRLF and embedded line breaks; mutation and cancellation tests; frozen-plan
+contradiction tests; and measured peak memory and temporary-disk use on progressively larger
+files. A bounded 16 MiB fixture must produce the same values through resident and streaming
+paths. Native platform CI is required. No streaming runtime code is part of the current work.
+
+### Multiple-source analysis: execution owner to be decided
+
+| Owner                      | Fit                                                       | Costs and constraints                                                                                                                                    |
+| -------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reader MCP                 | Small, bounded joins under one configured filesystem root | Adds multi-file authorization, source lifetime and cardinality handling to the reader contract; unsuitable as an implicit extension of `aggregate_sheet` |
+| Host-managed local worker  | Ad hoc joins of explicitly selected files or sheets       | Keeps a closed join plan and per-source approvals in the host; needs worker cancellation, memory limits and optional private spill storage               |
+| Persisted semantic service | Repeated governed analysis over stable datasets           | Requires ingestion, refresh, ownership and storage policy; too much setup for an isolated workbook question                                              |
+
+The recommendation is a host-managed local worker for ad hoc joins. The caller selects each
+source explicitly; a closed plan names join kind, composite key columns, per-source type
+specifications and output columns. No spreadsheet cell or tool argument becomes executable
+code or unrestricted SQL. Identifier keys remain text unless explicitly typed, null keys do
+not match, duplicate-key multiplicity is measured before emitting results, and an output-row
+and memory budget refuses accidental many-to-many expansion. Return source fingerprints,
+matched/unmatched row counts and key-read failures. Currency conversion, fuzzy matching and
+time-zone guessing are outside that contract. The execution owner and these semantics must
+be chosen before code or a new tool is added.
+
 ## llm-mcp
 
 - **Several model hosts.** Only one model host is configured today; what is missing is more

@@ -66,6 +66,22 @@ beforeAll(async () => {
       "4, ,1.00",
     ].join("\n"),
   );
+  await writeFile(
+    join(directory, "numeric-boundaries.csv"),
+    [
+      "Amount",
+      "1234.50",
+      "-0.25",
+      "900719925474099",
+      "9007199254740991",
+      "00123",
+      "25%",
+      "€50",
+      "5.0e2",
+      '"1,000.00"',
+      " 2.50 ",
+    ].join("\n"),
+  );
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet("Traffic");
   sheet.addRow(["SAAT", "ARAÇ"]);
@@ -81,6 +97,22 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await rm(directory, { recursive: true, force: true });
+});
+
+it("keeps identifier, percentage and currency semantics when repeated metrics read ordinary decimal text", async () => {
+  const result = await handlers.aggregate_sheet({
+    filePath: "numeric-boundaries.csv",
+    metrics: [
+      { fn: "sum", column: "Amount" },
+      { fn: "avg", column: "Amount" },
+      { fn: "min", column: "Amount" },
+    ],
+    where: [{ column: "Amount", op: "isNumber" }],
+  });
+  expect(rowsOf(result)).toEqual([
+    [900_719_925_476_886, 112_589_990_684_610.75, -0.25],
+  ]);
+  expect(body(result)["matchedRows"]).toBe(8);
 });
 
 describe("a Turkish CSV", () => {
