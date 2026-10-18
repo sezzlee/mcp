@@ -28,6 +28,7 @@ import {
   type EntryRef,
   type FileResult,
   type FileResultKind,
+  type ProbeFormat,
   type Sha256,
   isSha256,
 } from "./record.ts";
@@ -41,6 +42,7 @@ export interface RunOptions {
   readonly corpusRoot: string;
   readonly outRoot: string;
   readonly sources?: readonly string[];
+  readonly formats?: readonly ProbeFormat[];
   readonly limit?: number;
   readonly timeoutMs: number;
   readonly heapMiB: number;
@@ -356,10 +358,13 @@ export async function runCorpus(options: RunOptions): Promise<RunSummary> {
     root: options.corpusRoot,
     ...(options.sources === undefined ? {} : { sources: options.sources }),
   });
-  const entries =
-    options.limit === undefined
+  const formats = options.formats;
+  const selected =
+    formats === undefined || formats.length === 0
       ? scan.entries
-      : scan.entries.slice(0, options.limit);
+      : scan.entries.filter((entry) => formats.includes(entry.format));
+  const entries =
+    options.limit === undefined ? selected : selected.slice(0, options.limit);
 
   const runId = new Date().toISOString().replaceAll(":", "-");
   const runDir = join(outRoot, runId);
@@ -375,6 +380,7 @@ export async function runCorpus(options: RunOptions): Promise<RunSummary> {
         commit: commitOf(repositoryRoot),
         corpusRoot: options.corpusRoot,
         sources: options.sources ?? null,
+        formats: options.formats ?? null,
         limit: options.limit ?? null,
         timeoutMs: options.timeoutMs,
         heapMiB: options.heapMiB,
