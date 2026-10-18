@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.9.0
+
+### Compatibility changes
+
+- **csv-parse is no longer a runtime dependency.** CSV records are split by the server's own RFC 4180 tokenizer, which enforces the 16,384-field and 2,000,000-cell budgets in the same pass. `csv-parse` stays as a dev dependency: the test suite compares the tokenizer against it on generated text and on every corpus CSV.
+- **CRLF, LF and CR each end a record outside quotes, wherever they mix.** csv-parse kept the first form it met and read the others as field data, so a file that switched from CRLF to LF lost records without an error, and one that switched from LF to CRLF left a carriage return at the end of a field. Line breaks inside quoted fields are data, as before.
+- A `corrupt_workbook` refusal for malformed quoting names the fault and its line (`a quote inside an unquoted field on line 3`) instead of quoting csv-parse's message and error code. A NUL right after a closing quote is refused like any other text there; csv-parse appended it to the field.
+
+### Reading
+
+- `csv.formulaLikeCellCount` counts a cell that starts with `=` and has more after it, the cells LibreOffice runs as formulas when it opens a CSV. A cell holding only `=` is no longer counted.
+- `csv.lineBreak` reports the line breaks that end records. A CRLF file whose quoted fields hold Excel's Alt+Enter line breaks was reported `mixed`; it is now `crlf`.
+- `encoding: "windows-1252"` decodes the bytes 0x80 to 0x9F as the WHATWG index does (€, curly quotes, en and em dashes, …, ™). Node 24's decoder returned them as C1 control characters.
+
 ## 0.8.0
 
 ### Tool surface

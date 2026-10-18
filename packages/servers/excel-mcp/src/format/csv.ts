@@ -1,5 +1,3 @@
-import { CsvError } from "csv-parse";
-import { parse } from "csv-parse/sync";
 import type { CellSnapshot } from "../grid/cell-value.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { limits } from "../platform/limits.js";
@@ -15,6 +13,7 @@ import {
   type DelimiterName,
   type EncodingName,
 } from "../platform/delimited.js";
+import { readRecords, type CsvFault, type LineBreak } from "./csv-tokenizer.js";
 
 export const csvSheetName = "csv";
 
@@ -25,7 +24,7 @@ export interface CsvReport {
   readonly encoding: string;
   readonly encodingSource: "explicit" | "bom" | "default";
   readonly hadBom: boolean;
-  readonly lineBreak: "lf" | "crlf" | "cr" | "mixed" | "none";
+  readonly lineBreak: LineBreak;
   readonly recordCount: number;
   readonly columnCount: number;
   readonly raggedRecordCount: number;
@@ -104,6 +103,23 @@ function detectBom(bytes: Buffer): BomMatch | undefined {
   return undefined;
 }
 
+/**
+ * Guard: Node 24.12's TextDecoder decodes windows-1252 as ISO-8859-1, so the
+ * bytes 0x80 to 0x9F (€, curly quotes, dashes, …, ™) came back as C1 control
+ * characters. They are mapped here through the WHATWG index-windows-1252; a
+ * decoder that is already right leaves only the five unmapped bytes, which map
+ * to themselves.
+ */
+const windows1252High =
+  "€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008DŽ\u008F\u0090‘’“”•–—˜™š›œ\u009DžŸ";
+
+function repairWindows1252(text: string): string {
+  return text.replace(
+    /[\u0080-\u009f]/g,
+    (character) => windows1252High[character.charCodeAt(0) - 0x80] ?? character,
+  );
+}
+
 interface Decoded {
   readonly text: string;
   readonly encoding: string;
@@ -140,6 +156,7 @@ function decode(
   let text: string;
   try {
     text = decoder.decode(bytes);
+    if (decoder.encoding === "windows-1252") text = repairWindows1252(text);
   } catch {
     throw new SezzleeExcelError(
       "undecodable_text",
@@ -256,37 +273,59 @@ export function sniffDelimiter(
   return { delimiter: best.name, delimiterSource: "sniffed" };
 }
 
-function detectLineBreak(text: string): CsvReport["lineBreak"] {
-  const crlf = /\r\n/.test(text);
-  const bareLf = /(^|[^\r])\n/.test(text);
-  const bareCr = /\r(?!\n)/.test(text);
-  const kinds = [crlf, bareLf, bareCr].filter(Boolean).length;
-  if (kinds === 0) {
-    return "none";
-  }
-  if (kinds > 1) {
-    return "mixed";
-  }
-  return crlf ? "crlf" : bareLf ? "lf" : "cr";
-}
-
-function mapCsvError(error: unknown, path: string): SezzleeExcelError {
-  if (error instanceof SezzleeExcelError) {
-    return error;
-  }
-  if (error instanceof CsvError) {
-    return new SezzleeExcelError(
-      "corrupt_workbook",
-      `'${path}' is not well-formed CSV (${error.code}): ${error.message}`,
-      "Check the quoting around the reported line and re-save the file.",
-    );
-  }
-  const detail = error instanceof Error ? error.message : String(error);
+function malformed(path: string, reason: string): SezzleeExcelError {
   return new SezzleeExcelError(
     "corrupt_workbook",
-    `'${path}' could not be parsed as CSV: ${detail}`,
-    "Check the file with a text editor; it may not be a delimited table.",
+    `'${path}' is not well-formed CSV: ${reason}.`,
+    "Check the quoting around the reported line and re-save the file.",
   );
+}
+
+function faultError(fault: CsvFault, path: string): SezzleeExcelError {
+  switch (fault.kind) {
+    case "too_many_columns":
+      return new SezzleeExcelError(
+        "file_too_large",
+        `A CSV record exceeds ${limits.maxCsvColumns} fields.`,
+        "Read a narrower file, or split it.",
+      );
+    case "too_many_cells":
+      return new SezzleeExcelError(
+        "file_too_large",
+        `The file holds more than ${limits.maxCsvCells} cells.`,
+        "Read a narrower file, or split it.",
+      );
+    case "stray_quote":
+      return malformed(
+        path,
+        `a quote inside an unquoted field on line ${fault.line}`,
+      );
+    case "text_after_quote":
+      return malformed(
+        path,
+        `text after a closing quote on line ${fault.line}`,
+      );
+    case "unclosed_quote":
+      return malformed(
+        path,
+        `a quote opened on line ${fault.line} never closes`,
+      );
+    default: {
+      const _exhaustive: never = fault;
+      return _exhaustive;
+    }
+  }
+}
+
+/**
+ * Guard: counts the cells LibreOffice 26.8.1 runs as formulas when it opens a
+ * CSV with formula evaluation on: `=` followed by anything. A `+`, `-` or `@`
+ * prefix stays text there, and 256,000 corpus cells start with `-` as a number
+ * or a dash, so counting OWASP's wider prefix list would bury the signal.
+ * Excel has not been measured.
+ */
+function isFormulaLike(field: string): boolean {
+  return field.length > 1 && field.startsWith("=");
 }
 
 export async function parseCsv(
@@ -307,36 +346,14 @@ export async function parseCsv(
     assertNoNulBytes(bytes, path);
   }
   const choice = sniffDelimiter(decoded.text, options.delimiter);
-  assertRecordWidth(decoded.text, delimiterNames[choice.delimiter]);
-
-  let cells = 0;
-  let raw: string[][];
-  try {
-    raw = parse(decoded.text, {
-      delimiter: delimiterNames[choice.delimiter],
-      columns: false,
-      relax_column_count: true,
-      skip_empty_lines: false,
-      bom: false,
-      cast: false,
-      on_record: (record: string[]) => {
-        cells += record.length;
-        if (cells > limits.maxCsvCells) {
-          throw new SezzleeExcelError(
-            "file_too_large",
-            `The file holds more than ${limits.maxCsvCells} cells.`,
-            "Read a narrower file, or split it.",
-          );
-        }
-        return record;
-      },
-    }) as string[][];
-  } catch (error) {
-    throw mapCsvError(error, path);
-  }
+  const parsed = readRecords(decoded.text, delimiterNames[choice.delimiter], {
+    maxColumns: limits.maxCsvColumns,
+    maxCells: limits.maxCsvCells,
+  });
+  if (parsed.kind === "fault") throw faultError(parsed.fault, path);
 
   let blankRecordCount = 0;
-  const rows: string[][] = raw.map((record) => {
+  const rows: string[][] = parsed.records.map((record) => {
     if (record.length === 1 && record[0] === "") {
       blankRecordCount += 1;
       return [];
@@ -356,7 +373,7 @@ export async function parseCsv(
       raggedRecordCount += 1;
     }
     for (const field of record) {
-      if (field.startsWith("=")) {
+      if (isFormulaLike(field)) {
         formulaLikeCellCount += 1;
       }
     }
@@ -389,7 +406,7 @@ export async function parseCsv(
       encoding: decoded.encoding,
       encodingSource: decoded.encodingSource,
       hadBom: decoded.hadBom,
-      lineBreak: detectLineBreak(decoded.text),
+      lineBreak: parsed.lineBreak,
       recordCount: rows.length,
       columnCount,
       raggedRecordCount,
@@ -405,40 +422,6 @@ export async function parseCsv(
       ...(duplicates.size > 0 ? { duplicateHeaders: [...duplicates] } : {}),
     },
   };
-}
-
-/** Count fields before csv-parse allocates a wide record. Quoted newlines and doubled quotes are data. */
-function assertRecordWidth(text: string, delimiter: string): void {
-  let quoted = false;
-  let fieldStart = true;
-  let fields = 1;
-  for (let i = 0; i < text.length; i += 1) {
-    const character = text[i];
-    if (quoted) {
-      if (character === '"') {
-        if (text[i + 1] === '"') i += 1;
-        else quoted = false;
-      }
-      continue;
-    }
-    if (character === '"' && fieldStart) {
-      quoted = true;
-      fieldStart = false;
-    } else if (character === delimiter) {
-      fields += 1;
-      if (fields > limits.maxCsvColumns)
-        throw new SezzleeExcelError(
-          "file_too_large",
-          `A CSV record exceeds ${limits.maxCsvColumns} fields.`,
-          "Read a narrower file, or split it.",
-        );
-      fieldStart = true;
-    } else if (character === "\n" || character === "\r") {
-      fields = 1;
-      fieldStart = true;
-      if (character === "\r" && text[i + 1] === "\n") i += 1;
-    } else fieldStart = false;
-  }
 }
 
 export function csvSheetView(table: CsvTable): SheetView {

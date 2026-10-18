@@ -68,6 +68,7 @@ The default output root is `<corpus>/_eval/excel-lab`. What the runs found so fa
 pnpm turbo run check-types lint --filter=@sezzlee/excel-lab
 pnpm turbo run test --filter=@sezzlee/excel-lab
 SEZZLEE_CORPUS=/path/to/corpus pnpm turbo run corpus --filter=@sezzlee/excel-lab --ui=stream -- --source tr-tuik --limit 10
+SEZZLEE_CORPUS=/path/to/corpus pnpm turbo run corpus --filter=@sezzlee/excel-lab --ui=stream -- --format csv
 ```
 
 The `corpus` task builds `@sezzlee/excel-mcp` first, so the run always uses the current source.
