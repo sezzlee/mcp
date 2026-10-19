@@ -336,7 +336,7 @@ async function limitsPage(server, answer, notes) {
     "",
     provenance(server, answer.serverInfo, "the exported `limits` object"),
     "",
-    "Every limit is fixed at build time; none is configurable. A call that would cross one either answers with `truncated: true` and a way to continue, or fails with `resource_limit`.",
+    "These bounds are exported by the server. Tool arguments can request smaller pages or samples within them. Truncation and continuation are tool-specific: follow a cursor only when the response supplies one. An operation that cannot stay within its resource budget can fail with `resource_limit`.",
   ];
   for (const section of notes.sections) {
     lines.push(

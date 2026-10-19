@@ -22,6 +22,7 @@ import {
 } from "./column-reading.js";
 import { buildColumnIndex, resolveColumn, type ColumnMode } from "./columns.js";
 import type { MergePolicy } from "./cursor.js";
+import { orderedPatternOf } from "./date-text.js";
 import { headerWarnings, type HeaderRowSource } from "./header.js";
 import { asciiDecimalDigits } from "./locale-text.js";
 import { classify, compareWithin, type CellKind } from "./predicate.js";
@@ -315,6 +316,41 @@ function compare(
   }
 }
 
+function reusableDate(
+  sample: SampledColumn,
+  base: Extract<ColumnSpec, { readonly type: "date" }>,
+  hints: ReadingHints,
+): Extract<ColumnSpec, { readonly type: "date" }> | undefined {
+  const dates = sample.values.map((raw) =>
+    typedCell(raw, sample.reading).as("date"),
+  );
+  const equivalent = (spec: ColumnSpec): boolean => {
+    const reading = explicitReading(spec, hints);
+    return sample.values.every(
+      (raw, at) => typedCell(raw, reading).as("date") === dates[at],
+    );
+  };
+  if (equivalent(base)) return base;
+  const decision = readAsOf(sample.reading).find(
+    (entry) => entry.type === "date" && "order" in entry,
+  );
+  if (decision === undefined || !("order" in decision)) return undefined;
+  const order = decision.order;
+  if (order === undefined) return undefined;
+  const tried = new Set<string>();
+  for (const raw of sample.values) {
+    if (typeof raw !== "string") continue;
+    const pattern = orderedPatternOf(raw, order);
+    if (pattern === undefined) continue;
+    const format = pattern.replace("dd", "d").replace("MM", "M");
+    if (tried.has(format)) continue;
+    tried.add(format);
+    const spec = { ...base, format };
+    if (equivalent(spec)) return spec;
+  }
+  return undefined;
+}
+
 function reusable(
   sample: SampledColumn,
   type: InferredType,
@@ -330,6 +366,13 @@ function reusable(
       : { missingValues: [...missingValues] }),
   };
   const readings = readAsOf(sample.reading);
+  const locale =
+    sample.spec?.type === "date"
+      ? (sample.spec.locale ?? hints.locale)
+      : hints.locale;
+  const language = locale === undefined ? {} : { locale };
+  if (sample.spec?.type === "date")
+    return { ...sample.spec, ...common, ...language };
   if (type === "number" && !identifiers.likely) {
     const reading = readings.find((entry) => entry.type === "number");
     if (reading !== undefined && "locale" in reading)
@@ -351,17 +394,12 @@ function reusable(
     };
   }
   if (type === "date") {
-    const reading = readings.find((entry) => entry.type === "date");
-    const locale =
-      sample.spec?.type === "date"
-        ? (sample.spec.locale ?? hints.locale)
-        : hints.locale;
-    return {
-      ...reading,
-      ...common,
-      type: "date",
-      ...(locale === undefined ? {} : { locale }),
-    };
+    return (
+      reusableDate(sample, { ...common, type: "date", ...language }, hints) ?? {
+        ...common,
+        type: "text",
+      }
+    );
   }
   if (type === "boolean") {
     const explicit = sample.spec?.type === "boolean" ? sample.spec : undefined;
@@ -392,6 +430,8 @@ function describeColumn(
     sample.reading.date.kind === "ambiguous";
   const decision = inferred(values, ambiguous);
   const identifiers = identifierFacts(values, sample.identifierReading);
+  const spec = reusable(sample, decision.type, identifiers, hints);
+  const requestedDate = sample.spec?.type === "date";
   const frequency = frequencies(values);
   const missing = values.filter((entry) => entry.value === null).length;
   let min: CellScalar = null;
@@ -400,8 +440,10 @@ function describeColumn(
   const examples: Example[] = [];
   for (const entry of values) {
     if (entry.value === null) continue;
-    const cannotRead =
-      ambiguous || (decision.type !== "mixed" && entry.kind !== decision.type);
+    const cannotRead = requestedDate
+      ? entry.kind !== "date"
+      : ambiguous ||
+        (decision.type !== "mixed" && entry.kind !== decision.type);
     if (cannotRead) {
       unreadable += 1;
       if (examples.length < maxExamples) examples.push(example(entry.raw));
@@ -429,6 +471,10 @@ function describeColumn(
     warnings.push(
       "Identifier-like text was observed; reusable columns keep this column as text.",
     );
+  if (decision.type === "date" && spec.type === "text")
+    warnings.push(
+      "No single reusable date format preserves the sampled dates; reusable columns keep this column as text. Choose an explicit date format or normalize the source before calendar analysis.",
+    );
   if (sample.uncachedFormulas > 0)
     warnings.push(
       `${sample.uncachedFormulas} formula cells have no cached value and are counted as missing.`,
@@ -455,14 +501,19 @@ function describeColumn(
       topValuesComplete: frequency.complete,
       unreadable: { count: unreadable, examples },
       identifiers,
-      readAs: readAsOf(sample.reading).filter(
-        (entry) => entry.type === decision.type,
-      ),
+      readAs:
+        decision.type === "date" || requestedDate
+          ? spec.type === "date"
+            ? readAsOf(explicitReading(spec, hints))
+            : []
+          : readAsOf(sample.reading).filter(
+              (entry) => entry.type === decision.type,
+            ),
       uncachedFormulas: sample.uncachedFormulas,
       ...(clipped ? { valuesTruncated: true } : {}),
       ...(warnings.length === 0 ? {} : { warnings }),
     },
-    spec: reusable(sample, decision.type, identifiers, hints),
+    spec,
   };
 }
 

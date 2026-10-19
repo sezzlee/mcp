@@ -88,9 +88,9 @@ function asciiLowerOf(text: string | undefined): string | undefined {
 const maxDateChars = 64;
 
 function normalize(text: string): string | undefined {
-  return text.length > maxDateChars
-    ? undefined
-    : text.replace(/\s+/g, " ").trim();
+  if (text.length > maxDateChars) return undefined;
+  const normalized = text.replace(/\s+/g, " ").trim();
+  return /\P{ASCII}/u.test(normalized) ? localeText(normalized) : normalized;
 }
 
 function numberAt(match: RegExpExecArray, at: number): number {
@@ -565,12 +565,16 @@ export class DateLocale {
         };
   }
 
-  read(text: string, order?: DateOrder): DateReading {
+  read(
+    text: string,
+    order?: DateOrder,
+    orderedDots = order !== undefined,
+  ): DateReading {
     const normalized = localeText(text);
     const parsed =
       normalized === undefined
         ? undefined
-        : parseDate(normalized, this.#vocabulary, order !== undefined);
+        : parseDate(normalized, this.#vocabulary, orderedDots);
     if (parsed === undefined) return { kind: "text" };
     const readings = new Set(
       (order === undefined ? (["dmy", "mdy"] as const) : [order])
@@ -687,7 +691,22 @@ const tokenSource: Readonly<Record<Token, string>> = {
   a: "([AaPp][Mm])",
 };
 
-const literals = new Set([".", "/", "-", ":", ",", " ", "T", "年", "月", "日"]);
+const literals = new Set([
+  ".",
+  "/",
+  "-",
+  ":",
+  ",",
+  " ",
+  "T",
+  "年",
+  "月",
+  "日",
+  "년",
+  "월",
+  "일",
+  "г",
+]);
 
 const tokenFamilies: readonly (readonly Token[])[] = [
   ["yyyy"],
@@ -718,7 +737,7 @@ function meridiemHour(raw: number, meridiem: string | undefined): number {
 /**
  * A date pattern built from `yyyy`, `MMMM`, `MMM`, `MM`, `M`, `dd`, `d`, `HH`,
  * `H`, `hh`, `h`, `mm`, `ss`, `a` and the separators `. / - : ,`, space and
- * `T`.
+ * `T`, and the literal markers `年 月 日 년 월 일 г`.
  *
  * Guard: the pattern is never handed to `RegExp` as written; only the source
  * fixed for each token is, so a caller's pattern cannot become a backtracking

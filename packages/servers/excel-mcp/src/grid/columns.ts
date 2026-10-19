@@ -129,8 +129,13 @@ function unknownColumn(
           ? 'columnMode is "letter", so only A1 letters resolve here. '
           : "";
   const adjust =
-    index.byHeader.size === 0 && index.headerRow > 0
-      ? " Pass headerRow to name the row that carries the column headers, or headerScan true to prove it."
+    index.headerRow > 0 &&
+    mode !== "letter" &&
+    (index.byHeader.size === 0 ||
+      (index.bounds.right > index.bounds.left &&
+        index.headers.filter((header) => header !== null && header !== "")
+          .length === 1))
+      ? " Pass headerRow to name the row that carries the column headers, or use headerScan true when the format supports it."
       : "";
   return new SezzleeExcelError(
     "unknown_column",

@@ -1,7 +1,7 @@
 # Run the server from source
 
-Try an unreleased change, or point a client at a local build. You need Node.js 22 or later, pnpm and
-a clone of the repository.
+Try an unreleased change, or point a client at a local build. You need Node.js 24 or later, pnpm and
+a clone of the repository. The published server has a separate Node.js 22 minimum.
 
 ## Build and run
 

@@ -13,7 +13,7 @@ import { z } from "zod";
 import { sha256Of } from "./record.ts";
 import { prepareOutRoot } from "./run.ts";
 
-const source = "typed-global-v1";
+const source = "typed-global-v2";
 const localeCases = [
   ["en-US", "latn"],
   ["de-DE", "latn"],
@@ -50,6 +50,20 @@ export const typedCorpusOptionsSchema = z.object({
 });
 export type TypedCorpusOptions = z.infer<typeof typedCorpusOptionsSchema>;
 
+const dateShapeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("named") }),
+  z.object({
+    kind: z.literal("long"),
+    format: z.string(),
+    automatic: z.enum(["supported", "unsupported"]),
+  }),
+  z.object({
+    kind: z.literal("numeric"),
+    order: z.enum(["dmy", "mdy", "ymd"]),
+    separator: z.enum(["/", "-", "."]),
+  }),
+]);
+type DateShape = z.infer<typeof dateShapeSchema>;
 const configSchema = z.object({
   id: z.string().regex(/^[A-Za-z0-9-]+$/),
   locale: z.string(),
@@ -57,8 +71,101 @@ const configSchema = z.object({
   trueText: z.string(),
   falseText: z.string(),
   missingText: z.string(),
+  date: dateShapeSchema.default({ kind: "named" }),
 });
 type Config = z.infer<typeof configSchema>;
+const expandedDates = [
+  {
+    locale: "tr-TR",
+    numberingSystem: "latn",
+    date: { kind: "long", format: "d MMMM yyyy", automatic: "supported" },
+  },
+  {
+    locale: "hi-IN",
+    numberingSystem: "latn",
+    date: { kind: "long", format: "d MMMM yyyy", automatic: "supported" },
+  },
+  {
+    locale: "hi-IN",
+    numberingSystem: "deva",
+    date: { kind: "long", format: "d MMMM yyyy", automatic: "supported" },
+  },
+  {
+    locale: "zh-CN",
+    numberingSystem: "latn",
+    date: { kind: "long", format: "yyyy年M月d日", automatic: "unsupported" },
+  },
+  {
+    locale: "ja-JP",
+    numberingSystem: "latn",
+    date: { kind: "long", format: "yyyy年M月d日", automatic: "unsupported" },
+  },
+  {
+    locale: "ko-KR",
+    numberingSystem: "latn",
+    date: { kind: "long", format: "yyyy년 M월 d일", automatic: "unsupported" },
+  },
+  {
+    locale: "en-GB",
+    numberingSystem: "latn",
+    date: { kind: "long", format: "d MMMM yyyy", automatic: "supported" },
+  },
+  {
+    locale: "en-US",
+    numberingSystem: "latn",
+    date: { kind: "long", format: "MMMM d, yyyy", automatic: "supported" },
+  },
+  {
+    locale: "ru-RU",
+    numberingSystem: "latn",
+    date: { kind: "long", format: "d MMMM yyyy г.", automatic: "unsupported" },
+  },
+  {
+    locale: "ar-EG",
+    numberingSystem: "arab",
+    date: { kind: "numeric", order: "dmy", separator: "/" },
+  },
+  {
+    locale: "hi-IN",
+    numberingSystem: "deva",
+    date: { kind: "numeric", order: "mdy", separator: "/" },
+  },
+  {
+    locale: "fa-IR",
+    numberingSystem: "arabext",
+    date: { kind: "numeric", order: "dmy", separator: "-" },
+  },
+  {
+    locale: "ja-JP",
+    numberingSystem: "fullwide",
+    date: { kind: "numeric", order: "mdy", separator: "-" },
+  },
+  {
+    locale: "bn-BD",
+    numberingSystem: "beng",
+    date: { kind: "numeric", order: "dmy", separator: "." },
+  },
+  {
+    locale: "my-MM",
+    numberingSystem: "mymr",
+    date: { kind: "numeric", order: "dmy", separator: "." },
+  },
+  {
+    locale: "th-TH",
+    numberingSystem: "thai",
+    date: { kind: "numeric", order: "ymd", separator: "/" },
+  },
+  {
+    locale: "en-US",
+    numberingSystem: "latn",
+    date: { kind: "numeric", order: "ymd", separator: "." },
+  },
+  {
+    locale: "hi-IN",
+    numberingSystem: "deva",
+    date: { kind: "numeric", order: "ymd", separator: "-" },
+  },
+] satisfies readonly Pick<Config, "locale" | "numberingSystem" | "date">[];
 const rawRowSchema = z.tuple([
   z.string(),
   z.string(),
@@ -97,8 +204,7 @@ const entrySchema = z.object({
   bytes: z.number().int().positive(),
   expectedSha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
-const runSchema = z.object({
-  generator: z.literal(source),
+const runFields = z.object({
   seed: z.number().int(),
   rows: z.number().int(),
   node: z.string(),
@@ -107,6 +213,13 @@ const runSchema = z.object({
   unicode: z.string(),
   fixtures: z.array(entrySchema),
 });
+const runSchema = z.discriminatedUnion("generator", [
+  runFields.extend({ generator: z.literal("typed-global-v1") }),
+  runFields.extend({
+    generator: z.literal(source),
+    generatorSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  }),
+]);
 const readSchema = z.object({
   values: z.array(rawRowSchema),
   typedValues: z.array(typedRowSchema),
@@ -117,11 +230,42 @@ const aggregateSchema = z.object({
   matchedRows: z.number(),
   scannedRows: z.number(),
   truncated: z.boolean(),
+  ungroupedRows: z.number().default(0),
 });
 const profileSchema = z.object({
   columnMode: z.literal("letter"),
   columns: z.array(z.json()),
 });
+const dateReadSchema = z.object({
+  values: z.array(z.tuple([z.string()])),
+  typedValues: z.array(z.tuple([z.string().nullable()])),
+  nextCursor: z.string().optional(),
+});
+
+function dateFormatOf(shape: DateShape): string {
+  switch (shape.kind) {
+    case "named":
+      return "d MMMM yyyy";
+    case "long":
+      return shape.format;
+    case "numeric": {
+      const fields = {
+        dmy: ["d", "M", "yyyy"],
+        mdy: ["M", "d", "yyyy"],
+        ymd: ["yyyy", "MM", "dd"],
+      };
+      return fields[shape.order].join(shape.separator);
+    }
+    default: {
+      const exhaustive: never = shape;
+      return exhaustive;
+    }
+  }
+}
+
+function supportsAutomaticDates(shape: DateShape): boolean {
+  return shape.kind !== "long" || shape.automatic === "supported";
+}
 
 function random(seed: number): () => number {
   let state = seed >>> 0;
@@ -146,17 +290,58 @@ function formatters(config: Config) {
     month: "long",
     timeZone: "UTC",
   });
+  const longDate = new Intl.DateTimeFormat(config.locale, {
+    calendar: "gregory",
+    dateStyle: "long",
+    numberingSystem: config.numberingSystem,
+    timeZone: "UTC",
+  });
+  const dateDigits = new Intl.NumberFormat(config.locale, {
+    numberingSystem: config.numberingSystem,
+    useGrouping: false,
+    minimumIntegerDigits:
+      config.date.kind === "numeric" && config.date.order === "ymd" ? 2 : 1,
+  });
   assert.equal(
     number.resolvedOptions().numberingSystem,
     config.numberingSystem,
   );
   assert.equal(month.resolvedOptions().calendar, "gregory");
+  assert.equal(longDate.resolvedOptions().calendar, "gregory");
+  assert.equal(
+    longDate.resolvedOptions().numberingSystem,
+    config.numberingSystem,
+  );
   assert.equal(Intl.NumberFormat.supportedLocalesOf([config.locale]).length, 1);
   assert.equal(
     Intl.DateTimeFormat.supportedLocalesOf([config.locale]).length,
     1,
   );
-  return { number, digits, month };
+  const date = (value: Date): string => {
+    const shape = config.date;
+    switch (shape.kind) {
+      case "named":
+        return `13 ${month.format(value)} 2026`;
+      case "long":
+        return longDate.format(value);
+      case "numeric": {
+        const year = dateDigits.format(value.getUTCFullYear());
+        const month = dateDigits.format(value.getUTCMonth() + 1);
+        const day = dateDigits.format(value.getUTCDate());
+        const fields = {
+          dmy: [day, month, year],
+          mdy: [month, day, year],
+          ymd: [year, month, day],
+        };
+        return fields[shape.order].join(shape.separator);
+      }
+      default: {
+        const exhaustive: never = shape;
+        return exhaustive;
+      }
+    }
+  };
+  return { number, digits, date };
 }
 
 /**
@@ -165,7 +350,8 @@ function formatters(config: Config) {
  */
 function fixtureOf(config: Config, options: TypedCorpusOptions): Fixture {
   const next = random(options.seed);
-  const { number, digits, month } = formatters(config);
+  const nextDate = random(options.seed ^ 0x7f4a7c15);
+  const { number, digits, date: dateText } = formatters(config);
   const raw: Fixture["raw"] = [];
   const typed: Fixture["typed"] = [];
   const groups = Array.from(
@@ -188,7 +374,13 @@ function fixtureOf(config: Config, options: TypedCorpusOptions): Fixture {
     const monthCount = months[monthIndex];
     assert.ok(group);
     assert.ok(monthCount);
-    const date = new Date(Date.UTC(2026, monthIndex, 13));
+    const day =
+      config.date.kind === "named"
+        ? 13
+        : at % 4 === 0
+          ? 13 + (nextDate() % 16)
+          : 1 + (nextDate() % 12);
+    const date = new Date(Date.UTC(2026, monthIndex, day));
     const flag = at % 7 === 0 ? null : at % 2 === 0;
     const seconds = ((next() % 691_201) / 4) * (at % 13 === 0 ? -1 : 1);
     const amountText =
@@ -201,7 +393,7 @@ function fixtureOf(config: Config, options: TypedCorpusOptions): Fixture {
       group[0],
       amountText,
       identifier(at + 1000),
-      `13 ${month.format(date)} 2026`,
+      dateText(date),
       flag === null
         ? config.missingText
         : flag
@@ -240,7 +432,12 @@ function columnsOf(config: Config) {
       identifiers: "refuse",
     },
     { column: "C", type: "text" },
-    { column: "D", type: "date", locale: config.locale, format: "d MMMM yyyy" },
+    {
+      column: "D",
+      type: "date",
+      locale: config.locale,
+      format: dateFormatOf(config.date),
+    },
     { column: "E", type: "boolean" },
     { column: "F", type: "duration" },
   ];
@@ -267,13 +464,26 @@ export async function generateTypedCorpus(
   await mkdir(join(directory, "expected"));
   const entries: z.infer<typeof entrySchema>[] = [];
   const manifest: string[] = [];
-  for (const [at, [locale, numberingSystem]] of localeCases.entries()) {
+  const configs: Pick<Config, "id" | "locale" | "numberingSystem" | "date">[] =
+    [
+      ...localeCases.map(([locale, numberingSystem]) => ({
+        id: `${locale}-${numberingSystem}`,
+        locale,
+        numberingSystem,
+        date: { kind: "named" } satisfies DateShape,
+      })),
+      ...expandedDates.map(({ locale, numberingSystem, date }, at) => ({
+        id: `${locale}-${numberingSystem}-${date.kind}-${at + 1}`,
+        locale,
+        numberingSystem,
+        date,
+      })),
+    ];
+  for (const [at, details] of configs.entries()) {
     const words = wordSets[at % wordSets.length];
     assert.ok(words);
     const config: Config = {
-      id: `${locale}-${numberingSystem}`,
-      locale,
-      numberingSystem,
+      ...details,
       trueText: words[0],
       falseText: words[1],
       missingText: words[2],
@@ -306,7 +516,14 @@ export async function generateTypedCorpus(
         license: "MIT",
         expected: `expected/${config.id}.json`,
         oracle:
-          "Chosen scalar values before Intl serialization; exact quarter-unit sums and counts.",
+          "Chosen scalar values and Gregorian civil dates before serialization; exact quarter-unit sums and counts.",
+        date: {
+          shape: config.date,
+          explicitFormat: dateFormatOf(config.date),
+          automatic: supportsAutomaticDates(config.date)
+            ? "supported"
+            : "unsupported marker grammar; explicit format required",
+        },
       }),
     );
   }
@@ -319,6 +536,9 @@ export async function generateTypedCorpus(
     `${JSON.stringify(
       {
         generator: source,
+        generatorSha256: sha256Of(
+          await readFile(new URL("./typed-corpus.ts", import.meta.url)),
+        ),
         ...options,
         node: process.version,
         icu: process.versions["icu"] ?? "unavailable",
@@ -377,6 +597,10 @@ export async function verifyTypedCorpus(inputRoot: string, revision?: string) {
   let calls = 0;
   let rows = 0;
   let fixtures = 0;
+  let inferredDateFixtures = 0;
+  let reusedDateProfiles = 0;
+  let profiledDateCellsChecked = 0;
+  const automaticDateBoundaries: { id: string; explicitFormat: string }[] = [];
   let current = "";
   const request = async (
     input: Parameters<Client["callTool"]>[0],
@@ -393,7 +617,7 @@ export async function verifyTypedCorpus(inputRoot: string, revision?: string) {
   try {
     for (const entry of run.fixtures) {
       current = entry.id;
-      const filePath = `${source}/files/${entry.id}.csv`;
+      const filePath = `${run.generator}/files/${entry.id}.csv`;
       const bytes = await readFile(join(root, filePath));
       assert.equal(
         bytes.length,
@@ -406,7 +630,7 @@ export async function verifyTypedCorpus(inputRoot: string, revision?: string) {
         `${current}: SHA-256 mismatch`,
       );
       const expected = await readFile(
-        join(root, source, "expected", `${entry.id}.json`),
+        join(root, run.generator, "expected", `${entry.id}.json`),
         "utf8",
       );
       assert.equal(
@@ -477,6 +701,30 @@ export async function verifyTypedCorpus(inputRoot: string, revision?: string) {
         }),
       );
       assert.deepEqual(months.rows, fixture.months);
+      assert.equal(months.ungroupedRows, 0);
+      const automaticDates = supportsAutomaticDates(fixture.config.date);
+      const inferredMonths = aggregateSchema.parse(
+        await request({
+          name: "aggregate_sheet",
+          arguments: {
+            ...common,
+            groupBy: [{ column: "D", by: "month" }],
+            metrics: [{ fn: "count" }],
+          },
+        }),
+      );
+      assert.deepEqual(
+        inferredMonths.rows,
+        automaticDates ? fixture.months : [],
+        `${current}: inferred month groups`,
+      );
+      assert.equal(inferredMonths.ungroupedRows, automaticDates ? 0 : run.rows);
+      if (automaticDates) inferredDateFixtures += 1;
+      else
+        automaticDateBoundaries.push({
+          id: current,
+          explicitFormat: dateFormatOf(fixture.config.date),
+        });
       const filtered = aggregateSchema.parse(
         await request({
           name: "aggregate_sheet",
@@ -509,6 +757,69 @@ export async function verifyTypedCorpus(inputRoot: string, revision?: string) {
         }),
       );
       assert.deepEqual(profileAggregate.rows, fixture.groups);
+      const dateColumn = reused.columns?.find(
+        (column) => column.column === "D",
+      );
+      assert.ok(dateColumn, `${current}: the profile omitted the Date column`);
+      assert.equal(
+        dateColumn.type,
+        automaticDates ? "date" : "text",
+        `${current}: profile date-plan capability`,
+      );
+      const profileMonths = aggregateSchema.parse(
+        await request({
+          name: "aggregate_sheet",
+          arguments: {
+            ...reused,
+            groupBy: [{ column: "D", by: "month" }],
+            metrics: [{ fn: "count" }],
+          },
+        }),
+      );
+      assert.deepEqual(
+        profileMonths.rows,
+        automaticDates ? fixture.months : [],
+        `${current}: profile-reused month groups`,
+      );
+      assert.equal(profileMonths.ungroupedRows, automaticDates ? 0 : run.rows);
+      let dateCursor: string | undefined;
+      let datesRead = 0;
+      do {
+        const page = dateReadSchema.parse(
+          await request({
+            name: "read_sheet",
+            arguments:
+              dateCursor === undefined
+                ? {
+                    ...common,
+                    range: `D1:D${run.rows + 1}`,
+                    columns: [dateColumn],
+                    includeTyped: true,
+                    maxCells: 120,
+                  }
+                : { filePath, cursor: dateCursor, maxCells: 120 },
+          }),
+        );
+        assert.ok(page.values.length > 0);
+        const end = datesRead + page.values.length;
+        assert.deepEqual(
+          page.values,
+          fixture.raw.slice(datesRead, end).map((row) => [row[3]]),
+        );
+        assert.deepEqual(
+          page.typedValues,
+          (automaticDates ? fixture.typed : fixture.raw)
+            .slice(datesRead, end)
+            .map((row) => [row[3]]),
+          `${current}: profile-reused civil dates`,
+        );
+        datesRead = end;
+        assert.ok(datesRead <= fixture.raw.length);
+        dateCursor = page.nextCursor;
+      } while (dateCursor !== undefined);
+      assert.equal(datesRead, run.rows);
+      profiledDateCellsChecked += datesRead;
+      if (automaticDates) reusedDateProfiles += 1;
       fixtures += 1;
     }
   } catch (error) {
@@ -519,6 +830,9 @@ export async function verifyTypedCorpus(inputRoot: string, revision?: string) {
   }
   const report = {
     status: failure === undefined ? "passed" : "failed",
+    generator: run.generator,
+    generatorSha256:
+      run.generator === "typed-global-v2" ? run.generatorSha256 : null,
     seed: run.seed,
     rowsPerFixture: run.rows,
     fixtures,
@@ -526,6 +840,10 @@ export async function verifyTypedCorpus(inputRoot: string, revision?: string) {
     rawCellsChecked: rows * 6,
     typedCellsChecked: rows * 6,
     reusedProfiles: fixtures,
+    inferredDateFixtures,
+    reusedDateProfiles,
+    profiledDateCellsChecked,
+    automaticDateBoundaries,
     mcpCalls: calls,
     ms: performance.now() - started,
     maxRssKiB: process.resourceUsage().maxRSS,

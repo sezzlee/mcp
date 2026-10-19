@@ -66,8 +66,13 @@ type DatePlan =
       readonly kind: "locale";
       readonly locale: DateLocale;
       readonly order?: DateOrder;
+      readonly orderedDots?: boolean;
     }
-  | { readonly kind: "ambiguous"; readonly example: string }
+  | {
+      readonly kind: "ambiguous";
+      readonly example: string;
+      readonly locale?: DateLocale;
+    }
   | { readonly kind: "off" };
 
 interface Tokens {
@@ -416,7 +421,8 @@ function majority(
 /**
  * Guard: a caller's locale names the month words, never the day/month order.
  * The order still comes from the column, so a Turkish reader who names
- * `tr-TR` for an English file cannot move `03/04/2026` into April.
+ * `tr-TR` for an English file cannot move `03/04/2026` into April. A decided
+ * slash order must not reorder a dotted date in the same column.
  */
 function localeDatePlan(
   texts: readonly string[],
@@ -425,9 +431,14 @@ function localeDatePlan(
   const decision = sniffDateOrder(texts);
   switch (decision.kind) {
     case "decided":
-      return { kind: "locale", locale, order: decision.order };
+      return {
+        kind: "locale",
+        locale,
+        order: decision.order,
+        orderedDots: false,
+      };
     case "ambiguous":
-      return decision;
+      return { ...decision, locale };
     case "unordered":
     case "none":
       return { kind: "locale", locale };
@@ -552,10 +563,12 @@ function dateText(text: string, plan: DatePlan): DateReading {
     case "format":
       return plan.format.read(text);
     case "locale":
-      return plan.locale.read(text, plan.order);
+      return plan.locale.read(text, plan.order, plan.orderedDots);
     case "ambiguous": {
       const readings = (["dmy", "mdy"] as const).map((order) =>
-        readDateText(text, order, true),
+        plan.locale === undefined
+          ? readDateText(text, order, true)
+          : plan.locale.read(text, order),
       );
       return (
         agreed(

@@ -6,7 +6,7 @@ import { dateParts } from "../grid/grouping.js";
 export const filePath = z
   .string()
   .describe(
-    "Workbook path relative to the server root, as returned by list_workbooks.",
+    "Workbook path relative to the server root. Use a known path directly; list_workbooks discovers unknown paths.",
   );
 export const sheetName = z
   .string()

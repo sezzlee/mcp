@@ -178,6 +178,9 @@ excel get_tables --tool-arg filePath=orders.csv
 ```
 
 `describe_workbook` lists what each file supports in its `capabilities` block.
+For CSV, `capabilities.typedValues: false` means that cells have no native stored types.
+Explicit `columns` with `includeTyped: true` can still add interpreted values alongside the raw
+text; see [Profile and read global data](/docs/excel-mcp/profile-and-read-global-data).
 
 :::details[How CSV values are read]
 

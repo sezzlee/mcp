@@ -61,6 +61,13 @@ The amount excludes N/A, the ratio uses valid booleans, and the duration total i
 
 ## Choose a locale explicitly
 
+The profiler recommends a date definition only when its explicit reading preserves the sampled
+dates. A fixed pattern may reject a different date shape after the sample; raw values remain
+available and typed diagnostics count the failure. When a sampled mixture cannot be represented
+by one definition, `columns` keeps that column as text and its profile explains why. An explicit
+date definition supplied by the caller is preserved; `readAs` and unreadable diagnostics describe
+that requested conversion, while the inferred type and confidence describe the observed sample.
+
 Locale-specific digits and grouping require the corresponding column definition. A locale is a
 formatting convention, not an instruction to guess which country produced an ambiguous number.
 Name the locale the file was written in, never the language of the person asking, and omit it when
@@ -113,10 +120,38 @@ excel aggregate_sheet --tool-arg filePath=early-dates.csv locale=tr-TR \
 {"rows":[],"ungroupedRows":2,"warnings":["A: dates such as '03/04/2026' read either day first or month first, so they were not read as dates. Pass columns [{\"column\":\"A\",\"type\":\"date\",\"format\":\"dd/MM/yyyy\"}] or [{\"column\":\"A\",\"type\":\"date\",\"format\":\"MM/dd/yyyy\"}].","Grouping Date (month): 2 cells in A could not be read for this key, such as '03/04/2026', '05/06/2026'; these rows are counted in ungroupedRows for each affected grouping."]}
 ```
 
-A dotted date is read day first under any locale, because no locale writes numeric dates month
-first with dots. A dotted column holding a value only month first can read, such as `01.15.2026`,
-is reported the same way. Date `format` and `order` are mutually exclusive; an explicit `order`
-also applies to dotted dates.
+Inferred dotted dates use a day-first convention under every locale. Custom exports can use other
+conventions: a dotted column holding a value only month first can read, such as `01.15.2026`, is
+reported as ambiguous. A slash or dash date's inferred order does not change dotted dates in the
+same column. Date `format` and `order` are mutually exclusive; an explicit `order` also applies to
+dotted dates.
+
+:::details[Read dates with literal year, month and day markers]
+
+Some exports need an explicit pattern even when their locale is known. Chinese and Japanese
+`年 月 日`, Korean `년 월 일`, and the Russian year marker `г.` are accepted in the closed format
+grammar. They are not automatically inferred, and weekday prefixes, eras and arbitrary quoted
+literals remain outside that grammar.
+
+```sh
+cat > ~/sezzlee-sheets/date-markers.csv <<'CSV'
+Chinese;Korean;Russian
+2026年3月13日;2026년 3월 13일;13 марта 2026 г.
+CSV
+excel read_sheet --tool-arg filePath=date-markers.csv includeTyped=true \
+  'columns=[{"column":"Chinese","type":"date","locale":"zh-CN","format":"yyyy年M月d日"},{"column":"Korean","type":"date","locale":"ko-KR","format":"yyyy년 M월 d일"},{"column":"Russian","type":"date","locale":"ru-RU","format":"d MMMM yyyy г."}]' \
+  | jq -c '.values[], .typedValues[]'
+```
+
+```text
+["2026年3月13日","2026년 3월 13일","13 марта 2026 г."]
+["2026-03-13","2026-03-13","2026-03-13"]
+```
+
+The original strings remain in `values`. A string that does not match the explicit pattern becomes
+null only in `typedValues`, with an unreadable count and bounded examples.
+
+:::
 
 ## Override a separator declaration
 
