@@ -66,7 +66,7 @@ jobs:
           if grep -q 'coerceText:' "$RUNNER_TEMP/base/packages/servers/excel-mcp/src/tools/definitions.ts"; then
             legacy=--legacy-coerce-text
           fi
-          for trial in $(seq "$RUNS"); do
+          for _ in $(seq "$RUNS"); do
             node packages/lab/excel-lab/src/aggregate-bench.ts \
               --out "$RUNNER_TEMP/bench/head" --revision "$HEAD_SHA" --runs 1
             (cd "$RUNNER_TEMP/base" && node packages/lab/excel-lab/src/aggregate-bench.ts \
