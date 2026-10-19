@@ -379,7 +379,7 @@
       "id": "trabzon-yomra-ocak",
       "level": "L2",
       "knowledge": "K1",
-      "cases": ["T5", "V5", "Q1"],
+      "cases": ["T5", "Q1"],
       "files": ["trabzon-yomra"],
       "question": {
         "tr": "Ocak mahallesinde kaç bağımsız bölüm var?",
@@ -3467,6 +3467,55 @@
                   "column": "Cinsiyet",
                   "op": "eq",
                   "value": "female"
+                }
+              ]
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
+        }
+      }
+    },
+    {
+      "id": "gaziantep-15-temmuz",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["V5", "Q2", "T3"],
+      "files": ["gaziantep-requests"],
+      "question": {
+        "tr": "15 Temmuz Mahallesi'nden kaç başvuru gelmiş?",
+        "en": "How many requests came from the 15 Temmuz neighbourhood?"
+      },
+      "answer": {
+        "kind": "integer",
+        "value": 206
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "Mahalle",
+                  "op": "eq",
+                  "value": "15 Temmuz"
                 }
               ]
             },

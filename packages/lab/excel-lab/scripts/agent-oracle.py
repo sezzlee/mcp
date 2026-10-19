@@ -712,6 +712,13 @@ def _(files):
     return number(sum(1 for entry in gaziantep(files["gaziantep-requests"]) if entry["Cinsiyet"] == "female"))
 
 
+@oracle("gaziantep-15-temmuz")
+def _(files):
+    entries = gaziantep(files["gaziantep-requests"])
+    assert {entry["İlçe"] for entry in entries if entry["Mahalle"] == "15 Temmuz"} == {"Şehitkamil"}
+    return number(sum(1 for entry in entries if entry["Mahalle"] == "15 Temmuz"))
+
+
 @oracle("gaziantep-latest")
 def _(files):
     return {"kind": "text", "value": max(gaziantep_time(entry) for entry in gaziantep(files["gaziantep-requests"])).strftime("%Y-%m-%d %H:%M")}

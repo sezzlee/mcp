@@ -77,9 +77,9 @@ each candidate with the oracle before a question is written. Where the corpus ha
 for a case, the case is listed under `uncovered` in the catalog with the reason, rather than
 filled with an invented file; the catalog refuses an `uncovered` entry that a task exercises.
 
-The catalog holds 83 tasks over 29 corpus files from Turkish, British and American open data
-and three small CC0 CSV samples. By level: 3 `L1`, 14 `L2`, 31 `L3`, 26 `L4`, 9 `L5`; by
-knowledge: 4 `K0`, 76 `K1`, 3 `K2`. The plans make 155 calls, 100 of them `answer` steps and 10
+The catalog holds 84 tasks over 29 corpus files from Turkish, British and American open data
+and three small CC0 CSV samples. By level: 3 `L1`, 14 `L2`, 32 `L3`, 26 `L4`, 9 `L5`; by
+knowledge: 4 `K0`, 77 `K1`, 3 `K2`. The plans make 157 calls, 101 of them `answer` steps and 10
 of those expected errors. Several files carry faults found while writing the oracles, and tasks keep them as they
 are: a typed `TOPLAM` that is 1,000 above the sum of its rows, a grand total that disagrees with
 its subtotals, headers that label the neighbouring column, a dashboard table whose cached
@@ -293,7 +293,7 @@ answer are recorded today, so the same task shows the effect of a new tool later
 | `Q1`  | One value of one record                                                                         |
 | `Q2`  | A total or a count                                                                              |
 | `Q3`  | Several filter conditions at once                                                               |
-| `Q4`  | A ranking, including ties                                                                       |
+| `Q4`  | A ranking: the largest or the top k, where no tie straddles the cut                             |
 | `Q5`  | A median or a percentile                                                                        |
 | `Q6`  | A breakdown by month or year                                                                    |
 | `Q7`  | A two-way breakdown (pivot)                                                                     |
