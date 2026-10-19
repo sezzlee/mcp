@@ -871,6 +871,53 @@ Timings from the corpus runs are not comparable, because the machine was in use.
 benchmark now runs on a GitHub runner instead, through the `bench` label; its first result is in
 the [roadmap](../../../ROADMAP.md).
 
+## Agent lab baseline
+
+The [agent lab](AGENT_LAB.md) catalog holds 81 tasks over 29 corpus files. Its scripted runner
+ran every ideal plan through the MCP client against one in-process server on the workspace, with
+no model involved, and checked each answer against the independent oracle.
+
+| Outcome                                                        | Tasks |
+| -------------------------------------------------------------- | ----: |
+| The planned responses contain the oracle answer                |    67 |
+| The answer needs the computation the plan names                |     9 |
+| A refusal task whose planned calls behaved as declared         |     5 |
+| A call failed unexpectedly, or an expected error did not occur |     0 |
+
+The plans made 110 calls and returned 158,556 bytes. All 10 expected errors occurred as declared:
+eight `undecodable_text` on Windows-1254 files, one `ambiguous_header_row` and one
+`file_too_large`. `headerScan`, `mergedCells: "repeat"`, text dates grouped by month and day,
+metric filters, pivots and percentiles answered on real files.
+
+Two responses carry less than an agent needs:
+
+- `get_tables` returns a table's `ref` and no data row count, so "how many rows does the table
+  hold" needs arithmetic on `B3:D429` that a model can get wrong.
+- A CSV date and time with no offset (`31.12.2019 23:40`) comes back as
+  `2019-12-31T23:40:00.000Z`. The `Z` states UTC, which the file never said; a model that
+  converts it to Turkish time moves the request into 2020.
+
+The second is fixed: a date and time stored without a zone, every Excel date cell and every
+CSV value without an offset, is now written `2019-12-31T23:40:00.000`, and a value written with
+an offset keeps its wall clock and offset (`…23:40:00.000+03:00`) and is ordered by its instant.
+Calendar groups still use UTC after an explicit offset, as documented. Validation date bounds
+follow the same rule. A full corpus probe over all 4,932 files, compared with the run at `a92c48d`, changed six
+responses and nothing else: date and time cells in six workbooks lost their `Z`
+(`2025-07-01T01:00:00.000Z` became `2025-07-01T01:00:00.000`). File modification times are
+instants and keep theirs.
+
+### First model runs
+
+Three smoke runs with `qwen3.8` at a 64k window answered correctly and spent 1.7 calls more than
+the ideal plans. Every run opened with `describe_workbook` and then read a few rows before the
+calculation, because `describe_workbook` reports no column headers and the question names no
+column. The ideal `K1` plans assume the headers are known, so this excess is the measured cost of
+discovering them.
+
+The tool list is 62,848 bytes, about 21,000 estimated tokens on every request. The four grid
+tools carry 55,168 bytes of it, mostly the typed `columns` schema repeated in each; a request
+that holds one short question already peaks at 17,438 prompt tokens.
+
 ## Next steps
 
 1. Keep legacy decoding explicit. The global typed-text work selected a closed encoding list

@@ -1,0 +1,3313 @@
+{
+  "files": {
+    "trabzon-yomra": {
+      "source": "tr-ckan",
+      "file": "files/trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari__346a50e5.xlsx",
+      "sha256": "2d59931ded9291ba1918ccd22f5fea04cbc17df6632ba2b1b225f2b690953416",
+      "bytes": 9877,
+      "license": "Trabzon-Open-Data-License",
+      "language": "tr",
+      "as": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+    },
+    "trabzon-tonya": {
+      "source": "tr-ckan",
+      "file": "files/trabzon/tonya-ilcesi-yapi-ve-bagimsiz-bolum-sayilari__7b451946.xlsx",
+      "sha256": "d8c3ec2c6fbb4d359a761eddfca1d426ca4f1aa1c80c26d942d6513f08ef512e",
+      "bytes": 9781,
+      "license": "Trabzon-Open-Data-License",
+      "language": "tr",
+      "as": "trabzon/tonya-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+    },
+    "trabzon-caykara": {
+      "source": "tr-ckan",
+      "file": "files/trabzon/caykara-ilcesi-yapi-ve-bagimsiz-bolum-sayilari__5c5803a7.xlsx",
+      "sha256": "d80b46507057f1eeb638f24c7fb7fa1d4a0964e52f38d8607a7953279ea3d06e",
+      "bytes": 10134,
+      "license": "Trabzon-Open-Data-License",
+      "language": "tr",
+      "as": "trabzon/caykara-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+    },
+    "trabzon-hayrat-buildings": {
+      "source": "tr-ckan",
+      "file": "files/trabzon/hayrat-ilcesi-yapi-ve-bagimsiz-bolum-sayilari__a27669ec.xlsx",
+      "sha256": "697d927353e830f28e77664e3873255d31be0ca1dbbb4b183acb9c3c7f3950fe",
+      "bytes": 10217,
+      "license": "Trabzon-Open-Data-License",
+      "language": "tr",
+      "as": "trabzon/hayrat-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+    },
+    "trabzon-hayrat-roads": {
+      "source": "tr-ckan",
+      "file": "files/trabzon/hayrat-ilcesi-yol-listesi__e2d9795f.xlsx",
+      "sha256": "904d8bac246632c209e643eeed6b4a2def3aec7558f95ad37d0e8f32a075e909",
+      "bytes": 31606,
+      "license": "Trabzon-Open-Data-License",
+      "language": "tr",
+      "as": "trabzon/hayrat-ilcesi-yol-listesi.xlsx"
+    },
+    "ibb-buildings": {
+      "source": "tr-ckan",
+      "file": "files/ibb/mahalle-bazli-bina-analiz-verisi__cef193d5.csv",
+      "sha256": "05f4a57bc578923673e8b91014727fe99b1f431b060d66d2c2c1461d5c72d7a7",
+      "bytes": 45235,
+      "license": "IBB-Open-Data-License",
+      "language": "tr",
+      "as": "istanbul/mahalle-bazli-bina-analiz-verisi.csv"
+    },
+    "konya-roads": {
+      "source": "tr-ckan",
+      "file": "files/konya/ilce-ve-mahallelere-ait-yol-sayilari__a1b5be83.csv",
+      "sha256": "18280efbd99c920d4d72749b890cc6fdb777fd8c44d86999d64c04c56b20b18b",
+      "bytes": 24058,
+      "license": "CC-BY-4.0",
+      "language": "tr",
+      "as": "konya/ilce-ve-mahallelere-ait-yol-sayilari.csv"
+    },
+    "uk-spend-2025-07": {
+      "source": "uk-datagov",
+      "file": "files/xlsx/Expenditure-over-25000-July-2025-995dbe52.xlsx",
+      "sha256": "995dbe52c458e2e23abb351f6a65fbc826d1c2ca34837fe010193c081f933e53",
+      "bytes": 43951,
+      "license": "OGL-UK-3.0",
+      "language": "en",
+      "as": "uk-nhs-plymouth/expenditure-over-25000-july-2025.xlsx"
+    },
+    "uk-spend-2026-08": {
+      "source": "uk-datagov",
+      "file": "files/xlsx/Expenditure-over-25000-August-2026-1834558d.xlsx",
+      "sha256": "1834558dd58bcd758091b8c0961fb369a66bb13e942453e4812c1e39a76c7b1b",
+      "bytes": 42173,
+      "license": "OGL-UK-3.0",
+      "language": "en",
+      "as": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx"
+    },
+    "uk-spend-2026-09": {
+      "source": "uk-datagov",
+      "file": "files/xlsx/Expenditure-over-25000-September-2026-e01a014e.xlsx",
+      "sha256": "e01a014e6c1e227fcba14afbfe44928e3e88a96305188b327d4eaa4589d100fd",
+      "bytes": 42313,
+      "license": "OGL-UK-3.0",
+      "language": "en",
+      "as": "uk-nhs-plymouth/expenditure-over-25000-september-2026.xlsx"
+    },
+    "uk-glos-invoices": {
+      "source": "uk-datagov",
+      "file": "files/xlsx/Consolidated-Invoice-spend-above-25k-M12-Mar-24_25-b711ba19.xlsx",
+      "sha256": "b711ba1959a24e50b1cdbba53a20c8e59bbc2a381c7b205c0f4c381b3c228d07",
+      "bytes": 16683,
+      "license": "OGL-UK-3.0",
+      "language": "en",
+      "as": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx"
+    },
+    "uk-fire-0604": {
+      "source": "uk-datagov",
+      "file": "files/xlsx/fire-statistics-data-tables-fire0604-210923-4a2bd2b1.xlsx",
+      "sha256": "4a2bd2b12cfba171ae6103a4aa4ec405c0726b630644879217f8591db1416d62",
+      "bytes": 107203,
+      "license": "OGL-UK-3.0",
+      "language": "en",
+      "as": "uk-fire-statistics/fire0604-materials.xlsx"
+    },
+    "sivas-population": {
+      "source": "tr-ckan",
+      "file": "files/sivas/sivas-merkez-nufus-verileri__d6664457.xlsx",
+      "sha256": "104c91250508b71c286f1c1781c9f41010ab923498bbc5783520b99d5325f062",
+      "bytes": 45896,
+      "license": "Sivas-Open-Data-License",
+      "language": "tr",
+      "as": "sivas/sivas-merkez-nufus-verileri.xlsx"
+    },
+    "uk-heat-pumps": {
+      "source": "uk-datagov",
+      "file": "files/xlsx/Heat_pump_deployment_quarterly_statistics_United_Kingdom_2025_Q3-314ecefe.xlsx",
+      "sha256": "314ecefe4cea1af62d16f1ea38370dea97ee20bbd0101631b5e703806abffe1a",
+      "bytes": 77531,
+      "license": "OGL-UK-3.0",
+      "language": "en",
+      "as": "uk-energy/heat-pump-deployment-quarterly-2025-q3.xlsx"
+    },
+    "gaziantep-requests": {
+      "source": "tr-ckan",
+      "file": "files/gaziantep/2019__b486f152.csv",
+      "sha256": "1b8594940a0b2006e8325bd2d239504dd3b6727ebdcc685ba64287c584deee84",
+      "bytes": 5579707,
+      "license": "Gaziantep-Open-Data-License",
+      "language": "tr",
+      "as": "gaziantep/2019.csv"
+    },
+    "flights": {
+      "source": "tr-ckan",
+      "file": "files/ibb/turkiye-olceginde-havalimanlarindaki-ucus-sayisi__b7c903d5.csv",
+      "sha256": "947f080da1b71646eb198c569d2c7e3aeaeb2f6c0ed1458582214f15c8453132",
+      "bytes": 639860,
+      "license": "IBB-Open-Data-License",
+      "language": "tr",
+      "as": "istanbul/turkiye-olceginde-havalimanlarindaki-ucus-sayisi.csv"
+    },
+    "izmir-co2": {
+      "source": "tr-ckan",
+      "file": "files/izmir/co2-emisyon-degerleri-ton-ve-bir-milyon-yolcu-basina-co2-miktari__d2ec448e.csv",
+      "sha256": "34cb09dcedb340346e066349471230aa2fd5e6c53d1bfab97505fd71875d8efb",
+      "bytes": 1966,
+      "license": "CC-BY-4.0",
+      "language": "tr",
+      "as": "izmir/co2-emisyon-degerleri-ton-ve-bir-milyon-yolcu-basina-co2-miktari.csv"
+    },
+    "manisa-households": {
+      "source": "tr-ckan",
+      "file": "files/manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi__1cd87a8e.xlsx",
+      "sha256": "fcad1c18ef66a3a56a2cbc40f955f1d1272f54ef863ea7f8fb4c73bce71d580a",
+      "bytes": 36017,
+      "license": "MBB-ODL-1.0",
+      "language": "tr",
+      "as": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx"
+    },
+    "manisa-plants": {
+      "source": "tr-ckan",
+      "file": "files/manisa/2025-subat-ayi-bitki-uretim-tablosu__bb3e44ff.xlsx",
+      "sha256": "6ff57c3004aa91e50ad0e9cd82b7640076e48444c429c1c6c5c4caecad1bcb3c",
+      "bytes": 12331,
+      "license": "MBB-ODL-1.0",
+      "language": "tr",
+      "as": "manisa/2025-subat-ayi-bitki-uretim-tablosu.xlsx"
+    },
+    "izmir-grocery": {
+      "source": "tr-ckan",
+      "file": "files/izmir/halkin-bakkali-urunleri__44855909.xlsx",
+      "sha256": "0a6e4f4ed7b1ae1c2a8276d49b5f0a1d1e8cc19af1d372fb9a0381ad77cbd459",
+      "bytes": 41568,
+      "license": "CC-BY-4.0",
+      "language": "tr",
+      "as": "izmir/halkin-bakkali-urunleri.xlsx"
+    },
+    "us-naep": {
+      "source": "us-datagov",
+      "file": "files/xlsx/NAEP12-math-trans_verified-0f6d83d5.xlsx",
+      "sha256": "0f6d83d52cfaa6b7ce836911e90c76e38af593bc3b29d6f1ff2e25e4718f23cd",
+      "bytes": 17930,
+      "license": "CC0-1.0",
+      "language": "en",
+      "as": "us-education/naep-12th-grade-math-scores.xlsx"
+    },
+    "manisa-tariffs": {
+      "source": "tr-ckan",
+      "file": "files/manisa/2025-yili-mali-hizmetler-ucret-tarifesi__991f1271.xlsx",
+      "sha256": "c050339ffde11e010691edf82e5cadb4bf94208bd5f80650702dd28ac4165253",
+      "bytes": 9636,
+      "license": "MBB-ODL-1.0",
+      "language": "tr",
+      "as": "manisa/2025-yili-mali-hizmetler-ucret-tarifesi.xlsx"
+    },
+    "sample-utf16": {
+      "source": "csv-synthetic",
+      "file": "files/encoding/utf16le-bom.csv",
+      "sha256": "e0c94278c146f4af2335a9a6acee4057ba76dfbd0d786fed26d5c1255a4aee91",
+      "bytes": 82,
+      "license": "CC0-1.0",
+      "language": "tr",
+      "as": "samples/sehirler.csv"
+    },
+    "sample-sep": {
+      "source": "csv-synthetic",
+      "file": "files/shape/excel-sep-hint.csv",
+      "sha256": "4095a410c17af5e8f998e62b1bcf380b882c91ed8de01bd6db130d2b5322305a",
+      "bytes": 14,
+      "license": "CC0-1.0",
+      "language": "none",
+      "as": "samples/excel-export.csv"
+    },
+    "sample-formulas": {
+      "source": "csv-synthetic",
+      "file": "files/injection/formula-prefixes.csv",
+      "sha256": "b3393f4566b583fd10d59b6ca8f3a52fee9d3fdcfe10d195170b6243ec166938",
+      "bytes": 348,
+      "license": "CC0-1.0",
+      "language": "en",
+      "as": "samples/form-submissions.csv"
+    },
+    "us-sfo-noise": {
+      "source": "us-datagov",
+      "file": "files/csv/export-126acd92.csv",
+      "sha256": "126acd929841d2f8db94eda49c10f4843dac565531734f2a2d7c159a82e86adc",
+      "bytes": 19703192,
+      "license": "PDDL-1.0",
+      "language": "en",
+      "as": "us-sfo/noise-monitoring-export.csv"
+    },
+    "uk-boiler": {
+      "source": "uk-datagov",
+      "file": "files/xlsx/Boiler_Upgrade_Scheme_BUS_Statistics_June_2026-70a492eb.xlsx",
+      "sha256": "70a492ebeaee8111976b6f9c05a556319bcff5effa1672f6ad18c7e3c0223a6a",
+      "bytes": 650447,
+      "license": "OGL-UK-3.0",
+      "language": "en",
+      "as": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx"
+    },
+    "uk-fhrs-audit": {
+      "source": "uk-datagov",
+      "file": "files/xlsx/2023AuditNI-05742006.xlsx",
+      "sha256": "05742006ed94a6f2136742acb1e492215d8cbd9d888b2ba388f5b46478d31963",
+      "bytes": 125840,
+      "license": "OGL-UK-3.0",
+      "language": "en",
+      "as": "uk-fsa/fhrs-audit-northern-ireland-2023.xlsx"
+    },
+    "uk-toilets": {
+      "source": "csv-wrangling-uk",
+      "file": "files/bfe36d0ed475e5ced89c794237fa9e62.csv",
+      "sha256": "ce47adaf455237a71e9ef7fe0ead5da880afae75ddaba6fc58f8abb9dc87ef7b",
+      "bytes": 14679,
+      "license": "OGL-UK-3.0",
+      "language": "en",
+      "as": "uk-plymouth/public-toilets.csv"
+    }
+  },
+  "tasks": [
+    {
+      "id": "trabzon-yomra-buildings",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S1", "S3", "V7", "Q2", "T1", "T3"],
+      "files": ["trabzon-yomra"],
+      "question": {
+        "tr": "Yomra'da toplam kaç yapı var?",
+        "en": "How many buildings are there in Yomra in total?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 13786,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+          }
+        }
+      ]
+    },
+    {
+      "id": "trabzon-yomra-top-units",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S1", "S3", "Q4", "V10"],
+      "files": ["trabzon-yomra"],
+      "question": {
+        "tr": "Bağımsız bölüm sayısı en fazla olan ilk 3 mahalle hangileri?",
+        "en": "Which 3 neighbourhoods have the most independent units?"
+      },
+      "answer": {
+        "kind": "list",
+        "items": ["KAŞÜSTÜ", "SANCAK", "ÖZDİL"]
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx",
+            "headerScan": true,
+            "groupBy": ["MAHALLE"],
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "D"
+              }
+            ],
+            "where": [
+              {
+                "column": "MAHALLE",
+                "op": "isNotEmpty"
+              }
+            ],
+            "orderBy": "metric",
+            "descending": true,
+            "maxGroups": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "trabzon-yomra-ocak",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["T5", "V5", "Q1"],
+      "files": ["trabzon-yomra"],
+      "question": {
+        "tr": "Ocak mahallesinde kaç bağımsız bölüm var?",
+        "en": "How many independent units are there in the Ocak neighbourhood?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 463,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx",
+            "headerScan": true,
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "D"
+              }
+            ],
+            "where": [
+              {
+                "column": "MAHALLE",
+                "op": "eq",
+                "value": "ocak"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "trabzon-three-districts",
+      "level": "L4",
+      "knowledge": "K0",
+      "cases": ["D1", "D2", "S3", "Q11", "Q4"],
+      "files": [
+        "trabzon-yomra",
+        "trabzon-tonya",
+        "trabzon-caykara",
+        "trabzon-hayrat-buildings",
+        "trabzon-hayrat-roads"
+      ],
+      "question": {
+        "tr": "Trabzon'da Yomra, Tonya ve Çaykara'dan hangisinde daha çok yapı var, kaç tane?",
+        "en": "In Trabzon, which has more buildings: Yomra, Tonya or Çaykara? How many?"
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "district": "ÇAYKARA",
+          "buildings": 17579
+        },
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "list_workbooks",
+          "args": {
+            "subdirectory": "trabzon"
+          }
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+          }
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "trabzon/tonya-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+          }
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "trabzon/caykara-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+          }
+        },
+        {
+          "compute": "compare the three TOPLAM building counts"
+        }
+      ]
+    },
+    {
+      "id": "trabzon-hayrat-units",
+      "level": "L3",
+      "knowledge": "K0",
+      "cases": ["D1", "D2", "S3", "Q2"],
+      "files": ["trabzon-hayrat-buildings", "trabzon-hayrat-roads"],
+      "question": {
+        "tr": "Hayrat'ta toplam kaç bağımsız bölüm var?",
+        "en": "How many independent units does Hayrat have in total?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 11787,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "list_workbooks",
+          "args": {
+            "subdirectory": "trabzon"
+          }
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "trabzon/hayrat-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+          }
+        }
+      ]
+    },
+    {
+      "id": "trabzon-hayrat-avenues",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S1", "D6", "Q2", "T3"],
+      "files": ["trabzon-hayrat-roads"],
+      "question": {
+        "tr": "Bu yolların kaç tanesi cadde?",
+        "en": "How many of these roads are avenues?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 54,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx",
+            "headerScan": true,
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "where": [
+              {
+                "column": "CSBM TÜRÜ",
+                "op": "eq",
+                "value": "Cadde"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "trabzon-hayrat-table",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["Q12", "D6"],
+      "files": ["trabzon-hayrat-roads"],
+      "question": {
+        "tr": "Bu dosyada Excel tablosu var mı? Adı ne, kaç satır veri var?",
+        "en": "Is there an Excel table in this file? What is it called and how many data rows does it have?"
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "name": "HAYRAT_İLÇESİ_CSBM_LİSTESİ_20260108",
+          "rows": 426
+        },
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "get_tables",
+          "args": {
+            "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx"
+          }
+        },
+        {
+          "compute": "data rows are the table range's rows minus its header row"
+        }
+      ]
+    },
+    {
+      "id": "trabzon-hayrat-neighbourhoods",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["Q8", "S1"],
+      "files": ["trabzon-hayrat-roads"],
+      "question": {
+        "tr": "Yol listesinde kaç farklı mahalle geçiyor?",
+        "en": "How many different neighbourhoods appear in the road list?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 35,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx",
+            "headerScan": true,
+            "metrics": [
+              {
+                "fn": "countDistinct",
+                "column": "MAHALLE ADI"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "trabzon-hayrat-coverage",
+      "level": "L5",
+      "knowledge": "K1",
+      "cases": ["X2", "Q9", "Q11"],
+      "files": ["trabzon-hayrat-buildings", "trabzon-hayrat-roads"],
+      "question": {
+        "tr": "Yol listesinde olup yapı sayıları dosyasında olmayan mahalle var mı, ya da tersi? İki yönde kaçar tane?",
+        "en": "Are there neighbourhoods in the road list that are missing from the building counts, or the other way round? How many each way?"
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "onlyInRoads": 0,
+          "onlyInBuildings": 0
+        },
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx",
+            "headerScan": true,
+            "groupBy": ["MAHALLE ADI"],
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "maxGroups": 100
+          }
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "trabzon/hayrat-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+          }
+        },
+        {
+          "compute": "compare the two neighbourhood sets"
+        }
+      ]
+    },
+    {
+      "id": "trabzon-yomra-density",
+      "level": "L5",
+      "knowledge": "K1",
+      "cases": ["X1", "Q4"],
+      "files": ["trabzon-yomra"],
+      "question": {
+        "tr": "Yapı başına en çok bağımsız bölüm düşen mahalle hangisi?",
+        "en": "Which neighbourhood has the most independent units per building?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "SANCAK"
+      },
+      "plan": [
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+          }
+        },
+        {
+          "compute": "divide units by buildings per neighbourhood and take the largest"
+        }
+      ]
+    },
+    {
+      "id": "trabzon-yomra-permits",
+      "level": "L5",
+      "knowledge": "K1",
+      "cases": ["Q13"],
+      "files": ["trabzon-yomra"],
+      "question": {
+        "tr": "Yomra'da 2020'de kaç yapı ruhsatı verilmiş?",
+        "en": "How many building permits were issued in Yomra in 2020?"
+      },
+      "answer": {
+        "kind": "refusal",
+        "reason": "notInFile",
+        "shape": "number"
+      },
+      "plan": [
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ibb-kadikoy-pre1980",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["E1", "R2", "E3", "Q2", "Q3", "T5"],
+      "files": ["ibb-buildings"],
+      "question": {
+        "tr": "Kadıköy'de 1980'den önce yapılmış kaç bina var?",
+        "en": "How many buildings in Kadıköy were built before 1980?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 12816,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "1980_oncesi"
+              }
+            ],
+            "where": [
+              {
+                "column": "ilce_adi",
+                "op": "eq",
+                "value": "Kadıköy"
+              }
+            ]
+          },
+          "expectError": "undecodable_text"
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+            "encoding": "windows-1254",
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "1980_oncesi"
+              }
+            ],
+            "where": [
+              {
+                "column": "ilce_adi",
+                "op": "eq",
+                "value": "Kadıköy"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "ibb-highrise-districts",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["Q4", "E1", "E3", "T3", "R2"],
+      "files": ["ibb-buildings"],
+      "question": {
+        "tr": "9 ile 19 kat arası binası en çok olan 3 ilçe hangileri?",
+        "en": "Which 3 districts have the most buildings with 9 to 19 floors?"
+      },
+      "answer": {
+        "kind": "list",
+        "items": ["KADIKÖY", "PENDİK", "BAŞAKŞEHİR"]
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+            "groupBy": ["ilce_adi"],
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "9-19 kat_arasi"
+              }
+            ],
+            "orderBy": "metric",
+            "descending": true,
+            "maxGroups": 3
+          },
+          "expectError": "undecodable_text"
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+            "encoding": "windows-1254",
+            "groupBy": ["ilce_adi"],
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "9-19 kat_arasi"
+              }
+            ],
+            "orderBy": "metric",
+            "descending": true,
+            "maxGroups": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "ibb-median-new-buildings",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["Q5", "E1", "R2"],
+      "files": ["ibb-buildings"],
+      "question": {
+        "tr": "Mahalle başına 2000 sonrası yapılmış bina sayısının medyanı kaç?",
+        "en": "What is the median number of post-2000 buildings per neighbourhood?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 267,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+            "metrics": [
+              {
+                "fn": "median",
+                "column": "2000_sonrasi"
+              }
+            ]
+          },
+          "expectError": "undecodable_text"
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+            "encoding": "windows-1254",
+            "metrics": [
+              {
+                "fn": "median",
+                "column": "2000_sonrasi"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "ibb-no-highrise",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["Q9", "E1", "R2"],
+      "files": ["ibb-buildings"],
+      "question": {
+        "tr": "Hiç 9-19 katlı binası olmayan kaç mahalle var?",
+        "en": "How many neighbourhoods have no buildings of 9 to 19 floors at all?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 347,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "where": [
+              {
+                "column": "9-19 kat_arasi",
+                "op": "eq",
+                "value": 0
+              }
+            ]
+          },
+          "expectError": "undecodable_text"
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+            "encoding": "windows-1254",
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "where": [
+              {
+                "column": "9-19 kat_arasi",
+                "op": "eq",
+                "value": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "ibb-uavt-lookup",
+      "level": "L2",
+      "knowledge": "K2",
+      "cases": ["Q1", "V2", "E1", "R2"],
+      "files": ["ibb-buildings"],
+      "question": {
+        "tr": "UAVT kodu 40142 olan mahalle hangisi?",
+        "en": "Which neighbourhood has the UAVT code 40142?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "HEYBELİADA"
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+            "groupBy": ["mahalle_adi"],
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "where": [
+              {
+                "column": "mahalle_uavt",
+                "op": "eq",
+                "value": 40142
+              }
+            ]
+          },
+          "expectError": "undecodable_text"
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+            "encoding": "windows-1254",
+            "groupBy": ["mahalle_adi"],
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "where": [
+              {
+                "column": "mahalle_uavt",
+                "op": "eq",
+                "value": 40142
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "ibb-esenyurt-highrise-share",
+      "level": "L5",
+      "knowledge": "K1",
+      "cases": ["X1", "E1", "Q3", "R2"],
+      "files": ["ibb-buildings"],
+      "question": {
+        "tr": "Esenyurt'taki binaların yüzde kaçı 5 kat ve üzeri?",
+        "en": "What percentage of the buildings in Esenyurt have 5 or more floors?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 52.7,
+        "tolerance": 0.1
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "1-4 kat_arasi"
+              },
+              {
+                "fn": "sum",
+                "column": "5-9 kat_arasi"
+              },
+              {
+                "fn": "sum",
+                "column": "9-19 kat_arasi"
+              }
+            ],
+            "where": [
+              {
+                "column": "ilce_adi",
+                "op": "eq",
+                "value": "Esenyurt"
+              }
+            ]
+          },
+          "expectError": "undecodable_text"
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+            "encoding": "windows-1254",
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "1-4 kat_arasi"
+              },
+              {
+                "fn": "sum",
+                "column": "5-9 kat_arasi"
+              },
+              {
+                "fn": "sum",
+                "column": "9-19 kat_arasi"
+              }
+            ],
+            "where": [
+              {
+                "column": "ilce_adi",
+                "op": "eq",
+                "value": "Esenyurt"
+              }
+            ]
+          }
+        },
+        {
+          "compute": "(5-9 + 9-19) / all three, as a percentage"
+        }
+      ]
+    },
+    {
+      "id": "konya-most-streets",
+      "level": "L4",
+      "knowledge": "K0",
+      "cases": ["D1", "E1", "R2", "Q4"],
+      "files": ["konya-roads"],
+      "question": {
+        "tr": "Konya'da en çok cadde ve sokağı olan mahalle hangisi, hangi ilçede?",
+        "en": "Which neighbourhood in Konya has the most streets and avenues, and which district is it in?"
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "district": "KARATAY",
+          "neighbourhood": "FEVZİÇAKMAK"
+        },
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "list_workbooks",
+          "args": {}
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "konya/ilce-ve-mahallelere-ait-yol-sayilari.csv",
+            "groupBy": ["ILCE", "MAHALLE"],
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "CADDE-SOKAK SAYISI"
+              }
+            ],
+            "orderBy": "metric",
+            "descending": true,
+            "maxGroups": 1
+          },
+          "expectError": "undecodable_text"
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "konya/ilce-ve-mahallelere-ait-yol-sayilari.csv",
+            "encoding": "windows-1254",
+            "groupBy": ["ILCE", "MAHALLE"],
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "CADDE-SOKAK SAYISI"
+              }
+            ],
+            "orderBy": "metric",
+            "descending": true,
+            "maxGroups": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "uk-aug-total",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S1", "R1", "Q2", "T2", "T4"],
+      "files": ["uk-spend-2026-08"],
+      "question": {
+        "tr": "Ağustos 2026'da toplam ne kadar ödeme yapılmış?",
+        "en": "How much was paid out in total in August 2026?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 43640187.03,
+        "tolerance": 0.01
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
+            "headerScan": true,
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "AP Amount"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "uk-aug-top-supplier",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S1", "Q4", "T2"],
+      "files": ["uk-spend-2026-08"],
+      "question": {
+        "tr": "En çok ödeme yapılan 3 tedarikçi kim?",
+        "en": "Who are the 3 suppliers that were paid the most?"
+      },
+      "answer": {
+        "kind": "list",
+        "items": [
+          "LIVEWELL SOUTHWEST",
+          "BOOTS UK LTD",
+          "SUPPLY CHAIN COORDINATION LIMITED"
+        ]
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
+            "headerScan": true,
+            "groupBy": ["Supplier"],
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "AP Amount"
+              }
+            ],
+            "orderBy": "metric",
+            "descending": true,
+            "maxGroups": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "uk-three-months",
+      "level": "L4",
+      "knowledge": "K0",
+      "cases": ["D1", "D2", "Q11", "S1", "T2"],
+      "files": ["uk-spend-2025-07", "uk-spend-2026-08", "uk-spend-2026-09"],
+      "question": {
+        "tr": "Plymouth hastanesinin Temmuz 2025, Ağustos 2026 ve Eylül 2026 harcama raporlarından hangisinde toplam ödeme en yüksek, ne kadar?",
+        "en": "Of the Plymouth hospital's July 2025, August 2026 and September 2026 spending reports, which month has the highest total, and how much is it?"
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "month": "2026-08",
+          "total": 43640187.03
+        },
+        "tolerance": 0.01
+      },
+      "plan": [
+        {
+          "tool": "list_workbooks",
+          "args": {}
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-nhs-plymouth/expenditure-over-25000-july-2025.xlsx",
+            "headerScan": true,
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "AP Amount"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
+            "headerScan": true,
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "AP Amount"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-nhs-plymouth/expenditure-over-25000-september-2026.xlsx",
+            "headerScan": true,
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "AP Amount"
+              }
+            ]
+          }
+        },
+        {
+          "compute": "compare the three totals"
+        }
+      ]
+    },
+    {
+      "id": "uk-jul-siemens-search",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["Q1", "T4"],
+      "files": ["uk-spend-2025-07"],
+      "question": {
+        "tr": "Adında Siemens geçen tedarikçi var mı? Hangileri?",
+        "en": "Are there any suppliers with Siemens in their name? Which ones?"
+      },
+      "answer": {
+        "kind": "set",
+        "items": ["SIEMENS FINANCIAL SERVICES LTD"]
+      },
+      "plan": [
+        {
+          "tool": "find_in_sheet",
+          "args": {
+            "filePath": "uk-nhs-plymouth/expenditure-over-25000-july-2025.xlsx",
+            "query": "SIEMENS"
+          }
+        }
+      ]
+    },
+    {
+      "id": "uk-jul-invoice-number",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["V2", "Q1", "Q3", "S1"],
+      "files": ["uk-spend-2025-07"],
+      "question": {
+        "tr": "Siemens Financial Services'e yapılan 97.097,50 sterlinlik ödemenin fatura numarası ne?",
+        "en": "What is the invoice number of the £97,097.50 payment to Siemens Financial Services?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "001250220961"
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-nhs-plymouth/expenditure-over-25000-july-2025.xlsx",
+            "headerScan": true,
+            "groupBy": ["Purchase Invoice Number"],
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "where": [
+              {
+                "column": "Supplier",
+                "op": "eq",
+                "value": "SIEMENS FINANCIAL SERVICES LTD"
+              },
+              {
+                "column": "AP Amount",
+                "op": "eq",
+                "value": 97097.5
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "uk-aug-big-payments-raise",
+      "level": "L5",
+      "knowledge": "K1",
+      "cases": ["X3", "Q3", "S1"],
+      "files": ["uk-spend-2026-08"],
+      "question": {
+        "tr": "100 bin sterlinin üstündeki ödemeler %10 daha fazla olsaydı toplam ne olurdu?",
+        "en": "If the payments over £100k had been 10% higher, what would the total be?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 47297810.69,
+        "tolerance": 0.01
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
+            "headerScan": true,
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "AP Amount"
+              },
+              {
+                "fn": "sum",
+                "column": "AP Amount",
+                "where": [
+                  {
+                    "column": "AP Amount",
+                    "op": "gt",
+                    "value": 100000
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "compute": "total + 0.1 × the sum above £100,000"
+        }
+      ]
+    },
+    {
+      "id": "uk-aug-add-column",
+      "level": "L5",
+      "knowledge": "K1",
+      "cases": ["X5", "T2"],
+      "files": ["uk-spend-2026-08"],
+      "question": {
+        "tr": "Dosyaya KDV dahil tutar sütunu ekleyip kaydeder misin?",
+        "en": "Can you add a VAT-inclusive amount column to the file and save it?"
+      },
+      "answer": {
+        "kind": "refusal",
+        "reason": "readOnly",
+        "shape": "text"
+      },
+      "plan": []
+    },
+    {
+      "id": "uk-glos-format-rule",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["Q12", "T2"],
+      "files": ["uk-glos-invoices"],
+      "question": {
+        "tr": "İşlem numarası sütununda nasıl bir koşullu biçimlendirme var?",
+        "en": "What kind of conditional formatting is set on the transaction number column?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "duplicateValues"
+      },
+      "plan": [
+        {
+          "tool": "get_conditional_formats",
+          "args": {
+            "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx"
+          }
+        }
+      ]
+    },
+    {
+      "id": "uk-glos-duplicate-transaction",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["Q8", "V2", "Q12"],
+      "files": ["uk-glos-invoices"],
+      "question": {
+        "tr": "Aynı işlem numarası iki kez girilmiş mi? Hangisi?",
+        "en": "Was any transaction number entered twice? Which one?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "0041154038"
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
+            "groupBy": ["Transaction Number"],
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "orderBy": "metric",
+            "descending": true,
+            "maxGroups": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "uk-glos-transaction-supplier",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["V2", "Q1"],
+      "files": ["uk-glos-invoices"],
+      "question": {
+        "tr": "0041159533 numaralı işlem hangi tedarikçinin?",
+        "en": "Which supplier is transaction 0041159533 for?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "APIRA LIMITED"
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
+            "groupBy": ["Supplier"],
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "where": [
+              {
+                "column": "Transaction Number",
+                "op": "eq",
+                "value": "0041159533"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "uk-glos-busiest-day",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["V4", "Q6", "T2"],
+      "files": ["uk-glos-invoices"],
+      "question": {
+        "tr": "En çok ödemenin yapıldığı gün hangisi?",
+        "en": "On which day was the most money paid out?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "2025-03-11"
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
+            "groupBy": [
+              {
+                "column": "Date",
+                "by": "day"
+              }
+            ],
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "AP Amount"
+              }
+            ],
+            "orderBy": "metric",
+            "descending": true,
+            "maxGroups": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "fire-dropdown-years",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["Q12", "T2"],
+      "files": ["uk-fire-0604"],
+      "question": {
+        "tr": "Tablodaki yıl seçme listesinde kaç yıl var? En eski ve en yeni yıl hangisi?",
+        "en": "How many years can be picked in the table's year drop-down, and which are the oldest and the newest?"
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "count": 13,
+          "oldest": "2010/11",
+          "newest": "2022/23"
+        },
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "get_data_validations",
+          "args": {
+            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+            "sheetName": "FIRE0604"
+          }
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+            "sheetName": "FIRE0604",
+            "range": "J79:J91"
+          }
+        }
+      ]
+    },
+    {
+      "id": "fire-2015-dwellings",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["X4", "D3", "Q3", "T2"],
+      "files": ["uk-fire-0604"],
+      "question": {
+        "tr": "2015/16'da konutlarda kaç birincil yangın olmuş?",
+        "en": "How many primary fires were there in dwellings in 2015/16?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 31376,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "describe_workbook",
+          "args": {
+            "filePath": "uk-fire-statistics/fire0604-materials.xlsx"
+          }
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+            "sheetName": "Data",
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "TOTAL_PRIMARY_FIRES"
+              }
+            ],
+            "where": [
+              {
+                "column": "FINANCIAL_YEAR",
+                "op": "eq",
+                "value": "2015/16"
+              },
+              {
+                "column": "INCIDENT_TYPE",
+                "op": "eq",
+                "value": "Dwellings"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "fire-hidden-sheet",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["D4", "Q12", "T2"],
+      "files": ["uk-fire-0604"],
+      "question": {
+        "tr": "Bu dosyada gizli sayfa var mı? Varsa adı ne?",
+        "en": "Is there a hidden sheet in this file? If so, what is it called?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "FIRE0604_raw"
+      },
+      "plan": [
+        {
+          "tool": "describe_workbook",
+          "args": {
+            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+            "includeDefinedNames": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "fire-cross-sheet-check",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["Q10", "S3", "T4"],
+      "files": ["uk-fire-0604"],
+      "question": {
+        "tr": "Tablodaki 2022/23 konut yangını toplamı ham verideki toplamla tutuyor mu? İkisini de yaz.",
+        "en": "Does the 2022/23 dwelling fire total shown in the table match the raw data? Give both numbers."
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "table": 26822,
+          "data": 26822
+        },
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+            "sheetName": "FIRE0604",
+            "range": "A3:B6"
+          }
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+            "sheetName": "Data",
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "TOTAL_PRIMARY_FIRES"
+              }
+            ],
+            "where": [
+              {
+                "column": "FINANCIAL_YEAR",
+                "op": "eq",
+                "value": "2022/23"
+              },
+              {
+                "column": "INCIDENT_TYPE",
+                "op": "eq",
+                "value": "Dwellings"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "fire-year-type-pivot",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["Q7", "T4"],
+      "files": ["uk-fire-0604"],
+      "question": {
+        "tr": "2010/11 ve 2022/23 için konutlardaki ve diğer binalardaki yangın sayılarını yan yana verir misin?",
+        "en": "Can you give me the fire counts for dwellings and for other buildings in 2010/11 and 2022/23 side by side?"
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "2010/11 Dwellings": 36611,
+          "2010/11 Other Buildings": 20754,
+          "2022/23 Dwellings": 26822,
+          "2022/23 Other Buildings": 13550
+        },
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+            "sheetName": "Data",
+            "groupBy": ["FINANCIAL_YEAR"],
+            "pivotBy": ["INCIDENT_TYPE"],
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "TOTAL_PRIMARY_FIRES"
+              }
+            ],
+            "where": [
+              {
+                "column": "FINANCIAL_YEAR",
+                "op": "in",
+                "values": ["2010/11", "2022/23"]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "fire-deadliest-year",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["Q4", "D3", "T2"],
+      "files": ["uk-fire-0604"],
+      "question": {
+        "tr": "Konut yangınlarında en çok ölümün olduğu yıl hangisi?",
+        "en": "Which year had the most deaths in dwelling fires?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "2017/18"
+      },
+      "plan": [
+        {
+          "tool": "describe_workbook",
+          "args": {
+            "filePath": "uk-fire-statistics/fire0604-materials.xlsx"
+          }
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+            "sheetName": "Data",
+            "groupBy": ["FINANCIAL_YEAR"],
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "TOTAL_FATALITIES"
+              }
+            ],
+            "where": [
+              {
+                "column": "INCIDENT_TYPE",
+                "op": "eq",
+                "value": "Dwellings"
+              }
+            ],
+            "orderBy": "metric",
+            "descending": true,
+            "maxGroups": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "fire-food-subtotal",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S3", "S1", "Q1", "T2"],
+      "files": ["uk-fire-0604"],
+      "question": {
+        "tr": "2022/23'te yemek kaynaklı kaç konut yangını olmuş?",
+        "en": "How many dwelling fires were caused by food in 2022/23?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 4046,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+            "sheetName": "FIRE0604",
+            "range": "A1:H12"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sivas-chart-peak",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["Q12", "T1", "T3"],
+      "files": ["sivas-population"],
+      "question": {
+        "tr": "Grafikte kaç yıl var ve nüfusun en yüksek göründüğü yıl hangisi?",
+        "en": "How many years does the chart cover, and which year shows the highest population?"
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "years": 6,
+          "peakYear": 2010
+        },
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "get_charts",
+          "args": {
+            "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+            "sheetName": "Sayfa2"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sivas-largest-2024",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S5", "S3", "Q4", "T5"],
+      "files": ["sivas-population"],
+      "question": {
+        "tr": "2024'te en kalabalık 3 mahalle hangileri?",
+        "en": "Which were the 3 most populous neighbourhoods in 2024?"
+      },
+      "answer": {
+        "kind": "list",
+        "items": ["ŞEYHŞAMİL", "YENİŞEHİR", "FATİH"]
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+            "groupBy": ["MAHALLE ADI"],
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "2024 NUFUSU"
+              }
+            ],
+            "where": [
+              {
+                "column": "NO",
+                "op": "isNumber"
+              }
+            ],
+            "orderBy": "metric",
+            "descending": true,
+            "maxGroups": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "sivas-2015-total-check",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S3", "V7", "X4", "T1"],
+      "files": ["sivas-population"],
+      "question": {
+        "tr": "2015 toplam nüfusu doğru toplanmış mı? Dosyada yazan toplamı ve gerçek toplamı ver.",
+        "en": "Is the 2015 total population added up correctly? Give the total written in the file and the actual sum."
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "fileTotal": 329082,
+          "sum": 328082
+        },
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "2015 NUFUSU",
+                "where": [
+                  {
+                    "column": "NO",
+                    "op": "isNumber"
+                  }
+                ]
+              },
+              {
+                "fn": "sum",
+                "column": "2015 NUFUSU",
+                "where": [
+                  {
+                    "column": "MAHALLE ADI",
+                    "op": "eq",
+                    "value": "TOPLAM"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "sivas-growth",
+      "level": "L5",
+      "knowledge": "K1",
+      "cases": ["X1", "S5", "Z2", "Q4"],
+      "files": ["sivas-population"],
+      "question": {
+        "tr": "2008'den 2024'e nüfusu en çok artan mahalle hangisi?",
+        "en": "Which neighbourhood grew the most between 2008 and 2024?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "ŞEYHŞAMİL"
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+            "groupBy": ["MAHALLE ADI"],
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "2008 NÜFUSU"
+              },
+              {
+                "fn": "sum",
+                "column": "2024 NUFUSU"
+              }
+            ],
+            "where": [
+              {
+                "column": "NO",
+                "op": "isNumber"
+              }
+            ],
+            "maxGroups": 100
+          }
+        },
+        {
+          "compute": "2024 minus 2008 per neighbourhood, take the largest"
+        }
+      ]
+    },
+    {
+      "id": "sivas-sheet2-average",
+      "level": "L3",
+      "knowledge": "K2",
+      "cases": ["S6", "S8", "S1", "Q2"],
+      "files": ["sivas-population"],
+      "question": {
+        "tr": "Sayfa2'deki tabloya göre 2008–2013 arası ortalama nüfus ne?",
+        "en": "Based on the table on Sayfa2, what is the average population for 2008 to 2013?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 307570.5,
+        "tolerance": 0.5
+      },
+      "plan": [
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+            "sheetName": "Sayfa2"
+          }
+        },
+        {
+          "compute": "average the six yearly totals of one block"
+        }
+      ]
+    },
+    {
+      "id": "sivas-new-neighbourhoods",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["Q9", "S5", "S3"],
+      "files": ["sivas-population"],
+      "question": {
+        "tr": "2008'de hiç nüfusu olmayan mahalleler hangileri?",
+        "en": "Which neighbourhoods had no population at all in 2008?"
+      },
+      "answer": {
+        "kind": "set",
+        "items": ["AHMETTURANGAZİ", "EĞRİKÖPRÜ", "MERAKÜM"]
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+            "groupBy": ["MAHALLE ADI"],
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "where": [
+              {
+                "column": "2008 NÜFUSU",
+                "op": "eq",
+                "value": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "heatpump-logo",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["Q12", "T2"],
+      "files": ["uk-heat-pumps"],
+      "question": {
+        "tr": "Kapak sayfasındaki resmin alternatif metni ne?",
+        "en": "What does the alt text of the picture on the cover page say?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "UK Government logo"
+      },
+      "plan": [
+        {
+          "tool": "get_images",
+          "args": {
+            "filePath": "uk-energy/heat-pump-deployment-quarterly-2025-q3.xlsx",
+            "sheetName": "Cover Sheet"
+          }
+        }
+      ]
+    },
+    {
+      "id": "heatpump-2024-total",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S1", "V10", "D3", "Q3", "T2"],
+      "files": ["uk-heat-pumps"],
+      "question": {
+        "tr": "2024'te devlet destekli toplam kaç ısı pompası kurulmuş?",
+        "en": "How many government-supported heat pumps were installed in 2024?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 43939,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-energy/heat-pump-deployment-quarterly-2025-q3.xlsx",
+            "sheetName": "Table 1.1",
+            "headerRow": 6,
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "J"
+              }
+            ],
+            "where": [
+              {
+                "column": "A",
+                "op": "startsWith",
+                "value": "2024"
+              }
+            ],
+            "columnMode": "letter"
+          }
+        }
+      ]
+    },
+    {
+      "id": "heatpump-bus-best-quarter",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S1", "V10", "Q4", "T4"],
+      "files": ["uk-heat-pumps"],
+      "question": {
+        "tr": "Boiler Upgrade Scheme ile en çok kurulum hangi çeyrekte yapılmış?",
+        "en": "In which quarter did the Boiler Upgrade Scheme install the most heat pumps?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "2025 Q3: July to September"
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-energy/heat-pump-deployment-quarterly-2025-q3.xlsx",
+            "sheetName": "Table 1.1",
+            "headerRow": 6,
+            "groupBy": ["A"],
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "B"
+              }
+            ],
+            "orderBy": "metric",
+            "descending": true,
+            "maxGroups": 1,
+            "columnMode": "letter"
+          }
+        }
+      ]
+    },
+    {
+      "id": "gaziantep-busiest-month",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["Z1", "V4", "Q6", "T1", "T3"],
+      "files": ["gaziantep-requests"],
+      "question": {
+        "tr": "En çok başvuru hangi ayda gelmiş?",
+        "en": "In which month did the most requests come in?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "2019-10"
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "gaziantep/2019.csv",
+            "groupBy": [
+              {
+                "column": "Oluşturulma Tarihi",
+                "by": "month"
+              }
+            ],
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "orderBy": "metric",
+            "descending": true,
+            "maxGroups": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "gaziantep-phone-district",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["Z1", "Q3", "Q4", "V3", "T6"],
+      "files": ["gaziantep-requests"],
+      "question": {
+        "tr": "Alo 153 telefon hattından gelen başvurularda en çok başvuru hangi ilçeden?",
+        "en": "Among the requests that came in by phone, which district sent the most?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "Şahinbey"
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "gaziantep/2019.csv",
+            "groupBy": ["İlçe"],
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "where": [
+              {
+                "column": "Kaynak",
+                "op": "eq",
+                "value": "Telefon (Alo 153)"
+              },
+              {
+                "column": "İlçe",
+                "op": "ne",
+                "value": "-"
+              }
+            ],
+            "orderBy": "metric",
+            "descending": true,
+            "maxGroups": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "gaziantep-source-pivot",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["Z1", "Q7", "T6"],
+      "files": ["gaziantep-requests"],
+      "question": {
+        "tr": "Şahinbey ve Şehitkamil için web sitesinden ve Alo 153'ten gelen başvuru sayılarını yan yana verir misin?",
+        "en": "For Şahinbey and Şehitkamil, can you give me side by side how many requests came from the website and how many by phone?"
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "Şahinbey Web Sayfası": 833,
+          "Şahinbey Telefon (Alo 153)": 16069,
+          "Şehitkamil Web Sayfası": 629,
+          "Şehitkamil Telefon (Alo 153)": 11646
+        },
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "gaziantep/2019.csv",
+            "groupBy": ["İlçe"],
+            "pivotBy": ["Kaynak"],
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "where": [
+              {
+                "column": "İlçe",
+                "op": "in",
+                "values": ["Şahinbey", "Şehitkamil"]
+              },
+              {
+                "column": "Kaynak",
+                "op": "in",
+                "values": ["Web Sayfası", "Telefon (Alo 153)"]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "gaziantep-birth-median",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["Z1", "Q5", "V3"],
+      "files": ["gaziantep-requests"],
+      "question": {
+        "tr": "Doğum yılı bilinen başvuru sahiplerinin doğum yılı medyanı kaç?",
+        "en": "For applicants whose birth year is known, what is the median birth year?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 1979,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "gaziantep/2019.csv",
+            "metrics": [
+              {
+                "fn": "median",
+                "column": "Doğum Tarihi"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "gaziantep-columns",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["V4", "V3", "Q12"],
+      "files": ["gaziantep-requests"],
+      "question": {
+        "tr": "Bu dosyada kaç sütun var ve hangisi gerçekten tarih tutuyor?",
+        "en": "How many columns does this file have, and which one actually holds dates?"
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "columns": 11,
+          "dateColumn": "Oluşturulma Tarihi"
+        },
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "profile_sheet",
+          "args": {
+            "filePath": "gaziantep/2019.csv"
+          }
+        }
+      ]
+    },
+    {
+      "id": "gaziantep-women",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["Z1", "T6", "Q2"],
+      "files": ["gaziantep-requests"],
+      "question": {
+        "tr": "Kadınlar kaç başvuru yapmış?",
+        "en": "How many requests were made by women?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 5025,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "gaziantep/2019.csv",
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "where": [
+              {
+                "column": "Cinsiyet",
+                "op": "eq",
+                "value": "female"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "gaziantep-latest",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["Z1", "R5", "V4", "Q1"],
+      "files": ["gaziantep-requests"],
+      "question": {
+        "tr": "En son başvuru ne zaman yapılmış? Tarih ve saatiyle söyle.",
+        "en": "When was the latest request made? Give the date and time."
+      },
+      "answer": {
+        "kind": "text",
+        "value": "2019-12-31 23:40"
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "gaziantep/2019.csv",
+            "columns": [
+              {
+                "column": "Oluşturulma Tarihi",
+                "type": "date"
+              }
+            ],
+            "metrics": [
+              {
+                "fn": "max",
+                "column": "Oluşturulma Tarihi"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "flights-2019-international",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["Z1", "Q3", "Q6", "T3"],
+      "files": ["flights"],
+      "question": {
+        "tr": "2019'da dış hatlarda toplam kaç uçuş yapılmış?",
+        "en": "How many international flights were there in 2019 in total?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 716523,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/turkiye-olceginde-havalimanlarindaki-ucus-sayisi.csv",
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "ucus_sayisi"
+              }
+            ],
+            "where": [
+              {
+                "column": "hat",
+                "op": "eq",
+                "value": "Dış"
+              },
+              {
+                "column": "tarih",
+                "op": "between",
+                "values": ["2019-01-01", "2019-12-31"]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "izmir-metro-2021",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["V1", "E3", "Q3", "T3"],
+      "files": ["izmir-co2"],
+      "question": {
+        "tr": "2021'de İzmir Metrosu'nun CO2 değerlerinin toplamı ne?",
+        "en": "What do the İzmir Metro's CO2 figures add up to for 2021?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 20653.73,
+        "tolerance": 0.01
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "izmir/co2-emisyon-degerleri-ton-ve-bir-milyon-yolcu-basina-co2-miktari.csv",
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "IZMIR_METROSU"
+              }
+            ],
+            "where": [
+              {
+                "column": "YIL",
+                "op": "eq",
+                "value": 2021
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "manisa-yunusemre-divorced-women",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S7", "D3", "Q3", "T3"],
+      "files": ["manisa-households"],
+      "question": {
+        "tr": "Yunusemre'de kaç boşanmış kadın var?",
+        "en": "How many divorced women are there in Yunusemre?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 6465,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
+            "sheetName": "İLÇE_MEDENİ DRM_2025",
+            "headerRow": 8,
+            "mergedCells": "repeat",
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "KADIN"
+              }
+            ],
+            "where": [
+              {
+                "column": "İLÇE ADI",
+                "op": "eq",
+                "value": "Yunusemre"
+              },
+              {
+                "column": "MEDENİ DURUM",
+                "op": "eq",
+                "value": "BOŞANDI"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "manisa-divorced-women-total",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S7", "S3", "D3", "Q2", "T3"],
+      "files": ["manisa-households"],
+      "question": {
+        "tr": "Manisa'nın tüm ilçelerinde toplam kaç boşanmış kadın var?",
+        "en": "How many divorced women are there across all of Manisa's districts?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 32440,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
+            "sheetName": "İLÇE_MEDENİ DRM_2025",
+            "headerRow": 8,
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "KADIN"
+              }
+            ],
+            "where": [
+              {
+                "column": "MEDENİ DURUM",
+                "op": "eq",
+                "value": "BOŞANDI"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "manisa-single-households",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S2", "D3", "Q1", "T1"],
+      "files": ["manisa-households"],
+      "question": {
+        "tr": "Yunusemre'de tek kişilik kaç hane var?",
+        "en": "How many one-person households are there in Yunusemre?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 15076,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "describe_workbook",
+          "args": {
+            "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx"
+          }
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
+            "sheetName": "ILCE_HHS_HHB"
+          }
+        }
+      ]
+    },
+    {
+      "id": "manisa-oldest-women-2025",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S2", "S5", "Q4", "T3"],
+      "files": ["manisa-households"],
+      "question": {
+        "tr": "2025'te kadınların medyan yaşının en yüksek olduğu ilçe hangisi?",
+        "en": "In 2025, which district had the highest median age for women?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "KÖPRÜBAŞI"
+      },
+      "plan": [
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
+            "range": "A7:E26"
+          }
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
+            "range": "AP7:AR26"
+          }
+        },
+        {
+          "compute": "pair district names with the 2025 KADIN column and take the largest"
+        }
+      ]
+    },
+    {
+      "id": "manisa-plants-most-varieties",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S7", "S3", "Q4"],
+      "files": ["manisa-plants"],
+      "question": {
+        "tr": "En çok çeşit hangi bitki türünde üretilmiş?",
+        "en": "Which plant category was produced in the most varieties?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "ÇELİK SAKSILARA DİKİMİ YAPILAN MEVSİMLİK ÇİÇEKLER"
+      },
+      "plan": [
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "manisa/2025-subat-ayi-bitki-uretim-tablosu.xlsx",
+            "mergedCells": "repeat"
+          }
+        }
+      ]
+    },
+    {
+      "id": "manisa-plants-total-check",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S3", "X4", "T1"],
+      "files": ["manisa-plants"],
+      "question": {
+        "tr": "Tablonun altındaki genel toplam doğru mu? Dosyada yazanı ve ara toplamların toplamını ver.",
+        "en": "Is the grand total at the bottom of the table right? Give the figure in the file and the sum of the subtotals."
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "fileTotal": 14782,
+          "sum": 16582
+        },
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "manisa/2025-subat-ayi-bitki-uretim-tablosu.xlsx"
+          }
+        },
+        {
+          "compute": "add the ARA TOPLAM rows and compare with GENEL TOPLAM"
+        }
+      ]
+    },
+    {
+      "id": "manisa-plants-merged",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["Q12", "S7"],
+      "files": ["manisa-plants"],
+      "question": {
+        "tr": "Tabloyu sıralamak istiyorum ama birleştirilmiş hücre uyarısı alıyorum. Kaç tane birleştirilmiş hücre alanı var?",
+        "en": "I want to sort the table but Excel complains about merged cells. How many merged ranges are there?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 9,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "get_merged_ranges",
+          "args": {
+            "filePath": "manisa/2025-subat-ayi-bitki-uretim-tablosu.xlsx"
+          }
+        }
+      ]
+    },
+    {
+      "id": "grocery-broken-prices",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["V8", "Q9", "Q2"],
+      "files": ["izmir-grocery"],
+      "question": {
+        "tr": "Kaç satırda fiyat hatalı görünüyor (#N/A gibi)?",
+        "en": "How many rows show a broken price, such as #N/A?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 12,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "izmir/halkin-bakkali-urunleri.xlsx",
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "where": [
+              {
+                "column": "D",
+                "op": "isError"
+              }
+            ],
+            "columnMode": "letter"
+          }
+        }
+      ]
+    },
+    {
+      "id": "grocery-spice-average",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S7", "Q3"],
+      "files": ["izmir-grocery"],
+      "question": {
+        "tr": "Baharat grubundaki ürünlerin ortalama fiyatı ne?",
+        "en": "What is the average price of the products in the spice group?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 56.6,
+        "tolerance": 0.01
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "izmir/halkin-bakkali-urunleri.xlsx",
+            "mergedCells": "repeat",
+            "metrics": [
+              {
+                "fn": "avg",
+                "column": "D"
+              }
+            ],
+            "where": [
+              {
+                "column": "A",
+                "op": "startsWith",
+                "value": "BAHARAT"
+              }
+            ],
+            "columnMode": "letter"
+          }
+        }
+      ]
+    },
+    {
+      "id": "grocery-stock-code",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["Q1", "S9"],
+      "files": ["izmir-grocery"],
+      "question": {
+        "tr": "Boğaziçi acı pul biberin (80 gr) stok kodu ne?",
+        "en": "What is the stock code of the Boğaziçi chili flakes (80 g)?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "5.17.01.0037"
+      },
+      "plan": [
+        {
+          "tool": "find_in_sheet",
+          "args": {
+            "filePath": "izmir/halkin-bakkali-urunleri.xlsx",
+            "query": "ACI PUL BIBER 80"
+          }
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "izmir/halkin-bakkali-urunleri.xlsx",
+            "range": "A2:D2"
+          }
+        }
+      ]
+    },
+    {
+      "id": "naep-female-2013",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S4", "S5", "Q1", "T2"],
+      "files": ["us-naep"],
+      "question": {
+        "tr": "2013'te kız öğrencilerin ortalama matematik puanı kaç?",
+        "en": "What was the average maths score of female students in 2013?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 151.19,
+        "tolerance": 0.01
+      },
+      "plan": [
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "us-education/naep-12th-grade-math-scores.xlsx"
+          }
+        }
+      ]
+    },
+    {
+      "id": "naep-pacific-2013",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S8", "Q1", "T4"],
+      "files": ["us-naep"],
+      "question": {
+        "tr": "2013'te Pasifik Adalı öğrencilerin ortalama puanı ne?",
+        "en": "What was the average score of Pacific Islander students in 2013?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 149.1,
+        "tolerance": 0.01
+      },
+      "plan": [
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "us-education/naep-12th-grade-math-scores.xlsx"
+          }
+        }
+      ]
+    },
+    {
+      "id": "naep-pacific-male-2013",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["V3", "S4", "S8", "Q13", "T4"],
+      "files": ["us-naep"],
+      "question": {
+        "tr": "2013'te erkek Pasifik Adalı öğrencilerin ortalama puanı ne?",
+        "en": "What was the average score of male Pacific Islander students in 2013?"
+      },
+      "answer": {
+        "kind": "refusal",
+        "reason": "suppressed",
+        "shape": "number"
+      },
+      "plan": [
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "us-education/naep-12th-grade-math-scores.xlsx"
+          }
+        }
+      ]
+    },
+    {
+      "id": "naep-gender-gap",
+      "level": "L5",
+      "knowledge": "K1",
+      "cases": ["X1", "S5", "V3", "T2"],
+      "files": ["us-naep"],
+      "question": {
+        "tr": "Erkek ve kız öğrencilerin puan farkı 2005'te ve 2013'te ne kadardı?",
+        "en": "How large was the gap between male and female scores in 2005 and in 2013?"
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "gap2005": 2.5,
+          "gap2013": 2.45
+        },
+        "tolerance": 0.01
+      },
+      "plan": [
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "us-education/naep-12th-grade-math-scores.xlsx"
+          }
+        },
+        {
+          "compute": "male minus female for 2005 and for 2013"
+        }
+      ]
+    },
+    {
+      "id": "tariff-arcade-tax",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["V6", "V1", "V10", "Q1", "T1"],
+      "files": ["manisa-tariffs"],
+      "question": {
+        "tr": "Atari salonları için günlük eğlence vergisi ne kadar?",
+        "en": "How much is the daily entertainment tax for arcades?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 6.5,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "find_in_sheet",
+          "args": {
+            "filePath": "manisa/2025-yili-mali-hizmetler-ucret-tarifesi.xlsx",
+            "query": "Atari"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sample-utf16-izmir",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["E2", "T5", "Q1"],
+      "files": ["sample-utf16"],
+      "question": {
+        "tr": "Listede İzmir için hangi ilçe yazıyor?",
+        "en": "Which district is listed for İzmir?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "Çiğli"
+      },
+      "plan": [
+        {
+          "tool": "find_in_sheet",
+          "args": {
+            "filePath": "samples/sehirler.csv",
+            "query": "izmir"
+          }
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "samples/sehirler.csv",
+            "range": "A3:B3"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sample-sep-columns",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["E4", "E3"],
+      "files": ["sample-sep"],
+      "question": {
+        "tr": "Bu dosyada kaç sütun var?",
+        "en": "How many columns does this file have?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 2,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "describe_workbook",
+          "args": {
+            "filePath": "samples/excel-export.csv"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sample-formula-phone",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["E5", "V2", "Q1"],
+      "files": ["sample-formulas"],
+      "question": {
+        "tr": "phone satırındaki değer ne?",
+        "en": "What is the value on the phone row?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "+90 532 000 00 00"
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "samples/form-submissions.csv",
+            "groupBy": ["value"],
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "where": [
+              {
+                "column": "case",
+                "op": "eq",
+                "value": "phone"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "sfo-noise-limit",
+      "level": "L5",
+      "knowledge": "K1",
+      "cases": ["Z3", "T2"],
+      "files": ["us-sfo-noise"],
+      "question": {
+        "tr": "Millbrae'deki ölçümlerde ortalama toplam CNEL değeri ne?",
+        "en": "What is the average total CNEL measured at Millbrae?"
+      },
+      "answer": {
+        "kind": "refusal",
+        "reason": "limit",
+        "shape": "number"
+      },
+      "plan": [
+        {
+          "tool": "describe_workbook",
+          "args": {
+            "filePath": "us-sfo/noise-monitoring-export.csv"
+          },
+          "expectError": "file_too_large"
+        }
+      ]
+    },
+    {
+      "id": "boiler-air-to-water-paid",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["R3", "S8", "D6", "D3", "T2"],
+      "files": ["uk-boiler"],
+      "question": {
+        "tr": "Kaç hava-su ısı pompası için ödeme yapılmış?",
+        "en": "How many air-to-water heat pump vouchers have been paid out?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 85264,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "describe_workbook",
+          "args": {
+            "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx"
+          }
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx",
+            "sheetName": "1.1"
+          },
+          "expectError": "ambiguous_header_row"
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx",
+            "sheetName": "1.1",
+            "headerRow": 5,
+            "range": "A5:G9"
+          }
+        }
+      ]
+    },
+    {
+      "id": "boiler-ground-source-share",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["V6", "S8", "D3", "T4"],
+      "files": ["uk-boiler"],
+      "question": {
+        "tr": "Ödenen başvuruların yüzde kaçı toprak kaynaklı ısı pompası için?",
+        "en": "What percentage of the paid redemptions were for ground source heat pumps?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 1.78,
+        "tolerance": 0.01
+      },
+      "plan": [
+        {
+          "tool": "describe_workbook",
+          "args": {
+            "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx"
+          }
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx",
+            "sheetName": "1.1",
+            "headerRow": 11,
+            "range": "A11:G15"
+          }
+        },
+        {
+          "compute": "turn the stored fraction into a percentage"
+        }
+      ]
+    },
+    {
+      "id": "audit-sticker-seen",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["D5", "S2", "Q1", "T2"],
+      "files": ["uk-fhrs-audit"],
+      "question": {
+        "tr": "Denetlenen işletmelerin kaçında FHRS etiketi görülmüş, yüzde kaçı ediyor?",
+        "en": "In how many of the audited businesses was an FHRS sticker seen, and what percentage is that?"
+      },
+      "answer": {
+        "kind": "record",
+        "fields": {
+          "businesses": 451,
+          "percent": 91
+        },
+        "tolerance": 0.5
+      },
+      "plan": [
+        {
+          "tool": "find_in_sheet",
+          "args": {
+            "filePath": "uk-fsa/fhrs-audit-northern-ireland-2023.xlsx",
+            "query": "Did you see an FHRS sticker at this outlet?",
+            "matchMode": "exact"
+          }
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "uk-fsa/fhrs-audit-northern-ireland-2023.xlsx",
+            "sheetName": "11"
+          }
+        },
+        {
+          "compute": "turn the stored share into a percentage"
+        }
+      ]
+    },
+    {
+      "id": "audit-rating-four-sticker",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["D5", "V6", "S2", "T2"],
+      "files": ["uk-fhrs-audit"],
+      "question": {
+        "tr": "FHRS puanı 4 olan işletmelerin yüzde kaçında etiket görülmüş?",
+        "en": "Among businesses with an FHRS rating of 4, what percentage had a sticker on show?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 81,
+        "tolerance": 0.5
+      },
+      "plan": [
+        {
+          "tool": "find_in_sheet",
+          "args": {
+            "filePath": "uk-fsa/fhrs-audit-northern-ireland-2023.xlsx",
+            "query": "Did you see an FHRS sticker at this outlet?",
+            "matchMode": "exact"
+          }
+        },
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "uk-fsa/fhrs-audit-northern-ireland-2023.xlsx",
+            "sheetName": "11"
+          }
+        }
+      ]
+    },
+    {
+      "id": "toilets-extract-date",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["V4", "T2"],
+      "files": ["uk-toilets"],
+      "question": {
+        "tr": "Bu tuvalet listesi hangi tarihte hazırlanmış?",
+        "en": "On what date was this toilet list extracted?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "2015-01-05"
+      },
+      "plan": [
+        {
+          "tool": "read_sheet",
+          "args": {
+            "filePath": "uk-plymouth/public-toilets.csv",
+            "range": "A1:C2"
+          }
+        },
+        {
+          "compute": "read the extract date day first, as a UK council writes it"
+        }
+      ]
+    },
+    {
+      "id": "ibb-pre1980-p75",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["R6", "R2", "E1", "Q5"],
+      "files": ["ibb-buildings"],
+      "question": {
+        "tr": "Mahalle başına 1980 öncesi bina sayısının 75. yüzdelik değeri kaç?",
+        "en": "What is the 75th percentile of pre-1980 buildings per neighbourhood?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 414.5,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+            "metrics": [
+              {
+                "fn": "percentile",
+                "column": "1980_oncesi",
+                "percentile": 0.75
+              }
+            ]
+          },
+          "expectError": "undecodable_text"
+        },
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+            "encoding": "windows-1254",
+            "metrics": [
+              {
+                "fn": "percentile",
+                "column": "1980_oncesi",
+                "percentile": 0.75
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "uk-glos-total",
+      "level": "L1",
+      "knowledge": "K1",
+      "cases": ["Q2", "T2", "T4"],
+      "files": ["uk-glos-invoices"],
+      "question": {
+        "tr": "Mart 2025'te toplam ne kadar ödeme yapılmış?",
+        "en": "How much was paid in total in March 2025?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 11181988.98,
+        "tolerance": 0.01
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
+            "metrics": [
+              {
+                "fn": "sum",
+                "column": "AP Amount"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "flights-airport-count",
+      "level": "L1",
+      "knowledge": "K1",
+      "cases": ["Q8", "T1", "T3"],
+      "files": ["flights"],
+      "question": {
+        "tr": "Veride kaç farklı havalimanı var?",
+        "en": "How many different airports are in the data?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 57,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "istanbul/turkiye-olceginde-havalimanlarindaki-ucus-sayisi.csv",
+            "metrics": [
+              {
+                "fn": "countDistinct",
+                "column": "havalimani"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "fire-data-rows",
+      "level": "L1",
+      "knowledge": "K2",
+      "cases": ["Q2", "D3", "T4"],
+      "files": ["uk-fire-0604"],
+      "question": {
+        "tr": "Data sayfasında kaç satır veri var?",
+        "en": "How many data rows are on the Data sheet?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 1218,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+            "sheetName": "Data",
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "gaziantep-busiest-hour",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["Z1", "V4", "Q6", "Q4", "T1"],
+      "files": ["gaziantep-requests"],
+      "question": {
+        "tr": "Başvurular günün en çok hangi saatinde gelmiş?",
+        "en": "At what hour of the day did the most requests come in?"
+      },
+      "answer": {
+        "kind": "number",
+        "value": 10,
+        "tolerance": 0
+      },
+      "plan": [
+        {
+          "tool": "aggregate_sheet",
+          "args": {
+            "filePath": "gaziantep/2019.csv",
+            "groupBy": [
+              {
+                "column": "Oluşturulma Tarihi",
+                "by": "hour"
+              }
+            ],
+            "metrics": [
+              {
+                "fn": "count"
+              }
+            ],
+            "orderBy": "metric",
+            "descending": true,
+            "maxGroups": 1
+          }
+        }
+      ]
+    }
+  ],
+  "uncovered": {
+    "V9": "The corpus's only 1904-date-system workbooks hold no dates, and no repository fixture stores a 1904-dated cell.",
+    "R4": "No real file in the corpus has a column the server reads as ambiguous: the one ambiguous date column, the Plymouth toilets extract, holds a single value an agent reads as text without asking for a date, and comma-grouped amounts are settled by other cells in their column."
+  }
+}

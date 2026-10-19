@@ -13,7 +13,8 @@
     "compare": "node src/compare-cli.ts",
     "lint": "oxlint --deny-warnings",
     "check-types": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "agent": "node src/agent/agent-cli.ts"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "^2.0.0",
