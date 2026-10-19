@@ -1,4 +1,5 @@
 import { asciiLower, asciiUpper } from "@sezzlee/file-core";
+import { boundedMemo } from "../grid/memo.js";
 
 const elapsedTime = /^\[(?:h+|m+|s+)\]$/i;
 const numberRun = "0#?.,E+-%";
@@ -132,19 +133,27 @@ const clockRuns = /[hH]+|[mM]+|[sS]+/g;
  * time of day.
  */
 export function isTimeOnlyFormat(code: string): boolean {
-  const plain = code.replace(quotedOrEscaped, "");
-  const brackets = plain.match(bracketed) ?? [];
-  if (brackets.some((bracket) => elapsedTime.test(bracket))) return false;
-  const letters = plain.replace(bracketed, "").replace(meridiem, "");
-  if (dateLetters.test(letters)) return false;
-  const runs = (letters.match(clockRuns) ?? []).map((run) =>
-    asciiLower(run.charAt(0)),
-  );
-  if (runs.length === 0) return false;
-  return runs.every(
-    (run, at) => run !== "m" || runs[at - 1] === "h" || runs[at + 1] === "s",
-  );
+  return timeOnlyFormat(code);
 }
+
+const timeOnlyFormat = boundedMemo(
+  (code: string): boolean => {
+    const plain = code.replace(quotedOrEscaped, "");
+    const brackets = plain.match(bracketed) ?? [];
+    if (brackets.some((bracket) => elapsedTime.test(bracket))) return false;
+    const letters = plain.replace(bracketed, "").replace(meridiem, "");
+    if (dateLetters.test(letters)) return false;
+    const runs = (letters.match(clockRuns) ?? []).map((run) =>
+      asciiLower(run.charAt(0)),
+    );
+    if (runs.length === 0) return false;
+    return runs.every(
+      (run, at) => run !== "m" || runs[at - 1] === "h" || runs[at + 1] === "s",
+    );
+  },
+  (code) => code,
+  4096,
+);
 
 /**
  * Renders the time of day an Excel serial names as `HH:mm:ss`, or `undefined`

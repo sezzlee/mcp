@@ -1,4 +1,5 @@
 import type { CellNumericMeaning } from "../grid/cell-value.js";
+import { boundedMemo } from "../grid/memo.js";
 import { currencyCodeOf } from "../grid/number-text.js";
 
 type Operator = "<" | "<=" | ">" | ">=" | "=" | "<>";
@@ -108,8 +109,10 @@ function matches(condition: FormatCondition, value: number): boolean {
   }
 }
 
+const cachedSections = boundedMemo(sectionsOf, (code) => code, 4096);
+
 function activeSection(code: string, value: number): string | undefined {
-  const sections = sectionsOf(code);
+  const sections = cachedSections(code);
   if (sections === undefined) return undefined;
   if (!sections.some((section) => section.condition !== undefined)) {
     const at =
@@ -139,7 +142,12 @@ export function numericFormat(
   if (code === "General" || code === "0" || code === "0.00" || code === "")
     return undefined;
   const selected = activeSection(code, value);
-  if (selected === undefined) return undefined;
+  return selected === undefined ? undefined : interpreted(selected);
+}
+
+const interpreted = boundedMemo(interpret, (code) => code, 4096);
+
+function interpret(selected: string): NumericFormat | undefined {
   let elapsed = false;
   let fraction = false;
   const currencies = new Set<string>();
