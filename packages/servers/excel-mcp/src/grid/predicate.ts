@@ -370,8 +370,15 @@ export function evaluate(
 
   const operand = requireOperand(condition);
 
+  /**
+   * Guard: a missing token such as `N/A` is still the text the caller asked
+   * for when they compare against text. Treating it as missing here would
+   * return no rows without a warning; `isEmpty` keeps the missing reading.
+   */
+  const literal = typeof raw === "string" && raw.trim() !== "";
+
   if (textOperators.has(condition.op)) {
-    if (cell.missing || typeof raw !== "string") return unmatched;
+    if (!literal) return unmatched;
     const haystack = options.caseSensitive ? raw : fold(raw);
     const needle = options.caseSensitive
       ? (operand as string)
@@ -388,13 +395,15 @@ export function evaluate(
   const wanted = operandKind(operand);
   if (condition.op === "eq" || condition.op === "ne") {
     const value =
-      wanted === "number" ||
-      wanted === "date" ||
-      wanted === "time" ||
-      wanted === "text" ||
-      wanted === "boolean"
-        ? cell.as(wanted)
-        : raw;
+      wanted === "text" && literal
+        ? raw
+        : wanted === "number" ||
+            wanted === "date" ||
+            wanted === "time" ||
+            wanted === "text" ||
+            wanted === "boolean"
+          ? cell.as(wanted)
+          : raw;
     const kind = classify(value);
     const same =
       kind === wanted &&
@@ -519,17 +528,4 @@ export function reportCensus(census: Census): Partial<Census> {
     }
   }
   return out;
-}
-
-/** @returns the comparable kind the most cells were read as; ties go to the earlier kind. */
-export function majorityKind(
-  counts: Readonly<Record<ComparableKind, number>>,
-): ComparableKind {
-  let best: ComparableKind = "number";
-  for (const kind of ["number", "date", "time", "text"] as const) {
-    if (counts[kind] > counts[best]) {
-      best = kind;
-    }
-  }
-  return best;
 }

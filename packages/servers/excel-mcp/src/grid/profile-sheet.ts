@@ -71,7 +71,6 @@ interface ColumnProfile {
   readonly letter: string;
   readonly header: string | null;
   readonly inferredType: InferredType;
-  /** Fraction of non-missing sample values supporting the inferred type. */
   readonly confidence: number;
   readonly missing: number;
   readonly missingRatio: number;

@@ -28,6 +28,7 @@ import {
   type NumberReading,
 } from "./number-text.js";
 import { SezzleeExcelError } from "../platform/errors.js";
+import { boundedMemo } from "./memo.js";
 import {
   classify,
   finiteNumber,
@@ -48,6 +49,7 @@ type NumberPlan =
       readonly kind: "locale";
       readonly locale: NumberLocale;
       readonly identifiers: "refuse" | "read";
+      readonly contradiction?: string;
     }
   | {
       readonly kind: "ambiguous";
@@ -84,7 +86,6 @@ export interface ColumnReading {
   readonly boolean: boolean;
   readonly tokens: Tokens;
   readonly target?: ColumnSpec["type"];
-  readonly source: "explicit" | "sniffed";
 }
 
 const defaultMissing = ["N/A", "NULL", "-", "—", "#N/A"];
@@ -106,21 +107,58 @@ function tokenSet(
   return new Set(values.map((value) => fold(value.trim())));
 }
 
+interface TokenList {
+  readonly tokens: ReadonlySet<string>;
+  readonly explicit: boolean;
+}
+
+function tokenList(
+  values: readonly string[] | undefined,
+  defaults: readonly string[],
+  label: string,
+): TokenList {
+  return {
+    tokens: tokenSet(values ?? defaults, label),
+    explicit: values !== undefined,
+  };
+}
+
+/**
+ * Guard: a caller's list takes its words from the defaults of the other two,
+ * so `missingValues: ["N"]` does not collide with the default false token
+ * `n`. Only two lists the caller wrote can overlap, and that is refused.
+ */
 function tokensOf(hints: ReadingHints): Tokens {
-  const missing = tokenSet(
-    hints.missingValues ?? defaultMissing,
-    "missingValues",
+  const lists = {
+    missing: tokenList(hints.missingValues, defaultMissing, "missingValues"),
+    yes: tokenList(hints.trueValues, defaultTrue, "trueValues"),
+    no: tokenList(hints.falseValues, defaultFalse, "falseValues"),
+  };
+  const claimed = Object.values(lists).flatMap((list) =>
+    list.explicit ? [list.tokens] : [],
   );
-  const yes = tokenSet(hints.trueValues ?? defaultTrue, "trueValues");
-  const no = tokenSet(hints.falseValues ?? defaultFalse, "falseValues");
   if (
-    [...yes].some((value) => no.has(value) || missing.has(value)) ||
-    [...no].some((value) => missing.has(value))
+    claimed.some((tokens, at) =>
+      claimed
+        .slice(at + 1)
+        .some((other) => [...tokens].some((token) => other.has(token))),
+    )
   )
     throw new SezzleeExcelError(
       "invalid_argument",
       "missingValues, trueValues and falseValues overlap after case/accent folding.",
     );
+  const settled = (list: TokenList): ReadonlySet<string> =>
+    list.explicit
+      ? list.tokens
+      : new Set(
+          [...list.tokens].filter(
+            (token) => !claimed.some((tokens) => tokens.has(token)),
+          ),
+        );
+  const missing = settled(lists.missing);
+  const yes = settled(lists.yes);
+  const no = settled(lists.no);
   return {
     missing,
     yes,
@@ -142,7 +180,6 @@ export const rawReading: ColumnReading = {
   duration: false,
   boolean: false,
   tokens: defaultTokens,
-  source: "sniffed",
 };
 
 export function rawReadingFor(hints: ReadingHints = {}): ColumnReading {
@@ -168,15 +205,28 @@ export interface ColumnNeeds {
   readonly boolean?: boolean;
 }
 
+const compiledNumberLocale = boundedMemo(
+  (locale: string, numberingSystem: string | undefined) =>
+    NumberLocale.compile(locale, numberingSystem),
+  (locale, numberingSystem) => JSON.stringify([locale, numberingSystem]),
+  64,
+);
+
+const compiledDateLocale = boundedMemo(
+  (locale: string | undefined) => DateLocale.compile(locale),
+  (locale) => JSON.stringify([locale]),
+  64,
+);
+
 function numberLocale(locale: string, numberingSystem?: string): NumberLocale {
-  const compiled = NumberLocale.compile(locale, numberingSystem);
+  const compiled = compiledNumberLocale(locale, numberingSystem);
   if (compiled.kind === "invalid")
     throw new SezzleeExcelError("invalid_argument", compiled.reason);
   return compiled.locale;
 }
 
 function dateLocale(locale?: string): DateLocale {
-  const compiled = DateLocale.compile(locale);
+  const compiled = compiledDateLocale(locale);
   if (compiled.kind === "invalid")
     throw new SezzleeExcelError("invalid_argument", compiled.reason);
   return compiled.locale;
@@ -221,7 +271,6 @@ export function explicitReading(
           }),
     }),
     target: spec.type,
-    source: "explicit" as const,
   };
   switch (spec.type) {
     case "number": {
@@ -310,31 +359,110 @@ export function sniffedReading(
   const number: NumberPlan = needs.number
     ? hints.locale === undefined
       ? numberPlanOf(present)
-      : {
-          kind: "locale",
-          locale: numberLocale(hints.locale, hints.numberingSystem),
-          identifiers: "refuse",
-        }
+      : localeNumberPlan(
+          present,
+          numberLocale(hints.locale, hints.numberingSystem),
+        )
     : { kind: "off" };
   const date: DatePlan = needs.date
     ? hints.locale === undefined
       ? datePlanOf(present)
-      : { kind: "locale", locale: dateLocale(hints.locale) }
+      : localeDatePlan(present, dateLocale(hints.locale))
     : { kind: "off" };
+  const duration =
+    temporal === "duration" &&
+    majority(
+      present,
+      (text) => readDurationText(text).kind === "duration",
+      (text) => numberText(text, number).kind === "number",
+    );
   return {
     ...base,
     number,
     date,
     time:
-      temporal !== "duration" &&
+      !duration &&
       (needs.time === true || needs.duration === true) &&
       present.some((text) => readTimeText(text).kind === "time"),
-    duration: temporal === "duration",
+    duration,
     boolean:
       needs.boolean === true &&
-      present.some(
+      majority(
+        present,
         (text) => booleanText(text, { ...base, boolean: true }) !== undefined,
+        (text) => booleanText(text, { ...base, boolean: true }) === undefined,
       ),
+  };
+}
+
+/**
+ * Guard: one value must not turn a whole column. A stray `100:30` in an
+ * amount column, or a grade `E` that is also a Turkish yes token, would
+ * otherwise re-read every other value and lose it without a warning.
+ */
+function majority(
+  texts: readonly string[],
+  supports: (text: string) => boolean,
+  opposes: (text: string) => boolean,
+): boolean {
+  let balance = 0;
+  for (const text of texts) {
+    if (supports(text)) balance += 1;
+    else if (opposes(text)) balance -= 1;
+  }
+  return balance > 0;
+}
+
+/**
+ * Guard: a caller's locale names the month words, never the day/month order.
+ * The order still comes from the column, so a Turkish reader who names
+ * `tr-TR` for an English file cannot move `03/04/2026` into April.
+ */
+function localeDatePlan(
+  texts: readonly string[],
+  locale: DateLocale,
+): DatePlan {
+  const decision = sniffDateOrder(texts);
+  switch (decision.kind) {
+    case "decided":
+      return { kind: "locale", locale, order: decision.order };
+    case "ambiguous":
+      return decision;
+    case "unordered":
+    case "none":
+      return { kind: "locale", locale };
+    default: {
+      const exhaustive: never = decision;
+      return exhaustive;
+    }
+  }
+}
+
+/**
+ * Guard: a caller may name the reader's locale rather than the file's. The
+ * locale still decides the separators, but a value the column's own marks
+ * read as a different number is named in a warning instead of passing in
+ * silence.
+ */
+function localeNumberPlan(
+  texts: readonly string[],
+  locale: NumberLocale,
+): NumberPlan {
+  const decision = sniffNumberMarks(texts);
+  const contradiction =
+    decision.kind === "decided"
+      ? texts.find((text) => {
+          const own = readNumberText(text, decision.marks);
+          if (own.kind !== "number") return false;
+          const named = locale.read(text);
+          return named.kind !== "number" || named.value !== own.value;
+        })
+      : undefined;
+  return {
+    kind: "locale",
+    locale,
+    identifiers: "refuse",
+    ...(contradiction === undefined ? {} : { contradiction }),
   };
 }
 
@@ -427,7 +555,7 @@ function dateText(text: string, plan: DatePlan): DateReading {
       return plan.locale.read(text, plan.order);
     case "ambiguous": {
       const readings = (["dmy", "mdy"] as const).map((order) =>
-        readDateText(text, order),
+        readDateText(text, order, true),
       );
       return (
         agreed(
@@ -677,6 +805,13 @@ export function readingWarnings(
       `${letter}: values such as '${reading.number.example}' read differently with a decimal point and with a decimal comma, so they were not read as numbers. Pass columns ${options}.`,
     );
   }
+  if (
+    reading.number.kind === "locale" &&
+    reading.number.contradiction !== undefined
+  )
+    warnings.push(
+      `${letter}: values such as '${reading.number.contradiction}' read as a different number with locale ${reading.number.locale.locale} than with the column's own separators. Check that the locale names the file's language, or pass columns with an explicit decimal.`,
+    );
   const date = reading.date;
   if (date.kind === "ambiguous") {
     const options = (["dmy", "mdy"] as const)

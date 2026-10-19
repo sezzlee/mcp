@@ -201,11 +201,20 @@ describe("explicit Gregorian month vocabularies", () => {
     ).toEqual({ kind: "date", iso: "2026-02-13T13:30:00.000Z" });
   });
 
-  it("leaves ambiguous numeric dates undecided while preserving legacy automatic dotted dates", () => {
+  it("leaves ambiguous slash and dash dates undecided and reads dotted dates day first", () => {
     const reader = dates();
+    expect(reader.read("01.02.2026")).toEqual({
+      kind: "date",
+      iso: "2026-02-01",
+    });
+    expect(dates("tr-TR").read("01.02.2026")).toEqual({
+      kind: "date",
+      iso: "2026-02-01",
+    });
     for (const separator of [".", "/", "-"]) {
       const text = `01${separator}02${separator}2026`;
-      expect(reader.read(text)).toEqual({ kind: "text" });
+      if (separator !== ".")
+        expect(reader.read(text)).toEqual({ kind: "text" });
       expect(reader.read(text, "dmy")).toEqual({
         kind: "date",
         iso: "2026-02-01",

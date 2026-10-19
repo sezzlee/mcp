@@ -13,7 +13,6 @@ import {
   compareWithin,
   emptyCensus,
   evaluate,
-  majorityKind,
   record,
   validateCondition,
   type Condition,
@@ -378,12 +377,5 @@ describe("census", () => {
       identifiers: 1,
       missingLiterals: 1,
     });
-  });
-
-  it("breaks a tie toward the earlier comparable kind", () => {
-    expect(majorityKind({ number: 2, date: 2, time: 0, text: 1 })).toBe(
-      "number",
-    );
-    expect(majorityKind({ number: 0, date: 1, time: 0, text: 3 })).toBe("text");
   });
 });

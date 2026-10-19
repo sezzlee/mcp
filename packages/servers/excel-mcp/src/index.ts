@@ -60,7 +60,6 @@ export {
   compareWithin,
   emptyCensus,
   evaluate,
-  majorityKind,
   validateCondition,
 } from "./grid/predicate.js";
 export type {

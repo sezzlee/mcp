@@ -4,6 +4,7 @@ import { buildColumnIndex, type ColumnMode } from "./columns.js";
 import {
   explicitPlans,
   observeTyped,
+  typedValueOf,
   typedReports,
   recordTyped,
   reportTyped,
@@ -287,8 +288,8 @@ export function readSheet(
     }
     return built;
   };
-  const cursorAt = (row: number): string => {
-    const token = encodeCursor({
+  const encodedCursor = (row: number): string =>
+    encodeCursor({
       v: 2,
       f: source.stamp,
       s: window.sheet.name,
@@ -324,7 +325,9 @@ export function readSheet(
           : { encoding: options.encoding }),
       },
     });
-    if (token.length > 16_384)
+  const cursorAt = (row: number): string => {
+    const token = encodedCursor(row);
+    if (token.length > limits.maxCursorChars)
       throw new SezzleeExcelError(
         "resource_limit",
         "The column interpretation exceeds the cursor budget.",
@@ -378,7 +381,10 @@ export function readSheet(
       returnedCells: options.maxCells,
       truncated: true,
       truncationReason: "maxPayloadBytes",
-      nextCursor: cursorAt(window.bounds.bottom + 1),
+      nextCursor: encodedCursor(window.bounds.bottom + 1).slice(
+        0,
+        limits.maxCursorChars,
+      ),
       hint: hintFor(Math.max(0, window.bounds.bottom - window.startRow + 1)),
       warnings: [...headerNotices, uncachedFormulaWarning(options.maxCells)],
     }) +
@@ -436,7 +442,7 @@ export function readSheet(
           );
         else {
           const observation = observeTyped(raw, plan);
-          typedLine.push(presentScalar(observation.value));
+          typedLine.push(presentScalar(typedValueOf(observation)));
           observations.push({ column, raw, observation });
         }
       }
@@ -761,7 +767,9 @@ async function findWithMatcher(
         );
       if (options.searchIn !== "formulas")
         haystacks.push(
-          renderScalar(observation === undefined ? raw : observation.value),
+          renderScalar(
+            observation === undefined ? raw : typedValueOf(observation),
+          ),
         );
       const match: FindMatch = {
         address: formatCellRef(rowNumber, column),
@@ -770,7 +778,7 @@ async function findWithMatcher(
         value: normalizeCell(snapshot, normalizeOptions).value,
         ...(observation === undefined
           ? {}
-          : { typedValue: presentScalar(observation.value) }),
+          : { typedValue: presentScalar(typedValueOf(observation)) }),
       };
       if (
         options.searchIn !== "values" &&

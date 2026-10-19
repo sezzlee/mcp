@@ -55,10 +55,16 @@ export function explicitPlans(
   return plans;
 }
 
-export interface TypedObservation {
-  readonly value: CellScalar;
-  readonly status: "read" | "missing" | "unreadable" | "identifier";
-  readonly converted: boolean;
+export type TypedObservation =
+  | {
+      readonly status: "read";
+      readonly value: CellScalar;
+      readonly converted: boolean;
+    }
+  | { readonly status: "missing" | "unreadable" | "identifier" };
+
+export function typedValueOf(observation: TypedObservation): CellScalar {
+  return observation.status === "read" ? observation.value : null;
 }
 
 export function observeTyped(
@@ -66,13 +72,12 @@ export function observeTyped(
   plan: ColumnPlan,
 ): TypedObservation {
   const cell = typedCell(raw, plan.reading);
-  if (cell.missing) return { value: null, status: "missing", converted: false };
+  if (cell.missing) return { status: "missing" };
   const value = cell.value();
   const type = plan.spec.type;
   if (type === "number") {
     const numeric = cell.number();
-    if (numeric.kind === "identifier")
-      return { value: null, status: "identifier", converted: false };
+    if (numeric.kind === "identifier") return { status: "identifier" };
     if (numeric.kind === "number")
       return {
         value: numeric.value,
@@ -85,7 +90,7 @@ export function observeTyped(
   ) {
     return { value, status: "read", converted: value !== raw };
   }
-  return { value: null, status: "unreadable", converted: false };
+  return { status: "unreadable" };
 }
 
 interface TypedExample {
@@ -144,7 +149,8 @@ export function recordTyped(
   raw: CellScalar,
 ): void {
   if (report === undefined) return;
-  if (observation.converted) report.converted += 1;
+  if (observation.status === "read" && observation.converted)
+    report.converted += 1;
   if (observation.status === "missing") report.missing += 1;
   if (
     observation.status === "unreadable" ||

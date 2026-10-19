@@ -59,7 +59,9 @@ const cursorOptionsSchema = z.strictObject({
   columnMode: z.enum(["auto", "header", "letter"]).optional(),
   includeTyped: z.boolean().optional(),
   ...readingHintsSchema,
-});
+}) satisfies z.ZodType<CursorOptions>;
+
+const inheritedOptions = cursorOptionsSchema.keyof().options;
 
 function isOptions(value: unknown): value is CursorOptions {
   return cursorOptionsSchema.safeParse(value).success;
@@ -105,25 +107,7 @@ export function inheritCursorOptions<
       "cursor cannot be combined with sheetName or range.",
     );
   const cursor = decodeCursor(args.cursor);
-  for (const key of [
-    "valueMode",
-    "table",
-    "visibleOnly",
-    "mergedCells",
-    "headerRow",
-    "headerScan",
-    "includeHyperlinks",
-    "delimiter",
-    "encoding",
-    "columns",
-    "columnMode",
-    "includeTyped",
-    "locale",
-    "numberingSystem",
-    "missingValues",
-    "trueValues",
-    "falseValues",
-  ] as const) {
+  for (const key of inheritedOptions) {
     if (args[key] !== undefined && !sameOption(args[key], cursor.o[key]))
       throw new SezzleeExcelError(
         "invalid_argument",

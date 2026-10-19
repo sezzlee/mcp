@@ -938,7 +938,7 @@ export function aggregateSheet(
       groupCount: ordered.length,
       returnedGroups: page.length,
       returnedMatchedRows,
-      omittedMatchedRows: matchedRows - returnedMatchedRows,
+      omittedMatchedRows: matchedRows - returnedMatchedRows - set.ungroupedRows,
       ...(set.ungroupedRows === 0 ? {} : { ungroupedRows: set.ungroupedRows }),
       ...(hasPivot
         ? { pivotBy: pivotColumns.map((entry) => entry.description) }

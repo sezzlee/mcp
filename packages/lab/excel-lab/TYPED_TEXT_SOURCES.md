@@ -71,8 +71,10 @@ not exhaustive Unicode or spreadsheet application conformance.
 ## Deliberate limits
 
 Dates use the Gregorian calendar and an explicit closed pattern or conservative unambiguous
-grammar. The old automatic dotted DMY reading remains compatible; an explicit date column
-with no format/order does not guess an ambiguous dotted date. Localized day periods are
+grammar. A dotted date is read day first everywhere, as the automatic reading always did,
+so a column plan that `profile_sheet` emits reads the dates it profiled; an explicit `order`
+still applies to dotted dates, and slash and dash dates with no format/order are not
+guessed when both orders read them. Localized day periods are
 available in explicit patterns; automatic free-form localized time phrases are not parsed.
 Date and time digit normalization covers Unicode Nd digits. Positional Han digit parsing is
 provided by explicit number readings; Han day/year numerals are not a supported date grammar.

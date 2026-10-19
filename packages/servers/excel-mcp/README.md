@@ -134,15 +134,23 @@ marks, for example `{"column":"Amount","type":"number","locale":"ar-EG","numberi
 Decimal digit systems, local separators, signs and grouping sizes are compiled from the runtime's
 Intl data, including Indian 3+2 grouping. Unsupported locales or numbering systems are refused.
 A date column accepts a fixed `format`, an explicit `order`, or unambiguous dates. An explicit
-locale supplies Gregorian month names, including format and standalone forms. Non-Gregorian
-calendar requests are refused. Omitting the locale retains deterministic existing numeric/date
-inference; it never selects the host locale. Unicode decimal digits are normalized without
+locale supplies Gregorian month names, including format and standalone forms, but never the
+day/month order: slash and dash dates take it from the column's values, and a dotted date is read
+day first under every locale, since no CLDR locale writes numeric dates month first with dots. A
+locale names the file's language, not the reader's; when its separators read a value as a
+different number than the column's own marks, a warning names the value. Non-Gregorian calendar
+requests are refused. Omitting the locale retains deterministic existing numeric/date inference;
+it never selects the host locale. Unicode decimal digits are normalized without
 turning circled digits, Roman numerals or arbitrary compatibility characters into quantities.
 
 `missingValues`, `trueValues` and `falseValues` are configurable lists, with per-column overrides.
 Default missing tokens are N/A, NULL, -, — and #N/A. Null and blank strings are always missing;
 `missingValues: []` preserves the other tokens as literal text. A stored Excel error is still an
 error. True tokens are true, yes, y, Evet and E; false tokens are false, no, n, Hayır and H.
+A caller's list takes its words from the defaults of the other two lists. A column is read as
+booleans, or as durations, only when such values outnumber the values that read otherwise, so a
+grade `E` or a stray `100:30` does not re-read the rest of the column. A text comparison still
+matches a cell whose text is a missing token: `eq "N/A"` finds `N/A`.
 Matching folds case and accents, accepts configured tokens in any script, and rejects overlapping
 lists. Numeric zero and one are not automatically treated as booleans. `countTrue`, `countFalse`
 and `trueRatio` operate on valid booleans; the ratio is null when none are readable.

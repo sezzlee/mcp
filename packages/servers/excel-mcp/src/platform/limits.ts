@@ -40,6 +40,7 @@ export const limits = {
   maxAggregateCellVisits: 20_000_000,
   maxConditions: 16,
   maxColumnSpecs: 64,
+  maxCursorChars: 16_384,
   maxProfileRowsDefault: 1_000,
   maxProfileRowsHard: 5_000,
   maxProfileColumnsDefault: 16,

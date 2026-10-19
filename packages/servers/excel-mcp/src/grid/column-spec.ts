@@ -16,7 +16,7 @@ export const readingHintsSchema = {
     .max(64)
     .optional()
     .describe(
-      "Explicit BCP 47 locale for numeric separators, digit shapes and Gregorian month names. Unsupported locales are refused; omission never uses the host locale.",
+      "BCP 47 locale the file was written in, never the reader's language: it decides numeric separators, digit shapes and Gregorian month names, never the day/month order. Omit it when unknown and the column's own values decide. Unsupported locales are refused; omission never uses the host locale.",
     ),
   numberingSystem: z
     .string()

@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Breaking
+
+- `majorityKind` is no longer exported. `aggregate_sheet` decides how a column compares from its typed reading, so the census vote has no caller.
+
+### Day and month order
+
+- A caller's `locale` names month words, digits and separators, never the day/month order. Slash and dash dates take their order from the column's values under any locale, so a locale that names the reader's language instead of the file's cannot move `03/04/2026` between months.
+- A dotted date is read day first everywhere, explicit `columns` and `locale` included: no CLDR locale writes numeric dates month first with dots. A column holding a dotted value only month first can read is reported ambiguous with a `MM.dd.yyyy` suggestion instead of being read either way. The plan `profile_sheet` emits for a dotted column now reads that column.
+- A `locale` whose separators read a value as a different number than the column's own marks do is named in a warning.
+
+### Reading fixes
+
+- One value no longer re-reads a whole column: a column turns into durations or booleans only when such values outnumber the values that read otherwise, so a stray `100:30` in an amount column or a grade `E` keeps the rest of the column.
+- Text comparisons (`eq`, `ne`, `in`, `contains`, `startsWith`, `endsWith`) match a cell whose text is a missing token, so `eq "N/A"` finds `N/A`; `isEmpty` still treats it as missing.
+- A caller's `missingValues`, `trueValues` or `falseValues` takes its words from the defaults of the other lists; only two lists the caller wrote may not overlap.
+- A complete `read_sheet` page is no longer refused because the cursor it would have emitted exceeds the cursor budget.
+- `omittedMatchedRows` no longer counts ungrouped rows, which no `maxGroups` value returns.
+- Numeric format sections, time-only checks and compiled locales are cached instead of being parsed again for every cell or column.
+
 ### CSV delimiter declarations
 
 - An exact first decoded physical line `sep=X` or `"sep=X"` selects comma, semicolon, tab or pipe and is excluded from headers and record diagnostics. The ASCII keyword is case-insensitive. BOM validation remains strict, and syntax errors retain physical file line numbers.
