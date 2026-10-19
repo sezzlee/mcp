@@ -82,6 +82,20 @@ export interface ModelHost {
   loadedWindow(): Promise<number | null>;
 }
 
+/** The tool message a call gets when the budget stopped it; it has no call log entry. */
+export const budgetNotice = "Not run: the tool call budget is spent.";
+
+/** The tool messages of a trace that answer a logged call, in call order. */
+export function toolResponses(
+  trace: readonly ChatMessage[],
+): readonly string[] {
+  return trace.flatMap((message) =>
+    message.role === "tool" && message.content !== budgetNotice
+      ? [message.content]
+      : [],
+  );
+}
+
 export const thinkingPolicies = ["product", "field", "drop"] as const;
 export type ThinkingPolicy = (typeof thinkingPolicies)[number];
 

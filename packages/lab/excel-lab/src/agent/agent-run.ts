@@ -4,6 +4,7 @@ import type { Client } from "@modelcontextprotocol/client";
 import { gradeSubmission, submitTool, type Grade } from "./grade.ts";
 import {
   assistantMessage,
+  budgetNotice,
   HostRequestError,
   type ChatMessage,
   type ChatResult,
@@ -349,7 +350,7 @@ export async function runTask(input: {
         budgetReached = true;
         trace.push({
           role: "tool",
-          content: "Not run: the tool call budget is spent.",
+          content: budgetNotice,
           tool_name: name,
         });
         continue;

@@ -1,6 +1,6 @@
 import type { CallMetric } from "./agent-run.ts";
 import { readSubmission } from "./grade.ts";
-import type { ChatMessage } from "./host.ts";
+import { toolResponses, type ChatMessage } from "./host.ts";
 import type { CaseId } from "./task.ts";
 
 export const traceableCases = [
@@ -38,10 +38,9 @@ function recordOf(value: unknown): Readonly<Record<string, unknown>> {
     : {};
 }
 
-function responseOf(message: ChatMessage): Readonly<Record<string, unknown>> {
-  if (message.role !== "tool") return {};
+function responseOf(text: string): Readonly<Record<string, unknown>> {
   try {
-    return recordOf(JSON.parse(message.content));
+    return recordOf(JSON.parse(text));
   } catch {
     return {};
   }
@@ -78,9 +77,7 @@ export function exercisedCases(run: {
   readonly trace: readonly ChatMessage[];
   readonly submission: unknown;
 }): readonly Exercised[] {
-  const responses = run.trace
-    .filter((message) => message.role === "tool")
-    .map(responseOf);
+  const responses = toolResponses(run.trace).map(responseOf);
   const refusal = readSubmission(run.submission);
   const found = new Map<string, Exercised>();
   const mark = (id: TraceableCase, file: string | null, recovered: boolean) => {

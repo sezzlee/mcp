@@ -415,6 +415,19 @@ whole file families. With `--spec`, the comparison follows a pre-registered expe
 its treatment, and applies its rule, superiority, or not worse within a margin while cheaper,
 and its expected mechanism. An experiment is committed under `experiments/` before its runs.
 
+```bash
+node packages/lab/excel-lab/src/agent/replay-cli.ts <run directory> --out /path/outside/repo --corpus "$SEZZLEE_CORPUS"
+```
+
+`replay-cli.ts` replays a run's recorded tool calls, in order and with their recorded arguments,
+against the current server build, without a model, and reports each call as the same, changed
+at a JSON pointer, or blocked. The modification time, the workspace root and cursor tokens are
+not compared; a cursor is followed instead, bound to the token the replayed server returned for
+the call that produced the recorded one, and a continuation whose source no longer pages is
+blocked by that change rather than counted as a new one. Replay answers what a new build returns
+for calls an agent already made; it does not say what a model would do with the new answers,
+which takes a model run.
+
 `--coverage` lists the case ids, tools, levels, knowledge levels and language pairings no task
 exercises yet. `verify` recomputes every answer from the corpus bytes with a per-task oracle
 function and fails on a mismatch, a task without an oracle or an oracle without a task.
