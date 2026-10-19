@@ -1,51 +1,29 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { parseArgs } from "node:util";
-import type { RunRecord } from "./agent-run.ts";
+import { prepareOutRoot } from "../run.ts";
 import { exercisedCases, traceableCases } from "./exercised.ts";
 import { describeAnswer, describeGrade } from "./grade.ts";
-import { readCatalog, type Task } from "./task.ts";
+import { readRunSet, type Run } from "./runs.ts";
+import { readCatalog } from "./task.ts";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: { out: { type: "string" } },
   strict: true,
 });
-const [runsPath] = positionals;
-if (runsPath === undefined || values.out === undefined)
+const [directory] = positionals;
+if (directory === undefined || values.out === undefined)
   throw new Error(
-    "Usage: node src/agent/report-cli.ts <runs.jsonl> --out <report.md>",
+    "Usage: node src/agent/report-cli.ts <run directory> --out <report.md>",
   );
 const catalog = await readCatalog();
-const tasks = new Map(catalog.tasks.map((task) => [task.id, task]));
-const runs: RunRecord[] = (await readFile(runsPath, "utf8"))
-  .trim()
-  .split("\n")
-  .map((line) => JSON.parse(line));
+const set = await readRunSet(directory, catalog);
+const runs = set.runs;
+const eligible = runs.filter((run) => run.eligibility.eligible);
 
 function cell(text: string): string {
   return text.replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
-}
-
-function submitted(run: RunRecord): string {
-  if (run.outcome !== "answered") return `(${run.outcome})`;
-  return JSON.stringify(run.submission);
-}
-
-function rate(group: readonly RunRecord[]): string {
-  const correct = group.filter((run) => run.correct).length;
-  return group.length === 0
-    ? "-"
-    : `${correct}/${group.length} (${Math.round((100 * correct) / group.length)}%)`;
-}
-
-function mean(
-  group: readonly RunRecord[],
-  pick: (run: RunRecord) => number,
-): string {
-  if (group.length === 0) return "-";
-  return (
-    group.reduce((sum, run) => sum + pick(run), 0) / group.length
-  ).toFixed(1);
 }
 
 function table(
@@ -59,26 +37,49 @@ function table(
   ].join("\n");
 }
 
-function breakdown(label: string, key: (run: RunRecord) => string): string {
-  const keys = [...new Set(runs.map(key))].sort();
+function rate(group: readonly Run[], pass: (run: Run) => boolean): string {
+  const count = group.filter(pass).length;
+  return group.length === 0
+    ? "-"
+    : `${count}/${group.length} (${Math.round((100 * count) / group.length)}%)`;
+}
+
+function mean(
+  group: readonly Run[],
+  pick: (run: Run) => number | null,
+): string {
+  const values = group.map(pick);
+  if (group.length === 0) return "-";
+  if (values.some((value) => value === null)) return "unknown";
+  return (
+    values.reduce((sum: number, value) => sum + (value ?? 0), 0) / group.length
+  ).toFixed(1);
+}
+
+function breakdown(label: string, key: (run: Run) => string): string {
+  const keys = [...new Set(eligible.map(key))].sort();
   return table(
     [
       label,
       "correct",
+      "meaning correct",
+      "form valid",
       "mean calls",
       "mean excess calls",
-      "mean response bytes",
-      "mean peak prompt tokens",
+      "mean input tokens, all requests",
+      "mean seconds",
     ],
     keys.map((value) => {
-      const group = runs.filter((run) => key(run) === value);
+      const group = eligible.filter((run) => key(run) === value);
       return [
         value,
-        rate(group),
+        rate(group, (run) => run.correct),
+        rate(group, (run) => run.grade?.semantic.correct === true),
+        rate(group, (run) => run.grade?.protocol.valid === true),
         mean(group, (run) => run.calls),
         mean(group, (run) => run.excessCalls),
-        mean(group, (run) => run.responseBytes),
-        mean(group, (run) => run.peakInputTokens ?? 0),
+        mean(group, (run) => run.inputTokens),
+        mean(group, (run) => run.ms / 1000),
       ];
     }),
   );
@@ -90,83 +91,115 @@ function scenarios(): string {
     [
       "case",
       "tagged runs",
-      "exercised in tagged",
-      "exercised untagged",
-      "recovered",
-      "correct when exercised",
+      "met in tagged",
+      "met untagged",
+      "episodes recovered",
+      "correct when met",
     ],
     traceableCases.map((id) => {
-      const tagged = runs.filter((run) =>
-        tasks.get(run.task)?.cases.includes(id),
-      );
-      const hit = runs.filter((run) =>
+      const tagged = runs.filter((run) => run.definition?.cases.includes(id));
+      const met = runs.filter((run) =>
         exercised.get(run)?.some((entry) => entry.id === id),
       );
-      const recovered = hit.filter((run) =>
-        exercised.get(run)?.some((entry) => entry.id === id && entry.recovered),
+      const episodes = met.flatMap(
+        (run) => exercised.get(run)?.filter((entry) => entry.id === id) ?? [],
       );
       return [
         id,
         String(tagged.length),
-        String(hit.filter((run) => tagged.includes(run)).length),
-        String(hit.filter((run) => !tagged.includes(run)).length),
-        `${recovered.length}/${hit.length}`,
-        rate(hit),
+        String(met.filter((run) => tagged.includes(run)).length),
+        String(met.filter((run) => !tagged.includes(run)).length),
+        `${episodes.filter((entry) => entry.recovered).length}/${episodes.length}`,
+        rate(met, (run) => run.correct),
       ];
     }),
   );
 }
 
+function repeatAgreement(): readonly string[] {
+  const groups = new Map<string, Run[]>();
+  for (const run of eligible) {
+    const key = `${run.task} ${run.language}`;
+    groups.set(key, [...(groups.get(key) ?? []), run]);
+  }
+  const repeated = [...groups.values()].filter((group) => group.length > 1);
+  if (repeated.length === 0) return [];
+  const same = (group: readonly Run[], pick: (run: Run) => string): boolean =>
+    new Set(group.map(pick)).size === 1;
+  const calls = (run: Run): string =>
+    JSON.stringify(run.callLog.map((call) => [call.tool, call.args]));
+  const submitted = (run: Run): string => JSON.stringify(run.submission);
+  const graded = (run: Run): string => String(run.correct);
+  const count = (pick: (run: Run) => string): string =>
+    `${repeated.filter((group) => same(group, pick)).length}/${repeated.length}`;
+  return [
+    "## Repeat agreement",
+    "",
+    "Task and language groups with more than one repetition, and how many agree across all of them.",
+    "",
+    table(
+      ["same calls", "same submission", "same grade"],
+      [[count(calls), count(submitted), count(graded)]],
+    ),
+    "",
+  ];
+}
+
 function argsOf(args: unknown): string {
   if (typeof args !== "object" || args === null) return String(args);
-  const { filePath: _filePath, ...rest } = args as Record<string, unknown>;
+  const rest = Object.fromEntries(
+    Object.entries(args).filter(([key]) => key !== "filePath"),
+  );
   const text = JSON.stringify(rest);
   return text.length > 220 ? `${text.slice(0, 220)}…` : text;
 }
 
-function detail(run: RunRecord, task: Task | undefined): string {
-  const question = task?.question[run.language] ?? run.task;
+function detail(run: Run): string {
+  const question = run.definition?.question[run.language] ?? run.task;
   const calls = run.callLog
     .map(
       (call, at) =>
         `${at + 1}. \`${call.tool}\` ${argsOf(call.args)}${call.error === null ? "" : ` → **${call.error}**`} (${call.bytes} B)`,
     )
     .join("\n");
+  const exercised = exercisedCases(run)
+    .map((entry) => `${entry.id}${entry.recovered ? "" : " (not recovered)"}`)
+    .join(", ");
   return [
-    `### ${run.correct ? "✓" : "✗"} ${run.task} · ${run.language} · ${run.level} ${run.knowledge}`,
+    `### ${run.correct ? "✓" : "✗"} ${run.task} · ${run.language} · r${run.repetition}`,
     "",
     `> ${question}`,
     "",
-    `- Expected: ${task === undefined ? "?" : describeAnswer(task.answer)}`,
-    `- Submitted: \`${submitted(run)}\``,
-    `- Grade: ${run.grade === null ? run.outcome : describeGrade(run.grade)}`,
-    `- Exercised: ${
-      exercisedCases(run)
-        .map(
-          (entry) => `${entry.id}${entry.recovered ? "" : " (not recovered)"}`,
-        )
-        .join(", ") || "-"
-    }`,
-    `- Calls ${run.calls} (ideal ${run.idealCalls}), ${run.responseBytes} response bytes, peak prompt ${run.peakInputTokens ?? "-"} tokens, ${run.requests} requests, ${(run.ms / 1000).toFixed(0)} s`,
+    `- Expected: ${run.definition === undefined ? "?" : describeAnswer(run.definition.answer)}`,
+    `- Submitted: \`${run.outcome === "answered" ? JSON.stringify(run.submission) : `(${run.outcome})`}\``,
+    `- Grade: ${run.grade === null ? run.outcome : describeGrade(run.grade)}${run.eligibility.eligible ? "" : ` · not counted: ${run.eligibility.reason}`}`,
+    `- Exercised: ${exercised === "" ? "-" : exercised}`,
+    `- Calls ${run.calls} (plan ${run.idealCalls}), ${run.responseBytes} response bytes, peak prompt ${run.peakInputTokens ?? "-"} tokens, ${(run.ms / 1000).toFixed(0)} s`,
     "",
     calls === "" ? "_No tool calls._" : calls,
     "",
   ].join("\n");
 }
 
-const models = [...new Set(runs.map((run) => `${run.model} @ ${run.window}`))];
 const ordered = [...runs].sort((left, right) =>
   left.correct === right.correct
     ? left.task.localeCompare(right.task) ||
-      left.language.localeCompare(right.language)
+      left.language.localeCompare(right.language) ||
+      left.repetition - right.repetition
     : left.correct
       ? 1
       : -1,
 );
+const excluded = runs.length - eligible.length;
 const report = [
   "# Agent lab report",
   "",
-  `${runs.length} runs of ${new Set(runs.map((run) => run.task)).size} tasks. Model and window: ${models.join(", ")}.`,
+  `${runs.length} runs of ${new Set(runs.map((run) => run.task)).size} tasks; ${eligible.length} count toward accuracy${excluded > 0 ? `, ${excluded} do not (host failures, refused preflights, another loaded window)` : ""}.`,
+  set.manifest === null
+    ? "No manifest: this directory predates experiment records."
+    : `Model ${set.manifest.host.model} (${set.manifest.host.digest?.slice(0, 12) ?? "digest unknown"}), Ollama ${set.manifest.host.version ?? "unknown"}, window ${set.manifest.generation.window}, thinking ${set.manifest.generation.thinking}, server ${set.manifest.server.version}.`,
+  "",
+  "A run is correct when its value means the answer and comes in the form the tool asks for; the two columns after it count each alone.",
   "",
   "## Overall",
   "",
@@ -174,39 +207,46 @@ const report = [
   "",
   "## By level",
   "",
-  breakdown("level", (run) => run.level),
+  breakdown("level", (run) => run.definition?.level ?? "?"),
   "",
   "## By knowledge",
   "",
-  breakdown("knowledge", (run) => run.knowledge),
+  breakdown("knowledge", (run) => run.definition?.knowledge ?? "?"),
   "",
   "## By outcome",
   "",
   breakdown("outcome", (run) => run.outcome),
   "",
+  ...repeatAgreement(),
   "## Scenarios",
   "",
-  "Read from the server's answers, not from the tags: a tagged task can pass without meeting its scenario, and an untagged one can meet it.",
+  "Read from the server's answers, one episode per file, not from the tags: a tagged task can pass without meeting its scenario, and an untagged one can meet it.",
   "",
   scenarios(),
   "",
   "## Tasks",
   "",
   table(
-    ["task", "level", "tr", "en", "calls tr/en (ideal)", "expected"],
-    [...tasks.values()]
+    ["task", "level", "tr", "en", "calls tr/en (plan)", "expected"],
+    catalog.tasks
       .filter((task) => runs.some((run) => run.task === task.id))
       .map((task) => {
         const of = (language: string) =>
-          runs.find((run) => run.task === task.id && run.language === language);
-        const mark = (run: RunRecord | undefined) =>
-          run === undefined ? "-" : run.correct ? "✓" : "✗";
+          runs.filter(
+            (run) => run.task === task.id && run.language === language,
+          );
+        const mark = (group: readonly Run[]) =>
+          group.length === 0
+            ? "-"
+            : group.map((run) => (run.correct ? "✓" : "✗")).join("");
+        const callsOf = (group: readonly Run[]) =>
+          group.length === 0 ? "-" : group.map((run) => run.calls).join(",");
         return [
           task.id,
           `${task.level} ${task.knowledge}`,
           mark(of("tr")),
           mark(of("en")),
-          `${of("tr")?.calls ?? "-"}/${of("en")?.calls ?? "-"} (${task.plan.steps.length})`,
+          `${callsOf(of("tr"))}/${callsOf(of("en"))} (${task.plan.steps.length})`,
           describeAnswer(task.answer),
         ];
       }),
@@ -216,9 +256,11 @@ const report = [
   "",
   "Wrong answers first.",
   "",
-  ...ordered.map((run) => detail(run, tasks.get(run.task))),
+  ...ordered.map(detail),
 ].join("\n");
-await writeFile(values.out, report);
-process.stdout.write(
-  `${JSON.stringify({ runs: runs.length, out: values.out })}\n`,
+const out = join(
+  await prepareOutRoot(dirname(values.out)),
+  basename(values.out),
 );
+await writeFile(out, report);
+process.stdout.write(`${JSON.stringify({ runs: runs.length, out })}\n`);

@@ -1,11 +1,18 @@
+import { createHash } from "node:crypto";
+import { setTimeout as wait } from "node:timers/promises";
 import type { Client } from "@modelcontextprotocol/client";
 import { gradeSubmission, submitTool, type Grade } from "./grade.ts";
 import {
-  estimateTokens,
+  assistantMessage,
+  HostRequestError,
   type ChatMessage,
-  type OllamaHost,
+  type ChatResult,
+  type ModelHost,
+  type ThinkingPolicy,
   type ToolSpec,
-} from "./ollama.ts";
+  type Usage,
+} from "./host.ts";
+import { estimateTokens } from "./ollama.ts";
 import type { Catalog, Language, Task } from "./task.ts";
 
 export const systemPrompt = [
@@ -16,16 +23,26 @@ export const systemPrompt = [
 ].join(" ");
 
 export type RunOutcome =
-  "answered" | "noAnswer" | "callBudget" | "contextExceeded" | "hostError";
+  | "answered"
+  | "noAnswer"
+  | "callBudget"
+  | "preflightRefused"
+  | "providerContextError"
+  | "hostError";
 
 export interface CallMetric {
   readonly tool: string;
   readonly args: unknown;
   readonly error: string | null;
   readonly bytes: number;
+  readonly ms: number;
 }
 
 export interface RunRecord {
+  readonly trialId: string;
+  readonly manifestHash: string;
+  readonly taskRevision: string;
+  readonly repetition: number;
   readonly task: string;
   readonly level: Task["level"];
   readonly knowledge: Task["knowledge"];
@@ -34,28 +51,87 @@ export interface RunRecord {
   readonly window: number;
   readonly loadedWindow: number | null;
   readonly outcome: RunOutcome;
+  readonly failure: string | null;
   readonly correct: boolean;
   readonly grade: Grade | null;
-  readonly hostFailure?: string;
   readonly submission: unknown;
+  readonly budgetReached: boolean;
   readonly calls: number;
   readonly idealCalls: number;
+  readonly privilegedCalls: number;
   readonly excessCalls: number;
   readonly responseBytes: number;
   readonly toolErrors: Readonly<Record<string, number>>;
   readonly invalidArgs: number;
   readonly recoveryCalls: number;
   readonly requests: number;
+  readonly failedRequests: number;
   readonly toolSchemaTokens: number;
   readonly peakInputTokens: number | null;
   readonly peakEstimatedTokens: number;
-  readonly inputTokens: number;
-  readonly cachedInputTokens: number;
-  readonly outputTokens: number;
+  readonly inputTokens: number | null;
+  readonly cachedInputTokens: number | null;
+  readonly outputTokens: number | null;
+  readonly requestsWithoutUsage: number;
   readonly windowUse: number | null;
   readonly ms: number;
   readonly trace: readonly ChatMessage[];
   readonly callLog: readonly CallMetric[];
+}
+
+export interface TrialKey {
+  readonly task: string;
+  readonly taskRevision: string;
+  readonly language: Language;
+  readonly repetition: number;
+}
+
+type EventBody =
+  | { readonly kind: "trialStarted"; readonly key: TrialKey }
+  | {
+      readonly kind: "requestFinished";
+      readonly request: number;
+      readonly estimatedTokens: number;
+      readonly usage: Usage | null;
+      readonly toolCalls: number;
+      readonly thinkingChars: number;
+      readonly ms: number;
+    }
+  | {
+      readonly kind: "requestFailed";
+      readonly request: number;
+      readonly attempt: number;
+      readonly failure: string;
+      readonly error: string;
+    }
+  | {
+      readonly kind: "toolFinished";
+      readonly call: number;
+      readonly tool: string;
+      readonly args: unknown;
+      readonly result: unknown;
+      readonly ms: number;
+    }
+  | { readonly kind: "submitted"; readonly raw: unknown }
+  | { readonly kind: "trialFinished"; readonly outcome: RunOutcome };
+
+export type TrialEvent = EventBody & {
+  readonly trialId: string;
+  readonly at: string;
+  readonly elapsedMs: number;
+};
+
+/** A stable digest of a task's own definition, so a changed task is a different trial. */
+export function taskRevision(task: Task): string {
+  return createHash("sha256").update(JSON.stringify(task)).digest("hex");
+}
+
+/** The id a trial keeps across resumes: the manifest it ran under and its key. */
+export function trialIdOf(manifestHash: string, key: TrialKey): string {
+  return createHash("sha256")
+    .update(JSON.stringify([manifestHash, key]))
+    .digest("hex")
+    .slice(0, 24);
 }
 
 function errorCodeOf(isError: boolean, text: string): string | null {
@@ -100,24 +176,70 @@ function userMessage(task: Task, language: Language, catalog: Catalog): string {
   return `${question}\n\n${label}:\n${attached.join("\n")}`;
 }
 
+const reminders: Readonly<
+  Record<Language, { submit: string; budget: string }>
+> = {
+  tr: {
+    submit: "Cevabını submit_answer aracıyla gönder.",
+    budget:
+      "Araç çağrısı hakkın bitti. Bildiklerinle cevabını şimdi submit_answer aracıyla gönder.",
+  },
+  en: {
+    submit: "Submit your answer with the submit_answer tool.",
+    budget:
+      "Your tool calls are used up. Submit your answer now with the submit_answer tool, from what you know.",
+  },
+};
+
+type Requested =
+  | { readonly kind: "result"; readonly result: ChatResult }
+  | {
+      readonly kind: "failed";
+      readonly failure: "context" | "host";
+      readonly error: string;
+    };
+
 /**
  * Runs one task once: the model sees the system prompt, the question with its
  * attachments and the server's tools, and ends by calling `submit_answer`.
+ *
+ * Guard: a failed request is retried on its own, never by restarting the
+ * task, and every failed attempt is reported as an event, so a run's cost and
+ * trace include what a flaky host consumed.
+ *
+ * Guard: the call budget is checked per call, inside a batch too, and a run
+ * that spends it gets one last request offering `submit_answer` alone, so the
+ * budget censors the run instead of discarding an answer it already has.
  */
 export async function runTask(input: {
   readonly task: Task;
+  readonly key: TrialKey;
+  readonly trialId: string;
+  readonly manifestHash: string;
   readonly language: Language;
   readonly catalog: Catalog;
-  readonly host: OllamaHost;
+  readonly host: ModelHost;
   readonly client: Client;
   readonly tools: readonly ToolSpec[];
   readonly window: number;
   readonly temperature: number;
+  readonly thinking: ThinkingPolicy;
   readonly callBudget: number;
   readonly timeoutMs: number;
+  readonly retryDelayMs: number;
+  readonly onEvent: (event: TrialEvent) => Promise<void>;
 }): Promise<RunRecord> {
   const { task, language, host, client, window } = input;
-  const tools = [...input.tools, submitTool(task.answer)];
+  const started = performance.now();
+  const emit = (body: EventBody): Promise<void> =>
+    input.onEvent({
+      ...body,
+      trialId: input.trialId,
+      at: new Date().toISOString(),
+      elapsedMs: performance.now() - started,
+    });
+  const submit = submitTool(task.answer);
+  const tools = [...input.tools, submit];
   const toolSchemaTokens = estimateTokens(JSON.stringify(tools));
   const trace: ChatMessage[] = [
     { role: "system", content: systemPrompt },
@@ -125,63 +247,94 @@ export async function runTask(input: {
   ];
   const callLog: CallMetric[] = [];
   const toolErrors: Record<string, number> = {};
+  const usages: (Usage | null)[] = [];
   let invalidArgs = 0;
-  let requests = 0;
+  let failedRequests = 0;
   let reminded = false;
-  let peakInputTokens: number | null = null;
+  let budgetReached = false;
+  let finalTurn = false;
   let peakEstimatedTokens = 0;
-  let inputTokens = 0;
-  let cachedInputTokens = 0;
-  let outputTokens = 0;
   let loadedWindow: number | null = null;
   let submission: unknown = null;
   let outcome: RunOutcome = "noAnswer";
-  const started = performance.now();
+  let failure: string | null = null;
+  await emit({ kind: "trialStarted", key: input.key });
 
-  while (outcome === "noAnswer" && submission === null) {
-    if (callLog.length >= input.callBudget) {
-      outcome = "callBudget";
+  const request = async (offered: readonly ToolSpec[]): Promise<Requested> => {
+    const index = usages.length + 1;
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return {
+          kind: "result",
+          result: await host.chat({
+            messages: trace,
+            tools: offered,
+            window,
+            temperature: input.temperature,
+            timeoutMs: input.timeoutMs,
+          }),
+        };
+      } catch (error) {
+        if (!(error instanceof HostRequestError)) throw error;
+        failedRequests += 1;
+        await emit({
+          kind: "requestFailed",
+          request: index,
+          attempt,
+          failure: error.failure,
+          error: error.message,
+        });
+        if (error.failure === "context")
+          return { kind: "failed", failure: "context", error: error.message };
+        if (error.failure === "fatal" || attempt >= 3)
+          return { kind: "failed", failure: "host", error: error.message };
+        await wait(input.retryDelayMs);
+      }
+    }
+  };
+
+  while (submission === null) {
+    const lastChance = finalTurn;
+    const requested = await request(lastChance ? [submit] : tools);
+    if (requested.kind === "failed") {
+      outcome =
+        requested.failure === "context" ? "providerContextError" : "hostError";
+      failure = requested.error;
       break;
     }
-    const reply = await host.chat({
-      messages: trace,
-      tools,
-      window,
-      temperature: input.temperature,
-      timeoutMs: input.timeoutMs,
-    });
-    if (reply.kind === "contextExceeded") {
-      peakEstimatedTokens = Math.max(
-        peakEstimatedTokens,
-        reply.estimatedTokens,
-      );
-      outcome = "contextExceeded";
-      break;
-    }
-    requests += 1;
-    if (requests === 1) loadedWindow = await host.loadedWindow();
+    const reply = requested.result;
     peakEstimatedTokens = Math.max(peakEstimatedTokens, reply.estimatedTokens);
-    if (reply.inputTokens !== null) {
-      peakInputTokens = Math.max(peakInputTokens ?? 0, reply.inputTokens);
-      inputTokens += reply.inputTokens;
+    if (reply.kind === "preflightRefused") {
+      outcome = "preflightRefused";
+      break;
     }
-    cachedInputTokens += reply.cachedInputTokens ?? 0;
-    outputTokens += reply.outputTokens ?? 0;
-    trace.push({
-      role: "assistant",
-      content: reply.content,
-      ...(reply.toolCalls.length === 0 ? {} : { tool_calls: reply.toolCalls }),
+    usages.push(reply.usage);
+    if (usages.length === 1) loadedWindow = await host.loadedWindow();
+    await emit({
+      kind: "requestFinished",
+      request: usages.length,
+      estimatedTokens: reply.estimatedTokens,
+      usage: reply.usage,
+      toolCalls: reply.toolCalls.length,
+      thinkingChars: reply.thinking.length,
+      ms: reply.ms,
     });
+    trace.push(
+      assistantMessage({
+        content: reply.content,
+        thinking: reply.thinking,
+        toolCalls: reply.toolCalls,
+        policy: input.thinking,
+      }),
+    );
     if (reply.toolCalls.length === 0) {
+      if (lastChance) {
+        outcome = "callBudget";
+        break;
+      }
       if (reminded) break;
       reminded = true;
-      trace.push({
-        role: "user",
-        content:
-          language === "tr"
-            ? "Cevabını submit_answer aracıyla gönder."
-            : "Submit your answer with the submit_answer tool.",
-      });
+      trace.push({ role: "user", content: reminders[language].submit });
       continue;
     }
     for (const call of reply.toolCalls) {
@@ -189,23 +342,37 @@ export async function runTask(input: {
       if (name === "submit_answer") {
         submission = call.function.arguments;
         outcome = "answered";
+        await emit({ kind: "submitted", raw: submission });
         break;
       }
+      if (callLog.length >= input.callBudget) {
+        budgetReached = true;
+        trace.push({
+          role: "tool",
+          content: "Not run: the tool call budget is spent.",
+          tool_name: name,
+        });
+        continue;
+      }
+      const callStarted = performance.now();
       let text: string;
       let error: string | null;
+      let result: unknown = null;
       if (!input.tools.some((tool) => tool.function.name === name)) {
         text = `Unknown tool ${name}.`;
         error = "unknown_tool";
       } else {
-        const result = await client.callTool({
+        const called = await client.callTool({
           name,
           arguments: call.function.arguments,
         });
-        text = result.content
+        result = called;
+        text = called.content
           .flatMap((block) => (block.type === "text" ? [block.text] : []))
           .join("\n");
-        error = errorCodeOf(result.isError === true, text);
+        error = errorCodeOf(called.isError === true, text);
       }
+      const ms = performance.now() - callStarted;
       if (error === "invalid_arguments" || error === "unknown_tool")
         invalidArgs += 1;
       else if (error !== null) toolErrors[error] = (toolErrors[error] ?? 0) + 1;
@@ -214,10 +381,28 @@ export async function runTask(input: {
         args: call.function.arguments,
         error,
         bytes: Buffer.byteLength(text, "utf8"),
+        ms,
+      });
+      await emit({
+        kind: "toolFinished",
+        call: callLog.length,
+        tool: name,
+        args: call.function.arguments,
+        result,
+        ms,
       });
       trace.push({ role: "tool", content: text, tool_name: name });
     }
+    if (submission === null && lastChance) {
+      outcome = "callBudget";
+      break;
+    }
+    if (submission === null && budgetReached) {
+      finalTurn = true;
+      trace.push({ role: "user", content: reminders[language].budget });
+    }
   }
+  await emit({ kind: "trialFinished", outcome });
 
   const graded = gradeSubmission(task.answer, submission);
   const firstError = callLog.findIndex((call) => call.error !== null);
@@ -226,7 +411,17 @@ export async function runTask(input: {
       ? -1
       : callLog.findIndex((call, at) => at > firstError && call.error === null);
   const idealCalls = task.plan.steps.length;
+  const known = usages.filter((usage): usage is Usage => usage !== null);
+  const complete = known.length === usages.length && usages.length > 0;
+  const peakInputTokens =
+    known.length === 0 ? null : Math.max(...known.map((usage) => usage.input));
+  const total = (pick: (usage: Usage) => number): number | null =>
+    complete ? known.reduce((sum, usage) => sum + pick(usage), 0) : null;
   return {
+    trialId: input.trialId,
+    manifestHash: input.manifestHash,
+    taskRevision: input.key.taskRevision,
+    repetition: input.key.repetition,
     task: task.id,
     level: task.level,
     knowledge: task.knowledge,
@@ -235,11 +430,15 @@ export async function runTask(input: {
     window,
     loadedWindow,
     outcome,
+    failure,
     correct: graded?.correct ?? false,
     grade: graded,
     submission,
+    budgetReached,
     calls: callLog.length,
     idealCalls,
+    privilegedCalls: task.plan.steps.filter((step) => step.role === "answer")
+      .length,
     excessCalls: callLog.length - idealCalls,
     responseBytes: callLog.reduce((sum, call) => sum + call.bytes, 0),
     toolErrors,
@@ -250,13 +449,15 @@ export async function runTask(input: {
         : recovered < 0
           ? callLog.length - firstError
           : recovered - firstError,
-    requests,
+    requests: usages.length,
+    failedRequests,
     toolSchemaTokens,
     peakInputTokens,
     peakEstimatedTokens,
-    inputTokens,
-    cachedInputTokens,
-    outputTokens,
+    inputTokens: total((usage) => usage.input),
+    cachedInputTokens: total((usage) => usage.cachedInput),
+    outputTokens: total((usage) => usage.output),
+    requestsWithoutUsage: usages.length - known.length,
     windowUse: peakInputTokens === null ? null : peakInputTokens / window,
     ms: performance.now() - started,
     trace,

@@ -268,7 +268,7 @@ async function probeFile({
   }
 }
 
-function commitOf(directory: string): string | null {
+export function commitOf(directory: string): string | null {
   try {
     return execFileSync("git", ["rev-parse", "HEAD"], {
       cwd: directory,

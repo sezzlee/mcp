@@ -135,45 +135,58 @@ Context is measured the same way on every request, before and after it is sent:
 - **Estimate before sending.** The whole serialized request (system prompt, tool schemas,
   every message and tool response) is counted as `ceil(bytes / 3) + 256` tokens, and a reply
   reserve of `min(4096, window / 4)` is added. A request whose estimate exceeds the window is
-  not sent and the run ends as `contextExceeded`. Ollama drops the head of an oversized prompt
+  not sent and the run ends as `preflightRefused`. Ollama drops the head of an oversized prompt
   without an error, so a request it would truncate is never measured as an answer.
 - **Count after the reply.** Input, cached input and output tokens are Ollama's
-  `prompt_eval_count`, `prompt_eval_cached_count` and `eval_count`.
+  `prompt_eval_count`, `prompt_eval_cached_count` and `eval_count`. A reply without them is
+  unknown, never zero: a run's totals are unknown when any of its requests lacks them.
 - **Check the window the host used.** `/api/ps` reports the context length the model is
-  actually loaded with; a run on a host holding a different window is marked and excluded.
+  actually loaded with; a run on a host holding a different window does not count toward
+  accuracy.
 
 Metrics per run:
 
-| Metric                | Definition                                                                     |
-| --------------------- | ------------------------------------------------------------------------------ |
-| `correct`             | The submitted answer matches `answer` under the task's comparison              |
-| `outcome`             | `answered`, `wrongAnswer`, `noAnswer`, `callBudget` or `contextExceeded`       |
-| `calls`               | Tool calls made; `tools/list`, initialization and `submit_answer` are excluded |
-| `excessCalls`         | `calls` minus the plan's calls, discovery included                             |
-| `responseBytes`       | UTF-8 bytes of tool responses that entered the model's context                 |
-| `toolErrors`          | Calls that returned an error envelope, by error code                           |
-| `invalidArgs`         | Calls the schema refused                                                       |
-| `recoveryCalls`       | Calls between the first error and the next successful call                     |
-| `requests`            | Model requests in the run                                                      |
-| `toolSchemaTokens`    | Estimated tokens of the tool list alone, paid on every request                 |
-| `peakInputTokens`     | Largest `prompt_eval_count` of the run: how full the window got                |
-| `peakEstimatedTokens` | Largest pre-send estimate, to compare the estimate with the count              |
-| `inputTokens`         | Sum of `prompt_eval_count` over the run                                        |
-| `cachedInputTokens`   | Sum of `prompt_eval_cached_count`: the share the host did not recompute        |
-| `outputTokens`        | Sum of `eval_count`                                                            |
-| `windowUse`           | `peakInputTokens / window`                                                     |
+| Metric                 | Definition                                                                                      |
+| ---------------------- | ----------------------------------------------------------------------------------------------- |
+| `correct`              | The submitted value means `answer` and comes in the form the tool asks for                      |
+| `grade`                | The two axes apart: `protocol` (form) and `semantic` (meaning)                                  |
+| `outcome`              | `answered`, `noAnswer`, `callBudget`, `preflightRefused`, `providerContextError` or `hostError` |
+| `budgetReached`        | The run spent its call budget and was offered `submit_answer` alone                             |
+| `calls`                | Tool calls made; `tools/list`, initialization and `submit_answer` are excluded                  |
+| `excessCalls`          | `calls` minus the plan's calls, discovery included                                              |
+| `responseBytes`        | UTF-8 bytes of tool responses that entered the model's context                                  |
+| `toolErrors`           | Calls that returned an error envelope, by error code                                            |
+| `invalidArgs`          | Calls the schema refused                                                                        |
+| `recoveryCalls`        | Calls between the first error and the next successful call                                      |
+| `requests`             | Model requests in the run                                                                       |
+| `failedRequests`       | Request attempts the host failed, retried or not                                                |
+| `toolSchemaTokens`     | Estimated tokens of the tool list alone, paid on every request                                  |
+| `peakInputTokens`      | Largest `prompt_eval_count` of the run: how full the window got                                 |
+| `peakEstimatedTokens`  | Largest pre-send estimate, to compare the estimate with the count                               |
+| `inputTokens`          | Sum of `prompt_eval_count` over the run                                                         |
+| `cachedInputTokens`    | Sum of `prompt_eval_cached_count`: the share the host did not recompute                         |
+| `requestsWithoutUsage` | Requests whose reply carried no token counts                                                    |
+| `outputTokens`         | Sum of `eval_count`                                                                             |
+| `windowUse`            | `peakInputTokens / window`                                                                      |
 
 #### Scenarios a run went through
 
 A tag says a task is meant to meet a scenario; the run's trace says whether it did. The error
 and recovery scenarios are read from the server's answers (`src/agent/exercised.ts`): `R1`,
 `R2`, `R3`, `R6` and `Z3` from the error code of a call, `R4` from an ambiguity warning and `R5`
-from a truncated answer. Each one found is marked recovered or not by its first occurrence: a
-later call to the same tool without the error, `columns` passed after the warning, a cursor or
-an aggregate after the truncation, and for `Z3` no further call to the refused file. The report
-lists, per scenario, the tagged runs, how many of them met it, how many untagged runs met it
-and how many recovered, because an agent that reads the headers first never meets
-`unknown_column`, and a tag alone would count that run as coverage.
+from a truncated answer. Each is an episode of one file, judged by its first occurrence on that
+file: a later successful call on the same file (the same sheet for `R1` and `R3`, the same tool
+for `R6`), `columns` naming the warned column after `R4`, that response's cursor or an aggregate
+of the file after `R5`, and for `Z3` a `limit` refusal with no further call to the file. A call
+on another file never counts as recovery. The report lists, per scenario, the tagged runs, how
+many of them met it, how many untagged runs met it and how many episodes recovered, because an
+agent that reads the headers first never meets `unknown_column`, and a tag alone would count
+that run as coverage.
+
+These are natural encounters: how often a run meets a problem and what it does next. Whether an
+agent recovers once a given problem has happened is a separate, forced measurement, where a real
+file's real error is handed to the agent as the result of a first call it did not choose; such
+tasks are kept apart from the natural ones.
 
 ### Phase 3 — root causes and fixes
 
@@ -354,29 +367,53 @@ to choose from, not a derivation. The full report is `baseline.json` in the outp
 
 ```bash
 SEZZLEE_AGENT_LAB_OLLAMA_URL=http://host:11434 node packages/lab/excel-lab/src/agent/agent-cli.ts \
-  --out /path/outside/repo --corpus "$SEZZLEE_CORPUS" --models qwen3.8:latest \
-  [--windows 65536,16384] [--languages tr,en] [--runs 3] [--levels L1,L2] [--only <task,...>]
+  --out /path/outside/repo --corpus "$SEZZLEE_CORPUS" --model qwen3.8:latest \
+  [--window 65536] [--thinking product|field|drop] [--languages tr,en] [--runs 3] \
+  [--levels L1,L2] [--only <task,...>] [--budget 15] [--resume]
 ```
 
-`agent-cli.ts` runs the matrix against the built server, appends one record per run to
-`runs.jsonl` (metrics, the submitted answer, its grade, the call log and the full message trace)
-and writes `summary.json` per model, window and language. `SEZZLEE_AGENT_LAB_OLLAMA_KEY` adds a
-bearer token. Requests carry `keep_alive: 10m` and the window as `num_ctx`, as the product's do.
-The user message lists the task's files for `K1` and `K2` under "Attached files"; `K0` gets the
-question alone. The grading rules are pinned by [test/agent-grade.spec.ts](test/agent-grade.spec.ts).
+`agent-cli.ts` runs one condition, one model and one window, against the built server. It first
+writes `manifest.json`: the digests of the catalog, the oracle, the lab sources and the server
+build, the server's tool list, the system prompt, the grader version, the host's model digest and
+Ollama version, and the generation settings. A directory holds one manifest; `--resume`
+continues it only while every field matches, and names the fields that changed otherwise. Each
+trial is a task revision, a language and a repetition; `runs.jsonl` gets one record per trial and
+`events.jsonl` every request, failed attempt, tool result and submission as it happens. A failed
+request is retried on its own, up to three times, and only for a transport failure; a request
+the host refuses for its window ends the trial as `providerContextError`. The call budget holds
+within a batch, and a run that spends it gets one last request offering `submit_answer` alone.
+The model's thinking is carried as the product's provider carries it, appended to the reply's
+text (`--thinking product`); `field` sends it in Ollama's `thinking` field and `drop` leaves it
+out. `SEZZLEE_AGENT_LAB_OLLAMA_KEY` adds a bearer token. Requests carry `keep_alive` and the
+window as `num_ctx`, as the product's do. The user message lists the task's files for `K1` and
+`K2` under "Attached files"; `K0` gets the question alone. The grading rules are pinned by
+[test/agent-grade.spec.ts](test/agent-grade.spec.ts).
+
+A run counts toward accuracy unless the host failed it, the preflight refused it, the host
+refused the window, or the host held the model with another window (`src/agent/eligibility.ts`);
+reports count those apart.
 
 ```bash
-node packages/lab/excel-lab/src/agent/regrade-cli.ts <runs.jsonl>
-node packages/lab/excel-lab/src/agent/report-cli.ts <runs.jsonl> --out <report.md>
-node packages/lab/excel-lab/src/agent/compare-cli.ts <before/runs.jsonl> <after/runs.jsonl> --out <compare.md>
+node packages/lab/excel-lab/src/agent/regrade-cli.ts <run directory>
+node packages/lab/excel-lab/src/agent/report-cli.ts <run directory> --out <report.md>
+node packages/lab/excel-lab/src/agent/compare-cli.ts <before directory> <after directory> \
+  --out <compare.md> [--spec packages/lab/excel-lab/experiments/<id>.json]
 ```
 
-`regrade-cli.ts` grades saved runs again under the current catalog and grader and writes `grades-<version>.jsonl` beside them, leaving the runs as they were.
-`report-cli.ts` writes the readable report: accuracy by language, level, knowledge and outcome,
-the scenarios each run went through, and every run with its calls, wrong answers first.
-`compare-cli.ts` grades two runs against the current catalog and lists what changed: accuracy
-on the tasks whose question is the same on both sides, calls per tool, scenarios met, and every
-run that was fixed, broke, is new or was asked a different question.
+`regrade-cli.ts` grades saved runs again under the current catalog and grader and writes
+`grades-<version>.jsonl` beside them, leaving the runs as they were. `report-cli.ts` writes the
+readable report: accuracy, meaning and form by language, level, knowledge and outcome, the
+scenarios each run went through, and every run with its calls, wrong answers first. Both read
+directories saved before the manifest existed.
+
+`compare-cli.ts` pairs two directories one to one by task, language and repetition, refuses a
+duplicate, and lists every run it leaves out with the reason: a changed task, a changed question,
+a run either side cannot count. Every metric is computed on the same pairs. Accuracy is reported
+with the runs only one side got right, an exact McNemar test and a 90% interval from resampling
+whole file families. With `--spec`, the comparison follows a pre-registered experiment
+(`src/agent/experiment.ts`): it refuses a manifest difference the experiment does not declare as
+its treatment, and applies its rule, superiority, or not worse within a margin while cheaper,
+and its expected mechanism. An experiment is committed under `experiments/` before its runs.
 
 `--coverage` lists the case ids, tools, levels, knowledge levels and language pairings no task
 exercises yet. `verify` recomputes every answer from the corpus bytes with a per-task oracle

@@ -1,4 +1,12 @@
 import { z } from "zod";
+import {
+  HostRequestError,
+  type ChatRequest,
+  type ChatResult,
+  type HostIdentity,
+  type ModelHost,
+  type ToolCall,
+} from "./host.ts";
 
 const templateReserve = 256;
 
@@ -22,7 +30,6 @@ const chatChunkSchema = z.object({
   prompt_eval_count: z.int().optional(),
   prompt_eval_cached_count: z.int().optional(),
   eval_count: z.int().optional(),
-  total_duration: z.int().optional(),
 });
 
 const runningSchema = z.object({
@@ -35,42 +42,18 @@ const runningSchema = z.object({
   ),
 });
 
-export type ToolCall = z.infer<typeof toolCallSchema>;
+const tagsSchema = z.object({
+  models: z.array(
+    z.object({
+      name: z.string(),
+      model: z.string().optional(),
+      digest: z.string(),
+      details: z.record(z.string(), z.unknown()).optional(),
+    }),
+  ),
+});
 
-export type ChatMessage =
-  | { readonly role: "system" | "user"; readonly content: string }
-  | {
-      readonly role: "assistant";
-      readonly content: string;
-      readonly tool_calls?: readonly ToolCall[];
-    }
-  | {
-      readonly role: "tool";
-      readonly content: string;
-      readonly tool_name: string;
-    };
-
-export interface ToolSpec {
-  readonly type: "function";
-  readonly function: {
-    readonly name: string;
-    readonly description: string;
-    readonly parameters: unknown;
-  };
-}
-
-export type ChatResult =
-  | {
-      readonly kind: "reply";
-      readonly content: string;
-      readonly toolCalls: readonly ToolCall[];
-      readonly estimatedTokens: number;
-      readonly inputTokens: number | null;
-      readonly cachedInputTokens: number | null;
-      readonly outputTokens: number | null;
-      readonly ms: number;
-    }
-  | { readonly kind: "contextExceeded"; readonly estimatedTokens: number };
+const versionSchema = z.object({ version: z.string() });
 
 /** Estimated tokens of a serialized request, the same preflight the product applies. */
 export function estimateTokens(body: string): number {
@@ -82,11 +65,15 @@ function modelName(name: string): string {
   return tail.includes(":") ? name : `${name}:latest`;
 }
 
+function contextMessage(text: string): boolean {
+  return /context|num_ctx|too long|exceeds/i.test(text);
+}
+
 /**
  * Ollama's native chat endpoint: the one protocol that takes `num_ctx` and
  * reports exact prompt, cached and output token counts.
  */
-export class OllamaHost {
+export class OllamaHost implements ModelHost {
   readonly #baseUrl: string;
   readonly #model: string;
   readonly #apiKey: string | undefined;
@@ -119,6 +106,35 @@ export class OllamaHost {
     };
   }
 
+  async #get(path: string): Promise<unknown> {
+    const response = await fetch(new URL(path, this.#baseUrl), {
+      headers: this.#headers(),
+      signal: AbortSignal.timeout(10_000),
+    });
+    return response.ok ? response.json() : null;
+  }
+
+  /** The host's version and the digest of the model this name resolves to, where the host reports them. */
+  async identity(): Promise<HostIdentity> {
+    const [tags, version] = await Promise.all([
+      this.#get("api/tags").then((body) => tagsSchema.safeParse(body)),
+      this.#get("api/version").then((body) => versionSchema.safeParse(body)),
+    ]);
+    const wanted = modelName(this.#model);
+    const entry = tags.success
+      ? tags.data.models.find(
+          (model) => modelName(model.model ?? model.name) === wanted,
+        )
+      : undefined;
+    return {
+      provider: "ollama",
+      model: this.#model,
+      digest: entry?.digest ?? null,
+      version: version.success ? version.data.version : null,
+      details: entry?.details ?? null,
+    };
+  }
+
   /**
    * Guard: the reply is streamed. A non-streamed reply sends its headers only
    * when generation ends, and Node's fetch gives up on headers after 300 s
@@ -128,13 +144,7 @@ export class OllamaHost {
    * not sent. Ollama drops the head of an oversized prompt without an error,
    * so an answer to a truncated conversation would be measured as an answer.
    */
-  async chat(request: {
-    readonly messages: readonly ChatMessage[];
-    readonly tools: readonly ToolSpec[];
-    readonly window: number;
-    readonly temperature: number;
-    readonly timeoutMs: number;
-  }): Promise<ChatResult> {
+  async chat(request: ChatRequest): Promise<ChatResult> {
     const body = JSON.stringify({
       model: this.#model,
       messages: request.messages,
@@ -146,20 +156,34 @@ export class OllamaHost {
     const estimatedTokens = estimateTokens(body);
     const reserve = Math.min(4096, Math.floor(request.window / 4));
     if (estimatedTokens + reserve > request.window)
-      return { kind: "contextExceeded", estimatedTokens };
+      return { kind: "preflightRefused", estimatedTokens };
     const started = performance.now();
-    const response = await fetch(new URL("api/chat", this.#baseUrl), {
-      method: "POST",
-      headers: this.#headers(),
-      body,
-      signal: AbortSignal.timeout(request.timeoutMs),
-    });
-    if (!response.ok)
-      throw new Error(
-        `Ollama answered ${response.status}: ${(await response.text()).slice(0, 300)}`,
+    let response: Response;
+    try {
+      response = await fetch(new URL("api/chat", this.#baseUrl), {
+        method: "POST",
+        headers: this.#headers(),
+        body,
+        signal: AbortSignal.timeout(request.timeoutMs),
+      });
+    } catch (error) {
+      throw new HostRequestError(String(error), "retryable");
+    }
+    if (!response.ok) {
+      const text = (await response.text()).slice(0, 300);
+      throw new HostRequestError(
+        `Ollama answered ${response.status}: ${text}`,
+        contextMessage(text)
+          ? "context"
+          : response.status >= 500
+            ? "retryable"
+            : "fatal",
       );
-    if (response.body === null) throw new Error("Ollama sent no body.");
+    }
+    if (response.body === null)
+      throw new HostRequestError("Ollama sent no body.", "retryable");
     let content = "";
+    let thinking = "";
     const toolCalls: ToolCall[] = [];
     let last: z.infer<typeof chatChunkSchema> | undefined;
     let pending = "";
@@ -167,41 +191,54 @@ export class OllamaHost {
     const take = (line: string): void => {
       if (line.trim() === "") return;
       const chunk = chatChunkSchema.parse(JSON.parse(line));
-      if (chunk.error !== undefined) throw new Error(`Ollama: ${chunk.error}`);
+      if (chunk.error !== undefined)
+        throw new HostRequestError(
+          `Ollama: ${chunk.error}`,
+          contextMessage(chunk.error) ? "context" : "retryable",
+        );
       content += chunk.message?.content ?? "";
+      thinking += chunk.message?.thinking ?? "";
       toolCalls.push(...(chunk.message?.tool_calls ?? []));
       if (chunk.done) last = chunk;
     };
-    for await (const part of response.body) {
-      pending += decoder.decode(part, { stream: true });
-      const lines = pending.split("\n");
-      pending = lines.pop() ?? "";
-      for (const line of lines) take(line);
+    try {
+      for await (const part of response.body) {
+        pending += decoder.decode(part, { stream: true });
+        const lines = pending.split("\n");
+        pending = lines.pop() ?? "";
+        for (const line of lines) take(line);
+      }
+      take(pending + decoder.decode());
+    } catch (error) {
+      if (error instanceof HostRequestError) throw error;
+      throw new HostRequestError(String(error), "retryable");
     }
-    take(pending + decoder.decode());
-    if (last === undefined) throw new Error("Ollama ended the stream early.");
+    if (last === undefined)
+      throw new HostRequestError("Ollama ended the stream early.", "retryable");
     return {
       kind: "reply",
       content,
+      thinking,
       toolCalls,
       estimatedTokens,
-      inputTokens: last.prompt_eval_count ?? null,
-      cachedInputTokens: last.prompt_eval_cached_count ?? null,
-      outputTokens: last.eval_count ?? null,
+      usage:
+        last.prompt_eval_count === undefined || last.eval_count === undefined
+          ? null
+          : {
+              input: last.prompt_eval_count,
+              cachedInput: last.prompt_eval_cached_count ?? 0,
+              output: last.eval_count,
+            },
       ms: performance.now() - started,
     };
   }
 
   /** The context length the host has this model loaded with, if it is loaded. */
   async loadedWindow(): Promise<number | null> {
-    const response = await fetch(new URL("api/ps", this.#baseUrl), {
-      headers: this.#headers(),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!response.ok) return null;
-    const running = runningSchema.parse(await response.json());
+    const running = runningSchema.safeParse(await this.#get("api/ps"));
+    if (!running.success) return null;
     const wanted = modelName(this.#model);
-    const match = running.models.find(
+    const match = running.data.models.find(
       (entry) => modelName(entry.model ?? entry.name) === wanted,
     );
     return match?.context_length ?? null;

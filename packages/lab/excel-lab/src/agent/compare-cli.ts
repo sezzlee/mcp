@@ -1,65 +1,56 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { parseArgs } from "node:util";
-import type { RunRecord } from "./agent-run.ts";
+import { prepareOutRoot } from "../run.ts";
 import { exercisedCases, traceableCases } from "./exercised.ts";
-import { gradeSubmission } from "./grade.ts";
+import { readExperiment, type CostMetric } from "./experiment.ts";
+import { manifestDifferences } from "./manifest.ts";
+import { pairRuns, readRunSet, type Run } from "./runs.ts";
+import { clusterBootstrap, mcnemarExact } from "./stats.ts";
 import { readCatalog } from "./task.ts";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
-  options: { out: { type: "string" } },
+  options: {
+    out: { type: "string" },
+    spec: { type: "string" },
+  },
   strict: true,
 });
-const [beforePath, afterPath] = positionals;
+const [beforeDir, afterDir] = positionals;
 if (
-  beforePath === undefined ||
-  afterPath === undefined ||
+  beforeDir === undefined ||
+  afterDir === undefined ||
   values.out === undefined
 )
   throw new Error(
-    "Usage: node src/agent/compare-cli.ts <before runs.jsonl> <after runs.jsonl> --out <compare.md>",
+    "Usage: node src/agent/compare-cli.ts <before run directory> <after run directory> --out <compare.md> [--spec <experiment.json>]",
   );
 const catalog = await readCatalog();
-const tasks = new Map(catalog.tasks.map((task) => [task.id, task]));
+const before = await readRunSet(beforeDir, catalog);
+const after = await readRunSet(afterDir, catalog);
+const experiment =
+  values.spec === undefined ? null : await readExperiment(values.spec);
 
-interface Run extends RunRecord {
-  readonly sameQuestion: boolean;
-}
+const differences =
+  before.manifest === null || after.manifest === null
+    ? null
+    : manifestDifferences(before.manifest, after.manifest);
+const undeclared =
+  differences === null || experiment === null
+    ? []
+    : differences.filter(
+        (path) =>
+          !experiment.treatment.some(
+            (declared) => path === declared || path.startsWith(`${declared}.`),
+          ),
+      );
+if (undeclared.length > 0)
+  throw new Error(
+    `the runs also differ in ${undeclared.join(", ")}, which ${experiment?.id ?? "the experiment"} does not declare`,
+  );
 
-/**
- * Guard: both sides are graded here against the current catalog, so a
- * corrected answer or grader moves both runs alike and the difference left
- * is the run's own.
- */
-async function load(path: string): Promise<readonly Run[]> {
-  const lines = (await readFile(path, "utf8")).trim().split("\n");
-  return lines.map((line) => {
-    const run: RunRecord = JSON.parse(line);
-    const task = tasks.get(run.task);
-    const asked = run.trace[1];
-    const sameQuestion =
-      task !== undefined &&
-      asked?.role === "user" &&
-      asked.content.startsWith(task.question[run.language]);
-    const graded =
-      task === undefined ? null : gradeSubmission(task.answer, run.submission);
-    return graded === null
-      ? { ...run, sameQuestion }
-      : { ...run, correct: graded.correct, grade: graded, sameQuestion };
-  });
-}
-
-const before = await load(beforePath);
-const after = await load(afterPath);
-const keyOf = (run: Run): string => `${run.task} ${run.language}`;
-const beforeByKey = new Map(before.map((run) => [keyOf(run), run]));
-const afterByKey = new Map(after.map((run) => [keyOf(run), run]));
-const paired = after.filter((run) => {
-  const earlier = beforeByKey.get(keyOf(run));
-  return earlier !== undefined && earlier.sameQuestion && run.sameQuestion;
-});
-const pairedKeys = new Set(paired.map(keyOf));
-const pairedBefore = before.filter((run) => pairedKeys.has(keyOf(run)));
+const { pairs, excluded } = pairRuns(before.runs, after.runs);
 
 function cell(text: string): string {
   return text.replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
@@ -76,89 +67,146 @@ function table(
   ].join("\n");
 }
 
-function rate(group: readonly Run[]): string {
-  const correct = group.filter((run) => run.correct).length;
-  return group.length === 0
+function share(part: number, whole: number): string {
+  return whole === 0
     ? "-"
-    : `${correct}/${group.length} (${Math.round((100 * correct) / group.length)}%)`;
+    : `${part}/${whole} (${((100 * part) / whole).toFixed(1)}%)`;
 }
 
-function mean(group: readonly Run[], pick: (run: Run) => number): string {
-  if (group.length === 0) return "-";
-  return (
-    group.reduce((sum, run) => sum + pick(run), 0) / group.length
-  ).toFixed(1);
+function costOf(run: Run, metric: CostMetric): number | null {
+  switch (metric) {
+    case "calls":
+      return run.calls;
+    case "inputTokens":
+      return run.inputTokens;
+    case "responseBytes":
+      return run.responseBytes;
+    case "seconds":
+      return run.ms / 1000;
+    default: {
+      const exhaustive: never = metric;
+      return exhaustive;
+    }
+  }
 }
 
-function count(group: readonly Run[], pick: (run: Run) => number): string {
-  return String(group.reduce((sum, run) => sum + pick(run), 0));
+function meanOf(values: readonly (number | null)[]): number | null {
+  const known = values.filter((value): value is number => value !== null);
+  return known.length === 0 || known.length !== values.length
+    ? null
+    : known.reduce((sum, value) => sum + value, 0) / known.length;
 }
 
-function overall(): string {
-  const metrics: readonly (readonly [
-    string,
-    (group: readonly Run[]) => string,
-  ])[] = [
-    ["correct, all runs", rate],
-    ["mean calls", (group) => mean(group, (run) => run.calls)],
-    ["mean excess calls", (group) => mean(group, (run) => run.excessCalls)],
-    [
-      "failed calls",
-      (group) =>
-        count(
-          group,
-          (run) => run.callLog.filter((call) => call.error !== null).length,
-        ),
-    ],
-    [
-      "no answer",
-      (group) =>
-        String(group.filter((run) => run.outcome !== "answered").length),
-    ],
-    ["mean response bytes", (group) => mean(group, (run) => run.responseBytes)],
-    [
-      "mean peak prompt tokens",
-      (group) => mean(group, (run) => run.peakInputTokens ?? 0),
-    ],
-    ["mean seconds", (group) => mean(group, (run) => run.ms / 1000)],
+function format(value: number | null, digits = 1): string {
+  return value === null ? "unknown" : value.toFixed(digits);
+}
+
+function differenceInterval(
+  pick: (run: Run) => number | null,
+): { readonly low: number; readonly high: number } | null {
+  const byFamily = new Map<string, number[]>();
+  for (const [a, b] of pairs) {
+    const left = pick(a);
+    const right = pick(b);
+    if (left === null || right === null) return null;
+    byFamily.set(a.family, [...(byFamily.get(a.family) ?? []), right - left]);
+  }
+  return clusterBootstrap({
+    clusters: [...byFamily.values()],
+    resamples: 4000,
+    seed: 20261019,
+    level: 0.9,
+  });
+}
+
+const onlyAfter = pairs.filter(([a, b]) => !a.correct && b.correct).length;
+const onlyBefore = pairs.filter(([a, b]) => a.correct && !b.correct).length;
+const accuracyDelta =
+  pairs.length === 0 ? 0 : (onlyAfter - onlyBefore) / pairs.length;
+const accuracyInterval = differenceInterval((run) => (run.correct ? 100 : 0));
+const pValue = mcnemarExact(onlyAfter, onlyBefore);
+const families = new Set(pairs.map(([a]) => a.family)).size;
+
+const metrics: readonly (readonly [string, (run: Run) => number | null])[] = [
+  ["correct (form and meaning)", (run) => (run.correct ? 1 : 0)],
+  ["meaning correct", (run) => (run.grade?.semantic.correct === true ? 1 : 0)],
+  ["form valid", (run) => (run.grade?.protocol.valid === true ? 1 : 0)],
+  ["calls", (run) => run.calls],
+  ["excess calls", (run) => run.excessCalls],
+  [
+    "failed calls",
+    (run) => run.callLog.filter((call) => call.error !== null).length,
+  ],
+  ["input tokens, all requests", (run) => run.inputTokens],
+  ["peak prompt tokens", (run) => run.peakInputTokens],
+  ["response bytes", (run) => run.responseBytes],
+  ["seconds", (run) => run.ms / 1000],
+  ["budget reached", (run) => (run.budgetReached ? 1 : 0)],
+];
+
+function decision(): readonly string[] {
+  if (experiment === null) return [];
+  const lines = [
+    `Experiment \`${experiment.id}\`: ${experiment.hypothesis}`,
+    "",
   ];
-  return table(
-    ["metric", "before", "after"],
-    [
-      ["runs", String(before.length), String(after.length)],
-      [
-        "correct, same question on both sides",
-        rate(pairedBefore),
-        rate(paired),
-      ],
-      ...metrics.map(([label, of]) => [label, of(before), of(after)]),
-    ],
-  );
+  const mechanism = experiment.mechanism;
+  if (mechanism !== undefined) {
+    const was = meanOf(pairs.map(([a]) => costOf(a, mechanism.metric)));
+    const now = meanOf(pairs.map(([, b]) => costOf(b, mechanism.metric)));
+    const change =
+      was === null || now === null || was === 0 ? null : (now - was) / was;
+    const met =
+      change !== null &&
+      (mechanism.direction === "decrease"
+        ? -change >= mechanism.minRelativeChange
+        : change >= mechanism.minRelativeChange);
+    lines.push(
+      `- Mechanism: mean ${mechanism.metric} ${format(was)} → ${format(now)} (${change === null ? "unknown" : `${(100 * change).toFixed(1)}%`}); expected a ${mechanism.direction} of at least ${(100 * mechanism.minRelativeChange).toFixed(0)}%: **${met ? "met" : "not met"}**.`,
+    );
+  }
+  if (experiment.rule.kind === "superiority")
+    lines.push(
+      `- Better: accuracy ${(100 * accuracyDelta).toFixed(1)} points, exact McNemar p = ${pValue.toFixed(4)}: **${accuracyDelta > 0 && pValue < 0.05 ? "shown" : "not shown"}**.`,
+    );
+  else {
+    const lower = accuracyInterval?.low ?? null;
+    const cost = experiment.rule.cost;
+    const costInterval = differenceInterval((run) => costOf(run, cost));
+    lines.push(
+      `- Not worse: the one-sided 95% lower bound of the accuracy change is ${format(lower)} points against a margin of −${experiment.rule.marginPoints}: **${lower !== null && lower > -experiment.rule.marginPoints ? "shown" : "not shown"}**.`,
+      `- Cheaper (${cost}): the 90% interval of the change is ${costInterval === null ? "unknown" : `${format(costInterval.low, 2)} to ${format(costInterval.high, 2)}`}: **${costInterval !== null && costInterval.high < 0 ? "shown" : "not shown"}**.`,
+    );
+  }
+  return [...lines, ""];
 }
 
-function byLevel(): string {
-  const levels = [...new Set(paired.map((run) => run.level))].sort();
+function scenarios(): string {
+  const of = (side: 0 | 1, id: string): string => {
+    const episodes = pairs.flatMap((pair) =>
+      exercisedCases(pair[side]).filter((entry) => entry.id === id),
+    );
+    return episodes.length === 0
+      ? "0"
+      : `${episodes.length} (${episodes.filter((entry) => entry.recovered).length} recovered)`;
+  };
   return table(
-    ["level", "before", "after"],
-    levels.map((level) => [
-      level,
-      rate(pairedBefore.filter((run) => run.level === level)),
-      rate(paired.filter((run) => run.level === level)),
-    ]),
+    ["case", "before", "after"],
+    traceableCases.map((id) => [id, of(0, id), of(1, id)]),
   );
 }
 
 function toolUse(): string {
   const tools = [
     ...new Set(
-      [...before, ...after].flatMap((run) =>
-        run.callLog.map((call) => call.tool),
+      pairs.flatMap(([a, b]) =>
+        [...a.callLog, ...b.callLog].map((call) => call.tool),
       ),
     ),
   ].sort();
-  const of = (group: readonly Run[], tool: string): string => {
-    const calls = group.flatMap((run) =>
-      run.callLog.filter((call) => call.tool === tool),
+  const of = (side: 0 | 1, tool: string): string => {
+    const calls = pairs.flatMap((pair) =>
+      pair[side].callLog.filter((call) => call.tool === tool),
     );
     const failed = calls.filter((call) => call.error !== null).length;
     return failed === 0
@@ -167,100 +215,96 @@ function toolUse(): string {
   };
   return table(
     ["tool", "before", "after"],
-    tools.map((tool) => [tool, of(before, tool), of(after, tool)]),
+    tools.map((tool) => [tool, of(0, tool), of(1, tool)]),
   );
 }
 
-function scenarios(): string {
-  const of = (group: readonly Run[], id: string): string => {
-    const hits = group.flatMap((run) =>
-      exercisedCases(run).filter((entry) => entry.id === id),
-    );
-    return hits.length === 0
-      ? "0"
-      : `${hits.length} (${hits.filter((entry) => entry.recovered).length} recovered)`;
-  };
-  return table(
-    ["case", "before", "after"],
-    traceableCases.map((id) => [id, of(before, id), of(after, id)]),
-  );
-}
-
-function mark(run: Run | undefined): string {
-  if (run === undefined) return "-";
-  return `${run.correct ? "✓" : "✗"} ${run.calls} calls`;
-}
-
-function submitted(run: Run | undefined): string {
-  if (run === undefined) return "-";
-  if (run.outcome !== "answered") return `(${run.outcome})`;
-  const text = JSON.stringify(run.submission);
-  return text.length > 160 ? `${text.slice(0, 160)}…` : text;
-}
-
-function changes(): string {
-  const keys = [...new Set([...before, ...after].map(keyOf))].sort();
-  const rows = keys.flatMap((key) => {
-    const earlier = beforeByKey.get(key);
-    const later = afterByKey.get(key);
-    const note =
-      earlier === undefined
-        ? "new task"
-        : later === undefined
-          ? "not rerun"
-          : !earlier.sameQuestion || !later.sameQuestion
-            ? "question changed"
-            : earlier.correct === later.correct
-              ? null
-              : later.correct
-                ? "fixed"
-                : "broke";
-    return note === null
-      ? []
-      : [
-          [
-            key,
-            note,
-            mark(earlier),
-            mark(later),
-            submitted(earlier),
-            submitted(later),
-          ],
-        ];
-  });
-  return table(
-    ["task", "change", "before", "after", "before answer", "after answer"],
-    rows,
-  );
-}
-
+const flipped = pairs.filter(([a, b]) => a.correct !== b.correct);
 const report = [
   "# Agent lab comparison",
   "",
-  `Before: \`${beforePath}\`. After: \`${afterPath}\`. Both are graded against the current catalog.`,
+  `Before: \`${basename(beforeDir)}\`. After: \`${basename(afterDir)}\`. Both are graded against the current catalog.`,
   "",
-  "## Overall",
+  differences === null
+    ? "One side has no manifest, so the conditions are not known to match; pairs rely on the question text."
+    : differences.length === 0
+      ? "The manifests are identical: this comparison measures run-to-run variation."
+      : `The manifests differ in: ${differences.map((path) => `\`${path}\``).join(", ")}.`,
   "",
-  overall(),
+  "## Decision",
   "",
-  "## By level, same question on both sides",
+  ...decision(),
+  `${pairs.length} pairs over ${families} file families; ${excluded.length} runs excluded.`,
   "",
-  byLevel(),
+  table(
+    ["", "value"],
+    [
+      [
+        "accuracy before",
+        share(pairs.filter(([a]) => a.correct).length, pairs.length),
+      ],
+      [
+        "accuracy after",
+        share(pairs.filter(([, b]) => b.correct).length, pairs.length),
+      ],
+      ["only after correct (b)", String(onlyAfter)],
+      ["only before correct (c)", String(onlyBefore)],
+      ["change", `${(100 * accuracyDelta).toFixed(1)} points`],
+      [
+        "90% family-bootstrap interval",
+        accuracyInterval === null
+          ? "too few families"
+          : `${accuracyInterval.low.toFixed(1)} to ${accuracyInterval.high.toFixed(1)} points`,
+      ],
+      ["exact McNemar p", pValue.toFixed(4)],
+    ],
+  ),
+  "",
+  "## Metrics on the same pairs",
+  "",
+  table(
+    ["metric", "before", "after"],
+    metrics.map(([label, pick]) => [
+      label,
+      format(meanOf(pairs.map(([a]) => pick(a))), 2),
+      format(meanOf(pairs.map(([, b]) => pick(b))), 2),
+    ]),
+  ),
   "",
   "## Tool calls",
   "",
   toolUse(),
   "",
-  "## Scenarios exercised",
+  "## Scenarios met",
   "",
   scenarios(),
   "",
-  "## Changed runs",
+  "## Changed answers",
   "",
-  changes(),
+  table(
+    ["run", "before", "after", "before answer", "after answer"],
+    flipped.map(([a, b]) => [
+      `${a.task} ${a.language} r${a.repetition}`,
+      `${a.correct ? "✓" : "✗"} ${a.calls} calls`,
+      `${b.correct ? "✓" : "✗"} ${b.calls} calls`,
+      JSON.stringify(a.submission).slice(0, 160),
+      JSON.stringify(b.submission).slice(0, 160),
+    ]),
+  ),
+  "",
+  "## Excluded",
+  "",
+  table(
+    ["run", "reason"],
+    excluded.map((entry) => [entry.key, entry.reason]),
+  ),
   "",
 ].join("\n");
-await writeFile(values.out, report);
+const out = join(
+  await prepareOutRoot(dirname(values.out)),
+  basename(values.out),
+);
+await writeFile(out, report);
 process.stdout.write(
-  `${JSON.stringify({ before: before.length, after: after.length, paired: paired.length, out: values.out })}\n`,
+  `${JSON.stringify({ pairs: pairs.length, excluded: excluded.length, onlyAfter, onlyBefore, p: pValue, out })}\n`,
 );

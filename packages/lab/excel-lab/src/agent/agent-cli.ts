@@ -1,61 +1,90 @@
 import { appendFile, readFile, writeFile } from "node:fs/promises";
-import { setTimeout as wait } from "node:timers/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { createExcelMcpServer, createWorkbookRoot } from "@sezzlee/excel-mcp";
-import { runTask, toolSpecsOf, type RunRecord } from "./agent-run.ts";
+import { z } from "zod";
+import {
+  runTask,
+  taskRevision,
+  toolSpecsOf,
+  trialIdOf,
+  type RunRecord,
+} from "./agent-run.ts";
+import { eligibilityOf } from "./eligibility.ts";
 import { describeGrade } from "./grade.ts";
+import { thinkingPolicies } from "./host.ts";
+import {
+  buildManifest,
+  canonicalHash,
+  manifestDifferences,
+  manifestSchema,
+} from "./manifest.ts";
 import { OllamaHost } from "./ollama.ts";
-import { languages, readCatalog, type Language } from "./task.ts";
+import { languages, levels, readCatalog } from "./task.ts";
 import { buildWorkspace } from "./workspace.ts";
 
 const { values } = parseArgs({
   options: {
     out: { type: "string" },
     corpus: { type: "string" },
-    models: { type: "string" },
-    windows: { type: "string", default: "65536" },
+    model: { type: "string" },
+    window: { type: "string", default: "65536" },
     languages: { type: "string", default: "tr,en" },
     runs: { type: "string", default: "1" },
     only: { type: "string" },
     levels: { type: "string" },
     temperature: { type: "string", default: "0" },
+    thinking: { type: "string", default: "product" },
     budget: { type: "string", default: "15" },
     "timeout-ms": { type: "string", default: "600000" },
+    "retry-delay-ms": { type: "string", default: "30000" },
+    "keep-alive": { type: "string", default: "10m" },
     resume: { type: "boolean", default: false },
   },
   strict: true,
 });
-const baseUrl = process.env["SEZZLEE_AGENT_LAB_OLLAMA_URL"];
-const corpusRoot = values.corpus ?? process.env["SEZZLEE_CORPUS"];
-if (
-  values.out === undefined ||
-  corpusRoot === undefined ||
-  values.models === undefined ||
-  baseUrl === undefined
-)
-  throw new Error(
-    "Pass --out <directory outside the repository>, --corpus <root> (or SEZZLEE_CORPUS), --models <name,...> and set SEZZLEE_AGENT_LAB_OLLAMA_URL.",
-  );
-const chosenLanguages = values.languages.split(",").map((code) => {
-  const language = languages.find((known) => known === code);
-  if (language === undefined) throw new Error(`unknown language ${code}`);
-  return language;
-});
-const windows = values.windows.split(",").map(Number);
-const only = values.only?.split(",");
-const levels = values.levels?.split(",");
+
+const positive = z.coerce.number().int().positive();
+const list = z.string().transform((text) => text.split(","));
+const options = z
+  .object({
+    out: z.string().min(1),
+    corpus: z.string().min(1),
+    model: z.string().min(1),
+    window: positive,
+    languages: list.pipe(z.array(z.enum(languages)).min(1)),
+    runs: positive,
+    only: list.optional(),
+    levels: list.pipe(z.array(z.enum(levels))).optional(),
+    temperature: z.coerce.number().min(0),
+    thinking: z.enum(thinkingPolicies),
+    budget: positive,
+    timeoutMs: positive,
+    retryDelayMs: z.coerce.number().int().nonnegative(),
+    keepAlive: z.string().min(1),
+    resume: z.boolean(),
+    baseUrl: z.url(),
+  })
+  .parse({
+    ...values,
+    corpus: values.corpus ?? process.env["SEZZLEE_CORPUS"],
+    timeoutMs: values["timeout-ms"],
+    retryDelayMs: values["retry-delay-ms"],
+    keepAlive: values["keep-alive"],
+    baseUrl: process.env["SEZZLEE_AGENT_LAB_OLLAMA_URL"],
+  });
+
 const full = await readCatalog();
 const tasks = full.tasks.filter(
   (task) =>
-    (only === undefined || only.includes(task.id)) &&
-    (levels === undefined || levels.includes(task.level)),
+    (options.only === undefined || options.only.includes(task.id)) &&
+    (options.levels === undefined || options.levels.includes(task.level)),
 );
 const workspace = await buildWorkspace({
   files: full.files,
-  corpusRoot,
-  outRoot: values.out,
+  corpusRoot: options.corpus,
+  outRoot: options.out,
 });
 const server = createExcelMcpServer(await createWorkbookRoot(workspace));
 const client = new Client({ name: "excel-agent-lab", version: "0.0.0" });
@@ -65,172 +94,141 @@ await Promise.all([
   server.connect(serverTransport),
 ]);
 const tools = await toolSpecsOf(client);
+const host = new OllamaHost({
+  baseUrl: options.baseUrl,
+  model: options.model,
+  apiKey: process.env["SEZZLEE_AGENT_LAB_OLLAMA_KEY"],
+  keepAlive: options.keepAlive,
+});
+const manifest = await buildManifest({
+  host: await host.identity(),
+  tools,
+  generation: {
+    window: options.window,
+    temperature: options.temperature,
+    thinking: options.thinking,
+    keepAlive: options.keepAlive,
+    callBudget: options.budget,
+    timeoutMs: options.timeoutMs,
+  },
+});
+const manifestHash = canonicalHash(manifest);
+const manifestPath = join(options.out, "manifest.json");
+const runsPath = join(options.out, "runs.jsonl");
+const eventsPath = join(options.out, "events.jsonl");
+const saved = await readFile(manifestPath, "utf8").catch(() => null);
 
 /**
- * Guard: a host that drops one request (a shared GPU, a restart) is retried
- * twice before the run is recorded as `hostError`, so one bad minute does
- * not end a matrix of hours.
+ * Guard: a directory holds one condition. Resuming under a manifest that
+ * differs in any field (a rebuilt server, a changed task, another model
+ * digest) would mix two conditions in one file, so it is refused with the
+ * fields that changed.
  */
-async function attempt<T>(run: () => Promise<T>): Promise<T> {
-  for (let tries = 1; ; tries += 1) {
-    try {
-      return await run();
-    } catch (error) {
-      if (tries >= 3) throw error;
-      process.stdout.write(`retrying after ${String(error)}\n`);
-      await wait(30_000);
-    }
-  }
-}
+if (saved !== null) {
+  const changed = manifestDifferences(
+    manifestSchema.parse(JSON.parse(saved)),
+    manifest,
+  );
+  if (changed.length > 0)
+    throw new Error(
+      `${options.out} holds runs of another condition; changed: ${changed.join(", ")}`,
+    );
+  if (!options.resume)
+    throw new Error(
+      `${options.out} already holds runs; pass --resume to continue them`,
+    );
+} else await writeFile(manifestPath, `${JSON.stringify(manifest, null, 1)}\n`);
 
-function hostFailure(input: {
-  readonly model: string;
-  readonly window: number;
-  readonly task: (typeof tasks)[number];
-  readonly language: Language;
-  readonly error: unknown;
-}): RunRecord {
-  return {
-    task: input.task.id,
-    level: input.task.level,
-    knowledge: input.task.knowledge,
-    language: input.language,
-    model: input.model,
-    window: input.window,
-    loadedWindow: null,
-    outcome: "hostError",
-    correct: false,
-    grade: null,
-    hostFailure: String(input.error),
-    submission: null,
-    calls: 0,
-    idealCalls: input.task.plan.steps.length,
-    excessCalls: 0,
-    responseBytes: 0,
-    toolErrors: {},
-    invalidArgs: 0,
-    recoveryCalls: 0,
-    requests: 0,
-    toolSchemaTokens: 0,
-    peakInputTokens: null,
-    peakEstimatedTokens: 0,
-    inputTokens: 0,
-    cachedInputTokens: 0,
-    outputTokens: 0,
-    windowUse: null,
-    ms: 0,
-    trace: [],
-    callLog: [],
-  };
-}
-const runsPath = join(values.out, "runs.jsonl");
-const records: RunRecord[] = [];
-const keyOf = (record: {
-  readonly model: string;
-  readonly window: number;
-  readonly task: string;
-  readonly language: string;
-}): string =>
-  `${record.model} ${record.window} ${record.task} ${record.language}`;
-const completed = new Map<string, number>();
-if (values.resume) {
-  const saved = await readFile(runsPath, "utf8").catch(() => "");
-  for (const line of saved.split("\n")) {
+const records = new Map<string, RunRecord>();
+if (options.resume)
+  for (const line of (await readFile(runsPath, "utf8").catch(() => "")).split(
+    "\n",
+  )) {
     if (line.trim() === "") continue;
     const record: RunRecord = JSON.parse(line);
-    if (record.outcome === "hostError") continue;
-    records.push(record);
-    completed.set(keyOf(record), (completed.get(keyOf(record)) ?? 0) + 1);
+    if (record.outcome !== "hostError") records.set(record.trialId, record);
   }
-}
 
-for (const model of values.models.split(",")) {
-  const host = new OllamaHost({
-    baseUrl,
-    model,
-    apiKey: process.env["SEZZLEE_AGENT_LAB_OLLAMA_KEY"],
-  });
-  for (const window of windows)
-    for (const task of tasks)
-      for (const language of chosenLanguages as readonly Language[])
-        for (
-          let run =
-            completed.get(keyOf({ model, window, task: task.id, language })) ??
-            0;
-          run < Number(values.runs);
-          run += 1
-        ) {
-          const record = await attempt(() =>
-            runTask({
-              task,
-              language,
-              catalog: full,
-              host,
-              client,
-              tools,
-              window,
-              temperature: Number(values.temperature),
-              callBudget: Number(values.budget),
-              timeoutMs: Number(values["timeout-ms"]),
-            }),
-          ).catch((error: unknown) =>
-            hostFailure({ model, window, task, language, error }),
-          );
-          records.push(record);
-          await appendFile(runsPath, `${JSON.stringify(record)}\n`);
-          process.stdout.write(
-            `${record.correct ? "✓" : "✗"} ${record.outcome.padEnd(15)} ${model} ${window} ${language} ${task.id} calls ${record.calls}/${record.idealCalls} bytes ${record.responseBytes} peak ${record.peakInputTokens ?? "-"} ${record.grade === null ? (record.hostFailure ?? "") : describeGrade(record.grade)}\n`,
-          );
-        }
-}
+for (const task of tasks)
+  for (const language of options.languages)
+    for (let repetition = 0; repetition < options.runs; repetition += 1) {
+      const key = {
+        task: task.id,
+        taskRevision: taskRevision(task),
+        language,
+        repetition,
+      };
+      const trialId = trialIdOf(manifestHash, key);
+      if (records.has(trialId)) continue;
+      const record = await runTask({
+        task,
+        key,
+        trialId,
+        manifestHash,
+        language,
+        catalog: full,
+        host,
+        client,
+        tools,
+        window: options.window,
+        temperature: options.temperature,
+        thinking: options.thinking,
+        callBudget: options.budget,
+        timeoutMs: options.timeoutMs,
+        retryDelayMs: options.retryDelayMs,
+        onEvent: (event) =>
+          appendFile(eventsPath, `${JSON.stringify(event)}\n`),
+      });
+      records.set(trialId, record);
+      await appendFile(runsPath, `${JSON.stringify(record)}\n`);
+      process.stdout.write(
+        `${record.correct ? "✓" : "✗"} ${record.outcome.padEnd(20)} ${language} r${repetition} ${task.id} calls ${record.calls}/${record.idealCalls} bytes ${record.responseBytes} peak ${record.peakInputTokens ?? "-"} ${record.grade === null ? (record.failure ?? "") : describeGrade(record.grade)}\n`,
+      );
+    }
 await client.close();
 await server.close();
 
-function summarize(group: readonly RunRecord[]) {
-  const mean = (pick: (record: RunRecord) => number) =>
-    group.length === 0
-      ? 0
-      : group.reduce((sum, record) => sum + pick(record), 0) / group.length;
-  return {
-    runs: group.length,
-    correct: group.filter((record) => record.correct).length,
-    accuracy:
-      group.length === 0
-        ? 0
-        : group.filter((record) => record.correct).length / group.length,
-    meanCalls: mean((record) => record.calls),
-    meanExcessCalls: mean((record) => record.excessCalls),
-    meanResponseBytes: mean((record) => record.responseBytes),
-    meanPeakInputTokens: mean((record) => record.peakInputTokens ?? 0),
-    contextExceeded: group.filter(
-      (record) => record.outcome === "contextExceeded",
-    ).length,
-    windowMismatch: group.filter(
-      (record) =>
-        record.loadedWindow !== null && record.loadedWindow !== record.window,
-    ).length,
-  };
+const all = [...records.values()];
+const eligible = all.filter((record) => eligibilityOf(record).eligible);
+const excluded: Record<string, number> = {};
+for (const record of all) {
+  const eligibility = eligibilityOf(record);
+  if (!eligibility.eligible)
+    excluded[eligibility.reason] = (excluded[eligibility.reason] ?? 0) + 1;
 }
-const keys = [
-  ...new Set(
-    records.map(
-      (record) => `${record.model} ${record.window} ${record.language}`,
-    ),
+const mean = (
+  group: readonly RunRecord[],
+  pick: (record: RunRecord) => number,
+): number | null =>
+  group.length === 0
+    ? null
+    : group.reduce((sum, record) => sum + pick(record), 0) / group.length;
+const summary = {
+  manifestHash,
+  runs: all.length,
+  eligible: eligible.length,
+  excluded,
+  byLanguage: Object.fromEntries(
+    options.languages.map((language) => {
+      const group = eligible.filter((record) => record.language === language);
+      return [
+        language,
+        {
+          runs: group.length,
+          correct: group.filter((record) => record.correct).length,
+          semanticCorrect: group.filter(
+            (record) => record.grade?.semantic.correct === true,
+          ).length,
+          meanCalls: mean(group, (record) => record.calls),
+          meanExcessCalls: mean(group, (record) => record.excessCalls),
+          meanSeconds: mean(group, (record) => record.ms / 1000),
+        },
+      ];
+    }),
   ),
-];
-const summary = Object.fromEntries(
-  keys.map((key) => [
-    key,
-    summarize(
-      records.filter(
-        (record) =>
-          `${record.model} ${record.window} ${record.language}` === key,
-      ),
-    ),
-  ]),
-);
+};
 await writeFile(
-  join(values.out, "summary.json"),
+  join(options.out, "summary.json"),
   `${JSON.stringify(summary, null, 1)}\n`,
 );
-process.stdout.write(`${JSON.stringify(summary, null, 1)}\n`);
+process.stdout.write(`${JSON.stringify(summary)}\n`);
