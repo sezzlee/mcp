@@ -274,18 +274,29 @@
         "en": "How many buildings are there in Yomra in total?"
       },
       "answer": {
-        "kind": "number",
-        "value": 13786,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 13786
       },
-      "plan": [
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "row": {
+            "step": 0,
+            "rows": "/values",
+            "key": 0,
+            "equals": "TOPLAM",
+            "value": 2
           }
         }
-      ]
+      }
     },
     {
       "id": "trabzon-yomra-top-units",
@@ -299,33 +310,70 @@
       },
       "answer": {
         "kind": "list",
-        "items": ["KAŞÜSTÜ", "SANCAK", "ÖZDİL"]
-      },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx",
-            "headerScan": true,
-            "groupBy": ["MAHALLE"],
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "D"
-              }
-            ],
-            "where": [
-              {
-                "column": "MAHALLE",
-                "op": "isNotEmpty"
-              }
-            ],
-            "orderBy": "metric",
-            "descending": true,
-            "maxGroups": 3
+        "items": [
+          {
+            "kind": "text",
+            "value": "KAŞÜSTÜ"
+          },
+          {
+            "kind": "text",
+            "value": "SANCAK"
+          },
+          {
+            "kind": "text",
+            "value": "ÖZDİL"
           }
+        ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx",
+              "headerScan": true,
+              "groupBy": ["MAHALLE"],
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "D"
+                }
+              ],
+              "where": [
+                {
+                  "column": "MAHALLE",
+                  "op": "isNotEmpty"
+                }
+              ],
+              "orderBy": "metric",
+              "descending": true,
+              "maxGroups": 3
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "list": [
+            {
+              "at": [1, "/rows/0/0"]
+            },
+            {
+              "at": [1, "/rows/1/0"]
+            },
+            {
+              "at": [1, "/rows/2/0"]
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "trabzon-yomra-ocak",
@@ -338,32 +386,45 @@
         "en": "How many independent units are there in the Ocak neighbourhood?"
       },
       "answer": {
-        "kind": "number",
-        "value": 463,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 463
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx",
-            "headerScan": true,
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "D"
-              }
-            ],
-            "where": [
-              {
-                "column": "MAHALLE",
-                "op": "eq",
-                "value": "ocak"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx",
+              "headerScan": true,
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "D"
+                }
+              ],
+              "where": [
+                {
+                  "column": "MAHALLE",
+                  "op": "eq",
+                  "value": "ocak"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "trabzon-three-districts",
@@ -384,40 +445,141 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "district": "ÇAYKARA",
-          "buildings": 17579
-        },
-        "tolerance": 0
-      },
-      "plan": [
-        {
-          "tool": "list_workbooks",
-          "args": {
-            "subdirectory": "trabzon"
+          "district": {
+            "kind": "text",
+            "value": "ÇAYKARA"
+          },
+          "buildings": {
+            "kind": "integer",
+            "value": 17579
           }
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
-          }
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "trabzon/tonya-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
-          }
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "trabzon/caykara-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
-          }
-        },
-        {
-          "compute": "compare the three TOPLAM building counts"
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "list_workbooks",
+            "args": {
+              "subdirectory": "trabzon"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+            },
+            "role": "answer"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "trabzon/tonya-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+            },
+            "role": "answer"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "trabzon/caykara-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "district": {
+              "fn": "argmax",
+              "args": [
+                {
+                  "list": [
+                    {
+                      "pair": [
+                        {
+                          "const": "YOMRA"
+                        },
+                        {
+                          "row": {
+                            "step": 1,
+                            "rows": "/values",
+                            "key": 0,
+                            "equals": "TOPLAM",
+                            "value": 2
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "pair": [
+                        {
+                          "const": "TONYA"
+                        },
+                        {
+                          "row": {
+                            "step": 2,
+                            "rows": "/values",
+                            "key": 0,
+                            "equals": "TOPLAM",
+                            "value": 2
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "pair": [
+                        {
+                          "const": "ÇAYKARA"
+                        },
+                        {
+                          "row": {
+                            "step": 3,
+                            "rows": "/values",
+                            "key": 0,
+                            "equals": "TOPLAM",
+                            "value": 2
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "buildings": {
+              "fn": "max",
+              "args": [
+                {
+                  "row": {
+                    "step": 1,
+                    "rows": "/values",
+                    "key": 0,
+                    "equals": "TOPLAM",
+                    "value": 2
+                  }
+                },
+                {
+                  "row": {
+                    "step": 2,
+                    "rows": "/values",
+                    "key": 0,
+                    "equals": "TOPLAM",
+                    "value": 2
+                  }
+                },
+                {
+                  "row": {
+                    "step": 3,
+                    "rows": "/values",
+                    "key": 0,
+                    "equals": "TOPLAM",
+                    "value": 2
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "id": "trabzon-hayrat-units",
@@ -430,24 +592,36 @@
         "en": "How many independent units does Hayrat have in total?"
       },
       "answer": {
-        "kind": "number",
-        "value": 11787,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 11787
       },
-      "plan": [
-        {
-          "tool": "list_workbooks",
-          "args": {
-            "subdirectory": "trabzon"
+      "plan": {
+        "steps": [
+          {
+            "tool": "list_workbooks",
+            "args": {
+              "subdirectory": "trabzon"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "trabzon/hayrat-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+            },
+            "role": "answer"
           }
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "trabzon/hayrat-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+        ],
+        "derive": {
+          "row": {
+            "step": 1,
+            "rows": "/values",
+            "key": 0,
+            "equals": "TOPLAM",
+            "value": 3
           }
         }
-      ]
+      }
     },
     {
       "id": "trabzon-hayrat-avenues",
@@ -460,31 +634,44 @@
         "en": "How many of these roads are avenues?"
       },
       "answer": {
-        "kind": "number",
-        "value": 54,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 54
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx",
-            "headerScan": true,
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "where": [
-              {
-                "column": "CSBM TÜRÜ",
-                "op": "eq",
-                "value": "Cadde"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx",
+              "headerScan": true,
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "CSBM TÜRÜ",
+                  "op": "eq",
+                  "value": "Cadde"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "trabzon-hayrat-table",
@@ -499,22 +686,50 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "name": "HAYRAT_İLÇESİ_CSBM_LİSTESİ_20260108",
-          "rows": 426
-        },
-        "tolerance": 0
-      },
-      "plan": [
-        {
-          "tool": "get_tables",
-          "args": {
-            "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx"
+          "name": {
+            "kind": "text",
+            "value": "HAYRAT_İLÇESİ_CSBM_LİSTESİ_20260108"
+          },
+          "rows": {
+            "kind": "integer",
+            "value": 426
           }
-        },
-        {
-          "compute": "data rows are the table range's rows minus its header row"
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "get_tables",
+            "args": {
+              "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "name": {
+              "at": [0, "/tables/0/name"]
+            },
+            "rows": {
+              "fn": "subtract",
+              "args": [
+                {
+                  "fn": "rangeRows",
+                  "args": [
+                    {
+                      "at": [0, "/tables/0/ref"]
+                    }
+                  ]
+                },
+                {
+                  "const": 1
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "id": "trabzon-hayrat-neighbourhoods",
@@ -527,25 +742,38 @@
         "en": "How many different neighbourhoods appear in the road list?"
       },
       "answer": {
-        "kind": "number",
-        "value": 35,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 35
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx",
-            "headerScan": true,
-            "metrics": [
-              {
-                "fn": "countDistinct",
-                "column": "MAHALLE ADI"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx",
+              "headerScan": true,
+              "metrics": [
+                {
+                  "fn": "countDistinct",
+                  "column": "MAHALLE ADI"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "trabzon-hayrat-coverage",
@@ -560,36 +788,100 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "onlyInRoads": 0,
-          "onlyInBuildings": 0
-        },
-        "tolerance": 0
-      },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx",
-            "headerScan": true,
-            "groupBy": ["MAHALLE ADI"],
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "maxGroups": 100
+          "onlyInRoads": {
+            "kind": "integer",
+            "value": 0
+          },
+          "onlyInBuildings": {
+            "kind": "integer",
+            "value": 0
           }
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "trabzon/hayrat-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
-          }
-        },
-        {
-          "compute": "compare the two neighbourhood sets"
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx",
+              "headerScan": true,
+              "groupBy": ["MAHALLE ADI"],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "maxGroups": 100
+            },
+            "role": "answer"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "trabzon/hayrat-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "onlyInRoads": {
+              "fn": "countNotIn",
+              "args": [
+                {
+                  "column": {
+                    "step": 1,
+                    "rows": "/rows",
+                    "value": 0
+                  }
+                },
+                {
+                  "column": {
+                    "step": 2,
+                    "rows": "/values",
+                    "value": 1,
+                    "where": {
+                      "key": 0,
+                      "number": true
+                    }
+                  }
+                }
+              ]
+            },
+            "onlyInBuildings": {
+              "fn": "countNotIn",
+              "args": [
+                {
+                  "column": {
+                    "step": 2,
+                    "rows": "/values",
+                    "value": 1,
+                    "where": {
+                      "key": 0,
+                      "number": true
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "step": 1,
+                    "rows": "/rows",
+                    "value": 0
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "id": "trabzon-yomra-density",
@@ -605,17 +897,37 @@
         "kind": "text",
         "value": "SANCAK"
       },
-      "plan": [
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+            },
+            "role": "answer"
           }
-        },
-        {
-          "compute": "divide units by buildings per neighbourhood and take the largest"
+        ],
+        "derive": {
+          "fn": "argmax",
+          "args": [
+            {
+              "pairs": {
+                "step": 0,
+                "rows": "/values",
+                "label": 1,
+                "value": {
+                  "op": "divide",
+                  "columns": [3, 2]
+                },
+                "where": {
+                  "key": 0,
+                  "number": true
+                }
+              }
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "trabzon-yomra-permits",
@@ -630,16 +942,30 @@
       "answer": {
         "kind": "refusal",
         "reason": "notInFile",
-        "shape": "number"
+        "shape": "decimal"
       },
-      "plan": [
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+            },
+            "role": "answer"
           }
+        ],
+        "confirm": {
+          "value": {
+            "at": [0, "/values/1"]
+          },
+          "equals": [
+            "SIRA NO",
+            "MAHALLE",
+            "YAPI\nSAYISI",
+            "BAĞIMSIZ BÖLÜM\nSAYISI"
+          ]
         }
-      ]
+      }
     },
     {
       "id": "ibb-kadikoy-pre1980",
@@ -652,52 +978,67 @@
         "en": "How many buildings in Kadıköy were built before 1980?"
       },
       "answer": {
-        "kind": "number",
-        "value": 12816,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 12816
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "1980_oncesi"
-              }
-            ],
-            "where": [
-              {
-                "column": "ilce_adi",
-                "op": "eq",
-                "value": "Kadıköy"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "1980_oncesi"
+                }
+              ],
+              "where": [
+                {
+                  "column": "ilce_adi",
+                  "op": "eq",
+                  "value": "Kadıköy"
+                }
+              ]
+            },
+            "role": "answer",
+            "expectError": "undecodable_text"
           },
-          "expectError": "undecodable_text"
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
-            "encoding": "windows-1254",
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "1980_oncesi"
-              }
-            ],
-            "where": [
-              {
-                "column": "ilce_adi",
-                "op": "eq",
-                "value": "Kadıköy"
-              }
-            ]
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "maxCells": 200,
+              "encoding": "windows-1254"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "encoding": "windows-1254",
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "1980_oncesi"
+                }
+              ],
+              "where": [
+                {
+                  "column": "ilce_adi",
+                  "op": "eq",
+                  "value": "Kadıköy"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [2, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "ibb-highrise-districts",
@@ -711,44 +1052,83 @@
       },
       "answer": {
         "kind": "list",
-        "items": ["KADIKÖY", "PENDİK", "BAŞAKŞEHİR"]
-      },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
-            "groupBy": ["ilce_adi"],
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "9-19 kat_arasi"
-              }
-            ],
-            "orderBy": "metric",
-            "descending": true,
-            "maxGroups": 3
+        "items": [
+          {
+            "kind": "text",
+            "value": "KADIKÖY"
           },
-          "expectError": "undecodable_text"
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
-            "encoding": "windows-1254",
-            "groupBy": ["ilce_adi"],
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "9-19 kat_arasi"
-              }
-            ],
-            "orderBy": "metric",
-            "descending": true,
-            "maxGroups": 3
+          {
+            "kind": "text",
+            "value": "PENDİK"
+          },
+          {
+            "kind": "text",
+            "value": "BAŞAKŞEHİR"
           }
+        ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "groupBy": ["ilce_adi"],
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "9-19 kat_arasi"
+                }
+              ],
+              "orderBy": "metric",
+              "descending": true,
+              "maxGroups": 3
+            },
+            "role": "answer",
+            "expectError": "undecodable_text"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "maxCells": 200,
+              "encoding": "windows-1254"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "encoding": "windows-1254",
+              "groupBy": ["ilce_adi"],
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "9-19 kat_arasi"
+                }
+              ],
+              "orderBy": "metric",
+              "descending": true,
+              "maxGroups": 3
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "list": [
+            {
+              "at": [2, "/rows/0/0"]
+            },
+            {
+              "at": [2, "/rows/1/0"]
+            },
+            {
+              "at": [2, "/rows/2/0"]
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "ibb-median-new-buildings",
@@ -761,38 +1141,53 @@
         "en": "What is the median number of post-2000 buildings per neighbourhood?"
       },
       "answer": {
-        "kind": "number",
-        "value": 267,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 267
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
-            "metrics": [
-              {
-                "fn": "median",
-                "column": "2000_sonrasi"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "metrics": [
+                {
+                  "fn": "median",
+                  "column": "2000_sonrasi"
+                }
+              ]
+            },
+            "role": "answer",
+            "expectError": "undecodable_text"
           },
-          "expectError": "undecodable_text"
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
-            "encoding": "windows-1254",
-            "metrics": [
-              {
-                "fn": "median",
-                "column": "2000_sonrasi"
-              }
-            ]
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "maxCells": 200,
+              "encoding": "windows-1254"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "encoding": "windows-1254",
+              "metrics": [
+                {
+                  "fn": "median",
+                  "column": "2000_sonrasi"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [2, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "ibb-no-highrise",
@@ -805,50 +1200,65 @@
         "en": "How many neighbourhoods have no buildings of 9 to 19 floors at all?"
       },
       "answer": {
-        "kind": "number",
-        "value": 347,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 347
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "where": [
-              {
-                "column": "9-19 kat_arasi",
-                "op": "eq",
-                "value": 0
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "9-19 kat_arasi",
+                  "op": "eq",
+                  "value": 0
+                }
+              ]
+            },
+            "role": "answer",
+            "expectError": "undecodable_text"
           },
-          "expectError": "undecodable_text"
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
-            "encoding": "windows-1254",
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "where": [
-              {
-                "column": "9-19 kat_arasi",
-                "op": "eq",
-                "value": 0
-              }
-            ]
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "maxCells": 200,
+              "encoding": "windows-1254"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "encoding": "windows-1254",
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "9-19 kat_arasi",
+                  "op": "eq",
+                  "value": 0
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [2, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "ibb-uavt-lookup",
@@ -864,48 +1274,55 @@
         "kind": "text",
         "value": "HEYBELİADA"
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
-            "groupBy": ["mahalle_adi"],
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "where": [
-              {
-                "column": "mahalle_uavt",
-                "op": "eq",
-                "value": 40142
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "groupBy": ["mahalle_adi"],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "mahalle_uavt",
+                  "op": "eq",
+                  "value": 40142
+                }
+              ]
+            },
+            "role": "answer",
+            "expectError": "undecodable_text"
           },
-          "expectError": "undecodable_text"
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
-            "encoding": "windows-1254",
-            "groupBy": ["mahalle_adi"],
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "where": [
-              {
-                "column": "mahalle_uavt",
-                "op": "eq",
-                "value": 40142
-              }
-            ]
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "encoding": "windows-1254",
+              "groupBy": ["mahalle_adi"],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "mahalle_uavt",
+                  "op": "eq",
+                  "value": 40142
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "ibb-esenyurt-highrise-share",
@@ -918,71 +1335,111 @@
         "en": "What percentage of the buildings in Esenyurt have 5 or more floors?"
       },
       "answer": {
-        "kind": "number",
+        "kind": "percent",
         "value": 52.7,
         "tolerance": 0.1
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "1-4 kat_arasi"
-              },
-              {
-                "fn": "sum",
-                "column": "5-9 kat_arasi"
-              },
-              {
-                "fn": "sum",
-                "column": "9-19 kat_arasi"
-              }
-            ],
-            "where": [
-              {
-                "column": "ilce_adi",
-                "op": "eq",
-                "value": "Esenyurt"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "1-4 kat_arasi"
+                },
+                {
+                  "fn": "sum",
+                  "column": "5-9 kat_arasi"
+                },
+                {
+                  "fn": "sum",
+                  "column": "9-19 kat_arasi"
+                }
+              ],
+              "where": [
+                {
+                  "column": "ilce_adi",
+                  "op": "eq",
+                  "value": "Esenyurt"
+                }
+              ]
+            },
+            "role": "answer",
+            "expectError": "undecodable_text"
           },
-          "expectError": "undecodable_text"
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
-            "encoding": "windows-1254",
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "1-4 kat_arasi"
-              },
-              {
-                "fn": "sum",
-                "column": "5-9 kat_arasi"
-              },
-              {
-                "fn": "sum",
-                "column": "9-19 kat_arasi"
-              }
-            ],
-            "where": [
-              {
-                "column": "ilce_adi",
-                "op": "eq",
-                "value": "Esenyurt"
-              }
-            ]
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "maxCells": 200,
+              "encoding": "windows-1254"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "encoding": "windows-1254",
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "1-4 kat_arasi"
+                },
+                {
+                  "fn": "sum",
+                  "column": "5-9 kat_arasi"
+                },
+                {
+                  "fn": "sum",
+                  "column": "9-19 kat_arasi"
+                }
+              ],
+              "where": [
+                {
+                  "column": "ilce_adi",
+                  "op": "eq",
+                  "value": "Esenyurt"
+                }
+              ]
+            },
+            "role": "answer"
           }
-        },
-        {
-          "compute": "(5-9 + 9-19) / all three, as a percentage"
+        ],
+        "derive": {
+          "fn": "percent",
+          "args": [
+            {
+              "fn": "sum",
+              "args": [
+                {
+                  "at": [2, "/rows/0/1"]
+                },
+                {
+                  "at": [2, "/rows/0/2"]
+                }
+              ]
+            },
+            {
+              "fn": "sum",
+              "args": [
+                {
+                  "at": [2, "/rows/0/0"]
+                },
+                {
+                  "at": [2, "/rows/0/1"]
+                },
+                {
+                  "at": [2, "/rows/0/2"]
+                }
+              ]
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "konya-most-streets",
@@ -997,51 +1454,71 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "district": "KARATAY",
-          "neighbourhood": "FEVZİÇAKMAK"
-        },
-        "tolerance": 0
-      },
-      "plan": [
-        {
-          "tool": "list_workbooks",
-          "args": {}
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "konya/ilce-ve-mahallelere-ait-yol-sayilari.csv",
-            "groupBy": ["ILCE", "MAHALLE"],
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "CADDE-SOKAK SAYISI"
-              }
-            ],
-            "orderBy": "metric",
-            "descending": true,
-            "maxGroups": 1
+          "district": {
+            "kind": "text",
+            "value": "KARATAY"
           },
-          "expectError": "undecodable_text"
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "konya/ilce-ve-mahallelere-ait-yol-sayilari.csv",
-            "encoding": "windows-1254",
-            "groupBy": ["ILCE", "MAHALLE"],
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "CADDE-SOKAK SAYISI"
-              }
-            ],
-            "orderBy": "metric",
-            "descending": true,
-            "maxGroups": 1
+          "neighbourhood": {
+            "kind": "text",
+            "value": "FEVZİÇAKMAK"
           }
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "list_workbooks",
+            "args": {},
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "konya/ilce-ve-mahallelere-ait-yol-sayilari.csv",
+              "groupBy": ["ILCE", "MAHALLE"],
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "CADDE-SOKAK SAYISI"
+                }
+              ],
+              "orderBy": "metric",
+              "descending": true,
+              "maxGroups": 1
+            },
+            "role": "answer",
+            "expectError": "undecodable_text"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "konya/ilce-ve-mahallelere-ait-yol-sayilari.csv",
+              "encoding": "windows-1254",
+              "groupBy": ["ILCE", "MAHALLE"],
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "CADDE-SOKAK SAYISI"
+                }
+              ],
+              "orderBy": "metric",
+              "descending": true,
+              "maxGroups": 1
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "district": {
+              "at": [2, "/rows/0/0"]
+            },
+            "neighbourhood": {
+              "at": [2, "/rows/0/1"]
+            }
+          }
+        }
+      }
     },
     {
       "id": "uk-aug-total",
@@ -1054,25 +1531,39 @@
         "en": "How much was paid out in total in August 2026?"
       },
       "answer": {
-        "kind": "number",
+        "kind": "decimal",
         "value": 43640187.03,
         "tolerance": 0.01
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
-            "headerScan": true,
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "AP Amount"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
+              "headerScan": true,
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "AP Amount"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "uk-aug-top-supplier",
@@ -1087,30 +1578,63 @@
       "answer": {
         "kind": "list",
         "items": [
-          "LIVEWELL SOUTHWEST",
-          "BOOTS UK LTD",
-          "SUPPLY CHAIN COORDINATION LIMITED"
+          {
+            "kind": "text",
+            "value": "LIVEWELL SOUTHWEST"
+          },
+          {
+            "kind": "text",
+            "value": "BOOTS UK LTD"
+          },
+          {
+            "kind": "text",
+            "value": "SUPPLY CHAIN COORDINATION LIMITED"
+          }
         ]
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
-            "headerScan": true,
-            "groupBy": ["Supplier"],
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "AP Amount"
-              }
-            ],
-            "orderBy": "metric",
-            "descending": true,
-            "maxGroups": 3
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
+              "headerScan": true,
+              "groupBy": ["Supplier"],
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "AP Amount"
+                }
+              ],
+              "orderBy": "metric",
+              "descending": true,
+              "maxGroups": 3
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "list": [
+            {
+              "at": [1, "/rows/0/0"]
+            },
+            {
+              "at": [1, "/rows/1/0"]
+            },
+            {
+              "at": [1, "/rows/2/0"]
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "uk-three-months",
@@ -1125,59 +1649,125 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "month": "2026-08",
-          "total": 43640187.03
-        },
-        "tolerance": 0.01
-      },
-      "plan": [
-        {
-          "tool": "list_workbooks",
-          "args": {}
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-nhs-plymouth/expenditure-over-25000-july-2025.xlsx",
-            "headerScan": true,
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "AP Amount"
-              }
-            ]
+          "month": {
+            "kind": "month",
+            "value": "2026-08"
+          },
+          "total": {
+            "kind": "decimal",
+            "value": 43640187.03,
+            "tolerance": 0.01
           }
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
-            "headerScan": true,
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "AP Amount"
-              }
-            ]
-          }
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-nhs-plymouth/expenditure-over-25000-september-2026.xlsx",
-            "headerScan": true,
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "AP Amount"
-              }
-            ]
-          }
-        },
-        {
-          "compute": "compare the three totals"
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "list_workbooks",
+            "args": {},
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-nhs-plymouth/expenditure-over-25000-july-2025.xlsx",
+              "headerScan": true,
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "AP Amount"
+                }
+              ]
+            },
+            "role": "answer"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
+              "headerScan": true,
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "AP Amount"
+                }
+              ]
+            },
+            "role": "answer"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-nhs-plymouth/expenditure-over-25000-september-2026.xlsx",
+              "headerScan": true,
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "AP Amount"
+                }
+              ]
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "month": {
+              "fn": "argmax",
+              "args": [
+                {
+                  "list": [
+                    {
+                      "pair": [
+                        {
+                          "const": "2025-07"
+                        },
+                        {
+                          "at": [1, "/rows/0/0"]
+                        }
+                      ]
+                    },
+                    {
+                      "pair": [
+                        {
+                          "const": "2026-08"
+                        },
+                        {
+                          "at": [2, "/rows/0/0"]
+                        }
+                      ]
+                    },
+                    {
+                      "pair": [
+                        {
+                          "const": "2026-09"
+                        },
+                        {
+                          "at": [3, "/rows/0/0"]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "total": {
+              "fn": "max",
+              "args": [
+                {
+                  "at": [1, "/rows/0/0"]
+                },
+                {
+                  "at": [2, "/rows/0/0"]
+                },
+                {
+                  "at": [3, "/rows/0/0"]
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "id": "uk-jul-siemens-search",
@@ -1191,17 +1781,41 @@
       },
       "answer": {
         "kind": "set",
-        "items": ["SIEMENS FINANCIAL SERVICES LTD"]
-      },
-      "plan": [
-        {
-          "tool": "find_in_sheet",
-          "args": {
-            "filePath": "uk-nhs-plymouth/expenditure-over-25000-july-2025.xlsx",
-            "query": "SIEMENS"
+        "items": [
+          {
+            "kind": "text",
+            "value": "SIEMENS FINANCIAL SERVICES LTD"
           }
+        ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "find_in_sheet",
+            "args": {
+              "filePath": "uk-nhs-plymouth/expenditure-over-25000-july-2025.xlsx",
+              "query": "SIEMENS"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "fn": "distinct",
+          "args": [
+            {
+              "pluck": {
+                "step": 0,
+                "items": "/matches",
+                "field": "value",
+                "where": {
+                  "field": "column",
+                  "equals": 6
+                }
+              }
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "uk-jul-invoice-number",
@@ -1217,33 +1831,47 @@
         "kind": "text",
         "value": "001250220961"
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-nhs-plymouth/expenditure-over-25000-july-2025.xlsx",
-            "headerScan": true,
-            "groupBy": ["Purchase Invoice Number"],
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "where": [
-              {
-                "column": "Supplier",
-                "op": "eq",
-                "value": "SIEMENS FINANCIAL SERVICES LTD"
-              },
-              {
-                "column": "AP Amount",
-                "op": "eq",
-                "value": 97097.5
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-nhs-plymouth/expenditure-over-25000-july-2025.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-nhs-plymouth/expenditure-over-25000-july-2025.xlsx",
+              "headerScan": true,
+              "groupBy": ["Purchase Invoice Number"],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "Supplier",
+                  "op": "eq",
+                  "value": "SIEMENS FINANCIAL SERVICES LTD"
+                },
+                {
+                  "column": "AP Amount",
+                  "op": "eq",
+                  "value": 97097.5
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "uk-aug-big-payments-raise",
@@ -1256,39 +1884,66 @@
         "en": "If the payments over £100k had been 10% higher, what would the total be?"
       },
       "answer": {
-        "kind": "number",
+        "kind": "decimal",
         "value": 47297810.69,
         "tolerance": 0.01
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
-            "headerScan": true,
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "AP Amount"
-              },
-              {
-                "fn": "sum",
-                "column": "AP Amount",
-                "where": [
-                  {
-                    "column": "AP Amount",
-                    "op": "gt",
-                    "value": 100000
-                  }
-                ]
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
+              "headerScan": true,
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "AP Amount"
+                },
+                {
+                  "fn": "sum",
+                  "column": "AP Amount",
+                  "where": [
+                    {
+                      "column": "AP Amount",
+                      "op": "gt",
+                      "value": 100000
+                    }
+                  ]
+                }
+              ]
+            },
+            "role": "answer"
           }
-        },
-        {
-          "compute": "total + 0.1 × the sum above £100,000"
+        ],
+        "derive": {
+          "fn": "sum",
+          "args": [
+            {
+              "at": [1, "/rows/0/0"]
+            },
+            {
+              "fn": "multiply",
+              "args": [
+                {
+                  "at": [1, "/rows/0/1"]
+                },
+                {
+                  "const": 0.1
+                }
+              ]
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "uk-aug-add-column",
@@ -1305,7 +1960,9 @@
         "reason": "readOnly",
         "shape": "text"
       },
-      "plan": []
+      "plan": {
+        "steps": []
+      }
     },
     {
       "id": "uk-glos-format-rule",
@@ -1321,14 +1978,29 @@
         "kind": "text",
         "value": "duplicateValues"
       },
-      "plan": [
-        {
-          "tool": "get_conditional_formats",
-          "args": {
-            "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx"
+      "plan": {
+        "steps": [
+          {
+            "tool": "get_conditional_formats",
+            "args": {
+              "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx"
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "fn": "single",
+          "args": [
+            {
+              "pluck": {
+                "step": 0,
+                "items": "/rules",
+                "field": "type"
+              }
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "uk-glos-duplicate-transaction",
@@ -1344,23 +2016,37 @@
         "kind": "text",
         "value": "0041154038"
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
-            "groupBy": ["Transaction Number"],
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "orderBy": "metric",
-            "descending": true,
-            "maxGroups": 1
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
+              "groupBy": ["Transaction Number"],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "orderBy": "metric",
+              "descending": true,
+              "maxGroups": 1
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "uk-glos-transaction-supplier",
@@ -1376,27 +2062,41 @@
         "kind": "text",
         "value": "APIRA LIMITED"
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
-            "groupBy": ["Supplier"],
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "where": [
-              {
-                "column": "Transaction Number",
-                "op": "eq",
-                "value": "0041159533"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
+              "groupBy": ["Supplier"],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "Transaction Number",
+                  "op": "eq",
+                  "value": "0041159533"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "uk-glos-busiest-day",
@@ -1409,32 +2109,46 @@
         "en": "On which day was the most money paid out?"
       },
       "answer": {
-        "kind": "text",
+        "kind": "date",
         "value": "2025-03-11"
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
-            "groupBy": [
-              {
-                "column": "Date",
-                "by": "day"
-              }
-            ],
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "AP Amount"
-              }
-            ],
-            "orderBy": "metric",
-            "descending": true,
-            "maxGroups": 1
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
+              "groupBy": [
+                {
+                  "column": "Date",
+                  "by": "day"
+                }
+              ],
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "AP Amount"
+                }
+              ],
+              "orderBy": "metric",
+              "descending": true,
+              "maxGroups": 1
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "fire-dropdown-years",
@@ -1449,29 +2163,81 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "count": 13,
-          "oldest": "2010/11",
-          "newest": "2022/23"
-        },
-        "tolerance": 0
-      },
-      "plan": [
-        {
-          "tool": "get_data_validations",
-          "args": {
-            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
-            "sheetName": "FIRE0604"
-          }
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
-            "sheetName": "FIRE0604",
-            "range": "J79:J91"
+          "count": {
+            "kind": "integer",
+            "value": 13
+          },
+          "oldest": {
+            "kind": "text",
+            "value": "2010/11"
+          },
+          "newest": {
+            "kind": "text",
+            "value": "2022/23"
           }
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "get_data_validations",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+              "sheetName": "FIRE0604"
+            },
+            "role": "answer"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+              "sheetName": "FIRE0604",
+              "range": "J79:J91"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "count": {
+              "fn": "count",
+              "args": [
+                {
+                  "column": {
+                    "step": 1,
+                    "rows": "/values",
+                    "value": 0
+                  }
+                }
+              ]
+            },
+            "oldest": {
+              "fn": "lexMin",
+              "args": [
+                {
+                  "column": {
+                    "step": 1,
+                    "rows": "/values",
+                    "value": 0
+                  }
+                }
+              ]
+            },
+            "newest": {
+              "fn": "lexMax",
+              "args": [
+                {
+                  "column": {
+                    "step": 1,
+                    "rows": "/values",
+                    "value": 0
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "id": "fire-2015-dwellings",
@@ -1484,43 +2250,58 @@
         "en": "How many primary fires were there in dwellings in 2015/16?"
       },
       "answer": {
-        "kind": "number",
-        "value": 31376,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 31376
       },
-      "plan": [
-        {
-          "tool": "describe_workbook",
-          "args": {
-            "filePath": "uk-fire-statistics/fire0604-materials.xlsx"
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+              "maxCells": 200,
+              "sheetName": "Data"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+              "sheetName": "Data",
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "TOTAL_PRIMARY_FIRES"
+                }
+              ],
+              "where": [
+                {
+                  "column": "FINANCIAL_YEAR",
+                  "op": "eq",
+                  "value": "2015/16"
+                },
+                {
+                  "column": "INCIDENT_TYPE",
+                  "op": "eq",
+                  "value": "Dwellings"
+                }
+              ]
+            },
+            "role": "answer"
           }
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
-            "sheetName": "Data",
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "TOTAL_PRIMARY_FIRES"
-              }
-            ],
-            "where": [
-              {
-                "column": "FINANCIAL_YEAR",
-                "op": "eq",
-                "value": "2015/16"
-              },
-              {
-                "column": "INCIDENT_TYPE",
-                "op": "eq",
-                "value": "Dwellings"
-              }
-            ]
-          }
+        ],
+        "derive": {
+          "at": [2, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "fire-hidden-sheet",
@@ -1536,15 +2317,34 @@
         "kind": "text",
         "value": "FIRE0604_raw"
       },
-      "plan": [
-        {
-          "tool": "describe_workbook",
-          "args": {
-            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
-            "includeDefinedNames": false
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+              "includeDefinedNames": false
+            },
+            "role": "discover"
           }
+        ],
+        "derive": {
+          "fn": "single",
+          "args": [
+            {
+              "pluck": {
+                "step": 0,
+                "items": "/sheets",
+                "field": "name",
+                "where": {
+                  "field": "state",
+                  "equals": "hidden"
+                }
+              }
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "fire-cross-sheet-check",
@@ -1559,46 +2359,71 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "table": 26822,
-          "data": 26822
-        },
-        "tolerance": 0
-      },
-      "plan": [
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
-            "sheetName": "FIRE0604",
-            "range": "A3:B6"
-          }
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
-            "sheetName": "Data",
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "TOTAL_PRIMARY_FIRES"
-              }
-            ],
-            "where": [
-              {
-                "column": "FINANCIAL_YEAR",
-                "op": "eq",
-                "value": "2022/23"
-              },
-              {
-                "column": "INCIDENT_TYPE",
-                "op": "eq",
-                "value": "Dwellings"
-              }
-            ]
+          "table": {
+            "kind": "integer",
+            "value": 26822
+          },
+          "data": {
+            "kind": "integer",
+            "value": 26822
           }
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+              "sheetName": "FIRE0604",
+              "range": "A3:B6"
+            },
+            "role": "answer"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+              "sheetName": "Data",
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "TOTAL_PRIMARY_FIRES"
+                }
+              ],
+              "where": [
+                {
+                  "column": "FINANCIAL_YEAR",
+                  "op": "eq",
+                  "value": "2022/23"
+                },
+                {
+                  "column": "INCIDENT_TYPE",
+                  "op": "eq",
+                  "value": "Dwellings"
+                }
+              ]
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "table": {
+              "row": {
+                "step": 0,
+                "rows": "/values",
+                "key": 0,
+                "equals": "Total",
+                "value": 1
+              }
+            },
+            "data": {
+              "at": [1, "/rows/0/0"]
+            }
+          }
+        }
+      }
     },
     {
       "id": "fire-year-type-pivot",
@@ -1613,37 +2438,76 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "2010/11 Dwellings": 36611,
-          "2010/11 Other Buildings": 20754,
-          "2022/23 Dwellings": 26822,
-          "2022/23 Other Buildings": 13550
-        },
-        "tolerance": 0
-      },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
-            "sheetName": "Data",
-            "groupBy": ["FINANCIAL_YEAR"],
-            "pivotBy": ["INCIDENT_TYPE"],
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "TOTAL_PRIMARY_FIRES"
-              }
-            ],
-            "where": [
-              {
-                "column": "FINANCIAL_YEAR",
-                "op": "in",
-                "values": ["2010/11", "2022/23"]
-              }
-            ]
+          "2010/11 Dwellings": {
+            "kind": "integer",
+            "value": 36611
+          },
+          "2010/11 Other Buildings": {
+            "kind": "integer",
+            "value": 20754
+          },
+          "2022/23 Dwellings": {
+            "kind": "integer",
+            "value": 26822
+          },
+          "2022/23 Other Buildings": {
+            "kind": "integer",
+            "value": 13550
           }
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+              "maxCells": 200,
+              "sheetName": "Data"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+              "sheetName": "Data",
+              "groupBy": ["FINANCIAL_YEAR"],
+              "pivotBy": ["INCIDENT_TYPE"],
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "TOTAL_PRIMARY_FIRES"
+                }
+              ],
+              "where": [
+                {
+                  "column": "FINANCIAL_YEAR",
+                  "op": "in",
+                  "values": ["2010/11", "2022/23"]
+                }
+              ]
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "2010/11 Dwellings": {
+              "at": [1, "/rows/0/1"]
+            },
+            "2010/11 Other Buildings": {
+              "at": [1, "/rows/0/2"]
+            },
+            "2022/23 Dwellings": {
+              "at": [1, "/rows/1/1"]
+            },
+            "2022/23 Other Buildings": {
+              "at": [1, "/rows/1/2"]
+            }
+          }
+        }
+      }
     },
     {
       "id": "fire-deadliest-year",
@@ -1659,38 +2523,54 @@
         "kind": "text",
         "value": "2017/18"
       },
-      "plan": [
-        {
-          "tool": "describe_workbook",
-          "args": {
-            "filePath": "uk-fire-statistics/fire0604-materials.xlsx"
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+              "maxCells": 200,
+              "sheetName": "Data"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+              "sheetName": "Data",
+              "groupBy": ["FINANCIAL_YEAR"],
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "TOTAL_FATALITIES"
+                }
+              ],
+              "where": [
+                {
+                  "column": "INCIDENT_TYPE",
+                  "op": "eq",
+                  "value": "Dwellings"
+                }
+              ],
+              "orderBy": "metric",
+              "descending": true,
+              "maxGroups": 1
+            },
+            "role": "answer"
           }
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
-            "sheetName": "Data",
-            "groupBy": ["FINANCIAL_YEAR"],
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "TOTAL_FATALITIES"
-              }
-            ],
-            "where": [
-              {
-                "column": "INCIDENT_TYPE",
-                "op": "eq",
-                "value": "Dwellings"
-              }
-            ],
-            "orderBy": "metric",
-            "descending": true,
-            "maxGroups": 1
-          }
+        ],
+        "derive": {
+          "at": [2, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "fire-food-subtotal",
@@ -1703,20 +2583,31 @@
         "en": "How many dwelling fires were caused by food in 2022/23?"
       },
       "answer": {
-        "kind": "number",
-        "value": 4046,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 4046
       },
-      "plan": [
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
-            "sheetName": "FIRE0604",
-            "range": "A1:H12"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+              "sheetName": "FIRE0604",
+              "range": "A1:H12"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "row": {
+            "step": 0,
+            "rows": "/values",
+            "key": 0,
+            "equals": "Food",
+            "value": 1
           }
         }
-      ]
+      }
     },
     {
       "id": "sivas-chart-peak",
@@ -1731,20 +2622,50 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "years": 6,
-          "peakYear": 2010
-        },
-        "tolerance": 0
-      },
-      "plan": [
-        {
-          "tool": "get_charts",
-          "args": {
-            "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
-            "sheetName": "Sayfa2"
+          "years": {
+            "kind": "integer",
+            "value": 6
+          },
+          "peakYear": {
+            "kind": "integer",
+            "value": 2010
           }
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "get_charts",
+            "args": {
+              "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+              "sheetName": "Sayfa2"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "years": {
+              "at": [0, "/charts/0/plots/0/series/0/categories/count"]
+            },
+            "peakYear": {
+              "fn": "argmax",
+              "args": [
+                {
+                  "zip": [
+                    {
+                      "at": [0, "/charts/0/plots/0/series/0/categories/points"]
+                    },
+                    {
+                      "at": [0, "/charts/0/plots/0/series/0/values/points"]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "id": "sivas-largest-2024",
@@ -1758,32 +2679,69 @@
       },
       "answer": {
         "kind": "list",
-        "items": ["ŞEYHŞAMİL", "YENİŞEHİR", "FATİH"]
-      },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
-            "groupBy": ["MAHALLE ADI"],
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "2024 NUFUSU"
-              }
-            ],
-            "where": [
-              {
-                "column": "NO",
-                "op": "isNumber"
-              }
-            ],
-            "orderBy": "metric",
-            "descending": true,
-            "maxGroups": 3
+        "items": [
+          {
+            "kind": "text",
+            "value": "ŞEYHŞAMİL"
+          },
+          {
+            "kind": "text",
+            "value": "YENİŞEHİR"
+          },
+          {
+            "kind": "text",
+            "value": "FATİH"
           }
+        ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+              "groupBy": ["MAHALLE ADI"],
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "2024 NUFUSU"
+                }
+              ],
+              "where": [
+                {
+                  "column": "NO",
+                  "op": "isNumber"
+                }
+              ],
+              "orderBy": "metric",
+              "descending": true,
+              "maxGroups": 3
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "list": [
+            {
+              "at": [1, "/rows/0/0"]
+            },
+            {
+              "at": [1, "/rows/1/0"]
+            },
+            {
+              "at": [1, "/rows/2/0"]
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "sivas-2015-total-check",
@@ -1798,42 +2756,68 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "fileTotal": 329082,
-          "sum": 328082
-        },
-        "tolerance": 0
-      },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "2015 NUFUSU",
-                "where": [
-                  {
-                    "column": "NO",
-                    "op": "isNumber"
-                  }
-                ]
-              },
-              {
-                "fn": "sum",
-                "column": "2015 NUFUSU",
-                "where": [
-                  {
-                    "column": "MAHALLE ADI",
-                    "op": "eq",
-                    "value": "TOPLAM"
-                  }
-                ]
-              }
-            ]
+          "fileTotal": {
+            "kind": "integer",
+            "value": 329082
+          },
+          "sum": {
+            "kind": "integer",
+            "value": 328082
           }
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "2015 NUFUSU",
+                  "where": [
+                    {
+                      "column": "NO",
+                      "op": "isNumber"
+                    }
+                  ]
+                },
+                {
+                  "fn": "sum",
+                  "column": "2015 NUFUSU",
+                  "where": [
+                    {
+                      "column": "MAHALLE ADI",
+                      "op": "eq",
+                      "value": "TOPLAM"
+                    }
+                  ]
+                }
+              ]
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "fileTotal": {
+              "at": [1, "/rows/0/1"]
+            },
+            "sum": {
+              "at": [1, "/rows/0/0"]
+            }
+          }
+        }
+      }
     },
     {
       "id": "sivas-growth",
@@ -1849,35 +2833,59 @@
         "kind": "text",
         "value": "ŞEYHŞAMİL"
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
-            "groupBy": ["MAHALLE ADI"],
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "2008 NÜFUSU"
-              },
-              {
-                "fn": "sum",
-                "column": "2024 NUFUSU"
-              }
-            ],
-            "where": [
-              {
-                "column": "NO",
-                "op": "isNumber"
-              }
-            ],
-            "maxGroups": 100
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+              "groupBy": ["MAHALLE ADI"],
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "2008 NÜFUSU"
+                },
+                {
+                  "fn": "sum",
+                  "column": "2024 NUFUSU"
+                }
+              ],
+              "where": [
+                {
+                  "column": "NO",
+                  "op": "isNumber"
+                }
+              ],
+              "maxGroups": 100
+            },
+            "role": "answer"
           }
-        },
-        {
-          "compute": "2024 minus 2008 per neighbourhood, take the largest"
+        ],
+        "derive": {
+          "fn": "argmax",
+          "args": [
+            {
+              "pairs": {
+                "step": 1,
+                "rows": "/rows",
+                "label": 0,
+                "value": {
+                  "op": "subtract",
+                  "columns": [2, 1]
+                }
+              }
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "sivas-sheet2-average",
@@ -1890,22 +2898,38 @@
         "en": "Based on the table on Sayfa2, what is the average population for 2008 to 2013?"
       },
       "answer": {
-        "kind": "number",
+        "kind": "decimal",
         "value": 307570.5,
         "tolerance": 0.5
       },
-      "plan": [
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
-            "sheetName": "Sayfa2"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+              "sheetName": "Sayfa2"
+            },
+            "role": "answer"
           }
-        },
-        {
-          "compute": "average the six yearly totals of one block"
+        ],
+        "derive": {
+          "fn": "avg",
+          "args": [
+            {
+              "column": {
+                "step": 0,
+                "rows": "/values",
+                "value": 1,
+                "where": {
+                  "key": 0,
+                  "number": true
+                }
+              }
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "sivas-new-neighbourhoods",
@@ -1919,29 +2943,60 @@
       },
       "answer": {
         "kind": "set",
-        "items": ["AHMETTURANGAZİ", "EĞRİKÖPRÜ", "MERAKÜM"]
+        "items": [
+          {
+            "kind": "text",
+            "value": "AHMETTURANGAZİ"
+          },
+          {
+            "kind": "text",
+            "value": "EĞRİKÖPRÜ"
+          },
+          {
+            "kind": "text",
+            "value": "MERAKÜM"
+          }
+        ]
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
-            "groupBy": ["MAHALLE ADI"],
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "where": [
-              {
-                "column": "2008 NÜFUSU",
-                "op": "eq",
-                "value": 0
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "sivas/sivas-merkez-nufus-verileri.xlsx",
+              "groupBy": ["MAHALLE ADI"],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "2008 NÜFUSU",
+                  "op": "eq",
+                  "value": 0
+                }
+              ]
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "column": {
+            "step": 1,
+            "rows": "/rows",
+            "value": 0
           }
         }
-      ]
+      }
     },
     {
       "id": "heatpump-logo",
@@ -1957,15 +3012,21 @@
         "kind": "text",
         "value": "UK Government logo"
       },
-      "plan": [
-        {
-          "tool": "get_images",
-          "args": {
-            "filePath": "uk-energy/heat-pump-deployment-quarterly-2025-q3.xlsx",
-            "sheetName": "Cover Sheet"
+      "plan": {
+        "steps": [
+          {
+            "tool": "get_images",
+            "args": {
+              "filePath": "uk-energy/heat-pump-deployment-quarterly-2025-q3.xlsx",
+              "sheetName": "Cover Sheet"
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [0, "/images/0/altText"]
         }
-      ]
+      }
     },
     {
       "id": "heatpump-2024-total",
@@ -1978,34 +3039,48 @@
         "en": "How many government-supported heat pumps were installed in 2024?"
       },
       "answer": {
-        "kind": "number",
-        "value": 43939,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 43939
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-energy/heat-pump-deployment-quarterly-2025-q3.xlsx",
-            "sheetName": "Table 1.1",
-            "headerRow": 6,
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "J"
-              }
-            ],
-            "where": [
-              {
-                "column": "A",
-                "op": "startsWith",
-                "value": "2024"
-              }
-            ],
-            "columnMode": "letter"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-energy/heat-pump-deployment-quarterly-2025-q3.xlsx",
+              "maxCells": 200,
+              "sheetName": "Table 1.1"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-energy/heat-pump-deployment-quarterly-2025-q3.xlsx",
+              "sheetName": "Table 1.1",
+              "headerRow": 6,
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "J"
+                }
+              ],
+              "where": [
+                {
+                  "column": "A",
+                  "op": "startsWith",
+                  "value": "2024"
+                }
+              ],
+              "columnMode": "letter"
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "heatpump-bus-best-quarter",
@@ -2021,27 +3096,42 @@
         "kind": "text",
         "value": "2025 Q3: July to September"
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-energy/heat-pump-deployment-quarterly-2025-q3.xlsx",
-            "sheetName": "Table 1.1",
-            "headerRow": 6,
-            "groupBy": ["A"],
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "B"
-              }
-            ],
-            "orderBy": "metric",
-            "descending": true,
-            "maxGroups": 1,
-            "columnMode": "letter"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-energy/heat-pump-deployment-quarterly-2025-q3.xlsx",
+              "maxCells": 200,
+              "sheetName": "Table 1.1"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-energy/heat-pump-deployment-quarterly-2025-q3.xlsx",
+              "sheetName": "Table 1.1",
+              "headerRow": 6,
+              "groupBy": ["A"],
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "B"
+                }
+              ],
+              "orderBy": "metric",
+              "descending": true,
+              "maxGroups": 1,
+              "columnMode": "letter"
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "gaziantep-busiest-month",
@@ -2054,31 +3144,45 @@
         "en": "In which month did the most requests come in?"
       },
       "answer": {
-        "kind": "text",
+        "kind": "month",
         "value": "2019-10"
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "gaziantep/2019.csv",
-            "groupBy": [
-              {
-                "column": "Oluşturulma Tarihi",
-                "by": "month"
-              }
-            ],
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "orderBy": "metric",
-            "descending": true,
-            "maxGroups": 1
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "groupBy": [
+                {
+                  "column": "Oluşturulma Tarihi",
+                  "by": "month"
+                }
+              ],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "orderBy": "metric",
+              "descending": true,
+              "maxGroups": 1
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "gaziantep-phone-district",
@@ -2094,35 +3198,49 @@
         "kind": "text",
         "value": "Şahinbey"
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "gaziantep/2019.csv",
-            "groupBy": ["İlçe"],
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "where": [
-              {
-                "column": "Kaynak",
-                "op": "eq",
-                "value": "Telefon (Alo 153)"
-              },
-              {
-                "column": "İlçe",
-                "op": "ne",
-                "value": "-"
-              }
-            ],
-            "orderBy": "metric",
-            "descending": true,
-            "maxGroups": 1
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "groupBy": ["İlçe"],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "Kaynak",
+                  "op": "eq",
+                  "value": "Telefon (Alo 153)"
+                },
+                {
+                  "column": "İlçe",
+                  "op": "ne",
+                  "value": "-"
+                }
+              ],
+              "orderBy": "metric",
+              "descending": true,
+              "maxGroups": 1
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "gaziantep-source-pivot",
@@ -2137,40 +3255,78 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "Şahinbey Web Sayfası": 833,
-          "Şahinbey Telefon (Alo 153)": 16069,
-          "Şehitkamil Web Sayfası": 629,
-          "Şehitkamil Telefon (Alo 153)": 11646
-        },
-        "tolerance": 0
-      },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "gaziantep/2019.csv",
-            "groupBy": ["İlçe"],
-            "pivotBy": ["Kaynak"],
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "where": [
-              {
-                "column": "İlçe",
-                "op": "in",
-                "values": ["Şahinbey", "Şehitkamil"]
-              },
-              {
-                "column": "Kaynak",
-                "op": "in",
-                "values": ["Web Sayfası", "Telefon (Alo 153)"]
-              }
-            ]
+          "sahinbeyWeb": {
+            "kind": "integer",
+            "value": 833
+          },
+          "sahinbeyPhone": {
+            "kind": "integer",
+            "value": 16069
+          },
+          "sehitkamilWeb": {
+            "kind": "integer",
+            "value": 629
+          },
+          "sehitkamilPhone": {
+            "kind": "integer",
+            "value": 11646
           }
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "groupBy": ["İlçe"],
+              "pivotBy": ["Kaynak"],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "İlçe",
+                  "op": "in",
+                  "values": ["Şahinbey", "Şehitkamil"]
+                },
+                {
+                  "column": "Kaynak",
+                  "op": "in",
+                  "values": ["Web Sayfası", "Telefon (Alo 153)"]
+                }
+              ]
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "sahinbeyWeb": {
+              "at": [1, "/rows/0/2"]
+            },
+            "sahinbeyPhone": {
+              "at": [1, "/rows/0/1"]
+            },
+            "sehitkamilWeb": {
+              "at": [1, "/rows/1/2"]
+            },
+            "sehitkamilPhone": {
+              "at": [1, "/rows/1/1"]
+            }
+          }
+        }
+      }
     },
     {
       "id": "gaziantep-birth-median",
@@ -2183,24 +3339,37 @@
         "en": "For applicants whose birth year is known, what is the median birth year?"
       },
       "answer": {
-        "kind": "number",
-        "value": 1979,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 1979
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "gaziantep/2019.csv",
-            "metrics": [
-              {
-                "fn": "median",
-                "column": "Doğum Tarihi"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "metrics": [
+                {
+                  "fn": "median",
+                  "column": "Doğum Tarihi"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "gaziantep-columns",
@@ -2215,19 +3384,50 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "columns": 11,
-          "dateColumn": "Oluşturulma Tarihi"
-        },
-        "tolerance": 0
-      },
-      "plan": [
-        {
-          "tool": "profile_sheet",
-          "args": {
-            "filePath": "gaziantep/2019.csv"
+          "columns": {
+            "kind": "integer",
+            "value": 11
+          },
+          "dateColumn": {
+            "kind": "text",
+            "value": "Oluşturulma Tarihi"
           }
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "profile_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "columns": {
+              "at": [0, "/totalColumns"]
+            },
+            "dateColumn": {
+              "fn": "single",
+              "args": [
+                {
+                  "pluck": {
+                    "step": 0,
+                    "items": "/profiles",
+                    "field": "header",
+                    "where": {
+                      "field": "inferredType",
+                      "equals": "date"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "id": "gaziantep-women",
@@ -2240,30 +3440,43 @@
         "en": "How many requests were made by women?"
       },
       "answer": {
-        "kind": "number",
-        "value": 5025,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 5025
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "gaziantep/2019.csv",
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "where": [
-              {
-                "column": "Cinsiyet",
-                "op": "eq",
-                "value": "female"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "Cinsiyet",
+                  "op": "eq",
+                  "value": "female"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "gaziantep-latest",
@@ -2276,29 +3489,43 @@
         "en": "When was the latest request made? Give the date and time."
       },
       "answer": {
-        "kind": "text",
+        "kind": "localDateTime",
         "value": "2019-12-31 23:40"
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "gaziantep/2019.csv",
-            "columns": [
-              {
-                "column": "Oluşturulma Tarihi",
-                "type": "date"
-              }
-            ],
-            "metrics": [
-              {
-                "fn": "max",
-                "column": "Oluşturulma Tarihi"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "columns": [
+                {
+                  "column": "Oluşturulma Tarihi",
+                  "type": "date"
+                }
+              ],
+              "metrics": [
+                {
+                  "fn": "max",
+                  "column": "Oluşturulma Tarihi"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "flights-2019-international",
@@ -2311,36 +3538,49 @@
         "en": "How many international flights were there in 2019 in total?"
       },
       "answer": {
-        "kind": "number",
-        "value": 716523,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 716523
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/turkiye-olceginde-havalimanlarindaki-ucus-sayisi.csv",
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "ucus_sayisi"
-              }
-            ],
-            "where": [
-              {
-                "column": "hat",
-                "op": "eq",
-                "value": "Dış"
-              },
-              {
-                "column": "tarih",
-                "op": "between",
-                "values": ["2019-01-01", "2019-12-31"]
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "istanbul/turkiye-olceginde-havalimanlarindaki-ucus-sayisi.csv",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/turkiye-olceginde-havalimanlarindaki-ucus-sayisi.csv",
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "ucus_sayisi"
+                }
+              ],
+              "where": [
+                {
+                  "column": "hat",
+                  "op": "eq",
+                  "value": "Dış"
+                },
+                {
+                  "column": "tarih",
+                  "op": "between",
+                  "values": ["2019-01-01", "2019-12-31"]
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "izmir-metro-2021",
@@ -2353,31 +3593,45 @@
         "en": "What do the İzmir Metro's CO2 figures add up to for 2021?"
       },
       "answer": {
-        "kind": "number",
+        "kind": "decimal",
         "value": 20653.73,
         "tolerance": 0.01
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "izmir/co2-emisyon-degerleri-ton-ve-bir-milyon-yolcu-basina-co2-miktari.csv",
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "IZMIR_METROSU"
-              }
-            ],
-            "where": [
-              {
-                "column": "YIL",
-                "op": "eq",
-                "value": 2021
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "izmir/co2-emisyon-degerleri-ton-ve-bir-milyon-yolcu-basina-co2-miktari.csv",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "izmir/co2-emisyon-degerleri-ton-ve-bir-milyon-yolcu-basina-co2-miktari.csv",
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "IZMIR_METROSU"
+                }
+              ],
+              "where": [
+                {
+                  "column": "YIL",
+                  "op": "eq",
+                  "value": 2021
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "manisa-yunusemre-divorced-women",
@@ -2390,39 +3644,53 @@
         "en": "How many divorced women are there in Yunusemre?"
       },
       "answer": {
-        "kind": "number",
-        "value": 6465,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 6465
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
-            "sheetName": "İLÇE_MEDENİ DRM_2025",
-            "headerRow": 8,
-            "mergedCells": "repeat",
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "KADIN"
-              }
-            ],
-            "where": [
-              {
-                "column": "İLÇE ADI",
-                "op": "eq",
-                "value": "Yunusemre"
-              },
-              {
-                "column": "MEDENİ DURUM",
-                "op": "eq",
-                "value": "BOŞANDI"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
+              "maxCells": 200,
+              "sheetName": "İLÇE_MEDENİ DRM_2025"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
+              "sheetName": "İLÇE_MEDENİ DRM_2025",
+              "headerRow": 8,
+              "mergedCells": "repeat",
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "KADIN"
+                }
+              ],
+              "where": [
+                {
+                  "column": "İLÇE ADI",
+                  "op": "eq",
+                  "value": "Yunusemre"
+                },
+                {
+                  "column": "MEDENİ DURUM",
+                  "op": "eq",
+                  "value": "BOŞANDI"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "manisa-divorced-women-total",
@@ -2435,33 +3703,47 @@
         "en": "How many divorced women are there across all of Manisa's districts?"
       },
       "answer": {
-        "kind": "number",
-        "value": 32440,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 32440
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
-            "sheetName": "İLÇE_MEDENİ DRM_2025",
-            "headerRow": 8,
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "KADIN"
-              }
-            ],
-            "where": [
-              {
-                "column": "MEDENİ DURUM",
-                "op": "eq",
-                "value": "BOŞANDI"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
+              "maxCells": 200,
+              "sheetName": "İLÇE_MEDENİ DRM_2025"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
+              "sheetName": "İLÇE_MEDENİ DRM_2025",
+              "headerRow": 8,
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "KADIN"
+                }
+              ],
+              "where": [
+                {
+                  "column": "MEDENİ DURUM",
+                  "op": "eq",
+                  "value": "BOŞANDI"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "manisa-single-households",
@@ -2474,25 +3756,37 @@
         "en": "How many one-person households are there in Yunusemre?"
       },
       "answer": {
-        "kind": "number",
-        "value": 15076,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 15076
       },
-      "plan": [
-        {
-          "tool": "describe_workbook",
-          "args": {
-            "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx"
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
+              "sheetName": "ILCE_HHS_HHB"
+            },
+            "role": "answer"
           }
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
-            "sheetName": "ILCE_HHS_HHB"
+        ],
+        "derive": {
+          "row": {
+            "step": 1,
+            "rows": "/values",
+            "key": 3,
+            "equals": "YUNUSEMRE",
+            "value": 6
           }
         }
-      ]
+      }
     },
     {
       "id": "manisa-oldest-women-2025",
@@ -2508,25 +3802,57 @@
         "kind": "text",
         "value": "KÖPRÜBAŞI"
       },
-      "plan": [
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
-            "range": "A7:E26"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
+              "range": "A7:E26"
+            },
+            "role": "answer"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
+              "range": "AP7:AR26"
+            },
+            "role": "answer"
           }
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "manisa/2025-yili-ilce-duzeyinde-hane-halki-sayisi.xlsx",
-            "range": "AP7:AR26"
-          }
-        },
-        {
-          "compute": "pair district names with the 2025 KADIN column and take the largest"
+        ],
+        "derive": {
+          "fn": "argmax",
+          "args": [
+            {
+              "zip": [
+                {
+                  "column": {
+                    "step": 0,
+                    "rows": "/values",
+                    "value": 4,
+                    "where": {
+                      "key": 0,
+                      "number": true
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "step": 1,
+                    "rows": "/values",
+                    "value": 2,
+                    "where": {
+                      "key": 2,
+                      "number": true
+                    }
+                  }
+                }
+              ]
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "manisa-plants-most-varieties",
@@ -2542,15 +3868,34 @@
         "kind": "text",
         "value": "ÇELİK SAKSILARA DİKİMİ YAPILAN MEVSİMLİK ÇİÇEKLER"
       },
-      "plan": [
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "manisa/2025-subat-ayi-bitki-uretim-tablosu.xlsx",
-            "mergedCells": "repeat"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "manisa/2025-subat-ayi-bitki-uretim-tablosu.xlsx",
+              "mergedCells": "repeat"
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "fn": "argmax",
+          "args": [
+            {
+              "countBy": {
+                "step": 0,
+                "rows": "/values",
+                "label": 1,
+                "where": {
+                  "key": 2,
+                  "nonEmpty": true
+                }
+              }
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "manisa-plants-total-check",
@@ -2565,22 +3910,67 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "fileTotal": 14782,
-          "sum": 16582
-        },
-        "tolerance": 0
-      },
-      "plan": [
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "manisa/2025-subat-ayi-bitki-uretim-tablosu.xlsx"
+          "fileTotal": {
+            "kind": "integer",
+            "value": 14782
+          },
+          "sum": {
+            "kind": "integer",
+            "value": 16582
           }
-        },
-        {
-          "compute": "add the ARA TOPLAM rows and compare with GENEL TOPLAM"
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "manisa/2025-subat-ayi-bitki-uretim-tablosu.xlsx"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "fileTotal": {
+              "row": {
+                "step": 0,
+                "rows": "/values",
+                "key": 0,
+                "equals": "GENEL TOPLAM ADET:",
+                "value": 3
+              }
+            },
+            "sum": {
+              "fn": "sum",
+              "args": [
+                {
+                  "column": {
+                    "step": 0,
+                    "rows": "/values",
+                    "value": 3,
+                    "where": {
+                      "key": 1,
+                      "equals": "ARA TOPLAM"
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "step": 0,
+                    "rows": "/values",
+                    "value": 3,
+                    "where": {
+                      "key": 0,
+                      "equals": "ARA TOPLAM"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "id": "manisa-plants-merged",
@@ -2593,18 +3983,23 @@
         "en": "I want to sort the table but Excel complains about merged cells. How many merged ranges are there?"
       },
       "answer": {
-        "kind": "number",
-        "value": 9,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 9
       },
-      "plan": [
-        {
-          "tool": "get_merged_ranges",
-          "args": {
-            "filePath": "manisa/2025-subat-ayi-bitki-uretim-tablosu.xlsx"
+      "plan": {
+        "steps": [
+          {
+            "tool": "get_merged_ranges",
+            "args": {
+              "filePath": "manisa/2025-subat-ayi-bitki-uretim-tablosu.xlsx"
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [0, "/count"]
         }
-      ]
+      }
     },
     {
       "id": "grocery-broken-prices",
@@ -2617,30 +4012,43 @@
         "en": "How many rows show a broken price, such as #N/A?"
       },
       "answer": {
-        "kind": "number",
-        "value": 12,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 12
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "izmir/halkin-bakkali-urunleri.xlsx",
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "where": [
-              {
-                "column": "D",
-                "op": "isError"
-              }
-            ],
-            "columnMode": "letter"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "izmir/halkin-bakkali-urunleri.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "izmir/halkin-bakkali-urunleri.xlsx",
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "D",
+                  "op": "isError"
+                }
+              ],
+              "columnMode": "letter"
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "grocery-spice-average",
@@ -2653,33 +4061,47 @@
         "en": "What is the average price of the products in the spice group?"
       },
       "answer": {
-        "kind": "number",
+        "kind": "decimal",
         "value": 56.6,
         "tolerance": 0.01
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "izmir/halkin-bakkali-urunleri.xlsx",
-            "mergedCells": "repeat",
-            "metrics": [
-              {
-                "fn": "avg",
-                "column": "D"
-              }
-            ],
-            "where": [
-              {
-                "column": "A",
-                "op": "startsWith",
-                "value": "BAHARAT"
-              }
-            ],
-            "columnMode": "letter"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "izmir/halkin-bakkali-urunleri.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "izmir/halkin-bakkali-urunleri.xlsx",
+              "mergedCells": "repeat",
+              "metrics": [
+                {
+                  "fn": "avg",
+                  "column": "D"
+                }
+              ],
+              "where": [
+                {
+                  "column": "A",
+                  "op": "startsWith",
+                  "value": "BAHARAT"
+                }
+              ],
+              "columnMode": "letter"
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "grocery-stock-code",
@@ -2695,22 +4117,29 @@
         "kind": "text",
         "value": "5.17.01.0037"
       },
-      "plan": [
-        {
-          "tool": "find_in_sheet",
-          "args": {
-            "filePath": "izmir/halkin-bakkali-urunleri.xlsx",
-            "query": "ACI PUL BIBER 80"
+      "plan": {
+        "steps": [
+          {
+            "tool": "find_in_sheet",
+            "args": {
+              "filePath": "izmir/halkin-bakkali-urunleri.xlsx",
+              "query": "ACI PUL BIBER 80"
+            },
+            "role": "answer"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "izmir/halkin-bakkali-urunleri.xlsx",
+              "range": "A2:D2"
+            },
+            "role": "answer"
           }
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "izmir/halkin-bakkali-urunleri.xlsx",
-            "range": "A2:D2"
-          }
+        ],
+        "derive": {
+          "at": [1, "/values/0/1"]
         }
-      ]
+      }
     },
     {
       "id": "naep-female-2013",
@@ -2723,18 +4152,24 @@
         "en": "What was the average maths score of female students in 2013?"
       },
       "answer": {
-        "kind": "number",
+        "kind": "decimal",
         "value": 151.19,
         "tolerance": 0.01
       },
-      "plan": [
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "us-education/naep-12th-grade-math-scores.xlsx"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "us-education/naep-12th-grade-math-scores.xlsx"
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [0, "/values/4/9"]
         }
-      ]
+      }
     },
     {
       "id": "naep-pacific-2013",
@@ -2747,18 +4182,24 @@
         "en": "What was the average score of Pacific Islander students in 2013?"
       },
       "answer": {
-        "kind": "number",
+        "kind": "decimal",
         "value": 149.1,
         "tolerance": 0.01
       },
-      "plan": [
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "us-education/naep-12th-grade-math-scores.xlsx"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "us-education/naep-12th-grade-math-scores.xlsx"
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [0, "/values/10/9"]
         }
-      ]
+      }
     },
     {
       "id": "naep-pacific-male-2013",
@@ -2773,16 +4214,25 @@
       "answer": {
         "kind": "refusal",
         "reason": "suppressed",
-        "shape": "number"
+        "shape": "decimal"
       },
-      "plan": [
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "us-education/naep-12th-grade-math-scores.xlsx"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "us-education/naep-12th-grade-math-scores.xlsx"
+            },
+            "role": "answer"
           }
+        ],
+        "confirm": {
+          "value": {
+            "at": [0, "/values/18/9"]
+          },
+          "equals": "‡"
         }
-      ]
+      }
     },
     {
       "id": "naep-gender-gap",
@@ -2797,22 +4247,55 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "gap2005": 2.5,
-          "gap2013": 2.45
-        },
-        "tolerance": 0.01
-      },
-      "plan": [
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "us-education/naep-12th-grade-math-scores.xlsx"
+          "gap2005": {
+            "kind": "decimal",
+            "value": 2.5,
+            "tolerance": 0.01
+          },
+          "gap2013": {
+            "kind": "decimal",
+            "value": 2.45,
+            "tolerance": 0.01
           }
-        },
-        {
-          "compute": "male minus female for 2005 and for 2013"
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "us-education/naep-12th-grade-math-scores.xlsx"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "gap2005": {
+              "fn": "subtract",
+              "args": [
+                {
+                  "at": [0, "/values/3/1"]
+                },
+                {
+                  "at": [0, "/values/4/1"]
+                }
+              ]
+            },
+            "gap2013": {
+              "fn": "subtract",
+              "args": [
+                {
+                  "at": [0, "/values/3/9"]
+                },
+                {
+                  "at": [0, "/values/4/9"]
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "id": "tariff-arcade-tax",
@@ -2825,19 +4308,31 @@
         "en": "How much is the daily entertainment tax for arcades?"
       },
       "answer": {
-        "kind": "number",
+        "kind": "decimal",
         "value": 6.5,
         "tolerance": 0
       },
-      "plan": [
-        {
-          "tool": "find_in_sheet",
-          "args": {
-            "filePath": "manisa/2025-yili-mali-hizmetler-ucret-tarifesi.xlsx",
-            "query": "Atari"
+      "plan": {
+        "steps": [
+          {
+            "tool": "find_in_sheet",
+            "args": {
+              "filePath": "manisa/2025-yili-mali-hizmetler-ucret-tarifesi.xlsx",
+              "query": "Atari"
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "fn": "capture",
+          "args": [
+            {
+              "at": [0, "/matches/0/value"]
+            }
+          ],
+          "pattern": "Atari salonu[^:]*:\\s*([\\d,.]+)\\s*TL"
         }
-      ]
+      }
     },
     {
       "id": "sample-utf16-izmir",
@@ -2853,22 +4348,29 @@
         "kind": "text",
         "value": "Çiğli"
       },
-      "plan": [
-        {
-          "tool": "find_in_sheet",
-          "args": {
-            "filePath": "samples/sehirler.csv",
-            "query": "izmir"
+      "plan": {
+        "steps": [
+          {
+            "tool": "find_in_sheet",
+            "args": {
+              "filePath": "samples/sehirler.csv",
+              "query": "izmir"
+            },
+            "role": "answer"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "samples/sehirler.csv",
+              "range": "A3:B3"
+            },
+            "role": "answer"
           }
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "samples/sehirler.csv",
-            "range": "A3:B3"
-          }
+        ],
+        "derive": {
+          "at": [1, "/values/0/1"]
         }
-      ]
+      }
     },
     {
       "id": "sample-sep-columns",
@@ -2881,18 +4383,23 @@
         "en": "How many columns does this file have?"
       },
       "answer": {
-        "kind": "number",
-        "value": 2,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 2
       },
-      "plan": [
-        {
-          "tool": "describe_workbook",
-          "args": {
-            "filePath": "samples/excel-export.csv"
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "samples/excel-export.csv"
+            },
+            "role": "discover"
           }
+        ],
+        "derive": {
+          "at": [0, "/sheets/0/columnCount"]
         }
-      ]
+      }
     },
     {
       "id": "sample-formula-phone",
@@ -2908,27 +4415,41 @@
         "kind": "text",
         "value": "+90 532 000 00 00"
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "samples/form-submissions.csv",
-            "groupBy": ["value"],
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "where": [
-              {
-                "column": "case",
-                "op": "eq",
-                "value": "phone"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "samples/form-submissions.csv",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "samples/form-submissions.csv",
+              "groupBy": ["value"],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "case",
+                  "op": "eq",
+                  "value": "phone"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "sfo-noise-limit",
@@ -2943,17 +4464,26 @@
       "answer": {
         "kind": "refusal",
         "reason": "limit",
-        "shape": "number"
+        "shape": "decimal"
       },
-      "plan": [
-        {
-          "tool": "describe_workbook",
-          "args": {
-            "filePath": "us-sfo/noise-monitoring-export.csv"
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "us-sfo/noise-monitoring-export.csv"
+            },
+            "role": "discover",
+            "expectError": "file_too_large"
+          }
+        ],
+        "confirm": {
+          "value": {
+            "error": 0
           },
-          "expectError": "file_too_large"
+          "equals": "file_too_large"
         }
-      ]
+      }
     },
     {
       "id": "boiler-air-to-water-paid",
@@ -2966,35 +4496,48 @@
         "en": "How many air-to-water heat pump vouchers have been paid out?"
       },
       "answer": {
-        "kind": "number",
-        "value": 85264,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 85264
       },
-      "plan": [
-        {
-          "tool": "describe_workbook",
-          "args": {
-            "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx"
-          }
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx",
-            "sheetName": "1.1"
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx"
+            },
+            "role": "discover"
           },
-          "expectError": "ambiguous_header_row"
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx",
-            "sheetName": "1.1",
-            "headerRow": 5,
-            "range": "A5:G9"
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx",
+              "sheetName": "1.1"
+            },
+            "role": "answer",
+            "expectError": "ambiguous_header_row"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx",
+              "sheetName": "1.1",
+              "headerRow": 5,
+              "range": "A5:G9"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "row": {
+            "step": 2,
+            "rows": "/values",
+            "key": 0,
+            "equals": "Redemptions paid",
+            "value": 1
           }
         }
-      ]
+      }
     },
     {
       "id": "boiler-ground-source-share",
@@ -3007,30 +4550,48 @@
         "en": "What percentage of the paid redemptions were for ground source heat pumps?"
       },
       "answer": {
-        "kind": "number",
+        "kind": "percent",
         "value": 1.78,
         "tolerance": 0.01
       },
-      "plan": [
-        {
-          "tool": "describe_workbook",
-          "args": {
-            "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx"
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx",
+              "sheetName": "1.1",
+              "headerRow": 11,
+              "range": "A11:G15"
+            },
+            "role": "answer"
           }
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "uk-energy/boiler-upgrade-scheme-statistics-june-2026.xlsx",
-            "sheetName": "1.1",
-            "headerRow": 11,
-            "range": "A11:G15"
-          }
-        },
-        {
-          "compute": "turn the stored fraction into a percentage"
+        ],
+        "derive": {
+          "fn": "multiply",
+          "args": [
+            {
+              "row": {
+                "step": 1,
+                "rows": "/values",
+                "key": 0,
+                "equals": "Redemptions paid",
+                "value": 3
+              }
+            },
+            {
+              "const": 100
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "audit-sticker-seen",
@@ -3045,31 +4606,62 @@
       "answer": {
         "kind": "record",
         "fields": {
-          "businesses": 451,
-          "percent": 91
-        },
-        "tolerance": 0.5
-      },
-      "plan": [
-        {
-          "tool": "find_in_sheet",
-          "args": {
-            "filePath": "uk-fsa/fhrs-audit-northern-ireland-2023.xlsx",
-            "query": "Did you see an FHRS sticker at this outlet?",
-            "matchMode": "exact"
+          "businesses": {
+            "kind": "integer",
+            "value": 451
+          },
+          "percent": {
+            "kind": "percent",
+            "value": 91,
+            "tolerance": 0.5
           }
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "uk-fsa/fhrs-audit-northern-ireland-2023.xlsx",
-            "sheetName": "11"
-          }
-        },
-        {
-          "compute": "turn the stored share into a percentage"
         }
-      ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "find_in_sheet",
+            "args": {
+              "filePath": "uk-fsa/fhrs-audit-northern-ireland-2023.xlsx",
+              "query": "Did you see an FHRS sticker at this outlet?",
+              "matchMode": "exact"
+            },
+            "role": "answer"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-fsa/fhrs-audit-northern-ireland-2023.xlsx",
+              "sheetName": "11"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "record": {
+            "businesses": {
+              "row": {
+                "step": 1,
+                "rows": "/values",
+                "key": 1,
+                "equals": "Yes",
+                "value": 2
+              }
+            },
+            "percent": {
+              "fn": "multiply",
+              "args": [
+                {
+                  "at": [1, "/values/13/2"]
+                },
+                {
+                  "const": 100
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "id": "audit-rating-four-sticker",
@@ -3082,27 +4674,40 @@
         "en": "Among businesses with an FHRS rating of 4, what percentage had a sticker on show?"
       },
       "answer": {
-        "kind": "number",
+        "kind": "percent",
         "value": 81,
         "tolerance": 0.5
       },
-      "plan": [
-        {
-          "tool": "find_in_sheet",
-          "args": {
-            "filePath": "uk-fsa/fhrs-audit-northern-ireland-2023.xlsx",
-            "query": "Did you see an FHRS sticker at this outlet?",
-            "matchMode": "exact"
+      "plan": {
+        "steps": [
+          {
+            "tool": "find_in_sheet",
+            "args": {
+              "filePath": "uk-fsa/fhrs-audit-northern-ireland-2023.xlsx",
+              "query": "Did you see an FHRS sticker at this outlet?",
+              "matchMode": "exact"
+            },
+            "role": "answer"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-fsa/fhrs-audit-northern-ireland-2023.xlsx",
+              "sheetName": "11"
+            },
+            "role": "answer"
           }
-        },
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "uk-fsa/fhrs-audit-northern-ireland-2023.xlsx",
-            "sheetName": "11"
-          }
+        ],
+        "derive": {
+          "fn": "capture",
+          "args": [
+            {
+              "at": [1, "/values/13/7"]
+            }
+          ],
+          "pattern": "(\\d+(?:\\.\\d+)?)%"
         }
-      ]
+      }
     },
     {
       "id": "toilets-extract-date",
@@ -3115,21 +4720,29 @@
         "en": "On what date was this toilet list extracted?"
       },
       "answer": {
-        "kind": "text",
+        "kind": "date",
         "value": "2015-01-05"
       },
-      "plan": [
-        {
-          "tool": "read_sheet",
-          "args": {
-            "filePath": "uk-plymouth/public-toilets.csv",
-            "range": "A1:C2"
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-plymouth/public-toilets.csv",
+              "range": "A1:C2"
+            },
+            "role": "answer"
           }
-        },
-        {
-          "compute": "read the extract date day first, as a UK council writes it"
+        ],
+        "derive": {
+          "fn": "dayFirst",
+          "args": [
+            {
+              "at": [0, "/values/0/0"]
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "id": "ibb-pre1980-p75",
@@ -3142,40 +4755,56 @@
         "en": "What is the 75th percentile of pre-1980 buildings per neighbourhood?"
       },
       "answer": {
-        "kind": "number",
+        "kind": "decimal",
         "value": 414.5,
         "tolerance": 0
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
-            "metrics": [
-              {
-                "fn": "percentile",
-                "column": "1980_oncesi",
-                "percentile": 0.75
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "metrics": [
+                {
+                  "fn": "percentile",
+                  "column": "1980_oncesi",
+                  "percentile": 0.75
+                }
+              ]
+            },
+            "role": "answer",
+            "expectError": "undecodable_text"
           },
-          "expectError": "undecodable_text"
-        },
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
-            "encoding": "windows-1254",
-            "metrics": [
-              {
-                "fn": "percentile",
-                "column": "1980_oncesi",
-                "percentile": 0.75
-              }
-            ]
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "maxCells": 200,
+              "encoding": "windows-1254"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/mahalle-bazli-bina-analiz-verisi.csv",
+              "encoding": "windows-1254",
+              "metrics": [
+                {
+                  "fn": "percentile",
+                  "column": "1980_oncesi",
+                  "percentile": 0.75
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [2, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "uk-glos-total",
@@ -3188,24 +4817,38 @@
         "en": "How much was paid in total in March 2025?"
       },
       "answer": {
-        "kind": "number",
+        "kind": "decimal",
         "value": 11181988.98,
         "tolerance": 0.01
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
-            "metrics": [
-              {
-                "fn": "sum",
-                "column": "AP Amount"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-nhs-gloucestershire/consolidated-invoice-spend-above-25k-march-2025.xlsx",
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "AP Amount"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "flights-airport-count",
@@ -3218,24 +4861,37 @@
         "en": "How many different airports are in the data?"
       },
       "answer": {
-        "kind": "number",
-        "value": 57,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 57
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "istanbul/turkiye-olceginde-havalimanlarindaki-ucus-sayisi.csv",
-            "metrics": [
-              {
-                "fn": "countDistinct",
-                "column": "havalimani"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "istanbul/turkiye-olceginde-havalimanlarindaki-ucus-sayisi.csv",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "istanbul/turkiye-olceginde-havalimanlarindaki-ucus-sayisi.csv",
+              "metrics": [
+                {
+                  "fn": "countDistinct",
+                  "column": "havalimani"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "fire-data-rows",
@@ -3248,24 +4904,29 @@
         "en": "How many data rows are on the Data sheet?"
       },
       "answer": {
-        "kind": "number",
-        "value": 1218,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 1218
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
-            "sheetName": "Data",
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ]
+      "plan": {
+        "steps": [
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0604-materials.xlsx",
+              "sheetName": "Data",
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ]
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [0, "/rows/0/0"]
         }
-      ]
+      }
     },
     {
       "id": "gaziantep-busiest-hour",
@@ -3278,32 +4939,45 @@
         "en": "At what hour of the day did the most requests come in?"
       },
       "answer": {
-        "kind": "number",
-        "value": 10,
-        "tolerance": 0
+        "kind": "integer",
+        "value": 10
       },
-      "plan": [
-        {
-          "tool": "aggregate_sheet",
-          "args": {
-            "filePath": "gaziantep/2019.csv",
-            "groupBy": [
-              {
-                "column": "Oluşturulma Tarihi",
-                "by": "hour"
-              }
-            ],
-            "metrics": [
-              {
-                "fn": "count"
-              }
-            ],
-            "orderBy": "metric",
-            "descending": true,
-            "maxGroups": 1
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "maxCells": 200
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "gaziantep/2019.csv",
+              "groupBy": [
+                {
+                  "column": "Oluşturulma Tarihi",
+                  "by": "hour"
+                }
+              ],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "orderBy": "metric",
+              "descending": true,
+              "maxGroups": 1
+            },
+            "role": "answer"
           }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
         }
-      ]
+      }
     }
   ],
   "uncovered": {

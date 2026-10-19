@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { createExcelMcpServer, createWorkbookRoot } from "@sezzlee/excel-mcp";
 import { runTask, toolSpecsOf, type RunRecord } from "./agent-run.ts";
+import { describeGrade } from "./grade.ts";
 import { OllamaHost } from "./ollama.ts";
 import { languages, readCatalog, type Language } from "./task.ts";
 import { buildWorkspace } from "./workspace.ts";
@@ -52,7 +53,7 @@ const tasks = full.tasks.filter(
     (levels === undefined || levels.includes(task.level)),
 );
 const workspace = await buildWorkspace({
-  catalog: full,
+  files: full.files,
   corpusRoot,
   outRoot: values.out,
 });
@@ -99,10 +100,11 @@ function hostFailure(input: {
     loadedWindow: null,
     outcome: "hostError",
     correct: false,
-    grade: { correct: false, detail: String(input.error) },
+    grade: null,
+    hostFailure: String(input.error),
     submission: null,
     calls: 0,
-    idealCalls: input.task.plan.filter((step) => "tool" in step).length,
+    idealCalls: input.task.plan.steps.length,
     excessCalls: 0,
     responseBytes: 0,
     toolErrors: {},
@@ -177,7 +179,7 @@ for (const model of values.models.split(",")) {
           records.push(record);
           await appendFile(runsPath, `${JSON.stringify(record)}\n`);
           process.stdout.write(
-            `${record.correct ? "✓" : "✗"} ${record.outcome.padEnd(15)} ${model} ${window} ${language} ${task.id} calls ${record.calls}/${record.idealCalls} bytes ${record.responseBytes} peak ${record.peakInputTokens ?? "-"} ${record.grade?.detail ?? ""}\n`,
+            `${record.correct ? "✓" : "✗"} ${record.outcome.padEnd(15)} ${model} ${window} ${language} ${task.id} calls ${record.calls}/${record.idealCalls} bytes ${record.responseBytes} peak ${record.peakInputTokens ?? "-"} ${record.grade === null ? (record.hostFailure ?? "") : describeGrade(record.grade)}\n`,
           );
         }
 }

@@ -1,10 +1,13 @@
 import { performance } from "node:perf_hooks";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { createExcelMcpServer, createWorkbookRoot } from "@sezzlee/excel-mcp";
-import type { Answer, Catalog, Task } from "./task.ts";
+import { derive, type StepResponse } from "./derive.ts";
+import { matchesAnswer } from "./grade.ts";
+import type { Catalog, Task } from "./task.ts";
 
 export interface StepRecord {
   readonly tool: string;
+  readonly role: "discover" | "answer";
   readonly args: Readonly<Record<string, unknown>>;
   readonly expectError: string | null;
   readonly error: string | null;
@@ -14,12 +17,10 @@ export interface StepRecord {
 }
 
 export type BaselineOutcome =
-  | "answered"
-  | "needsCompute"
-  | "answerMissing"
-  | "refusalPlan"
-  | "unexpectedError"
-  | "missingError";
+  | { readonly kind: "verified" }
+  | { readonly kind: "planFailed"; readonly detail: string }
+  | { readonly kind: "evidenceIncomplete"; readonly detail: string }
+  | { readonly kind: "answerMismatch"; readonly detail: string };
 
 export interface TaskBaseline {
   readonly id: string;
@@ -27,9 +28,10 @@ export interface TaskBaseline {
   readonly knowledge: Task["knowledge"];
   readonly outcome: BaselineOutcome;
   readonly calls: number;
+  readonly answerCalls: number;
   readonly bytes: number;
   readonly ms: number;
-  readonly missing: readonly string[];
+  readonly derived: unknown;
   readonly steps: readonly StepRecord[];
 }
 
@@ -50,95 +52,81 @@ function errorCodeOf(isError: boolean, text: string): string | null {
   return "unparsable_error";
 }
 
-function fold(text: string): string {
-  return text
-    .normalize("NFC")
-    .toLocaleLowerCase("tr")
-    .replace(/(\d)t(\d)/g, "$1 $2")
-    .replace(/\s+/g, " ");
-}
-
-function numbersIn(value: unknown, out: number[]): void {
-  if (typeof value === "number") out.push(value);
-  else if (typeof value === "string")
-    for (const match of value.matchAll(/-?\d+(?:[.,]\d+)?/g))
-      out.push(Number(match[0].replace(",", ".")));
-  else if (Array.isArray(value)) for (const item of value) numbersIn(item, out);
-  else if (typeof value === "object" && value !== null)
-    for (const item of Object.values(value)) numbersIn(item, out);
-}
-
-class Evidence {
-  readonly #numbers: number[] = [];
-  readonly #text: string;
-
-  constructor(texts: readonly string[]) {
-    for (const text of texts) {
-      try {
-        numbersIn(JSON.parse(text), this.#numbers);
-      } catch {
-        numbersIn(text, this.#numbers);
-      }
-    }
-    this.#text = fold(texts.join("\n"));
-  }
-
-  number(value: number, tolerance: number): boolean {
-    const allowed = Math.max(tolerance, 1e-9 * Math.max(1, Math.abs(value)));
-    return this.#numbers.some((seen) => Math.abs(seen - value) <= allowed);
-  }
-
-  text(value: string): number {
-    return this.#text.indexOf(fold(value));
-  }
-
-  scalar(value: string | number, tolerance: number): boolean {
-    return typeof value === "number"
-      ? this.number(value, tolerance)
-      : this.text(value) >= 0;
+function responseOf(step: StepRecord): StepResponse {
+  if (step.error !== null) return { kind: "error", code: step.error };
+  try {
+    return { kind: "ok", body: JSON.parse(step.text) };
+  } catch {
+    return { kind: "ok", body: step.text };
   }
 }
 
-function missingFrom(answer: Answer, evidence: Evidence): readonly string[] {
-  switch (answer.kind) {
-    case "number":
-      return evidence.number(answer.value, answer.tolerance)
-        ? []
-        : [String(answer.value)];
-    case "text":
-      return evidence.text(answer.value) >= 0 ? [] : [answer.value];
-    case "set":
-      return answer.items
-        .filter((item) => !evidence.scalar(item, 0))
-        .map(String);
-    case "list": {
-      const missing = answer.items
-        .filter((item) => !evidence.scalar(item, 0))
-        .map(String);
-      if (missing.length > 0) return missing;
-      const positions = answer.items.map((item) => evidence.text(String(item)));
-      return positions.every(
-        (at, index) => index === 0 || at > (positions[index - 1] ?? -1),
-      )
-        ? []
-        : ["order"];
-    }
-    case "record":
-      return Object.entries(answer.fields)
-        .filter(([, value]) => !evidence.scalar(value, answer.tolerance))
-        .map(([key]) => key);
-    case "refusal":
-      return [];
-    default: {
-      const exhaustive: never = answer;
-      return exhaustive;
-    }
+function fold(value: unknown): unknown {
+  if (typeof value === "string")
+    return value.normalize("NFC").trim().toLocaleLowerCase("tr");
+  if (Array.isArray(value)) return value.map(fold);
+  return value;
+}
+
+function judge(
+  task: Task,
+  steps: readonly StepRecord[],
+): { readonly outcome: BaselineOutcome; readonly derived: unknown } {
+  const wrong = steps.find((step) => step.error !== step.expectError);
+  if (wrong !== undefined)
+    return {
+      outcome: {
+        kind: "planFailed",
+        detail: `${wrong.tool} returned ${wrong.error ?? "no error"}, planned ${wrong.expectError ?? "no error"}`,
+      },
+      derived: null,
+    };
+  const responses = steps.map(responseOf);
+  const { answer, plan } = task;
+  if (answer.kind === "refusal") {
+    if (plan.confirm === undefined)
+      return { outcome: { kind: "verified" }, derived: null };
+    const confirmed = derive(plan.confirm.value, responses);
+    if (confirmed.kind === "incomplete")
+      return {
+        outcome: { kind: "evidenceIncomplete", detail: confirmed.detail },
+        derived: null,
+      };
+    return JSON.stringify(fold(confirmed.value)) ===
+      JSON.stringify(fold(plan.confirm.equals))
+      ? { outcome: { kind: "verified" }, derived: confirmed.value }
+      : {
+          outcome: {
+            kind: "answerMismatch",
+            detail: `confirmation read ${JSON.stringify(confirmed.value)}`,
+          },
+          derived: confirmed.value,
+        };
   }
+  if (plan.derive === undefined)
+    return {
+      outcome: { kind: "planFailed", detail: "no derivation" },
+      derived: null,
+    };
+  const derived = derive(plan.derive, responses);
+  if (derived.kind === "incomplete")
+    return {
+      outcome: { kind: "evidenceIncomplete", detail: derived.detail },
+      derived: null,
+    };
+  const match = matchesAnswer(answer, derived.value);
+  return {
+    outcome: match.same
+      ? { kind: "verified" }
+      : { kind: "answerMismatch", detail: match.detail },
+    derived: derived.value,
+  };
 }
 
 /**
- * Runs every task's plan against one in-process server rooted at the workspace
- * and checks that the planned calls behave as declared and expose the answer.
+ * Runs every task's plan against one in-process server rooted at the
+ * workspace, derives the answer from named places in the responses, and
+ * compares it with the task's answer.
  */
 export async function runBaseline({
   catalog,
@@ -160,8 +148,7 @@ export async function runBaseline({
   const results: TaskBaseline[] = [];
   for (const task of catalog.tasks) {
     const steps: StepRecord[] = [];
-    for (const planned of task.plan) {
-      if (!("tool" in planned)) continue;
+    for (const planned of task.plan.steps) {
       const before = performance.now();
       const result = await client.callTool({
         name: planned.tool,
@@ -173,6 +160,7 @@ export async function runBaseline({
         .join("\n");
       steps.push({
         tool: planned.tool,
+        role: planned.role,
         args: planned.args,
         expectError: planned.expectError ?? null,
         error: errorCodeOf(result.isError === true, text),
@@ -181,37 +169,17 @@ export async function runBaseline({
         text,
       });
     }
-    const unexpected = steps.some(
-      (step) => step.error !== null && step.error !== step.expectError,
-    );
-    const absent = steps.some(
-      (step) => step.expectError !== null && step.error !== step.expectError,
-    );
-    const evidence = new Evidence(
-      steps.filter((step) => step.error === null).map((step) => step.text),
-    );
-    const missing = missingFrom(task.answer, evidence);
-    const computes = task.plan.some((planned) => "compute" in planned);
-    const outcome: BaselineOutcome = unexpected
-      ? "unexpectedError"
-      : absent
-        ? "missingError"
-        : task.answer.kind === "refusal"
-          ? "refusalPlan"
-          : missing.length === 0
-            ? "answered"
-            : computes
-              ? "needsCompute"
-              : "answerMissing";
+    const { outcome, derived } = judge(task, steps);
     const result: TaskBaseline = {
       id: task.id,
       level: task.level,
       knowledge: task.knowledge,
       outcome,
       calls: steps.length,
+      answerCalls: steps.filter((step) => step.role === "answer").length,
       bytes: steps.reduce((sum, step) => sum + step.bytes, 0),
       ms: steps.reduce((sum, step) => sum + step.ms, 0),
-      missing,
+      derived,
       steps,
     };
     results.push(result);

@@ -36,6 +36,7 @@ export interface RunRecord {
   readonly outcome: RunOutcome;
   readonly correct: boolean;
   readonly grade: Grade | null;
+  readonly hostFailure?: string;
   readonly submission: unknown;
   readonly calls: number;
   readonly idealCalls: number;
@@ -224,7 +225,7 @@ export async function runTask(input: {
     firstError < 0
       ? -1
       : callLog.findIndex((call, at) => at > firstError && call.error === null);
-  const idealCalls = task.plan.filter((step) => "tool" in step).length;
+  const idealCalls = task.plan.steps.length;
   return {
     task: task.id,
     level: task.level,

@@ -1,121 +1,202 @@
 import { describe, expect, it } from "vitest";
-import { grade, gradeSubmission } from "../src/agent/grade.ts";
+import { gradeSubmission, numericLiteral } from "../src/agent/grade.ts";
 import type { Answer } from "../src/agent/task.ts";
 
-describe("grading a submitted answer", () => {
-  it("accepts a number within the tolerance, written with Turkish separators", () => {
-    const answer: Answer = { kind: "number", value: 1234.5, tolerance: 0.01 };
-    expect(grade(answer, { answer: { value: "1.234,5" } }).correct).toBe(true);
-    expect(grade(answer, { answer: { value: 1234.52 } }).correct).toBe(false);
+function meaning(answer: Answer, raw: unknown): boolean | undefined {
+  return gradeSubmission(answer, raw)?.semantic.correct;
+}
+
+describe("grading what a submission means", () => {
+  it.each<readonly [string, Answer, unknown, boolean]>([
+    ["an empty string is not zero", { kind: "integer", value: 0 }, "", false],
+    [
+      "a number inside words is not the number",
+      { kind: "integer", value: 451 },
+      "451 thousand",
+      false,
+    ],
+    [
+      "a negation is not the number",
+      { kind: "integer", value: 451 },
+      "not 451",
+      false,
+    ],
+    [
+      "a decimal comma reads as a decimal",
+      { kind: "decimal", value: 12.5, tolerance: 0 },
+      "12,5",
+      true,
+    ],
+    [
+      "a decimal comma is not a thousands mark",
+      { kind: "integer", value: 125 },
+      "12,5",
+      false,
+    ],
+    [
+      "a qualified total is not the total",
+      { kind: "text", value: "Total" },
+      "Total (male only)",
+      false,
+    ],
+    [
+      "English title case matches upper case",
+      { kind: "text", value: "SIEMENS FINANCIAL SERVICES LTD" },
+      "Siemens Financial Services Ltd",
+      true,
+    ],
+    [
+      "Turkish title case matches upper case",
+      { kind: "text", value: "KAŞÜSTÜ" },
+      "Kaşüstü",
+      true,
+    ],
+    [
+      "a dropped Turkish letter does not match",
+      { kind: "text", value: "ÇAYKARA" },
+      "Caykara",
+      false,
+    ],
+    [
+      "a zone turns a wall clock into an instant",
+      { kind: "localDateTime", value: "2019-12-31 23:40" },
+      "2019-12-31T23:40:00.000Z",
+      false,
+    ],
+    [
+      "seconds and a T separator keep the wall clock",
+      { kind: "localDateTime", value: "2019-12-31 23:40" },
+      "2019-12-31T23:40:00.000",
+      true,
+    ],
+    [
+      "the declared tolerance is the whole tolerance",
+      { kind: "decimal", value: 43640187.03, tolerance: 0.01 },
+      43640187.07,
+      false,
+    ],
+    [
+      "a value inside the tolerance passes",
+      { kind: "decimal", value: 43640187.03, tolerance: 0.01 },
+      43640187.035,
+      true,
+    ],
+    [
+      "a fraction is not a percent",
+      { kind: "percent", value: 81, tolerance: 0.5 },
+      0.81,
+      false,
+    ],
+    [
+      "a percent sign still reads as the percent",
+      { kind: "percent", value: 81, tolerance: 0.5 },
+      "81%",
+      true,
+    ],
+  ])("%s", (_, answer, value, correct) => {
+    expect(meaning(answer, { value })).toBe(correct);
   });
 
-  it("folds Turkish case in text answers", () => {
-    const answer: Answer = { kind: "text", value: "ÇAYKARA" };
-    expect(grade(answer, { answer: { value: "Çaykara" } }).correct).toBe(true);
-    expect(grade(answer, { answer: { value: "Caykara" } }).correct).toBe(false);
-  });
-
-  it("matches a date and time written with or without seconds and a separator", () => {
-    const answer: Answer = { kind: "text", value: "2019-12-31 23:40" };
+  it("keeps the order of a list, ignores the order of a set, and matches record keys regardless of case", () => {
+    const items = [
+      { kind: "text", value: "A" },
+      { kind: "text", value: "B" },
+    ] as const;
     expect(
-      grade(answer, { answer: { value: "2019-12-31T23:40:00.000" } }).correct,
+      meaning(
+        { kind: "list", items: [items[0], items[1]] },
+        { items: ["B", "A"] },
+      ),
+    ).toBe(false);
+    expect(
+      meaning(
+        { kind: "set", items: [items[0], items[1]] },
+        { items: ["B", "A"] },
+      ),
     ).toBe(true);
     expect(
-      grade(answer, { answer: { value: "2020-01-01T02:40:00" } }).correct,
-    ).toBe(false);
-  });
-
-  it("keeps the order of a list and ignores the order of a set", () => {
-    const list: Answer = { kind: "list", items: ["A", "B"] };
-    const set: Answer = { kind: "set", items: ["A", "B"] };
-    expect(grade(list, { answer: { items: ["B", "A"] } }).correct).toBe(false);
-    expect(grade(set, { answer: { items: ["B", "A"] } }).correct).toBe(true);
+      meaning(
+        {
+          kind: "record",
+          fields: {
+            district: { kind: "text", value: "ÇAYKARA" },
+            buildings: { kind: "integer", value: 17579 },
+          },
+        },
+        { fields: { District: "Çaykara", buildings: 17579 } },
+      ),
+    ).toBe(true);
   });
 
   it("requires the refusal reason, and refuses credit for an answer where a refusal was due", () => {
     const answer: Answer = {
       kind: "refusal",
-      reason: "ambiguous",
-      shape: "text",
+      reason: "suppressed",
+      shape: "decimal",
     };
-    expect(grade(answer, { refusal: { reason: "ambiguous" } }).correct).toBe(
-      true,
-    );
-    expect(grade(answer, { refusal: { reason: "notInFile" } }).correct).toBe(
-      false,
-    );
-    expect(grade(answer, { answer: { value: "2015-01-05" } }).correct).toBe(
-      false,
-    );
+    expect(meaning(answer, { refusal: "suppressed" })).toBe(true);
+    expect(meaning(answer, { refusal: "notInFile" })).toBe(false);
+    expect(meaning(answer, { value: 149.1 })).toBe(false);
   });
+});
 
-  it("ignores a note the model appends to a value", () => {
-    const list: Answer = { kind: "list", items: ["KAŞÜSTÜ", "SANCAK"] };
-    const zero: Answer = { kind: "number", value: 0, tolerance: 0 };
+describe("grading a submission's form", () => {
+  it("passes a bare value and flags a right value in the wrong form", () => {
+    const answer: Answer = { kind: "month", value: "2019-10" };
     expect(
-      grade(list, {
-        answer: { items: ["KAŞÜSTÜ (15.535)", "Sancak (10.704)"] },
-      }).correct,
-    ).toBe(true);
-    expect(grade(zero, { answer: { value: "Yok (0)" } }).correct).toBe(true);
-    expect(grade(zero, { answer: { value: "0 ile 3 arası" } }).correct).toBe(
-      false,
-    );
+      gradeSubmission(answer, { value: "2019-10", explanation: "October" }),
+    ).toMatchObject({
+      correct: true,
+      protocol: { valid: true },
+    });
+    expect(
+      gradeSubmission({ kind: "integer", value: 17579 }, { value: "17.579" }),
+    ).toMatchObject({
+      correct: false,
+      protocol: { valid: false },
+      semantic: { correct: false },
+    });
+    expect(
+      gradeSubmission({ kind: "integer", value: 17579 }, { value: "17579" }),
+    ).toMatchObject({
+      correct: false,
+      protocol: { valid: false },
+      semantic: { correct: true },
+    });
   });
 
-  it("grades the flat submit_answer arguments and the nested ones saved runs hold, and names arguments that fit neither", () => {
+  it("reads the flat arguments, the nested ones saved runs hold, and names arguments that fit neither", () => {
     const answer: Answer = {
       kind: "record",
-      fields: { district: "Çaykara", buildings: 17579 },
-      tolerance: 0,
+      fields: {
+        district: { kind: "text", value: "Çaykara" },
+        buildings: { kind: "integer", value: 17579 },
+      },
     };
     const fields = { buildings: 17579, district: "Çaykara" };
-    expect(
-      gradeSubmission(answer, {
-        fields,
-        explanation: "En çok yapı Çaykara'da.",
-      }),
-    ).toEqual({ correct: true, detail: "record" });
-    expect(gradeSubmission(answer, { answer: { fields } })).toEqual({
-      correct: true,
-      detail: "record",
-    });
+    expect(gradeSubmission(answer, { fields })?.correct).toBe(true);
+    expect(gradeSubmission(answer, { answer: { fields } })?.correct).toBe(true);
     expect(
       gradeSubmission(answer, {
         fields: '{"district": "Çaykara", "buildings": 17579}',
-        explanation: "En çok yapı Çaykara'da.",
       }),
-    ).toEqual({
+    ).toMatchObject({
       correct: false,
-      detail: "arguments fit no submit_answer form",
+      protocol: { valid: false, reason: "arguments fit no submit_answer form" },
     });
     expect(gradeSubmission(answer, null)).toBeNull();
   });
+});
 
-  it("reads a flat refusal with its reason", () => {
-    const answer: Answer = {
-      kind: "refusal",
-      reason: "readOnly",
-      shape: "text",
-    };
-    expect(
-      gradeSubmission(answer, {
-        refusal: "readOnly",
-        explanation: "I can only read files.",
-      }),
-    ).toEqual({ correct: true, detail: "refusal" });
-  });
-
-  it("matches record fields by name regardless of case", () => {
-    const answer: Answer = {
-      kind: "record",
-      fields: { district: "ÇAYKARA", buildings: 17579 },
-      tolerance: 0,
-    };
-    expect(
-      grade(answer, {
-        answer: { fields: { District: "Çaykara", buildings: "17.579" } },
-      }).correct,
-    ).toBe(true);
+describe("reading a numeric literal", () => {
+  it.each<readonly [string, ReturnType<typeof numericLiteral>]>([
+    ["1.234,5", { kind: "number", value: 1234.5 }],
+    ["1,234.5", { kind: "number", value: 1234.5 }],
+    ["43.640.187,03", { kind: "number", value: 43640187.03 }],
+    ["1,234", { kind: "ambiguous" }],
+    ["1.234", { kind: "ambiguous" }],
+    ["about 12", { kind: "none" }],
+  ])("%s", (text, literal) => {
+    expect(numericLiteral(text, { percent: false })).toEqual(literal);
   });
 });

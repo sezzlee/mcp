@@ -25,7 +25,7 @@ const catalog =
     ? full
     : { ...full, tasks: full.tasks.filter((task) => only.includes(task.id)) };
 const workspace = await buildWorkspace({
-  catalog: full,
+  files: full.files,
   corpusRoot,
   outRoot: values.out,
 });
@@ -34,19 +34,17 @@ const results = await runBaseline({
   workspace,
   onTask: (result) =>
     process.stdout.write(
-      `${result.outcome.padEnd(16)} ${String(result.calls).padStart(2)} calls ${String(result.bytes).padStart(7)} B ${result.id}${result.missing.length > 0 ? ` missing ${result.missing.join(", ")}` : ""}${result.steps
-        .filter((step) => step.error !== null)
-        .map((step) => ` [${step.tool}: ${step.error}]`)
-        .join("")}\n`,
+      `${result.outcome.kind.padEnd(18)} ${String(result.calls).padStart(2)} calls (${result.answerCalls} answer) ${String(result.bytes).padStart(7)} B ${result.id}${"detail" in result.outcome ? ` ${result.outcome.detail}` : ""}\n`,
     ),
 });
 const counts: Record<string, number> = {};
 for (const result of results)
-  counts[result.outcome] = (counts[result.outcome] ?? 0) + 1;
+  counts[result.outcome.kind] = (counts[result.outcome.kind] ?? 0) + 1;
 const summary = {
   tasks: results.length,
   outcomes: counts,
   calls: results.reduce((sum, result) => sum + result.calls, 0),
+  answerCalls: results.reduce((sum, result) => sum + result.answerCalls, 0),
   bytes: results.reduce((sum, result) => sum + result.bytes, 0),
   node: process.version,
 };

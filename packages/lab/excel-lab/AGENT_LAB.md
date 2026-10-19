@@ -16,18 +16,16 @@ Two questions drive every measurement:
 A task is one question about one or more corpus files, with everything needed to judge an
 attempt:
 
-| Field         | Meaning                                                                                                        |
-| ------------- | -------------------------------------------------------------------------------------------------------------- |
-| `id`          | Stable name, e.g. `uk-spend-top-supplier`                                                                      |
-| `files`       | Corpus entries by `source`, `file` and `sha256`; a byte mismatch refuses the task                              |
-| `knowledge`   | How the file reaches the agent: `K0` not attached, `K1` attached, `K2` attached and named as the user sees it  |
-| `level`       | Difficulty, `L1` to `L5` (see [Coverage](#coverage))                                                           |
-| `cases`       | The corner-case ids the task exercises                                                                         |
-| `question`    | The question as a user types it, in Turkish and in English                                                     |
-| `answerShape` | What the agent must submit: a number, an ordered list, a set, text, or a refusal                               |
-| `answer`      | The expected answer and how to compare it (exact, numeric tolerance, set equality)                             |
-| `oracle`      | How the answer was obtained, independently of `@sezzlee/excel-mcp`                                             |
-| `plan`        | The shortest call sequence we believe answers the question at this knowledge level; a step may expect an error |
+| Field       | Meaning                                                                                                                                                                                                         |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`        | Stable name, e.g. `uk-spend-top-supplier`                                                                                                                                                                       |
+| `files`     | Corpus entries by `source`, `file` and `sha256`; a byte mismatch refuses the task                                                                                                                               |
+| `knowledge` | How the file reaches the agent: `K0` not attached, `K1` attached, `K2` attached and named as the user sees it                                                                                                   |
+| `level`     | Difficulty, `L1` to `L5` (see [Coverage](#coverage))                                                                                                                                                            |
+| `cases`     | The corner-case ids the task exercises                                                                                                                                                                          |
+| `question`  | The question as a user types it, in Turkish and in English                                                                                                                                                      |
+| `answer`    | The expected answer as typed fields: `integer`, `decimal` and `percent` with their own tolerance, `text`, `date`, `month`, `localDateTime`; a `list`, `set` or `record` of them; or a `refusal` with its reason |
+| `plan`      | The calls that answer the question at this knowledge level, each marked `discover` or `answer`, and how the answer is derived from their responses                                                              |
 
 Questions are written the way a person types them in a chat. They never carry a file path, a
 cell range, a column letter, an encoding or a separator; finding those is the agent's work and
@@ -39,11 +37,19 @@ what the lab measures. The file reaches the agent the way the product delivers i
 | `K1`  | The task's files are attached: the request carries their paths, as an upload does. The question names nothing inside them |
 | `K2`  | Attached, and the question uses a name the user sees in Excel: a sheet tab or a column header as written                  |
 
-`plan` is a hypothesis until phase 1 runs it and it returns `answer`. The knowledge level
-matters because the same question has different shortest paths: with `K0`, `list_workbooks` is
-necessary; with an attachment, it is a wasted call. A plan step with `expectError` is a call the
-agent cannot avoid with what it was given, such as the first read of a Windows-1254 file; the
-recovery after it is part of the shortest path.
+`plan` is a hypothesis until phase 1 runs it and derives `answer`. Its steps start from what the
+agent knows: with `K0`, `list_workbooks` is necessary; with an attachment, it is a wasted call;
+with `K1`, the question names no column, so a read that shows the headers comes before an
+aggregate that names one. Those calls are `discover` steps, and the `answer` steps alone are the
+privileged plan of someone who already knows the sheet. A step with `expectError` is a call the
+agent cannot avoid with what it was given, such as the first read of a Windows-1254 file.
+
+`plan.derive` names where the answer is in the responses and what to compute from it: a cell by
+JSON pointer, a row by a key that must be unique, a column or label/value pairs filtered by a
+cell, and a closed set of operations (`sum`, `avg`, `percent`, `argmax`, `countNotIn`,
+`dayFirst` and others in `src/agent/derive.ts`). A table read from a truncated response is
+refused. A refusal task carries `plan.confirm` instead: the cell, match count or error code that
+shows the file withholds, lacks or refuses the value; a `readOnly` task needs none.
 
 Expected answers come from an oracle that reads the original bytes without the server: Python's
 standard library (`csv`, and `zipfile` with `xml.etree` for SpreadsheetML, as in
@@ -73,8 +79,8 @@ filled with an invented file; the catalog refuses an `uncovered` entry that a ta
 
 The catalog holds 83 tasks over 29 corpus files from Turkish, British and American open data
 and three small CC0 CSV samples. By level: 3 `L1`, 14 `L2`, 31 `L3`, 26 `L4`, 9 `L5`; by
-knowledge: 4 `K0`, 76 `K1`, 3 `K2`. The ideal plans make 112 calls, 10 of them expected
-errors. Several files carry faults found while writing the oracles, and tasks keep them as they
+knowledge: 4 `K0`, 76 `K1`, 3 `K2`. The plans make 155 calls, 100 of them `answer` steps and 10
+of those expected errors. Several files carry faults found while writing the oracles, and tasks keep them as they
 are: a typed `TOPLAM` that is 1,000 above the sum of its rows, a grand total that disagrees with
 its subtotals, headers that label the neighbouring column, a dashboard table whose cached
 values cover one year of thirteen, and a row label repeated in the total, male and female blocks
@@ -88,10 +94,13 @@ readings, `readOnly` for a change to the workbook and `limit` for a file over a 
 
 ### Phase 1 — scripted runner (the baseline)
 
-Run each `idealPlan` through the real MCP SDK client against an in-process server, the way
-`src/probe.ts` does. Record per call: tool, arguments, response bytes, duration and outcome;
-per task: whether the plan's answer equals `answer`. A wrong answer here is a server defect,
-because no model was involved. The totals are the baseline the model runs are compared with.
+Run each plan through the real MCP SDK client against an in-process server, the way
+`src/probe.ts` does, derive the answer from the responses and compare it with `answer` under the
+grader's typed comparison. A task is `verified`, `planFailed` (an error other than the planned
+one), `evidenceIncomplete` (the derivation's place is missing, not unique or truncated) or
+`answerMismatch`. A mismatch is a server defect or a wrong task, never assumed to be either:
+the oracle and the plan disagree, and one of them is wrong. The totals are the baseline the
+model runs are compared with.
 
 ### Phase 2 — model runner
 
@@ -103,10 +112,15 @@ repository.
 
 - Tools are offered exactly as the server's `tools/list` returns them: name, description,
   input schema. The system prompt is short, fixed and identical for every task.
-- The agent submits its answer through a lab-side `submit_answer` tool whose schema follows the
-  task's answer shape, so grading never parses prose. The value holds only what was asked, in a
-  stated form (a bare number, a date as `yyyy-MM-dd`, a month as `yyyy-MM`); how it was found,
-  units and assumptions go in a separate `explanation`, which is never graded.
+- The agent submits its answer through a lab-side `submit_answer` tool whose flat arguments
+  follow the task's answer: `value`, `items` or `fields` typed as the answer is, an
+  `explanation` that is never graded, or a `refusal` reason. Each grade has two axes. `protocol`
+  says whether the value came in the form the tool asked for: a JSON number, a date as
+  `yyyy-MM-dd`. `semantic` says whether it means the answer: a numeric literal is read whole and
+  never pulled out of words, a decimal comma reads as a decimal, one separator before exactly
+  three digits is ambiguous, text folds case under both Turkish and root rules, a zone on a
+  local time is a different value, and a tolerance is the declared one. A run is correct when
+  both hold.
 - Each task runs several times at a fixed temperature, because one run says little about a
   sampled model. A call budget stops a run that loops.
 - The full trace is kept: every request, tool call, tool response and the final answer.
@@ -135,7 +149,7 @@ Metrics per run:
 | `correct`             | The submitted answer matches `answer` under the task's comparison              |
 | `outcome`             | `answered`, `wrongAnswer`, `noAnswer`, `callBudget` or `contextExceeded`       |
 | `calls`               | Tool calls made; `tools/list`, initialization and `submit_answer` are excluded |
-| `excessCalls`         | `calls` minus the ideal plan's calls                                           |
+| `excessCalls`         | `calls` minus the plan's calls, discovery included                             |
 | `responseBytes`       | UTF-8 bytes of tool responses that entered the model's context                 |
 | `toolErrors`          | Calls that returned an error envelope, by error code                           |
 | `invalidArgs`         | Calls the schema refused                                                       |
@@ -315,8 +329,8 @@ The lab measures the server's own tool surface. A product that narrows schemas o
 tools in front of the server has a different surface and needs its own measurement.
 
 No corpus file, workspace, trace or result is committed. Task definitions, the oracle scripts
-and the runners are. Results are kept outside this repository, because traces quote corpus
-files whose licences do not all allow redistribution, and conclusions are recorded in
+and the runners are. Results are kept outside this repository, because traces grow with
+every run, and conclusions are recorded in
 [FINDINGS.md](FINDINGS.md).
 
 ## Running
@@ -332,12 +346,11 @@ python3 -I packages/lab/excel-lab/scripts/agent-oracle.py dump "$SEZZLEE_CORPUS/
 node packages/lab/excel-lab/src/agent/baseline-cli.ts --out /path/outside/repo --corpus "$SEZZLEE_CORPUS" [--only <task,...>]
 ```
 
-`baseline-cli.ts` builds the workspace and runs every plan against the built server (build
-`@sezzlee/excel-mcp` first). A task is `answered` when the planned responses contain the oracle
-answer, `needsCompute` when the plan's own computation step is still required, `refusalPlan` for
-a refusal task whose calls behaved, and `unexpectedError`, `missingError` or `answerMissing`
-when the plan or the server is wrong. The full report is `baseline.json` in the output
-directory.
+`baseline-cli.ts` builds the workspace, runs every plan against the built server (build
+`@sezzlee/excel-mcp` first) and derives each answer; every task must be `verified` before a model
+run means anything. `derive-proposal-cli.ts` helps write a new task's derivation: it runs the
+plan and lists every place in the responses that holds the answer, which is a list of candidates
+to choose from, not a derivation. The full report is `baseline.json` in the output directory.
 
 ```bash
 SEZZLEE_AGENT_LAB_OLLAMA_URL=http://host:11434 node packages/lab/excel-lab/src/agent/agent-cli.ts \
@@ -350,8 +363,7 @@ SEZZLEE_AGENT_LAB_OLLAMA_URL=http://host:11434 node packages/lab/excel-lab/src/a
 and writes `summary.json` per model, window and language. `SEZZLEE_AGENT_LAB_OLLAMA_KEY` adds a
 bearer token. Requests carry `keep_alive: 10m` and the window as `num_ctx`, as the product's do.
 The user message lists the task's files for `K1` and `K2` under "Attached files"; `K0` gets the
-question alone. Grading folds Turkish case, accepts a date and time with or without seconds and
-separator, and needs the right reason for a refusal ([test/agent-grade.spec.ts](test/agent-grade.spec.ts)).
+question alone. The grading rules are pinned by [test/agent-grade.spec.ts](test/agent-grade.spec.ts).
 
 ```bash
 node packages/lab/excel-lab/src/agent/regrade-cli.ts <runs.jsonl>
@@ -359,7 +371,7 @@ node packages/lab/excel-lab/src/agent/report-cli.ts <runs.jsonl> --out <report.m
 node packages/lab/excel-lab/src/agent/compare-cli.ts <before/runs.jsonl> <after/runs.jsonl> --out <compare.md>
 ```
 
-`regrade-cli.ts` grades saved runs again under the current catalog and grader, in place.
+`regrade-cli.ts` grades saved runs again under the current catalog and grader and writes `grades-<version>.jsonl` beside them, leaving the runs as they were.
 `report-cli.ts` writes the readable report: accuracy by language, level, knowledge and outcome,
 the scenarios each run went through, and every run with its calls, wrong answers first.
 `compare-cli.ts` grades two runs against the current catalog and lists what changed: accuracy

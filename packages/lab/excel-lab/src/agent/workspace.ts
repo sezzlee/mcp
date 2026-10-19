@@ -9,18 +9,18 @@ import type { Catalog } from "./task.ts";
  * @returns the workspace's real path.
  */
 export async function buildWorkspace({
-  catalog,
+  files,
   corpusRoot,
   outRoot,
 }: {
-  readonly catalog: Catalog;
+  readonly files: Catalog["files"];
   readonly corpusRoot: string;
   readonly outRoot: string;
 }): Promise<string> {
   const root = await prepareOutRoot(outRoot);
   const workspace = join(root, "workspace");
   await rm(workspace, { recursive: true, force: true });
-  for (const [id, file] of Object.entries(catalog.files)) {
+  for (const [id, file] of Object.entries(files)) {
     const source = join(corpusRoot, file.source, file.file);
     const actual = await sha256OfFile(source);
     if (actual !== file.sha256)

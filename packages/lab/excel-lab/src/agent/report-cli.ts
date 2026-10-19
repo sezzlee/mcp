@@ -2,7 +2,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import type { RunRecord } from "./agent-run.ts";
 import { exercisedCases, traceableCases } from "./exercised.ts";
-import { readCatalog, type Answer, type Task } from "./task.ts";
+import { describeAnswer, describeGrade } from "./grade.ts";
+import { readCatalog, type Task } from "./task.ts";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -23,29 +24,6 @@ const runs: RunRecord[] = (await readFile(runsPath, "utf8"))
 
 function cell(text: string): string {
   return text.replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
-}
-
-function expected(answer: Answer): string {
-  switch (answer.kind) {
-    case "number":
-      return `${answer.value}${answer.tolerance > 0 ? ` ±${answer.tolerance}` : ""}`;
-    case "text":
-      return answer.value;
-    case "list":
-      return answer.items.join(" → ");
-    case "set":
-      return `{${answer.items.join(", ")}}`;
-    case "record":
-      return Object.entries(answer.fields)
-        .map(([key, value]) => `${key}: ${value}`)
-        .join(", ");
-    case "refusal":
-      return `refusal: ${answer.reason}`;
-    default: {
-      const exhaustive: never = answer;
-      return exhaustive;
-    }
-  }
 }
 
 function submitted(run: RunRecord): string {
@@ -159,9 +137,9 @@ function detail(run: RunRecord, task: Task | undefined): string {
     "",
     `> ${question}`,
     "",
-    `- Expected: ${task === undefined ? "?" : expected(task.answer)}`,
+    `- Expected: ${task === undefined ? "?" : describeAnswer(task.answer)}`,
     `- Submitted: \`${submitted(run)}\``,
-    `- Grade: ${run.grade?.detail ?? run.outcome}`,
+    `- Grade: ${run.grade === null ? run.outcome : describeGrade(run.grade)}`,
     `- Exercised: ${
       exercisedCases(run)
         .map(
@@ -228,8 +206,8 @@ const report = [
           `${task.level} ${task.knowledge}`,
           mark(of("tr")),
           mark(of("en")),
-          `${of("tr")?.calls ?? "-"}/${of("en")?.calls ?? "-"} (${task.plan.filter((step) => "tool" in step).length})`,
-          expected(task.answer),
+          `${of("tr")?.calls ?? "-"}/${of("en")?.calls ?? "-"} (${task.plan.steps.length})`,
+          describeAnswer(task.answer),
         ];
       }),
   ),

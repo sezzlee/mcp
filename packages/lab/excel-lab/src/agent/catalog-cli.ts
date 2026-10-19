@@ -18,7 +18,7 @@ if (values.workspace !== undefined) {
       "Pass --corpus <root> or set SEZZLEE_CORPUS to build a workspace.",
     );
   const workspace = await buildWorkspace({
-    catalog,
+    files: catalog.files,
     corpusRoot,
     outRoot: values.workspace,
   });

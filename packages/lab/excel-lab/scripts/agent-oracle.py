@@ -3,6 +3,7 @@
 from pathlib import Path
 import argparse
 import csv
+import hashlib
 import datetime
 import io
 import json
@@ -680,9 +681,9 @@ def _(files):
 def _(files):
     counts = tally((entry["İlçe"], entry["Kaynak"]) for entry in gaziantep(files["gaziantep-requests"]))
     return record(**{
-        f"{district} {source}": counts.get((district, source), 0)
-        for district in ("Şahinbey", "Şehitkamil")
-        for source in ("Web Sayfası", "Telefon (Alo 153)")
+        f"{key}{channel}": counts.get((district, source), 0)
+        for key, district in (("sahinbey", "Şahinbey"), ("sehitkamil", "Şehitkamil"))
+        for channel, source in (("Web", "Web Sayfası"), ("Phone", "Telefon (Alo 153)"))
     })
 
 
@@ -861,7 +862,17 @@ def _(files):
 def naep_row(sheet, section, label):
     rows = sorted(row for (row, column) in sheet.cells if column == 1)
     start = next(row for row in rows if str(sheet.cells[(row, 1)].value).strip() == section)
-    return next(row for row in rows if row > start and str(sheet.cells[(row, 1)].value).strip() == label)
+    heading = lambda row: all(sheet.cells.get((row, column)) is None or sheet.cells[(row, column)].value in (None, "") for column in range(2, 11))
+    block = []
+    for row in rows:
+        if row <= start:
+            continue
+        if heading(row):
+            break
+        block.append(row)
+    matches = [row for row in block if str(sheet.cells[(row, 1)].value).strip() == label]
+    assert len(matches) == 1, (section, label, matches)
+    return matches[0]
 
 
 @oracle("naep-pacific-2013")
@@ -1022,7 +1033,31 @@ def _(files):
     return number(most_common(tally(gaziantep_time(entry).hour for entry in gaziantep(files["gaziantep-requests"]))))
 
 
+NUMERIC_KINDS = ("integer", "decimal", "percent")
+TEXT_KINDS = ("text", "date", "month", "localDateTime")
+
+
+def raw_value(field):
+    if field["kind"] == "integer" and not isinstance(field["value"], int):
+        raise ValueError(f"integer field holds {field['value']!r}")
+    return field["value"]
+
+
+def untyped(answer):
+    kind = answer["kind"]
+    if kind in NUMERIC_KINDS:
+        return {"kind": "number", "value": raw_value(answer)}
+    if kind in TEXT_KINDS:
+        return {"kind": "text", "value": raw_value(answer)}
+    if kind in ("list", "set"):
+        return {"kind": kind, "items": [raw_value(item) for item in answer["items"]]}
+    if kind == "record":
+        return {"kind": "record", "fields": {key: raw_value(field) for key, field in answer["fields"].items()}}
+    return answer
+
+
 def same(expected, actual):
+    expected = untyped(expected)
     if expected["kind"] != actual["kind"]:
         return False
     if expected["kind"] == "set":
@@ -1036,6 +1071,10 @@ def verify(args):
     corpus = Path(args.corpus)
     paths = {key: corpus / entry["source"] / entry["file"] for key, entry in catalog["files"].items()}
     report = {"passed": [], "failed": [], "missing": []}
+    changed = [key for key, entry in catalog["files"].items() if hashlib.sha256(paths[key].read_bytes()).hexdigest() != entry["sha256"]]
+    if changed:
+        print(json.dumps({"changedFiles": changed}, indent=1))
+        sys.exit(1)
     for task in catalog["tasks"]:
         if task["id"] not in ORACLES:
             report["missing"].append(task["id"])
