@@ -33,6 +33,7 @@ jobs:
   # tell what a change touches.
   plan:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       actions: read
@@ -45,13 +46,13 @@ jobs:
       pack_build: ${{ steps.plan.outputs.pack_build }}
       pack_filters: ${{ steps.plan.outputs.pack_filters }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 12.6.0
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: pnpm
@@ -68,6 +69,7 @@ jobs:
     needs: plan
     if: ${{ needs.plan.outputs.native == 'true' }}
     runs-on: ${{ matrix.target.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -86,15 +88,15 @@ jobs:
           - { id: darwin-arm64, os: macos-15, pdf: true }
           - { id: win32-x64, os: windows-2022, pdf: true }
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 12.6.0
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
       - run: pnpm install --frozen-lockfile
@@ -103,7 +105,7 @@ jobs:
       - run: pnpm pack --filter=@sezzlee/file-core-native --filter=@sezzlee/mcp-core --filter=@sezzlee/file-core --filter=@sezzlee/ooxml-core --filter=@sezzlee/excel-mcp --filter=@sezzlee/xml-mcp --filter=@sezzlee/llm-mcp ${{ matrix.target.pdf && '--filter=@sezzlee/pdf-mcp --filter=@sezzlee/pdf-raster-pdfjs --filter=@sezzlee/ocr-ollama' || '' }} --pack-destination ./local/native-tarballs
       - run: python3 .github/scripts/check-npm-tarballs.py local/native-tarballs
       - run: node .github/scripts/smoke-file-packages.mjs local/native-tarballs
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: matrix.node == 24
         with:
           name: native-${{ matrix.target.id }}
@@ -114,18 +116,19 @@ jobs:
     name: build, lint, types, fixtures
     needs: plan
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       FILTERS: ${{ needs.plan.outputs.filters }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 12.6.0
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: pnpm
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             8.0.x
@@ -146,16 +149,17 @@ jobs:
     needs: plan
     if: ${{ needs.plan.outputs.dotnet == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 12.6.0
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: pnpm
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             8.0.x
@@ -179,37 +183,38 @@ jobs:
   pack:
     name: pack Sezzlee.AspNetCore
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [plan, node, dotnet, native]
     if: ${{ !cancelled() && needs.plan.outputs.pack == 'true' && needs.node.result == 'success' && contains(fromJSON('["success","skipped"]'), needs.dotnet.result) && contains(fromJSON('["success","skipped"]'), needs.native.result) }}
     env:
       PACK_BUILD: ${{ needs.plan.outputs.pack_build }}
       PACK_FILTERS: ${{ needs.plan.outputs.pack_filters }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 12.6.0
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: pnpm
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             8.0.x
             10.0.x
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run pack --filter=@sezzlee/sdk-dotnet
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Sezzlee.AspNetCore-nupkg
           path: sdks/dotnet/local/nupkg-feed/*
       - run: |
           read -ra filters <<< "$PACK_BUILD"
           pnpm turbo run build "${filters[@]}"
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: ${{ needs.plan.outputs.native == 'true' }}
         with:
           pattern: native-*
@@ -224,7 +229,7 @@ jobs:
       - if: ${{ needs.plan.outputs.native == 'true' }}
         run: node .github/scripts/smoke-file-packages.mjs local/npm-tarballs
       - run: node .github/scripts/smoke-http-packages.mjs local/npm-tarballs
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: npm-tarballs
           path: local/npm-tarballs/*.tgz
