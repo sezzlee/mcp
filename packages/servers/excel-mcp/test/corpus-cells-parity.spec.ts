@@ -22,7 +22,7 @@ import {
 const corpus = process.env["SEZZLEE_CORPUS"];
 const maxBytes = 10 * 1024 * 1024;
 
-type Tolerance = "line-endings" | "default-style";
+type Tolerance = "line-endings" | "default-style" | "rich-values";
 
 const fixedWorkbooks = {
   rich: richWorkbook,
@@ -130,6 +130,16 @@ const divergences: Readonly<
     tolerate: "line-endings",
     why: "raw line breaks in XML text are normalised to LF, as XML 1.0 §2.11 requires and SheetJS skips",
   },
+  "uk-datagov/files/xlsx/FIRE0104-7ddf1043.xlsx": {
+    kind: "intended",
+    tolerate: "rich-values",
+    why: "a vm= cell is a local in-cell image behind a #VALUE! cache, and cm= cells are saved dynamic arrays; SheetJS keeps the cache and drops the array metadata",
+  },
+  "uk-datagov/files/xlsx/FIRE0507-06527aa5.xlsx": {
+    kind: "intended",
+    tolerate: "rich-values",
+    why: "a vm= cell is a local in-cell image behind a #VALUE! cache, and cm= cells are saved dynamic arrays; SheetJS keeps the cache and drops the array metadata",
+  },
   "tr-ckan/files/ordu/ordu-ili-gulyali-ilcesi-mahalle-nufuslari__0590787d.xlsx":
     {
       kind: "intended",
@@ -176,21 +186,79 @@ function withoutCarriageReturns(snapshot: CellSnapshot | null): unknown {
   return JSON.parse(JSON.stringify(snapshot).replaceAll("\\r", ""));
 }
 
+function asSheetJs(snapshot: CellSnapshot): CellSnapshot {
+  const { array: _array, ...rest } = snapshot;
+  const value = rest.value.value;
+  return typeof value === "object" && value !== null && "imageId" in value
+    ? { ...rest, value: { ...rest.value, value: { error: "#VALUE!" } } }
+    : rest;
+}
+
+function addsInCellImages(ours: unknown, theirs: unknown): boolean {
+  if (!Array.isArray(ours) || !Array.isArray(theirs)) return false;
+  const shared = (image: unknown, list: readonly unknown[]): boolean =>
+    list.some((other) => isDeepStrictEqual(image, other));
+  return (
+    theirs.every((image) => shared(image, ours)) &&
+    ours
+      .filter((image) => !shared(image, theirs))
+      .every(
+        (image: unknown) =>
+          typeof image === "object" &&
+          image !== null &&
+          "anchor" in image &&
+          image.anchor === "inCell",
+      )
+  );
+}
+
+function richValueTolerated(mismatch: CellMismatch): boolean {
+  switch (mismatch.kind) {
+    case "cell":
+      return (
+        mismatch.ours !== null &&
+        mismatch.theirs !== null &&
+        isDeepStrictEqual(asSheetJs(mismatch.ours), mismatch.theirs)
+      );
+    case "describe":
+      return (
+        mismatch.field === "imageCount" &&
+        typeof mismatch.ours === "number" &&
+        typeof mismatch.theirs === "number" &&
+        mismatch.ours > mismatch.theirs
+      );
+    case "facts":
+      return (
+        mismatch.field === "images" &&
+        addsInCellImages(mismatch.ours, mismatch.theirs)
+      );
+    default:
+      return false;
+  }
+}
+
 function tolerated(tolerance: Tolerance, mismatch: CellMismatch): boolean {
-  if (mismatch.kind !== "cell") return false;
-  const { ours, theirs } = mismatch;
   switch (tolerance) {
     case "line-endings":
-      return isDeepStrictEqual(
-        withoutCarriageReturns(ours),
-        withoutCarriageReturns(theirs),
+      return (
+        mismatch.kind === "cell" &&
+        isDeepStrictEqual(
+          withoutCarriageReturns(mismatch.ours),
+          withoutCarriageReturns(mismatch.theirs),
+        )
       );
     case "default-style":
       return (
-        ours !== null &&
-        theirs?.numberFormat === "General" &&
-        isDeepStrictEqual({ ...ours, numberFormat: "General" }, theirs)
+        mismatch.kind === "cell" &&
+        mismatch.ours !== null &&
+        mismatch.theirs?.numberFormat === "General" &&
+        isDeepStrictEqual(
+          { ...mismatch.ours, numberFormat: "General" },
+          mismatch.theirs,
+        )
       );
+    case "rich-values":
+      return richValueTolerated(mismatch);
     default: {
       const _exhaustive: never = tolerance;
       return _exhaustive;
