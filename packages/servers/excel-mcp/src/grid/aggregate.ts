@@ -1,65 +1,102 @@
 import { fold } from "@sezzlee/file-core";
-import type { CellScalar } from "./cell-value.js";
-import {
-  buildColumnIndex,
-  resolveColumn,
-  type ColumnIndex,
-  type ColumnMode,
-} from "./columns.js";
+import type { CellFacts, CellScalar } from "./cell-value.js";
+import { buildColumnIndex, resolveColumn, type ColumnMode } from "./columns.js";
 import { SezzleeExcelError } from "../platform/errors.js";
-import {
-  headerWarnings,
-  readHeaderRow,
-  type HeaderRowSource,
-} from "./header.js";
+import { headerWarnings, type HeaderRowSource } from "./header.js";
 import { limits } from "../platform/limits.js";
+import {
+  explicitReading,
+  rawReading,
+  rawReadingFor,
+  readAsOf,
+  readingWarnings,
+  sniffedReading,
+  typedCell,
+  type ColumnReading,
+  type ColumnSpec,
+  type ColumnNeeds,
+  type ReadingHints,
+  type ReadAs,
+} from "./column-reading.js";
 import {
   classify,
   compareWithin,
-  coerceNumber,
   emptyCensus,
   evaluate,
   kindPrecedence,
-  majorityKind,
+  kindsRead,
   record,
   reportCensus,
   validateCondition,
   type Census,
   type ComparableKind,
   type Condition,
-  type PredicateOptions,
+  type ReadingNeed,
+  type TypedCell,
 } from "./predicate.js";
-import { columnToLetters, formatRange, resolveRange } from "./range.js";
-import { isUncachedFormula, presentScalar, resolveCell } from "./cell-value.js";
+import { columnToLetters, formatRange } from "./range.js";
+import {
+  isCellDuration,
+  scalarText,
+  isCellError,
+  isUncachedFormula,
+  presentScalar,
+  resolveFacts,
+} from "./cell-value.js";
+import { ErrorTally, type ErrorDistribution } from "./error-distribution.js";
 import type { RowView } from "./sheet.js";
-import { requireSheetBounds, type SheetSource } from "./sheet.js";
+import type { SheetSource } from "./sheet.js";
+import {
+  selectSheetRange,
+  selectionHeaders,
+  visibilityOf,
+  visibleRows,
+  type SelectionOptions,
+  type TableSelection,
+  type VisibilityReport,
+} from "./select-sheet.js";
+import {
+  addMetric,
+  finishMetric,
+  isNumericMetric,
+  isBooleanMetric,
+  mergeMetricMeaning,
+  metricKind,
+  metricLabel,
+  newMetricStates,
+  validateMetric,
+  type MetricFunction,
+  type MetricRequest,
+  type MetricState,
+  type MetricMeaning,
+} from "./aggregate-metrics.js";
+import {
+  compileGroup,
+  groupNeeds,
+  groupValue,
+  type DatePart,
+  type GroupPlan,
+  type GroupRequest,
+  type GroupValue,
+} from "./grouping.js";
 
-export type MetricFunction =
-  | "count"
-  | "countValues"
-  | "countDistinct"
-  | "sum"
-  | "avg"
-  | "min"
-  | "max"
-  | "stddev";
+export type { MetricFunction, MetricRequest } from "./aggregate-metrics.js";
 
-export interface MetricRequest {
-  readonly fn: MetricFunction;
-  readonly column?: string;
-}
-
-export interface AggregateOptions {
+export interface AggregateOptions extends ReadingHints, SelectionOptions {
   readonly sheetName?: string;
   readonly range?: string;
-  readonly groupBy?: readonly string[];
+  readonly groupBy?: readonly GroupRequest[];
+  readonly pivotBy?: readonly GroupRequest[];
+  readonly groupingSets?: readonly {
+    readonly groupBy: readonly GroupRequest[];
+  }[];
   readonly metrics: readonly MetricRequest[];
   readonly where?: readonly Condition[];
   readonly match: "all" | "any";
   readonly headerRow: number;
   readonly columnMode: ColumnMode;
   readonly caseSensitive: boolean;
-  readonly coerceText: boolean;
+  readonly columns?: readonly ColumnSpec[];
   readonly mergedCells: "master" | "repeat";
   readonly orderBy: "group" | "metric";
   readonly orderByMetric?: number;
@@ -75,110 +112,125 @@ export interface AggregateColumn {
   readonly fn?: MetricFunction;
   readonly counted?: number;
   readonly skipped?: number;
+  readonly skippedErrors?: number;
+  readonly filtered?: number;
   readonly kindUsed?: ComparableKind;
+  readonly percentile?: number;
+  readonly method?: "linear";
+  readonly pivotKey?: readonly CellScalar[];
+  readonly by?: DatePart;
+  readonly bins?: readonly number[];
+  readonly width?: number;
+  readonly origin?: number;
+  readonly interval?: "[lower, upper)";
+  readonly unit?: "fraction" | "seconds";
+  readonly currency?: string;
+  readonly mixedUnits?: true;
+  readonly mixedCurrencies?: true;
 }
 
-export interface AggregateResult {
-  readonly sheet: string;
-  readonly range: string;
-  readonly usedRange: string;
-  readonly headerRow: number;
-  readonly headerRowSource: HeaderRowSource;
+export interface GroupingResult {
   readonly columns: readonly AggregateColumn[];
   readonly rows: readonly (readonly CellScalar[])[];
   readonly groupCount: number;
   readonly returnedGroups: number;
-  readonly scannedRows: number;
-  readonly matchedRows: number;
   readonly returnedMatchedRows: number;
   readonly omittedMatchedRows: number;
-  readonly firstScannedRow: number;
-  readonly blankRows: number;
-  readonly columnStats?: Readonly<Record<string, Partial<Census>>>;
+  readonly ungroupedRows?: number;
+  readonly pivotBy?: readonly AggregateColumn[];
   readonly truncated: boolean;
   readonly truncationReason?: "maxGroups";
   readonly hint?: string;
+}
+
+export interface AggregateResult extends GroupingResult {
+  readonly sheet: string;
+  readonly range: string;
+  readonly usedRange: string;
+  readonly table?: TableSelection;
+  readonly visibility?: VisibilityReport;
+  readonly headerRow: number;
+  readonly headerRowSource: HeaderRowSource;
+  readonly groupingSets?: readonly GroupingResult[];
+  readonly scannedRows: number;
+  readonly matchedRows: number;
+  readonly firstScannedRow: number;
+  readonly blankRows: number;
+  readonly columnStats?: Readonly<Record<string, Partial<Census>>>;
+  readonly readAs?: Readonly<Record<string, readonly ReadAs[]>>;
   readonly warnings?: readonly string[];
+  readonly errorDistribution?: ErrorDistribution;
 }
 
-interface SumState {
-  sum: number;
-  compensation: number;
-}
-
-interface MetricState {
-  counted: number;
-  skipped: number;
-  readonly sums: SumState;
-  distinct: Set<string> | undefined;
-  extreme:
-    | { readonly kind: "number"; readonly value: number }
-    | { readonly kind: "text" | "date"; readonly value: string }
-    | undefined;
-  mean: number;
-  m2: number;
+interface GroupKey {
+  readonly values: readonly CellScalar[];
+  readonly order: readonly CellScalar[];
 }
 
 interface GroupState {
-  readonly key: readonly CellScalar[];
+  readonly key: GroupKey;
   readonly metrics: MetricState[];
+  readonly pivots: Map<string, MetricState[]>;
   rows: number;
 }
 
-function accumulate(state: SumState, value: number): void {
-  const total = finite(state.sum + value);
-  state.compensation = finite(
-    state.compensation +
-      (Math.abs(state.sum) >= Math.abs(value)
-        ? state.sum - total + value
-        : value - total + state.sum),
-  );
-  state.sum = total;
+interface Grouping {
+  readonly columns: readonly GroupPlan[];
+  readonly groups: Map<string, GroupState>;
+  readonly pivotKeys: Map<string, GroupKey>;
+  ungroupedRows: number;
 }
 
-function sumOf(state: SumState): number {
-  return finite(state.sum + state.compensation);
+interface ResolvedCondition {
+  readonly condition: Condition;
+  readonly column: number;
+  readonly tally: Tally;
 }
 
-function finite(value: number): number {
-  if (!Number.isFinite(value))
-    throw new SezzleeExcelError(
-      "numeric_overflow",
-      "A metric calculation exceeded the finite number range.",
-      "Narrow the range or scale the numeric values.",
+interface Tally {
+  count: number;
+  readonly samples: Set<string>;
+}
+
+function tallyOf(): Tally {
+  return { count: 0, samples: new Set() };
+}
+
+function note(tally: Tally, value: CellScalar, weight = 1): void {
+  tally.count += weight;
+  if (tally.samples.size < 3) {
+    const sample = presentScalar(value);
+    tally.samples.add(
+      typeof sample === "string" ? sample : JSON.stringify(sample),
     );
-  return value;
+  }
 }
 
-function newMetricState(fn: MetricFunction): MetricState {
-  return {
-    counted: 0,
-    skipped: 0,
-    sums: { sum: 0, compensation: 0 },
-    distinct: fn === "countDistinct" ? new Set<string>() : undefined,
-    extreme: undefined,
-    mean: 0,
-    m2: 0,
-  };
+function count(value: number, one: string, many: string): string {
+  return `${value} ${value === 1 ? one : many}`;
 }
 
-interface GridRead {
-  readonly value: CellScalar;
-  readonly uncachedFormula: boolean;
+function samplesOf(tally: Tally): string {
+  return [...tally.samples].map((sample) => `'${sample}'`).join(", ");
+}
+
+function keyLabel(value: CellScalar): string {
+  const shown = presentScalar(value);
+  return isCellDuration(shown)
+    ? `${shown.durationSeconds} s`
+    : scalarText(shown);
 }
 
 function readGrid(
   rowView: RowView | undefined,
   column: number,
   mergedCells: "master" | "repeat",
-): GridRead {
+): CellFacts & { readonly uncachedFormula: boolean } {
   const snapshot = rowView?.cellAt(column);
-  if (snapshot === undefined) {
-    return { value: null, uncachedFormula: false };
-  }
+  if (snapshot === undefined) return { value: null, uncachedFormula: false };
   const merged = snapshot.merged && mergedCells === "master";
   return {
-    value: resolveCell(snapshot, {
+    ...resolveFacts(snapshot, {
       valueMode: "values",
       mergePolicy: mergedCells,
     }),
@@ -186,209 +238,516 @@ function readGrid(
   };
 }
 
-function keyOf(values: readonly CellScalar[]): string {
-  return JSON.stringify(values);
-}
-
 function compareKeys(
   left: readonly CellScalar[],
   right: readonly CellScalar[],
   caseSensitive: boolean,
 ): number {
-  for (let index = 0; index < left.length; index += 1) {
-    const a = left[index] ?? null;
-    const b = right[index] ?? null;
-    const ka = classify(a);
-    const kb = classify(b);
-    if (ka !== kb) {
-      return kindPrecedence.indexOf(ka) - kindPrecedence.indexOf(kb);
-    }
-    if (ka === "number" || ka === "date" || ka === "text") {
-      const order = compareWithin(ka, a, b, caseSensitive);
-      if (order !== 0) {
-        return order;
-      }
-      continue;
-    }
-    const sa = JSON.stringify(a);
-    const sb = JSON.stringify(b);
-    if (sa !== sb) {
-      return sa < sb ? -1 : 1;
+  for (let at = 0; at < left.length; at += 1) {
+    const a = left[at] ?? null;
+    const b = right[at] ?? null;
+    const kind = classify(a);
+    const other = classify(b);
+    if (kind !== other)
+      return kindPrecedence.indexOf(kind) - kindPrecedence.indexOf(other);
+    if (
+      kind === "number" ||
+      kind === "date" ||
+      kind === "time" ||
+      kind === "text"
+    ) {
+      const order = compareWithin(kind, a, b, caseSensitive);
+      if (order !== 0) return order;
+    } else if (isCellDuration(a) && isCellDuration(b)) {
+      if (a.durationSeconds !== b.durationSeconds)
+        return a.durationSeconds < b.durationSeconds ? -1 : 1;
+    } else {
+      const text = JSON.stringify(a);
+      const otherText = JSON.stringify(b);
+      if (text !== otherText) return text < otherText ? -1 : 1;
     }
   }
   return 0;
 }
 
-function metricLabel(metric: MetricRequest): string {
-  return metric.column === undefined
-    ? metric.fn
-    : `${metric.fn}(${metric.column})`;
+function keyFor(
+  plans: readonly GroupPlan[],
+  values: ReadonlyMap<GroupPlan, GroupValue>,
+): GroupKey | undefined {
+  const key: CellScalar[] = [];
+  const order: CellScalar[] = [];
+  for (const plan of plans) {
+    const value = values.get(plan);
+    if (value === undefined || value.kind === "unreadable") return undefined;
+    key.push(value.value);
+    order.push(value.order);
+  }
+  return { values: key, order };
 }
 
-function finish(metric: MetricRequest, state: MetricState): CellScalar {
-  switch (metric.fn) {
-    case "count":
-      return state.counted;
-    case "countValues":
-      return state.counted;
-    case "countDistinct":
-      return state.distinct?.size ?? 0;
-    case "sum":
-      return state.counted === 0 ? null : sumOf(state.sums);
-    case "avg":
-      return state.counted === 0 ? null : sumOf(state.sums) / state.counted;
-    case "stddev":
-      return state.counted < 2
-        ? null
-        : finite(Math.sqrt(state.m2 / (state.counted - 1)));
-    default:
-      return state.extreme?.value ?? null;
-  }
+function conditionWarnings(
+  conditions: readonly ResolvedCondition[],
+  prefix: string,
+): string[] {
+  return conditions.flatMap(({ condition, column, tally }) => {
+    if (tally.count === 0) return [];
+    const kinds = kindsRead(condition);
+    const as = kinds.length === 0 ? "the operand" : `a ${kinds.join(" or ")}`;
+    return [
+      `${prefix} ${condition.column} ${condition.op}: ${count(tally.count, "cell", "cells")} in ${columnToLetters(column)} could not be compared with ${as}, such as ${samplesOf(tally)}; they did not match.`,
+    ];
+  });
 }
 
 export function aggregateSheet(
   source: SheetSource,
   options: AggregateOptions,
 ): AggregateResult {
-  if (options.metrics.length === 0) {
+  const firstMetric = options.metrics[0];
+  if (firstMetric === undefined || options.metrics.length > limits.maxMetrics)
     throw new SezzleeExcelError(
       "invalid_argument",
-      "At least one metric is required.",
-      'Pass metrics, for example [{"fn":"count"}].',
+      `Pass between 1 and ${limits.maxMetrics} metrics.`,
     );
-  }
+  options.metrics.forEach(validateMetric);
   if (
     options.orderByMetric !== undefined &&
     (!Number.isSafeInteger(options.orderByMetric) ||
       options.orderByMetric < 1 ||
       options.orderByMetric > options.metrics.length)
-  ) {
+  )
     throw new SezzleeExcelError(
       "invalid_argument",
       "orderByMetric must identify an entry in metrics.",
     );
-  }
-  const sheet = source.sheetFor(options.sheetName);
-  const used = requireSheetBounds(sheet);
-  const bounds = resolveRange(used, options.range);
+  if ((options.groupingSets?.length ?? 0) > limits.maxGroupingSets)
+    throw new SezzleeExcelError(
+      "invalid_argument",
+      `At most ${limits.maxGroupingSets} additional grouping sets are accepted.`,
+    );
 
-  const headers = readHeaderRow(sheet, bounds, options.headerRow, {
+  const selected = selectSheetRange(source, options);
+  const { sheet, used, bounds } = selected;
+  const headers = selectionHeaders(selected, options.headerRow, {
     valueMode: "values",
     mergePolicy: options.mergedCells,
     includeHyperlinks: false,
   });
-  const index: ColumnIndex = buildColumnIndex(
+  const index = buildColumnIndex(
     `${sheet.name}!${formatRange(bounds)}`,
     bounds,
     options.headerRow,
     headers,
   );
 
-  const groupColumns = (options.groupBy ?? []).map((reference) => ({
-    reference,
-    column: resolveColumn(index, reference, options.columnMode),
-  }));
+  const plans = new Map<string, GroupPlan>();
+  const compile = (requests: readonly GroupRequest[]): readonly GroupPlan[] => {
+    if (requests.length > limits.maxMetrics)
+      throw new SezzleeExcelError(
+        "invalid_argument",
+        `At most ${limits.maxMetrics} columns are accepted on a grouping axis.`,
+      );
+    return requests.map((request) => {
+      const compiled = compileGroup(index, request, options.columnMode);
+      const id = JSON.stringify(compiled.description);
+      const existing = plans.get(id);
+      if (existing !== undefined) return existing;
+      plans.set(id, compiled);
+      return compiled;
+    });
+  };
+  const grouping = (requests: readonly GroupRequest[]): Grouping => ({
+    columns: compile(requests),
+    groups: new Map(),
+    pivotKeys: new Map(),
+    ungroupedRows: 0,
+  });
+  const primary = grouping(options.groupBy ?? []);
+  const additional = (options.groupingSets ?? []).map((set) =>
+    grouping(set.groupBy),
+  );
+  const groupings = [primary, ...additional];
+  const pivotColumns = compile(options.pivotBy ?? []);
+  const hasPivot = pivotColumns.length > 0;
+  const resolveConditions = (
+    conditions: readonly Condition[],
+  ): readonly ResolvedCondition[] =>
+    conditions.map((condition) => {
+      validateCondition(condition, options.caseSensitive);
+      return {
+        condition,
+        column: resolveColumn(index, condition.column, options.columnMode),
+        tally: tallyOf(),
+      };
+    });
+  const conditions = resolveConditions(options.where ?? []);
   const metricColumns = options.metrics.map((metric) => ({
     metric,
     column:
       metric.column === undefined
         ? undefined
         : resolveColumn(index, metric.column, options.columnMode),
+    conditions: resolveConditions(metric.where ?? []),
   }));
-  for (const entry of metricColumns) {
-    if (entry.metric.fn !== "count" && entry.column === undefined) {
-      throw new SezzleeExcelError(
-        "invalid_argument",
-        `Metric '${entry.metric.fn}' needs a column.`,
-        "Pass column, or use fn 'count' to count rows.",
-      );
-    }
-  }
-  const conditions = (options.where ?? []).map((condition) => {
-    validateCondition(condition, options.caseSensitive);
-    return {
-      condition,
-      column: resolveColumn(index, condition.column, options.columnMode),
-    };
-  });
+  const metricStates = metricColumns.map((entry) => ({
+    request: entry.metric,
+    sampleKey: JSON.stringify([
+      entry.column,
+      entry.conditions.map(({ column, condition }) => [
+        column,
+        condition.op,
+        condition.value,
+        condition.values,
+      ]),
+    ]),
+  }));
 
-  const predicateOptions: PredicateOptions = {
-    caseSensitive: options.caseSensitive,
-    coerceText: options.coerceText,
-  };
-  const census = new Map<number, Census>();
-  const censusFor = (column: number): Census => {
-    const existing = census.get(column);
-    if (existing !== undefined) {
-      return existing;
-    }
-    const fresh = emptyCensus();
-    census.set(column, fresh);
-    return fresh;
-  };
-
-  const groups = new Map<string, GroupState>();
-  const groupFor = (key: readonly CellScalar[]): GroupState => {
-    const id = keyOf(key);
-    const existing = groups.get(id);
-    if (existing !== undefined) {
-      return existing;
-    }
-    if (groups.size >= limits.maxAggregateGroups) {
-      throw new SezzleeExcelError(
-        "resource_limit",
-        `The rows form more than ${limits.maxAggregateGroups} groups.`,
-        "Group by fewer or coarser columns, or add where conditions.",
-      );
-    }
-    const fresh: GroupState = {
-      key,
-      rows: 0,
-      metrics: options.metrics.map((metric) => newMetricState(metric.fn)),
-    };
-    groups.set(id, fresh);
-    return fresh;
-  };
   let visits = 0;
   const visit = (): void => {
     visits += 1;
-    if (visits > limits.maxAggregateCellVisits) {
+    if (visits > limits.maxAggregateCellVisits)
       throw new SezzleeExcelError(
         "resource_limit",
         `Aggregating this range reads more than ${limits.maxAggregateCellVisits} cells.`,
         "Pass a narrower range, or split the aggregate into several ranges.",
       );
-    }
   };
   const startRow =
     options.headerRow >= bounds.top && options.headerRow <= bounds.bottom
       ? Math.max(bounds.top, options.headerRow + 1)
       : bounds.top;
   const withCovered = options.mergedCells === "repeat";
+  const visibility =
+    options.visibleOnly === true
+      ? visibilityOf(selected, startRow, bounds.bottom)
+      : undefined;
+  const rowsInRange = (): Iterable<number> =>
+    visibleRows(
+      sheet.populatedRows({ from: startRow, to: bounds.bottom, withCovered }),
+      sheet,
+      options.visibleOnly === true,
+    );
 
+  const readings = new Map<number, ColumnReading>();
+  const fallbackReading = rawReadingFor(options);
+  for (const spec of options.columns ?? []) {
+    const column = resolveColumn(index, spec.column, options.columnMode);
+    if (readings.has(column))
+      throw new SezzleeExcelError(
+        "invalid_argument",
+        `columns names ${columnToLetters(column)} twice.`,
+        "Give each column one entry.",
+      );
+    readings.set(column, explicitReading(spec, options));
+  }
+  const needs = new Map<number, ColumnNeeds>();
+  const need = (column: number, kinds: readonly ReadingNeed[]): void => {
+    const current = needs.get(column) ?? { number: false, date: false };
+    needs.set(column, {
+      number: current.number || kinds.includes("number"),
+      date: current.date || kinds.includes("date"),
+      time: current.time || kinds.includes("time"),
+      duration: current.duration || kinds.includes("duration"),
+      boolean: current.boolean || kinds.includes("boolean"),
+    });
+  };
+  for (const plan of plans.values()) need(plan.column, groupNeeds(plan));
+  for (const entry of conditions)
+    need(entry.column, kindsRead(entry.condition));
+  for (const entry of metricColumns) {
+    for (const condition of entry.conditions)
+      need(condition.column, kindsRead(condition.condition));
+    if (entry.column === undefined) continue;
+    if (isNumericMetric(entry.metric.fn))
+      need(entry.column, ["number", "duration"]);
+    if (isBooleanMetric(entry.metric.fn)) need(entry.column, ["boolean"]);
+    if (entry.metric.fn === "min" || entry.metric.fn === "max")
+      need(entry.column, ["number", "date", "time", "duration"]);
+  }
+  const sniffed = [...needs].filter(
+    ([column, wanted]) =>
+      !readings.has(column) &&
+      (wanted.number ||
+        wanted.date ||
+        wanted.time ||
+        wanted.duration ||
+        wanted.boolean),
+  );
+  if (sniffed.length > 0) {
+    const texts = new Map<number, string[]>(
+      sniffed.map(([column]) => [column, []]),
+    );
+    for (const row of rowsInRange()) {
+      const rowView = sheet.rowAt(row);
+      for (const [column, values] of texts) {
+        visit();
+        const value = readGrid(rowView, column, options.mergedCells).value;
+        if (typeof value === "string") values.push(value);
+      }
+    }
+    for (const [column, wanted] of sniffed)
+      readings.set(
+        column,
+        sniffedReading(texts.get(column) ?? [], wanted, options),
+      );
+  }
+
+  let storedGroups = 0;
+  let storedMetricStates = 0;
+  let storedSamples = 0;
+  let storedDistinct = 0;
+  let denseCells = 0;
+  const newStates = (): MetricState[] => {
+    storedMetricStates += options.metrics.length;
+    if (storedMetricStates > limits.maxAggregateMetricStates)
+      throw new SezzleeExcelError(
+        "resource_limit",
+        `Aggregation needs more than ${limits.maxAggregateMetricStates} metric states.`,
+        "Use fewer metrics, grouping sets or distinct group keys.",
+      );
+    return newMetricStates(metricStates);
+  };
+  const reserveGroup = (): void => {
+    storedGroups += 1;
+    if (storedGroups > limits.maxAggregateGroups)
+      throw new SezzleeExcelError(
+        "resource_limit",
+        `The rows form more than ${limits.maxAggregateGroups} groups.`,
+        "Group by fewer or coarser columns, or add where conditions.",
+      );
+  };
+  const reserveCells = (cells: number): void => {
+    denseCells += cells;
+    if (denseCells > limits.maxPivotCells)
+      throw new SezzleeExcelError(
+        "resource_limit",
+        `The dense pivots require more than ${limits.maxPivotCells} cells across all grouping sets.`,
+        "Use fewer row or pivot keys, fewer metrics, or add where conditions. maxGroups does not shrink this bound.",
+      );
+  };
+  const sample = (): void => {
+    storedSamples += 1;
+    if (storedSamples > limits.maxAggregateSamples)
+      throw new SezzleeExcelError(
+        "resource_limit",
+        `Exact percentiles need more than ${limits.maxAggregateSamples} stored numeric values across all metrics and grouping sets.`,
+        "Narrow the range or request fewer independent percentiles or grouping sets. No approximation is returned.",
+      );
+  };
+  const distinct = (): void => {
+    storedDistinct += 1;
+    if (storedDistinct > limits.maxAggregateDistinctValues)
+      throw new SezzleeExcelError(
+        "resource_limit",
+        `Exact distinct counts need more than ${limits.maxAggregateDistinctValues} retained values across all metrics and grouping sets.`,
+        "Narrow the range or request fewer distinct-count metrics or grouping sets. No approximation is returned.",
+      );
+  };
+  const groupFor = (
+    set: Grouping,
+    key: GroupKey,
+    pivot: GroupKey,
+  ): GroupState => {
+    const id = JSON.stringify(key.values);
+    let group = set.groups.get(id);
+    if (group === undefined) {
+      reserveGroup();
+      if (hasPivot) reserveCells(set.pivotKeys.size * options.metrics.length);
+      group = { key, metrics: newStates(), pivots: new Map(), rows: 0 };
+      set.groups.set(id, group);
+    }
+    if (hasPivot) {
+      const pivotId = JSON.stringify(pivot.values);
+      if (!set.pivotKeys.has(pivotId)) {
+        reserveCells(set.groups.size * options.metrics.length);
+        set.pivotKeys.set(pivotId, pivot);
+      }
+      if (!group.pivots.has(pivotId)) {
+        reserveGroup();
+        group.pivots.set(pivotId, newStates());
+      }
+    }
+    return group;
+  };
+
+  const census = new Map<number, Census>();
+  const errors = new ErrorTally();
+  const unreadable = new Map<number, Tally>();
+  const unreadableBooleans = new Map<number, Tally>();
+  const identifiers = new Map<number, Tally>();
+  const currencies = new Map<number, Set<string>>();
+  const groupFailures = new Map<GroupPlan, Tally>();
   let scannedRows = 0;
   let matchedRows = 0;
-  let uncachedFormulas = 0;
   let blankRows = 0;
+  let uncachedFormulas = 0;
 
-  const matches = (cellAt: (column: number) => CellScalar): boolean => {
-    let matched = conditions.length === 0 ? true : options.match === "all";
-    for (const entry of conditions) {
-      const hit = evaluate(
-        entry.condition,
-        cellAt(entry.column),
-        predicateOptions,
-      );
-      matched = options.match === "all" ? matched && hit : matched || hit;
+  const matches = (
+    tests: readonly ResolvedCondition[],
+    cellAt: (column: number) => TypedCell,
+    match: "all" | "any",
+    weight: number,
+  ): boolean => {
+    let matched = tests.length === 0 || match === "all";
+    for (const { condition, column, tally } of tests) {
+      const cell = cellAt(column);
+      const outcome = evaluate(condition, cell, {
+        caseSensitive: options.caseSensitive,
+      });
+      if (outcome === "incomparable") note(tally, cell.raw, weight);
+      matched =
+        match === "all"
+          ? matched && outcome === "match"
+          : matched || outcome === "match";
     }
     return matched;
   };
 
-  for (const row of sheet.populatedRows({
-    from: startRow,
-    to: bounds.bottom,
-    withCovered,
-  })) {
+  const processRow = (
+    rowView: RowView | undefined,
+    row: number,
+    weight: number,
+  ): void => {
+    const rowCells = new Map<number, TypedCell>();
+    const cellAt = (column: number): TypedCell => {
+      visit();
+      const existing = rowCells.get(column);
+      if (existing !== undefined) return existing;
+      const read = readGrid(rowView, column, options.mergedCells);
+      if (read.uncachedFormula) uncachedFormulas += weight;
+      const cell = typedCell(
+        read.value,
+        readings.get(column) ?? fallbackReading,
+        read.meaning,
+      );
+      rowCells.set(column, cell);
+      return cell;
+    };
+    if (!matches(conditions, cellAt, options.match, weight)) return;
+    matchedRows += weight;
+    const values = new Map<GroupPlan, GroupValue>();
+    for (const plan of plans.values()) {
+      const cell = cellAt(plan.column);
+      const value = groupValue(plan, cell);
+      values.set(plan, value);
+      if (value.kind === "unreadable") {
+        const tally = groupFailures.get(plan) ?? tallyOf();
+        groupFailures.set(plan, tally);
+        note(tally, cell.raw, weight);
+      }
+    }
+    const pivot = keyFor(pivotColumns, values);
+    const targets: GroupState[] = [];
+    for (const set of groupings) {
+      const key = keyFor(set.columns, values);
+      if (key === undefined || pivot === undefined) {
+        set.ungroupedRows += weight;
+        continue;
+      }
+      const group = groupFor(set, key, pivot);
+      group.rows += weight;
+      targets.push(group);
+    }
+    const enabled = metricColumns.map((entry) =>
+      matches(entry.conditions, cellAt, "all", weight),
+    );
+    if (targets.length === 0) return;
+    const countedColumns = new Set<number>();
+    const numericColumns = new Set<number>();
+    const booleanColumns = new Set<number>();
+    const pivotId = JSON.stringify(pivot?.values ?? []);
+    const absent = typedCell(null, rawReading);
+    metricColumns.forEach((entry, slot) => {
+      const include = enabled[slot] ?? false;
+      const cell =
+        include && entry.column !== undefined && entry.metric.fn !== "count"
+          ? cellAt(entry.column)
+          : absent;
+      if (
+        include &&
+        entry.column !== undefined &&
+        isBooleanMetric(entry.metric.fn) &&
+        !booleanColumns.has(entry.column)
+      ) {
+        booleanColumns.add(entry.column);
+        if (
+          !cell.missing &&
+          !isCellError(cell.raw) &&
+          typeof cell.as("boolean") !== "boolean"
+        ) {
+          const tally = unreadableBooleans.get(entry.column) ?? tallyOf();
+          unreadableBooleans.set(entry.column, tally);
+          note(tally, cell.raw, weight);
+        }
+      }
+      if (
+        include &&
+        entry.column !== undefined &&
+        entry.metric.fn !== "count" &&
+        !countedColumns.has(entry.column)
+      ) {
+        const tally = census.get(entry.column) ?? emptyCensus();
+        census.set(entry.column, tally);
+        if (weight > 1) tally.nulls += weight;
+        else record(tally, cell);
+        if (isCellError(cell.raw))
+          errors.add(
+            cell.raw,
+            `${columnToLetters(entry.column)}${row}`,
+            weight,
+          );
+        countedColumns.add(entry.column);
+      }
+      if (
+        include &&
+        entry.column !== undefined &&
+        isNumericMetric(entry.metric.fn) &&
+        !numericColumns.has(entry.column)
+      ) {
+        numericColumns.add(entry.column);
+        const read = cell.number();
+        if (read.kind === "number" && read.currency !== undefined) {
+          const seen = currencies.get(entry.column) ?? new Set<string>();
+          currencies.set(entry.column, seen.add(read.currency));
+        }
+        const tallies =
+          read.kind === "identifier"
+            ? identifiers
+            : read.kind === "unreadable"
+              ? unreadable
+              : undefined;
+        if (tallies !== undefined) {
+          const tally = tallies.get(entry.column) ?? tallyOf();
+          tallies.set(entry.column, tally);
+          note(tally, cell.raw, weight);
+        }
+      }
+      for (const group of targets) {
+        const targetStates = hasPivot
+          ? [group.metrics, group.pivots.get(pivotId) ?? []]
+          : [group.metrics];
+        for (const states of targetStates) {
+          visit();
+          const state = states[slot];
+          if (state === undefined) continue;
+          if (!include) state.filtered += weight;
+          else
+            addMetric(state, entry.metric, cell, {
+              weight,
+              caseSensitive: options.caseSensitive,
+              sample,
+              distinct,
+              address:
+                entry.column === undefined
+                  ? String(row)
+                  : `${columnToLetters(entry.column)}${row}`,
+            });
+        }
+      }
+    });
+  };
+
+  for (const row of rowsInRange()) {
     scannedRows += 1;
     visit();
     const rowView = sheet.rowAt(row);
@@ -399,329 +758,274 @@ export function aggregateSheet(
       withCovered,
     }) ?? []) {
       visit();
-      const snapshot = rowView?.cellAt(column);
-      if (
-        snapshot !== undefined &&
-        resolveCell(snapshot, {
-          valueMode: "values",
-          mergePolicy: options.mergedCells,
-        }) !== null
-      ) {
+      if (readGrid(rowView, column, options.mergedCells).value !== null) {
         blank = false;
         break;
       }
     }
-    if (blank) {
-      blankRows += 1;
-    }
-    const cellAt = (column: number): CellScalar => {
-      visit();
-      const read = readGrid(rowView, column, options.mergedCells);
-      if (read.uncachedFormula) {
-        uncachedFormulas += 1;
-      }
-      return read.value;
-    };
-
-    if (!matches(cellAt)) {
-      continue;
-    }
-    matchedRows += 1;
-
-    const group = groupFor(groupColumns.map((entry) => cellAt(entry.column)));
-    group.rows += 1;
-
-    for (let slot = 0; slot < metricColumns.length; slot += 1) {
-      const entry = metricColumns[slot];
-      const state = group.metrics[slot];
-      if (entry === undefined || state === undefined) {
-        continue;
-      }
-      if (entry.metric.fn === "count") {
-        state.counted += 1;
-        continue;
-      }
-      const column = entry.column as number;
-      const raw = cellAt(column);
-      const kind = record(censusFor(column), raw);
-      if (kind === "empty") {
-        state.skipped += 1;
-        continue;
-      }
-      const value =
-        options.coerceText && kind === "text"
-          ? (coerceNumber(raw) ?? raw)
-          : raw;
-
-      if (entry.metric.fn === "countValues") {
-        state.counted += 1;
-        continue;
-      }
-      if (entry.metric.fn === "countDistinct") {
-        state.counted += 1;
-        state.distinct?.add(JSON.stringify(value));
-        continue;
-      }
-      if (entry.metric.fn === "min" || entry.metric.fn === "max") {
-        const kindNow = classify(value);
-        if (kindNow !== "number" && kindNow !== "date" && kindNow !== "text") {
-          state.skipped += 1;
-          continue;
-        }
-        state.counted += 1;
-        if (kindNow === "number") coerceNumber(value);
-        const candidate =
-          typeof value === "number"
-            ? { kind: "number" as const, value }
-            : typeof value === "string"
-              ? {
-                  kind:
-                    kindNow === "date" ? ("date" as const) : ("text" as const),
-                  value,
-                }
-              : undefined;
-        if (candidate === undefined) continue;
-        if (state.extreme === undefined) {
-          state.extreme = candidate;
-          continue;
-        }
-        if (state.extreme.kind !== candidate.kind)
-          throw new SezzleeExcelError(
-            "invalid_argument",
-            `Metric '${entry.metric.fn}' mixes ${state.extreme.kind} and ${candidate.kind} at ${columnToLetters(column)}${row}.`,
-            "Use a homogeneous range or filter the source values.",
-          );
-        const order = compareWithin(
-          kindNow,
-          value,
-          state.extreme.value,
-          options.caseSensitive,
-        );
-        if (entry.metric.fn === "min" ? order < 0 : order > 0) {
-          state.extreme = candidate;
-        }
-        continue;
-      }
-      const numeric =
-        typeof value === "number" ? coerceNumber(value) : undefined;
-      if (numeric === undefined) {
-        state.skipped += 1;
-        continue;
-      }
-      state.counted += 1;
-      if (entry.metric.fn === "sum" || entry.metric.fn === "avg")
-        accumulate(state.sums, numeric);
-      if (entry.metric.fn === "stddev") {
-        const delta = finite(numeric - state.mean);
-        state.mean = finite(state.mean + delta / state.counted);
-        state.m2 = finite(
-          state.m2 + finite(delta * finite(numeric - state.mean)),
-        );
-      }
-    }
+    if (blank) blankRows += 1;
+    processRow(rowView, row, 1);
   }
-
-  /**
-   * A row with no stored cell reads null in every column, so those rows fold
-   * in one step weighted by their count; query-values.spec.ts pins the
-   * counts.
-   */
-  const absent = Math.max(0, bounds.bottom - startRow + 1) - scannedRows;
+  /** Guard: absent rows are all null; weighting them avoids walking a sparse sheet's rectangle. */
+  const absent =
+    Math.max(0, bounds.bottom - startRow + 1) -
+    (visibility?.hiddenRowsSkipped ?? 0) -
+    scannedRows;
   if (absent > 0) {
     scannedRows += absent;
     blankRows += absent;
-    if (matches(() => null)) {
-      matchedRows += absent;
-      const group = groupFor(groupColumns.map(() => null));
-      group.rows += absent;
-      metricColumns.forEach((entry, slot) => {
-        const state = group.metrics[slot];
-        if (state === undefined) return;
-        if (entry.metric.fn === "count") {
-          state.counted += absent;
-          return;
-        }
-        censusFor(entry.column as number).nulls += absent;
-        state.skipped += absent;
-      });
-    }
+    processRow(undefined, startRow, absent);
   }
 
-  const ordered = [...groups.values()];
-  const metricSlot = (options.orderByMetric ?? 1) - 1;
-  ordered.sort((left, right) => {
-    if (options.orderBy === "metric") {
-      const a = finish(
-        options.metrics[metricSlot] as MetricRequest,
-        left.metrics[metricSlot] as MetricState,
-      );
-      const b = finish(
-        options.metrics[metricSlot] as MetricRequest,
-        right.metrics[metricSlot] as MetricState,
-      );
-      const av = typeof a === "number" ? a : Number.NEGATIVE_INFINITY;
-      const bv = typeof b === "number" ? b : Number.NEGATIVE_INFINITY;
-      if (av !== bv) {
-        return options.descending ? bv - av : av - bv;
-      }
-      return compareKeys(left.key, right.key, options.caseSensitive);
-    }
-    const order = compareKeys(left.key, right.key, options.caseSensitive);
-    if (order !== 0) {
-      return options.descending ? -order : order;
-    }
-    return 0;
-  });
-
-  const truncated = ordered.length > options.maxGroups;
-  const page = ordered.slice(0, options.maxGroups);
-
-  const columns: AggregateColumn[] = [
-    ...groupColumns.map((entry): AggregateColumn => {
-      const header = headers[entry.column - bounds.left];
-      return {
-        label: header ?? columnToLetters(entry.column),
-        letter: columnToLetters(entry.column),
-        role: "group",
-      };
-    }),
-    ...metricColumns.map((entry, slot): AggregateColumn => {
-      const counted = page.reduce(
-        (total, group) => total + (group.metrics[slot]?.counted ?? 0),
-        0,
-      );
-      const skipped = page.reduce(
-        (total, group) => total + (group.metrics[slot]?.skipped ?? 0),
-        0,
-      );
-      const kindUsed =
-        entry.metric.fn === "min" || entry.metric.fn === "max"
-          ? majorityKind(censusFor(entry.column as number))
-          : undefined;
-      return {
-        label: metricLabel(entry.metric),
-        ...(entry.column === undefined
-          ? {}
-          : { letter: columnToLetters(entry.column) }),
-        role: "metric",
-        fn: entry.metric.fn,
-        counted,
-        skipped,
-        ...(kindUsed === undefined ? {} : { kindUsed }),
-      };
-    }),
-  ];
-
-  const rows =
-    page.length === 0 && groupColumns.length === 0
-      ? [
-          [
-            ...options.metrics.map((metric) =>
-              metric.fn === "count" ? 0 : null,
-            ),
-          ] as CellScalar[],
-        ]
-      : page.map((group) => [
-          ...group.key.map(presentScalar),
-          ...options.metrics.map((metric, slot) =>
-            presentScalar(finish(metric, group.metrics[slot] as MetricState)),
-          ),
-        ]);
-
-  const stats: Record<string, Partial<Census>> = {};
-  for (const [column, counted] of census) {
-    const reported = reportCensus(counted);
-    if (Object.keys(reported).length > 0) {
-      stats[columnToLetters(column)] = reported;
-    }
-  }
-
-  const warnings: string[] = [
+  const warnings = [
     ...headerWarnings(
       sheet,
       bounds,
       options.headerRow,
       headers,
-      options.range !== undefined,
+      options.range !== undefined || selected.table !== undefined,
       options.mergedCells,
     ),
   ];
-  const collisions = new Map<string, Set<string>>();
-  for (const group of ordered) {
-    const label = group.key
-      .map((value) =>
-        typeof value === "string" ? fold(value) : JSON.stringify(value),
-      )
-      .join("\u0000");
-    const bucket = collisions.get(label) ?? new Set<string>();
-    bucket.add(
-      group.key
-        .map((value) =>
-          typeof value === "string"
-            ? String(presentScalar(value))
-            : JSON.stringify(value),
-        )
-        .join(" / "),
-    );
-    collisions.set(label, bucket);
-  }
-  for (const bucket of collisions.values()) {
-    if (bucket.size > 1) {
-      warnings.push(
-        `Groups ${[...bucket].map((entry) => `'${entry}'`).join(" and ")} differ only by case or accent.`,
+  const metricSlot = (options.orderByMetric ?? 1) - 1;
+  const sortMetric = options.metrics[metricSlot] ?? firstMetric;
+  const finishGrouping = (set: Grouping): GroupingResult => {
+    const ordered = [...set.groups.values()];
+    ordered.sort((left, right) => {
+      if (options.orderBy === "metric") {
+        const a = finishMetric(sortMetric, left.metrics[metricSlot]);
+        const b = finishMetric(sortMetric, right.metrics[metricSlot]);
+        const av = typeof a === "number" ? a : Number.NEGATIVE_INFINITY;
+        const bv = typeof b === "number" ? b : Number.NEGATIVE_INFINITY;
+        if (av !== bv)
+          return (av < bv ? -1 : 1) * (options.descending ? -1 : 1);
+      }
+      const order = compareKeys(
+        left.key.order,
+        right.key.order,
+        options.caseSensitive,
       );
-    }
-  }
-  const numericTextColumns = [...census.entries()].filter(
-    ([, counted]) => counted.numericTexts > 0,
-  );
-  if (!options.coerceText && numericTextColumns.length > 0) {
-    warnings.push(
-      `${numericTextColumns
-        .map(
-          ([column, counted]) =>
-            `${columnToLetters(column)} (${counted.numericTexts})`,
-        )
-        .join(
-          ", ",
-        )} hold numeric text such as "1234.50". Pass coerceText true to include them in the totals.`,
+      return (
+        order * (options.orderBy === "group" && options.descending ? -1 : 1)
+      );
+    });
+    const page = ordered.slice(0, options.maxGroups);
+    const truncated = ordered.length > page.length;
+    const pivots = [...set.pivotKeys].sort((left, right) =>
+      compareKeys(left[1].order, right[1].order, options.caseSensitive),
     );
+    const descriptors = (
+      pivot?: readonly [string, GroupKey],
+    ): AggregateColumn[] =>
+      metricColumns.map((entry, slot) => {
+        let counted = 0;
+        let skipped = 0;
+        let skippedErrors = 0;
+        let filtered = 0;
+        let kindUsed: ComparableKind | undefined;
+        let meaning: MetricMeaning | undefined;
+        for (const group of page) {
+          const state = (
+            pivot === undefined ? group.metrics : group.pivots.get(pivot[0])
+          )?.[slot];
+          counted += state?.counted ?? 0;
+          skipped += state?.skipped ?? 0;
+          skippedErrors += state?.skippedErrors ?? 0;
+          filtered += state?.filtered ?? 0;
+          kindUsed ??= metricKind(state);
+          meaning = mergeMetricMeaning(meaning, state?.meaning);
+        }
+        if (meaning?.mixedUnits)
+          warnings.push(
+            `${metricLabel(entry.metric)} combines plain numbers, fractions or duration seconds; no common unit is assigned.`,
+          );
+        if (
+          meaning?.mixedCurrencies &&
+          (entry.column === undefined ||
+            (currencies.get(entry.column)?.size ?? 0) < 2)
+        )
+          warnings.push(
+            `${metricLabel(entry.metric)} combines different or unlabelled currencies without conversion; no common currency is assigned.`,
+          );
+        return {
+          label:
+            pivot === undefined
+              ? metricLabel(entry.metric)
+              : `${pivot[1].values.map(keyLabel).join(" / ")}: ${metricLabel(entry.metric)}`,
+          ...(entry.column === undefined
+            ? {}
+            : { letter: columnToLetters(entry.column) }),
+          role: "metric",
+          fn: entry.metric.fn,
+          counted,
+          skipped,
+          ...(skippedErrors === 0 ? {} : { skippedErrors }),
+          ...(filtered === 0 ? {} : { filtered }),
+          ...(kindUsed === undefined ? {} : { kindUsed }),
+          ...(entry.metric.fn === "trueRatio"
+            ? { unit: "fraction" as const }
+            : meaning !== undefined &&
+                !meaning.mixedUnits &&
+                meaning.unit !== "number"
+              ? { unit: meaning.unit }
+              : {}),
+          ...(meaning?.currency === undefined || meaning.mixedCurrencies
+            ? {}
+            : { currency: meaning.currency }),
+          ...(meaning?.mixedUnits ? { mixedUnits: true as const } : {}),
+          ...(meaning?.mixedCurrencies
+            ? { mixedCurrencies: true as const }
+            : {}),
+          ...(entry.metric.percentile === undefined
+            ? {}
+            : { percentile: entry.metric.percentile }),
+          ...(entry.metric.fn === "median" ||
+          entry.metric.fn === "p50" ||
+          entry.metric.fn === "p90" ||
+          entry.metric.fn === "percentile"
+            ? { method: "linear" as const }
+            : {}),
+          ...(pivot === undefined
+            ? {}
+            : { pivotKey: pivot[1].values.map(presentScalar) }),
+        };
+      });
+    const columns: AggregateColumn[] = [
+      ...set.columns.map((entry) => entry.description),
+      ...(hasPivot
+        ? pivots.flatMap((pivot) => descriptors(pivot))
+        : descriptors()),
+    ];
+    const rows = page.map((group) => [
+      ...group.key.values.map(presentScalar),
+      ...(hasPivot
+        ? pivots.flatMap(([id]) =>
+            options.metrics.map((metric, slot) =>
+              presentScalar(finishMetric(metric, group.pivots.get(id)?.[slot])),
+            ),
+          )
+        : options.metrics.map((metric, slot) =>
+            presentScalar(finishMetric(metric, group.metrics[slot])),
+          )),
+    ]);
+    if (rows.length === 0 && set.columns.length === 0 && !hasPivot)
+      rows.push(
+        options.metrics.map((metric) => finishMetric(metric, undefined)),
+      );
+    const returnedMatchedRows = page.reduce(
+      (sum, group) => sum + group.rows,
+      0,
+    );
+    const collisions = new Map<string, Set<string>>();
+    for (const group of ordered) {
+      const label = JSON.stringify(
+        group.key.values.map((value) =>
+          typeof value === "string" ? fold(value) : value,
+        ),
+      );
+      const bucket = collisions.get(label) ?? new Set<string>();
+      bucket.add(group.key.values.map(keyLabel).join(" / "));
+      collisions.set(label, bucket);
+    }
+    for (const bucket of collisions.values())
+      if (bucket.size > 1)
+        warnings.push(
+          `Groups ${[...bucket].map((entry) => `'${entry}'`).join(" and ")} differ only by case or accent.`,
+        );
+    return {
+      columns,
+      rows,
+      groupCount: ordered.length,
+      returnedGroups: page.length,
+      returnedMatchedRows,
+      omittedMatchedRows: matchedRows - returnedMatchedRows - set.ungroupedRows,
+      ...(set.ungroupedRows === 0 ? {} : { ungroupedRows: set.ungroupedRows }),
+      ...(hasPivot
+        ? { pivotBy: pivotColumns.map((entry) => entry.description) }
+        : {}),
+      truncated,
+      ...(truncated
+        ? {
+            truncationReason: "maxGroups" as const,
+            hint:
+              options.orderBy === "metric"
+                ? `${ordered.length} distinct groups; the top ${page.length} in metric order were returned. Raise maxGroups (at most ${limits.maxGroupsHard}) for more, or add a where clause.`
+                : `${ordered.length} distinct groups; the first ${page.length} in group order were returned. Set orderBy to "metric" with orderByMetric to get the top groups, or add a where clause.`,
+          }
+        : {}),
+    };
+  };
+  const main = finishGrouping(primary);
+  const sets = additional.map(finishGrouping);
+  const stats: Record<string, Partial<Census>> = {};
+  for (const [column, tally] of census) {
+    const reported = reportCensus(tally);
+    if (Object.keys(reported).length > 0)
+      stats[columnToLetters(column)] = reported;
   }
-  if (uncachedFormulas > 0) {
+  const readAs: Record<string, readonly ReadAs[]> = {};
+  for (const [column, reading] of readings) {
+    const described = readAsOf(reading);
+    if (described.length > 0) readAs[columnToLetters(column)] = described;
+    warnings.push(...readingWarnings(reading, columnToLetters(column)));
+  }
+  warnings.push(...conditionWarnings(conditions, "where"));
+  metricColumns.forEach((entry, at) =>
+    warnings.push(
+      ...conditionWarnings(entry.conditions, `metrics[${at + 1}].where`),
+    ),
+  );
+  for (const [plan, tally] of groupFailures)
+    warnings.push(
+      `Grouping ${plan.description.label}: ${count(tally.count, "cell", "cells")} in ${columnToLetters(plan.column)} could not be read for this key, such as ${samplesOf(tally)}; these rows are counted in ungroupedRows for each affected grouping.`,
+    );
+  for (const [column, seen] of currencies)
+    if (seen.size > 1)
+      warnings.push(
+        `${columnToLetters(column)}: amounts are written in more than one currency (${[...seen].sort().join(", ")}); the totals add them as written, without conversion.`,
+      );
+  for (const [column, tally] of unreadable)
+    warnings.push(
+      `${columnToLetters(column)}: ${count(tally.count, "text cell does", "text cells do")} not read as a number, such as ${samplesOf(tally)}; the totals exclude them.`,
+    );
+  for (const [column, tally] of identifiers)
+    warnings.push(
+      `${columnToLetters(column)}: ${count(tally.count, "cell looks like an identifier", "cells look like identifiers")} (a leading zero or more than 15 digits), such as ${samplesOf(tally)}; the totals exclude them. If they are quantities, pass columns [{"column":"${columnToLetters(column)}","type":"number","decimal":"."}].`,
+    );
+  for (const [column, tally] of unreadableBooleans)
+    warnings.push(
+      `${columnToLetters(column)}: ${count(tally.count, "cell does", "cells do")} not read as a boolean, such as ${samplesOf(tally)}; boolean metrics exclude them.`,
+    );
+  if (uncachedFormulas > 0)
     warnings.push(
       `${uncachedFormulas} formula cells in the aggregated columns have no cached value; the totals exclude them.`,
     );
-  }
-
+  const errorDistribution = errors.report();
+  let firstScannedRow = startRow;
+  if (options.visibleOnly === true)
+    while (
+      firstScannedRow <= bounds.bottom &&
+      sheet.hiddenRows.has(firstScannedRow)
+    )
+      firstScannedRow += 1;
   return {
     sheet: sheet.name,
     range: formatRange(bounds),
     usedRange: formatRange(used),
+    ...(selected.table === undefined ? {} : { table: selected.table }),
+    ...(visibility === undefined ? {} : { visibility }),
     headerRow: options.headerRow,
     headerRowSource: options.headerRowSource,
-    columns,
-    rows,
-    groupCount: ordered.length,
-    returnedGroups: page.length,
+    ...main,
+    ...(sets.length === 0 ? {} : { groupingSets: sets }),
     scannedRows,
     matchedRows,
-    returnedMatchedRows: page.reduce((sum, group) => sum + group.rows, 0),
-    omittedMatchedRows:
-      matchedRows - page.reduce((sum, group) => sum + group.rows, 0),
-    firstScannedRow: startRow,
+    firstScannedRow,
     blankRows,
-    ...(Object.keys(stats).length > 0 ? { columnStats: stats } : {}),
-    truncated,
-    ...(truncated ? { truncationReason: "maxGroups" as const } : {}),
-    ...(truncated
-      ? {
-          hint:
-            options.orderBy === "metric"
-              ? `${ordered.length} distinct groups; the top ${page.length} in metric order were returned. Raise maxGroups (at most ${limits.maxGroupsHard}) for more, or add a where clause.`
-              : `${ordered.length} distinct groups; the first ${page.length} in group order were returned. Set orderBy to "metric" with orderByMetric to get the top groups, or add a where clause.`,
-        }
-      : {}),
-    ...(warnings.length > 0 ? { warnings } : {}),
+    ...(Object.keys(stats).length === 0 ? {} : { columnStats: stats }),
+    ...(Object.keys(readAs).length === 0 ? {} : { readAs }),
+    ...(errorDistribution === undefined ? {} : { errorDistribution }),
+    ...(warnings.length === 0 ? {} : { warnings: [...new Set(warnings)] }),
   };
 }
 

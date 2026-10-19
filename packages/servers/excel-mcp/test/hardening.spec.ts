@@ -237,13 +237,12 @@ describe("numeric and predicate contracts (#4 #5 #6 #22 #23)", () => {
       expect(result.rows).toBeUndefined();
     },
   );
-  it("rejects overflow text when coercion is requested", async () => {
+  it("rejects overflow text read as a number", async () => {
     await writeFile(join(directory, "numeric.csv"), "value\n1e400\n");
     const result = body(
       await handlers.aggregate_sheet({
         filePath: "numeric.csv",
         metrics: [{ fn: "sum", column: "value" }],
-        coerceText: true,
       }),
     );
     expect(result.error).toBe("numeric_overflow");

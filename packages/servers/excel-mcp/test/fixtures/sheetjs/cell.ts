@@ -1,12 +1,14 @@
 import type { CellFacts, CellSnapshot } from "../../../src/grid/cell-value.js";
 import { SezzleeExcelError } from "../../../src/platform/errors.js";
-import { formatDate } from "../../../src/format/cell-date.js";
+import { formatDate, isTimeOnlyFormat } from "../../../src/format/cell-date.js";
 
 export interface SheetJsCell {
   readonly t?: string;
   readonly v?: string | number | boolean | Date;
   readonly w?: string;
   readonly f?: string;
+  readonly F?: string;
+  readonly D?: boolean;
   readonly z?: string;
   readonly l?: { readonly Target?: string };
 }
@@ -45,7 +47,12 @@ function factsOf(cell: SheetJsCell): CellFacts {
     return { value: null };
   }
   if (value instanceof Date) {
-    return { value: formatDate(value, cell.z) };
+    return {
+      value:
+        typeof cell.z === "string" && isTimeOnlyFormat(cell.z)
+          ? value.toISOString().slice(11, 19)
+          : formatDate(value, cell.z),
+    };
   }
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {
@@ -67,6 +74,15 @@ function withHyperlink(facts: CellFacts, cell: SheetJsCell): CellFacts {
   return href === undefined ? facts : { ...facts, href };
 }
 
+/**
+ * Returns the reference scalar, formula, format and hyperlink projection.
+ * Rich image/entity/error compatibility caches remain ordinary errors here.
+ * Raw SheetJS `F`/`D` array metadata is retained by the library but excluded
+ * from this projection. Native numeric meaning is absent and elapsed values
+ * supplied as Dates keep their calendar rendering. Exact differences are
+ * pinned by rich-differential.spec.ts and the fixed-fixture divergence table
+ * in corpus-cells-parity.spec.ts; unlisted corpus differences must still fail.
+ */
 export function sheetjsSnapshot(
   cell: SheetJsCell,
   merged: boolean,

@@ -156,6 +156,18 @@ export function sheetSource(loaded: LoadedDocument): SheetSource {
   return {
     stamp: loaded.stamp,
     sheetFor: (sheetName) => documentSheet(loaded, sheetName),
+    *tables(sheetName) {
+      if (loaded.format === "csv") return;
+      for (const name of sheetName === undefined
+        ? loaded.workbook.sheetNames
+        : [sheetName]) {
+        if (loaded.workbook.opc.chartSheets.has(name)) continue;
+        for (const table of declaredTablesOf(
+          loaded.workbook.facts(name).tables,
+        ))
+          yield { sheet: name, table };
+      }
+    },
   };
 }
 

@@ -5,7 +5,15 @@ import {
   type Fingerprint,
 } from "@sezzlee/file-core";
 import { SezzleeExcelError } from "../platform/errors.js";
-import type { CsvOptions } from "../platform/delimited.js";
+import { encodingNames, type CsvOptions } from "../platform/delimited.js";
+import { z } from "zod";
+import {
+  columnSpecsSchema,
+  readingHintsSchema,
+  type ColumnSpec,
+  type ReadingHints,
+} from "./column-spec.js";
+import type { ColumnMode } from "./columns.js";
 
 export { encodeCursor, fingerprint } from "@sezzlee/file-core";
 export type { Fingerprint } from "@sezzlee/file-core";
@@ -24,7 +32,12 @@ export interface SheetPosition {
   readonly o: CursorOptions;
 }
 
-export interface CursorOptions extends CsvOptions {
+export interface CursorOptions extends CsvOptions, ReadingHints {
+  readonly table?: string;
+  readonly visibleOnly?: boolean;
+  readonly columns?: readonly ColumnSpec[];
+  readonly columnMode?: ColumnMode;
+  readonly includeTyped?: boolean;
   readonly valueMode: ValueMode;
   readonly mergedCells: MergePolicy;
   readonly headerRow: number;
@@ -32,31 +45,51 @@ export interface CursorOptions extends CsvOptions {
   readonly includeHyperlinks: boolean;
 }
 
+const cursorOptionsSchema = z.strictObject({
+  table: z.string().min(1).max(255).optional(),
+  visibleOnly: z.boolean().optional(),
+  valueMode: z.enum(["values", "formulas", "both"]),
+  mergedCells: z.enum(["master", "repeat"]),
+  headerRow: z.int().min(0).max(1_048_576),
+  headerScan: z.boolean(),
+  includeHyperlinks: z.boolean(),
+  delimiter: z.enum(["comma", "semicolon", "tab", "pipe"]).optional(),
+  encoding: z.enum(encodingNames).optional(),
+  columns: columnSpecsSchema.optional(),
+  columnMode: z.enum(["auto", "header", "letter"]).optional(),
+  includeTyped: z.boolean().optional(),
+  ...readingHintsSchema,
+}) satisfies z.ZodType<CursorOptions>;
+
+const inheritedOptions = cursorOptionsSchema.keyof().options;
+
 function isOptions(value: unknown): value is CursorOptions {
-  if (typeof value !== "object" || value === null) return false;
-  const v = value as Record<string, unknown>;
+  return cursorOptionsSchema.safeParse(value).success;
+}
+
+function sameOption(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (Array.isArray(left) && Array.isArray(right))
+    return (
+      left.length === right.length &&
+      left.every((value, index) => sameOption(value, right[index]))
+    );
+  if (
+    typeof left !== "object" ||
+    left === null ||
+    typeof right !== "object" ||
+    right === null
+  )
+    return false;
+  const a = Object.entries(left);
+  const b = Object.entries(right);
   return (
-    (v.valueMode === "values" ||
-      v.valueMode === "formulas" ||
-      v.valueMode === "both") &&
-    (v.mergedCells === "master" || v.mergedCells === "repeat") &&
-    typeof v.headerRow === "number" &&
-    Number.isSafeInteger(v.headerRow) &&
-    v.headerRow >= 0 &&
-    v.headerRow <= 1048576 &&
-    typeof v.headerScan === "boolean" &&
-    typeof v.includeHyperlinks === "boolean" &&
-    (v.delimiter === undefined ||
-      ["comma", "semicolon", "tab", "pipe"].includes(String(v.delimiter))) &&
-    (v.encoding === undefined ||
-      [
-        "utf-8",
-        "utf-16le",
-        "utf-16be",
-        "windows-1254",
-        "iso-8859-9",
-        "windows-1252",
-      ].includes(String(v.encoding)))
+    a.length === b.length &&
+    a.every(
+      ([key, value]) =>
+        Object.hasOwn(right, key) &&
+        sameOption(value, (right as Record<string, unknown>)[key]),
+    )
   );
 }
 
@@ -74,16 +107,8 @@ export function inheritCursorOptions<
       "cursor cannot be combined with sheetName or range.",
     );
   const cursor = decodeCursor(args.cursor);
-  for (const key of [
-    "valueMode",
-    "mergedCells",
-    "headerRow",
-    "headerScan",
-    "includeHyperlinks",
-    "delimiter",
-    "encoding",
-  ] as const) {
-    if (args[key] !== undefined && args[key] !== cursor.o[key])
+  for (const key of inheritedOptions) {
+    if (args[key] !== undefined && !sameOption(args[key], cursor.o[key]))
       throw new SezzleeExcelError(
         "invalid_argument",
         `Option '${key}' conflicts with the cursor.`,

@@ -20,6 +20,8 @@ export type SezzleeExcelErrorCode =
   | "ambiguous_column"
   | "unknown_sheet"
   | "ambiguous_sheet"
+  | "unknown_table"
+  | "ambiguous_table"
   | "empty_sheet"
   | "chart_sheet"
   | "unknown_header_row"

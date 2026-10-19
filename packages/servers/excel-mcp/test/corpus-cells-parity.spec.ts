@@ -1,10 +1,16 @@
 import { readFileSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { readFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { CellSnapshot } from "../src/grid/cell-value.js";
 import { compareWorkbook, type CellMismatch } from "./fixtures/cell-parity.js";
+import {
+  linkedWorkbook,
+  richErrorsWorkbook,
+  richWorkbook,
+} from "./fixtures/rich-workbook.js";
 
 /**
  * Guard: runs only against a local corpus (`SEZZLEE_CORPUS`), never in CI. The
@@ -16,7 +22,13 @@ import { compareWorkbook, type CellMismatch } from "./fixtures/cell-parity.js";
 const corpus = process.env["SEZZLEE_CORPUS"];
 const maxBytes = 10 * 1024 * 1024;
 
-type Tolerance = "line-endings" | "default-style";
+type Tolerance = "line-endings" | "default-style" | "rich-values";
+
+const fixedWorkbooks = {
+  rich: richWorkbook,
+  linked: linkedWorkbook,
+  errors: richErrorsWorkbook,
+};
 
 /**
  * Corpus files where the two readers are known to part ways, each with the
@@ -24,7 +36,10 @@ type Tolerance = "line-endings" | "default-style";
  * refused on purpose. A `gap` is unsupported today and must still differ, so
  * the entry fails, and has to be removed, the day support lands. An
  * `intended` file differs only in the named way, where SheetJS departs from
- * the standard; every other cell must still agree.
+ * the standard; every other cell must still agree. A `fixture` pins all
+ * mismatch locations for independently generated, checksum-locked CI bytes;
+ * it cannot authorize a difference in an external corpus workbook. Exact
+ * snapshot values are checked separately in rich-differential.spec.ts.
  */
 const divergences: Readonly<
   Record<
@@ -35,8 +50,73 @@ const divergences: Readonly<
         readonly tolerate: Tolerance;
         readonly why: string;
       }
+    | {
+        readonly kind: "fixture";
+        readonly fixture: keyof typeof fixedWorkbooks;
+        readonly sha256: string;
+        readonly differences: Readonly<Record<string, string>>;
+        readonly why: string;
+      }
   >
 > = {
+  "test/fixtures/rich-values.xlsx.base64": {
+    kind: "fixture",
+    fixture: "rich",
+    sha256: "b29d5664bfebd138af4f55135b4470e682065cb0a2fcbfce5a680e5f5c6ff9e3",
+    differences: {
+      "describe:Rich:imageCount":
+        "two in-cell images supplement drawing images",
+      "facts:Rich:images":
+        "in-cell positions and accessibility text come from the verified rich relationship chain",
+      "cell:Rich:A2":
+        "the local image and its saved alternative text replace the #VALUE! compatibility cache",
+      "cell:Rich:A3":
+        "the local decorative image replaces the #VALUE! compatibility cache",
+      "cell:Rich:C2":
+        "the saved dynamic-array anchor, range and collapsed flag supplement the unchanged cached formula result",
+      "cell:Rich:C3":
+        "the saved result belongs to the C2:C4 array without any recalculation",
+      "cell:Rich:C4":
+        "the saved result belongs to the C2:C4 array without any recalculation",
+    },
+    why: "XlsxWriter fixed bytes have independent ZIP/XML expectations. Raw SheetJS retains F/D; its historical cell projection omits array metadata. Native fraction meaning and elapsed serial-to-seconds differences use the narrow cell-parity counters and independent format tests.",
+  },
+  "test/fixtures/linked-seattle.xlsx.base64": {
+    kind: "fixture",
+    fixture: "linked",
+    sha256: "537a61c16e9c09a33d405e5f828d0e17b9462a69396e42203cc77706e63c6a12",
+    differences: {
+      "cell:Linked:A1":
+        "the directly referenced _linkedentity2 record supplies the cached Seattle label and identifiers instead of #VALUE!; no nested data or refresh is inferred",
+    },
+    why: "Exact-source Microsoft OpenXML SDK bytes and an independent ZIP/XML oracle verify the metadata1.xml relationship and directly referenced record.",
+  },
+  "test/fixtures/rich-errors.xlsx.base64": {
+    kind: "fixture",
+    fixture: "errors",
+    sha256: "9ee3db1974c3bebed188a0e098815806bae179a6b6dca0c453ea01c80b7cdaa1",
+    differences: {
+      "describe:Rich:imageCount":
+        "the original two in-cell images remain present",
+      "facts:Rich:images":
+        "the original verified image relationships remain present",
+      "cell:Rich:A2":
+        "the original local image replaces its compatibility cache",
+      "cell:Rich:A3":
+        "the original decorative image replaces its compatibility cache",
+      "cell:Rich:C2":
+        "the original saved dynamic-array anchor and range remain present",
+      "cell:Rich:C3":
+        "the original cached array member remains associated with C2:C4",
+      "cell:Rich:C4":
+        "the original cached array member remains associated with C2:C4",
+      "cell:Rich:E5":
+        "the spec-defined _error errorType 8 resolves #SPILL! from a #VALUE! compatibility cache",
+      "cell:Rich:E6":
+        "the spec-defined _error errorType 13 resolves #CALC! from a #VALUE! compatibility cache",
+    },
+    why: "A labeled specification-derived mutation preserves the original image/array controls. Direct #SPILL!/#CALC! caches in F5/F6 must still agree exactly, as must every unlisted cell and workbook fact.",
+  },
   "apache-testdata/files/poi/spreadsheet/poc-xmlbomb-empty.xlsx": {
     kind: "refused",
     why: "its shared string table declares an entity-expansion DOCTYPE",
@@ -49,6 +129,16 @@ const divergences: Readonly<
     kind: "intended",
     tolerate: "line-endings",
     why: "raw line breaks in XML text are normalised to LF, as XML 1.0 §2.11 requires and SheetJS skips",
+  },
+  "uk-datagov/files/xlsx/FIRE0104-7ddf1043.xlsx": {
+    kind: "intended",
+    tolerate: "rich-values",
+    why: "a vm= cell is a local in-cell image behind a #VALUE! cache, and cm= cells are saved dynamic arrays; SheetJS keeps the cache and drops the array metadata",
+  },
+  "uk-datagov/files/xlsx/FIRE0507-06527aa5.xlsx": {
+    kind: "intended",
+    tolerate: "rich-values",
+    why: "a vm= cell is a local in-cell image behind a #VALUE! cache, and cm= cells are saved dynamic arrays; SheetJS keeps the cache and drops the array metadata",
   },
   "tr-ckan/files/ordu/ordu-ili-gulyali-ilcesi-mahalle-nufuslari__0590787d.xlsx":
     {
@@ -70,25 +160,105 @@ const divergences: Readonly<
     },
 };
 
+function locationOf(mismatch: CellMismatch): string {
+  if (mismatch.kind === "sheets") return "sheets";
+  if (mismatch.kind === "cell") return `cell:${mismatch.sheet}:${mismatch.at}`;
+  return `${mismatch.kind}:${mismatch.sheet}:${mismatch.field}`;
+}
+
+describe("fixed modern workbook divergence boundaries", () => {
+  const fixtures = Object.entries(divergences).flatMap(([label, divergence]) =>
+    divergence.kind === "fixture" ? [{ label, ...divergence }] : [],
+  );
+  it.each(fixtures)("$label", ({ fixture, sha256, differences }) => {
+    const bytes = fixedWorkbooks[fixture]();
+    expect(createHash("sha256").update(bytes).digest("hex")).toBe(sha256);
+    const comparison = compareWorkbook(bytes, Number.MAX_SAFE_INTEGER);
+    expect(comparison.kind).toBe("compared");
+    if (comparison.kind !== "compared") return;
+    expect(comparison.mismatches.map(locationOf).sort()).toEqual(
+      Object.keys(differences).sort(),
+    );
+  });
+});
+
 function withoutCarriageReturns(snapshot: CellSnapshot | null): unknown {
   return JSON.parse(JSON.stringify(snapshot).replaceAll("\\r", ""));
 }
 
+function asSheetJs(snapshot: CellSnapshot): CellSnapshot {
+  const { array: _array, ...rest } = snapshot;
+  const value = rest.value.value;
+  return typeof value === "object" && value !== null && "imageId" in value
+    ? { ...rest, value: { ...rest.value, value: { error: "#VALUE!" } } }
+    : rest;
+}
+
+function addsInCellImages(ours: unknown, theirs: unknown): boolean {
+  if (!Array.isArray(ours) || !Array.isArray(theirs)) return false;
+  const shared = (image: unknown, list: readonly unknown[]): boolean =>
+    list.some((other) => isDeepStrictEqual(image, other));
+  return (
+    theirs.every((image) => shared(image, ours)) &&
+    ours
+      .filter((image) => !shared(image, theirs))
+      .every(
+        (image: unknown) =>
+          typeof image === "object" &&
+          image !== null &&
+          "anchor" in image &&
+          image.anchor === "inCell",
+      )
+  );
+}
+
+function richValueTolerated(mismatch: CellMismatch): boolean {
+  switch (mismatch.kind) {
+    case "cell":
+      return (
+        mismatch.ours !== null &&
+        mismatch.theirs !== null &&
+        isDeepStrictEqual(asSheetJs(mismatch.ours), mismatch.theirs)
+      );
+    case "describe":
+      return (
+        mismatch.field === "imageCount" &&
+        typeof mismatch.ours === "number" &&
+        typeof mismatch.theirs === "number" &&
+        mismatch.ours > mismatch.theirs
+      );
+    case "facts":
+      return (
+        mismatch.field === "images" &&
+        addsInCellImages(mismatch.ours, mismatch.theirs)
+      );
+    default:
+      return false;
+  }
+}
+
 function tolerated(tolerance: Tolerance, mismatch: CellMismatch): boolean {
-  if (mismatch.kind !== "cell") return false;
-  const { ours, theirs } = mismatch;
   switch (tolerance) {
     case "line-endings":
-      return isDeepStrictEqual(
-        withoutCarriageReturns(ours),
-        withoutCarriageReturns(theirs),
+      return (
+        mismatch.kind === "cell" &&
+        isDeepStrictEqual(
+          withoutCarriageReturns(mismatch.ours),
+          withoutCarriageReturns(mismatch.theirs),
+        )
       );
     case "default-style":
       return (
-        ours !== null &&
-        theirs?.numberFormat === "General" &&
-        isDeepStrictEqual({ ...ours, numberFormat: "General" }, theirs)
+        mismatch.kind === "cell" &&
+        mismatch.ours !== null &&
+        mismatch.theirs?.numberFormat === "General" &&
+        isDeepStrictEqual(
+          { ...mismatch.ours, numberFormat: "General" },
+          mismatch.theirs,
+        )
       );
+    case "rich-values":
+      return richValueTolerated(mismatch);
     default: {
       const _exhaustive: never = tolerance;
       return _exhaustive;
@@ -141,6 +311,11 @@ describe.skipIf(corpus === undefined)(
       async (label, path) => {
         const bytes = await readFile(path);
         const divergence = divergences[label];
+        if (divergence?.kind === "fixture") {
+          throw new Error(
+            "A fixed CI fixture policy cannot waive an external corpus mismatch.",
+          );
+        }
         if (divergence?.kind === "refused") {
           expect(() => compareWorkbook(bytes, 5)).toThrow(
             expect.objectContaining({ code: "corrupt_workbook" }),

@@ -9,6 +9,10 @@ import type {
 import type { CellStore } from "../metadata/spreadsheetml/cell-store.js";
 import { formulaText } from "../metadata/spreadsheetml/formula-text.js";
 import {
+  readRichData,
+  type RichData,
+} from "../metadata/spreadsheetml/rich-data.js";
+import {
   hyperlinkIndex,
   type HyperlinkIndex,
 } from "../metadata/spreadsheetml/hyperlinks.js";
@@ -29,7 +33,11 @@ import {
   type SheetFacts,
 } from "../metadata/spreadsheetml/worksheet.js";
 import { metadataLimitations } from "../metadata/support.js";
-import type { CellSnapshot } from "../grid/cell-value.js";
+import type {
+  CellArrayFormula,
+  CellFacts,
+  CellSnapshot,
+} from "../grid/cell-value.js";
 import { formatCellRef, formatRange, type GridBounds } from "../grid/range.js";
 import {
   type DeclaredTable,
@@ -83,9 +91,12 @@ interface OoxmlSheet {
   /** The row spans of merges whose top-left cell is stored, coalesced. */
   readonly mergedRows: readonly (readonly [number, number])[];
   readonly autoFilter: string | undefined;
+  readonly hiddenRows: ReadonlySet<number>;
   readonly formulaCellCount: number;
   readonly cachedFormulaValueCount: number;
   readonly facts: SheetFacts;
+  readonly arrayIndex: MergeIndex;
+  readonly arrays: ReadonlyMap<string, CellArrayFormula>;
 }
 
 export interface OoxmlWorkbook {
@@ -93,6 +104,7 @@ export interface OoxmlWorkbook {
   readonly sheetNames: readonly string[];
   readonly media: ReadonlyMap<string, MediaEntry>;
   readonly formats: NumberFormats;
+  readonly richData: RichData;
   /**
    * @returns the sheet's validations, tables, conditional formats, images and
    *   panes, read on first use and kept; a sheet already read has them.
@@ -127,14 +139,43 @@ function snapshotOf(
   }
   const { cells } = sheet;
   const source = cells.formula(slot.index);
-  return ooxmlSnapshot({
+  const rich = loaded.richData.value(cells.valueMetadata(slot.index));
+  let richFacts: CellFacts | undefined;
+  if (rich?.kind === "image")
+    richFacts = {
+      value: {
+        imageId: loaded.media.get(rich.mediaPart)?.id ?? -1,
+        ...(rich.altText === undefined ? {} : { altText: rich.altText }),
+        ...(rich.decorative === undefined
+          ? {}
+          : { decorative: rich.decorative }),
+      },
+    };
+  else if (rich?.kind === "error") richFacts = { value: { error: rich.error } };
+  else if (rich?.kind === "linked")
+    richFacts = { value: { linkedValue: rich.value } };
+  const covering = sheet.arrayIndex.at(
+    sheet.arrayIndex.covering(slot.row),
+    slot.column,
+  );
+  const array =
+    covering === undefined ? undefined : sheet.arrays.get(covering.ref);
+  const snapshot = ooxmlSnapshot({
     value: cells.value(slot.index),
     formula: source === undefined ? undefined : formulaText(source, slot),
     numberFormat: loaded.formats.formatOf(cells.style(slot.index)),
     date1904: loaded.opc.date1904,
     href: sheet.links.at(slot.row, slot.column),
     merged,
+    richFacts,
   });
+  return {
+    ...snapshot,
+    ...(array === undefined ? {} : { array }),
+    ...(rich?.kind === "unsupported"
+      ? { unsupportedRichValue: rich.type }
+      : {}),
+  };
 }
 
 function anchorsOf(links: HyperlinkIndex, cells: CellStore): Anchors {
@@ -189,8 +230,9 @@ function readSheet(
   part: string,
   strings: readonly string[],
   known: SheetFacts | undefined,
+  richData: RichData,
 ): OoxmlSheet {
-  const { content, facts } = readWorksheet(opc, part, strings, known);
+  const { content, facts } = readWorksheet(opc, part, strings, known, richData);
   const { cells, layout } = content;
   const links = hyperlinkIndex(content.links);
   const anchors = anchorsOf(links, cells.store);
@@ -212,9 +254,22 @@ function readSheet(
         .map((merge) => [merge.top, merge.bottom] as const),
     ),
     autoFilter: layout.autoFilter,
+    hiddenRows: layout.hiddenRows,
     formulaCellCount: cells.formulaCellCount,
     cachedFormulaValueCount: cells.cachedFormulaValueCount,
     facts,
+    arrayIndex: mergeIndex(part, facts.arrays, "array formulas"),
+    arrays: new Map(
+      facts.arrays.map(({ anchor, ref, dynamic, collapsed }) => [
+        ref,
+        {
+          anchor,
+          ref,
+          dynamic,
+          ...(collapsed === undefined ? {} : { collapsed }),
+        },
+      ]),
+    ),
   };
 }
 
@@ -239,14 +294,16 @@ export function parseOoxml(bytes: Buffer, path: string): OoxmlWorkbook {
       "The file is probably not a spreadsheet; check what it really is before reading it.",
     );
   }
+  const richData = readRichData(opc);
   const media = new Map<string, MediaEntry>();
-  opc.mediaParts.forEach((part, index) => {
+  for (const part of [...opc.mediaParts, ...richData.mediaParts]) {
+    if (media.has(part)) continue;
     const sizeBytes = opc.partSize(part);
     media.set(part, {
-      id: index,
+      id: media.size,
       ...(sizeBytes === undefined ? {} : { sizeBytes }),
     });
-  });
+  }
   const strings = readSharedStrings(opc);
   const sheets = new Map<string, OoxmlSheet>();
   const facts = new Map<string, SheetFacts>();
@@ -266,17 +323,24 @@ export function parseOoxml(bytes: Buffer, path: string): OoxmlWorkbook {
     sheetNames,
     media,
     formats: readNumberFormats(opc),
+    richData,
     facts(name) {
       const known = facts.get(name) ?? sheets.get(name)?.facts;
       if (known !== undefined) return known;
-      const read = readSheetFacts(opc, partOf(name));
+      const read = readSheetFacts(opc, partOf(name), richData);
       facts.set(name, read);
       return read;
     },
     sheet(name) {
       const cached = sheets.get(name);
       if (cached !== undefined) return cached;
-      const sheet = readSheet(opc, partOf(name), strings, facts.get(name));
+      const sheet = readSheet(
+        opc,
+        partOf(name),
+        strings,
+        facts.get(name),
+        richData,
+      );
       sheets.set(name, sheet);
       return sheet;
     },
@@ -386,6 +450,7 @@ export function ooxmlSheetView(
     merges: sheet.merges,
     tables,
     autoFilter: sheet.autoFilter,
+    hiddenRows: sheet.hiddenRows,
     rowAt(row): RowView | undefined {
       const covering = sheet.mergeIndex.covering(row);
       return {

@@ -142,6 +142,7 @@ describe("a table that omits headerRowCount", () => {
     merges: [],
     tables: [table],
     autoFilter: undefined,
+    hiddenRows: new Set<number>(),
     rowAt(at) {
       if (at !== 1) {
         return undefined;

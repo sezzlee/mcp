@@ -1,5 +1,87 @@
 # Changelog
 
+## Unreleased
+
+### Breaking
+
+- `majorityKind` is no longer exported. `aggregate_sheet` decides how a column compares from its typed reading, so the census vote has no caller.
+
+### Day and month order
+
+- A caller's `locale` names month words, digits and separators, never the day/month order. Slash and dash dates take their order from the column's values under any locale, so a locale that names the reader's language instead of the file's cannot move `03/04/2026` between months.
+- A dotted date is read day first everywhere, explicit `columns` and `locale` included: no CLDR locale writes numeric dates month first with dots. A column holding a dotted value only month first can read is reported ambiguous with a `MM.dd.yyyy` suggestion instead of being read either way. The plan `profile_sheet` emits for a dotted column now reads that column.
+- A `locale` whose separators read a value as a different number than the column's own marks do is named in a warning.
+
+### Reading fixes
+
+- One value no longer re-reads a whole column: a column turns into durations or booleans only when such values outnumber the values that read otherwise, so a stray `100:30` in an amount column or a grade `E` keeps the rest of the column.
+- Text comparisons (`eq`, `ne`, `in`, `contains`, `startsWith`, `endsWith`) match a cell whose text is a missing token, so `eq "N/A"` finds `N/A`; `isEmpty` still treats it as missing.
+- A caller's `missingValues`, `trueValues` or `falseValues` takes its words from the defaults of the other lists; only two lists the caller wrote may not overlap.
+- A complete `read_sheet` page is no longer refused because the cursor it would have emitted exceeds the cursor budget.
+- `omittedMatchedRows` no longer counts ungrouped rows, which no `maxGroups` value returns.
+- An elapsed duration keeps Excel's 15 significant digits, so one second reads as `1`, not `0.9999999999999997`, and an exactly stored fraction of a second is unchanged.
+- Numeric format sections, time-only checks and compiled locales are cached instead of being parsed again for every cell or column.
+
+### CSV delimiter declarations
+
+- An exact first decoded physical line `sep=X` or `"sep=X"` selects comma, semicolon, tab or pipe and is excluded from headers and record diagnostics. The ASCII keyword is case-insensitive. BOM validation remains strict, and syntax errors retain physical file line numbers.
+- `csv.delimiterSource` adds `"sep"`. An explicit `delimiter` takes precedence, retains `"explicit"` and warns on a conflicting declaration. Paging retains the same parsing choice. Lookalikes with extra text, whitespace, unsupported separators or a later position remain data.
+
+### Rich workbook values
+
+- In-cell images resolve their rich-value metadata into image IDs, alternative text and decorative flags instead of `#VALUE!` compatibility errors. `get_images` lists their source cells and retains saved alt text for drawing images too.
+- A verified Microsoft Open XML SDK fixture establishes support for cached `_linkedentity2` labels and closed entity metadata. Unsupported rich types retain their scalar and an explicit note; malformed referenced metadata is refused. External refresh and arbitrary entity property expansion remain unsupported.
+- Array formulas expose their anchor, declared spill range and dynamic/collapsed metadata. Cached spill children preserve their values. Native and rich `#SPILL!`/`#CALC!` errors carry bounded explanations.
+- Aggregate results expose a bounded, deduplicated `errorDistribution` over participating metric inputs. Numeric, boolean and extreme metrics report `skippedErrors`; images and supported linked values do not inflate error counts.
+
+### Workbook selection
+
+- `read_sheet`, `profile_sheet`, `find_in_sheet` and `aggregate_sheet` accept a declared `table` name. They select its data body, retain declared column names, exclude header/totals rows and refuse ambiguous names or conflicting ranges and headers.
+- `visibleOnly` excludes saved hidden rows, including saved AutoFilter exclusions. It reports the skipped count and states that filter criteria are not reevaluated. Filtered reads retain original `rowNumbers`; table and visibility choices are bound to the cursor.
+
+### Compatibility changes
+
+- Low-level `SheetView` adapters now expose saved `hiddenRows`, and `SheetSource` adapters enumerate declared tables. Cell scalar and note unions include rich values and array metadata.
+- **Native elapsed formats now return seconds.** `[h]`, `[m]` and `[s]` values return `{durationSeconds}` instead of calendar dates and can be summed. Negative durations, fractional precision and either date system are preserved.
+- Native percentage and currency meaning now reaches aggregate descriptors. Stored fractions are not scaled again. Only the active number-format section contributes semantic tokens; quoted and escaped literals are ignored, and ambiguous currency symbols are not assigned a country.
+
+- Missing literals N/A, NULL, -, — and #N/A now count as missing during typed operations, as do blank strings. Raw reads remain unchanged, and stored Excel errors remain errors. Literal lists are configurable, including an empty missing-token override.
+- Invalid ISO offset hours/minutes and impossible canonical dates or clocks are no longer accepted by typed comparisons.
+
+- **`coerceText` is removed from `aggregate_sheet`.** Text is always read as a number or a date where a metric or a `where` operand needs one, so a CSV sums and filters without any option. A call that still passes `coerceText` is refused as `invalid_argument`. `columnStats` no longer has `numericTexts`; it has `textNumbers` (text read as a number), `identifiers` and `times`.
+- **Separators are decided per column.** `1.234,50`, `1,234.50`, `1 234,50` and `1'234.50` are read, as are accounting parentheses, `%` before or after the digits (as a ratio) and a currency symbol or code. A column whose values read differently under the winning separators is not read, and a warning names the `columns` entry to pass. Before, only `1234.50` was read and `1.234,50` summed to `null` without a warning.
+- **Dates written as text match ISO operands.** `02.01.2023`, `2.1.2023`, `25/12/2023`, `12/25/2023`, `2023/01/02`, `18 Ekim 2026` and `October 18, 2026`, with or without a time, compare against `2023-01-02`. Slash and dash dates are read day first or month first from the column's values, and an undecidable column is reported, never guessed.
+- **A time-only number format is a time of day.** `h:mm`, `hh:mm;@`, `mm:ss` and their AM/PM forms are returned as `HH:mm:ss` by every tool instead of an instant on 31 December 1899, and compare as times in `where` (`lt "12:00:00"`).
+- **`where` counts what it could not compare.** A non-empty cell whose kind still differs from the operand's is reported in `warnings` with the count and examples; before it was a silent non-match although the tool description said it was counted.
+- **Mixed currencies are reported.** A column whose amounts name more than one currency (`₺100` and `€50`) still sums as written, and a warning lists the currencies.
+- **Identifiers are never summed.** Text with a leading zero or more than 15 digits is left out of `sum`, `avg` and `stddev` and reported, unless `columns` declares the column a number.
+- **Empty count results are zero.** `countValues` and `countDistinct` now return zero when no rows match, consistently with `count` and empty pivot combinations. The old whole-range fallback returned null for those two count functions.
+- **Column statistics count cells once.** Repeated metrics over the same column no longer multiply `columnStats` or uncached-formula diagnostics by the number of metrics.
+
+### Tool surface
+
+- CSV encoding selection adds Windows-1251, Windows-1256, Shift_JIS, GB18030, Big5 and EUC-KR. Every selected decoder is strict; invalid sequences are refused and decoding is never guessed from replacement characters.
+
+- New `profile_sheet` returns bounded statistical profiles, confidence, sampling scope, unreadable examples, identifier signals and reusable `columns`. Profile-generated numeric plans refuse identifiers even outside the sampled prefix.
+- Shared closed `columns` support text, number, date, boolean, time and duration in profile, aggregate, read and find. Explicit locales and numbering systems extend number/date reading globally; unrecognized locales and ambiguous interpretations are refused.
+- `read_sheet` optionally adds `typedValues` without changing raw values; column interpretation and token lists remain fixed across cursor pages. `find_in_sheet` optionally searches canonical values while returning raw values and conversion diagnostics.
+- `countTrue`, `countFalse` and `trueRatio` count valid booleans. CSV clock and fixed elapsed-duration text are readable; duration metrics use seconds, while percent/per-mille metrics retain fraction units.
+
+- `aggregate_sheet` takes `columns`, a list of entries such as `{"column":"Tutar","type":"number","decimal":",","group":"."}`, `{"column":"Tarih","type":"date","format":"dd.MM.yyyy"}` or `{"column":"Hesap","type":"text"}`. A date `format` is built from a closed token set and is never run as a regular expression.
+- `aggregate_sheet` answers with `readAs`, how each column's text was read, when any was.
+- `min` and `max` compare text read as numbers or dates in their own kind, and times as times.
+- `groupBy` accepts calendar parts, explicit numeric boundaries and fixed decimal widths. Calendar keys use UTC and ISO week-years; unreadable keys are counted separately from missing keys. A plain key follows an explicitly declared or already-required column reading.
+- `pivotBy` produces bounded dense pivot columns. `groupingSets` returns several breakdowns beside the primary result from one scan, and `compact` reduces repeated provenance while keeping diagnostics.
+- `median`, `p50`, `p90` and `percentile` use exact inclusive linear interpolation. Each metric accepts its own `where` and reports `filtered` separately from `counted` and `skipped`.
+
+### Resource bounds
+
+- Native error distributions retain at most 32 named codes, three addresses per bucket and 128 characters per code. Overflow and overlong codes remain counted in `other`. Rich metadata has bounded records, fields and values; image and linked-label output participates in the existing response and string budgets.
+
+- Column profiles retain at most 64,000 sampled cells, 64 columns and 1,000 distinct values per column, with explicit omissions and lower-bound flags. Shared column lists accept at most 64 entries. Typed reads and searches include their added values and diagnostics in the response budget; cursor interpretation is bounded to the existing token limit.
+
+- Dense pivot output is limited to 10,000 metric cells before allocation. Percentiles share samples for identical selections and refuse more than 1,000,000 retained values across the call. Exact distinct counts have their own global 1,000,000-value bound; all grouping sets share the group and metric-state budgets.
+
 ## 0.9.0
 
 ### Compatibility changes

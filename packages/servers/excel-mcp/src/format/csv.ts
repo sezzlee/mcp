@@ -20,7 +20,7 @@ export const csvSheetName = "csv";
 export interface CsvReport {
   readonly warnings?: readonly string[];
   readonly delimiter: DelimiterName;
-  readonly delimiterSource: "explicit" | "sniffed" | "default";
+  readonly delimiterSource: "explicit" | "sep" | "sniffed" | "default";
   readonly encoding: string;
   readonly encodingSource: "explicit" | "bom" | "default";
   readonly hadBom: boolean;
@@ -151,8 +151,7 @@ function decode(
       : bom !== undefined
         ? "bom"
         : "default";
-  const strict = chosen.startsWith("utf-");
-  const decoder = new TextDecoder(chosen, { fatal: strict, ignoreBOM: false });
+  const decoder = new TextDecoder(chosen, { fatal: true, ignoreBOM: false });
   let text: string;
   try {
     text = decoder.decode(bytes);
@@ -161,7 +160,7 @@ function decode(
     throw new SezzleeExcelError(
       "undecodable_text",
       `'${path}' is not valid ${chosen} text.`,
-      "Pass encoding explicitly: 'windows-1254' (Turkish Excel), 'iso-8859-9', 'windows-1252', 'utf-16le' or 'utf-16be'.",
+      "Pass the file's known encoding explicitly, or save it as UTF-8. Legacy encodings are never guessed.",
     );
   }
   const hadBom = bom !== undefined;
@@ -217,7 +216,47 @@ function countOutsideQuotes(line: string, candidate: string): number {
 
 interface DelimiterChoice {
   readonly delimiter: DelimiterName;
-  readonly delimiterSource: "explicit" | "sniffed" | "default";
+  readonly delimiterSource: CsvReport["delimiterSource"];
+}
+
+interface SeparatorPreamble {
+  readonly delimiter: DelimiterName;
+  readonly text: string;
+  readonly lineBreak: LineBreak;
+  readonly lineOffset: number;
+}
+
+function separatorPreamble(text: string): SeparatorPreamble | undefined {
+  const match =
+    /^(?:[sS][eE][pP]=([,;\t|])|"[sS][eE][pP]=([,;\t|])")(?:(\r\n|\r|\n)|$)/.exec(
+      text,
+    );
+  if (match === null) return undefined;
+  const character = match[1] ?? match[2];
+  const delimiter = (Object.keys(delimiterNames) as DelimiterName[]).find(
+    (name) => delimiterNames[name] === character,
+  );
+  if (delimiter === undefined) return undefined;
+  const ending = match[3];
+  return {
+    delimiter,
+    text: text.slice(match[0].length),
+    lineBreak:
+      ending === "\r\n"
+        ? "crlf"
+        : ending === "\r"
+          ? "cr"
+          : ending === "\n"
+            ? "lf"
+            : "none",
+    lineOffset: ending === undefined ? 0 : 1,
+  };
+}
+
+function combinedLineBreak(left: LineBreak, right: LineBreak): LineBreak {
+  if (left === "none") return right;
+  if (right === "none" || left === right) return left;
+  return "mixed";
 }
 
 function scoreCandidate(lines: string[], candidate: string): number {
@@ -345,12 +384,24 @@ export async function parseCsv(
   if (!decoded.encoding.startsWith("utf-16")) {
     assertNoNulBytes(bytes, path);
   }
-  const choice = sniffDelimiter(decoded.text, options.delimiter);
-  const parsed = readRecords(decoded.text, delimiterNames[choice.delimiter], {
+  const preamble = separatorPreamble(decoded.text);
+  const text = preamble?.text ?? decoded.text;
+  const choice: DelimiterChoice =
+    options.delimiter === undefined && preamble !== undefined
+      ? { delimiter: preamble.delimiter, delimiterSource: "sep" }
+      : sniffDelimiter(text, options.delimiter);
+  const parsed = readRecords(text, delimiterNames[choice.delimiter], {
     maxColumns: limits.maxCsvColumns,
     maxCells: limits.maxCsvCells,
   });
-  if (parsed.kind === "fault") throw faultError(parsed.fault, path);
+  if (parsed.kind === "fault")
+    throw faultError(
+      {
+        ...parsed.fault,
+        line: parsed.fault.line + (preamble?.lineOffset ?? 0),
+      },
+      path,
+    );
 
   let blankRecordCount = 0;
   const rows: string[][] = parsed.records.map((record) => {
@@ -397,6 +448,20 @@ export async function parseCsv(
       ? undefined
       : { top: 1, left: 1, bottom: rows.length, right: columnCount };
 
+  const warnings: string[] = [];
+  if (
+    preamble !== undefined &&
+    options.delimiter !== undefined &&
+    preamble.delimiter !== options.delimiter
+  )
+    warnings.push(
+      `The CSV sep= preamble declares '${preamble.delimiter}', but explicit delimiter '${options.delimiter}' takes precedence. The preamble was omitted.`,
+    );
+  if (rows[0]?.length === 0)
+    warnings.push(
+      "The first CSV record is blank and remains the default header. Physical records are preserved; pass headerRow to select a different header.",
+    );
+
   return {
     rows,
     bounds,
@@ -406,18 +471,15 @@ export async function parseCsv(
       encoding: decoded.encoding,
       encodingSource: decoded.encodingSource,
       hadBom: decoded.hadBom,
-      lineBreak: parsed.lineBreak,
+      lineBreak: combinedLineBreak(
+        preamble?.lineBreak ?? "none",
+        parsed.lineBreak,
+      ),
       recordCount: rows.length,
       columnCount,
       raggedRecordCount,
       blankRecordCount,
-      ...(rows[0]?.length === 0
-        ? {
-            warnings: [
-              "The first CSV record is blank and remains the default header. Physical records are preserved; pass headerRow to select a different header.",
-            ],
-          }
-        : {}),
+      ...(warnings.length > 0 ? { warnings } : {}),
       formulaLikeCellCount,
       ...(duplicates.size > 0 ? { duplicateHeaders: [...duplicates] } : {}),
     },
@@ -431,6 +493,7 @@ export function csvSheetView(table: CsvTable): SheetView {
     merges: [],
     tables: [],
     autoFilter: undefined,
+    hiddenRows: new Set<number>(),
     rowAt(row): RowView | undefined {
       const record = table.rows[row - 1];
       if (record === undefined) {

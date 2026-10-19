@@ -16,6 +16,8 @@ import { layoutScan, type SheetLayout } from "./sheet-layout.js";
 import { tableScan, type OoxmlTable } from "./tables.js";
 import { validationScan, type OoxmlValidations } from "./validations.js";
 import { fanOut, scanPart, type PartScan } from "./xml.js";
+import { readRichData, type RichData } from "./rich-data.js";
+import { richCellScan, type OoxmlArrayFormula } from "./rich-cells.js";
 
 /** What a worksheet declares about itself, apart from its cells. */
 export interface SheetFacts {
@@ -25,6 +27,7 @@ export interface SheetFacts {
   readonly images: readonly OoxmlImage[];
   readonly charts: readonly OoxmlChartFrame[];
   readonly panes: OoxmlPanes;
+  readonly arrays: readonly OoxmlArrayFormula[];
 }
 
 export interface SheetContent {
@@ -33,12 +36,17 @@ export interface SheetContent {
   readonly layout: SheetLayout;
 }
 
-function factScan(opc: WorkbookPackage, part: string): PartScan<SheetFacts> {
+function factScan(
+  opc: WorkbookPackage,
+  part: string,
+  rich: RichData,
+): PartScan<SheetFacts> {
   const validations = validationScan(opc.date1904);
   const tables = tableScan(opc, part);
   const conditionalFormats = conditionalFormatScan();
   const drawing = drawingScan(opc, part);
   const panes = paneScan();
+  const richCells = richCellScan(part, rich);
   return {
     visitor: fanOut([
       validations.visitor,
@@ -46,20 +54,31 @@ function factScan(opc: WorkbookPackage, part: string): PartScan<SheetFacts> {
       conditionalFormats.visitor,
       drawing.visitor,
       panes.visitor,
+      richCells.visitor,
     ]),
-    finish: () => ({
-      validations: validations.finish(),
-      tables: tables.finish(),
-      conditionalFormats: conditionalFormats.finish(),
-      ...drawing.finish(),
-      panes: panes.finish(),
-    }),
+    finish: () => {
+      const drawingFacts = drawing.finish();
+      const richFacts = richCells.finish();
+      return {
+        validations: validations.finish(),
+        tables: tables.finish(),
+        conditionalFormats: conditionalFormats.finish(),
+        charts: drawingFacts.charts,
+        images: [...drawingFacts.images, ...richFacts.images],
+        arrays: richFacts.arrays,
+        panes: panes.finish(),
+      };
+    },
   };
 }
 
 /** Reads a worksheet's facts in one pass that builds no cells. */
-export function readSheetFacts(opc: WorkbookPackage, part: string): SheetFacts {
-  const facts = factScan(opc, part);
+export function readSheetFacts(
+  opc: WorkbookPackage,
+  part: string,
+  rich: RichData = readRichData(opc),
+): SheetFacts {
+  const facts = factScan(opc, part, rich);
   scanPart(opc, part, facts.visitor);
   return facts.finish();
 }
@@ -75,10 +94,11 @@ export function readWorksheet(
   part: string,
   strings: readonly string[],
   known: SheetFacts | undefined,
+  rich: RichData = readRichData(opc),
 ): { readonly content: SheetContent; readonly facts: SheetFacts } {
   const facts: PartScan<SheetFacts> =
     known === undefined
-      ? factScan(opc, part)
+      ? factScan(opc, part, rich)
       : { visitor: {}, finish: () => known };
   const store = cellStoreBuilder();
   const cells = cellScan(part, strings, store.add);

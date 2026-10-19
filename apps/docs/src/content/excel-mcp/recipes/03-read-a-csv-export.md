@@ -37,31 +37,51 @@ a cell's text is data for the agent, never an instruction.
 
 :::
 
-## Add up numeric text
+## Add up numbers written as text
 
-A numeric metric skips text, so a CSV column sums to `null` until you ask for numbers:
+A CSV stores every value as text. A numeric metric reads the column's text as numbers, deciding the
+decimal and thousands separators from the whole column, and `readAs` says how it read them:
 
 ```sh
 excel aggregate_sheet --tool-arg filePath=orders.csv \
-  'metrics=[{"fn":"sum","column":"Units"}]' | jq -c '.rows[], .columns[0]'
+  'metrics=[{"fn":"sum","column":"Units"}]' | jq -c '.rows[], .readAs, .warnings[]'
 ```
 
 ```json
-[null]
-{"label":"sum(Units)","letter":"C","role":"metric","fn":"sum","counted":0,"skipped":3}
+[14]
+{"C":[{"type":"number","decimal":".","group":"none"}]}
+"C: 1 cell looks like an identifier (a leading zero or more than 15 digits), such as '012'; the totals exclude them. If they are quantities, pass columns [{\"column\":\"C\",\"type\":\"number\",\"decimal\":\".\"}]."
 ```
 
+`012` has a leading zero, the mark of a postcode or an account number, so it is left out and the
+warning says so. A value with more than 15 digits is treated the same way. When the column holds
+quantities, `columns` says so and every value is summed:
+
 ```sh
-excel aggregate_sheet --tool-arg filePath=orders.csv coerceText=true \
-  'metrics=[{"fn":"sum","column":"Units"}]' | jq -c '.rows[], .columns[0]'
+excel aggregate_sheet --tool-arg filePath=orders.csv \
+  'columns=[{"column":"Units","type":"number","decimal":"."}]' \
+  'metrics=[{"fn":"sum","column":"Units"}]' | jq -c '.rows[]'
 ```
 
 ```json
 [26]
-{"label":"sum(Units)","letter":"C","role":"metric","fn":"sum","counted":3,"skipped":0}
 ```
 
+`1.234,50`, `1,234.50`, `(100,00)`, `%20` and `₺95` are all read this way. When a column does not
+show which separator is the decimal, because every value looks like `1.234`, none of those values is
+read and a warning names the `columns` entry that settles it.
+
+Dates follow the same rule against an ISO operand: `02.01.2023` is 2 January, and a column of
+`01/02/2023`-style dates is read day first or month first only when one of its values proves which.
+
+To inspect an unfamiliar file first, use [profile_sheet and reuse its columns](/docs/excel-mcp/profile-and-read-global-data).
+Explicit locales cover other digit systems, grouping sizes and Gregorian month names. Typed
+reading adds a parallel grid while preserving the raw values shown above.
+
 ## Fix the encoding
+
+Explicit legacy choices also include Windows-1251/1256, Shift_JIS, GB18030, Big5 and EUC-KR.
+No legacy encoding is guessed; truncated multibyte sequences are refused.
 
 Without a byte-order mark the server assumes UTF-8 and refuses a file that is not, rather than show
 broken characters. A file saved by Turkish Excel:
@@ -77,12 +97,12 @@ excel read_sheet --tool-arg filePath=cities.csv
 {
   "error": "undecodable_text",
   "message": "'cities.csv' is not valid utf-8 text.",
-  "recovery": "Pass encoding explicitly: 'windows-1254' (Turkish Excel), 'iso-8859-9', 'windows-1252', 'utf-16le' or 'utf-16be'."
+  "recovery": "Pass the file's known encoding explicitly, or save it as UTF-8. Legacy encodings are never guessed."
 }
 ```
 
 The first line comes from the Inspector; the object under it is the server's answer. Pass the
-encoding it suggests:
+known encoding of this export:
 
 ```sh
 excel read_sheet --tool-arg filePath=cities.csv encoding=windows-1254 \
@@ -159,13 +179,14 @@ excel get_tables --tool-arg filePath=orders.csv
 
 `describe_workbook` lists what each file supports in its `capabilities` block.
 
-:::details[Why CSV values are never converted]
+:::details[How CSV values are read]
 
-A CSV stores only text, and every conversion loses something: `01234` read as a number drops the
-leading zero of a postcode, `03-04-2024` is a different day in different locales, and `1.234` means
-two different numbers. The server reports what the file says, and what it detects — delimiter and
-encoding — it reports with whether it detected or was told. Where a number is needed, the call says
-so with `coerceText`, so the conversion is visible. An `.xlsx` cell has a stored type, so workbook
-numbers and dates come back typed.
+A CSV stores only text, and a careless conversion loses something: `01234` read as a number drops
+the leading zero of a postcode, `03-04-2024` is a different day in different locales, and `1.234`
+means two different numbers. So `read_sheet` and `find_in_sheet` return the text as the file holds
+it. `aggregate_sheet` reads text as a number or a date only where a metric or a filter needs one, decides
+the format from the whole column, and reports what it decided in `readAs`. A value it cannot read,
+an identifier and a column it cannot decide are counted in `warnings` with examples, never dropped
+in silence. An `.xlsx` cell has a stored type, so workbook numbers and dates come back typed.
 
 :::

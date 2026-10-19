@@ -478,11 +478,404 @@ prefixes describe Excel, which was not available to measure; 256,000 corpus cell
 and are numbers or a dash, so counting the prefix alone would bury the signal. The cases and
 LibreOffice's answers are kept beside the corpus in `_tools/csv/formula-like`.
 
+## Typed-text aggregate cost
+
+Measured on 2026-10-18 with `src/aggregate-bench.ts`, using Node v24.19.0 on Linux x64,
+an AMD EPYC 9V74 80-Core Processor and a 512 MiB V8 heap limit. These are new synthetic
+measurements; the previous machine's external corpus was not available or rerun.
+
+The fixture has exactly 2,000,000 cells (200,000 rows including its header, ten columns) and
+16,000,000 UTF-8 bytes, just below the 16 MiB file limit. Its SHA-256 is
+`1834ad5838fbeb9c3ca47a2c7534642b91829dacef9907671d715c1fa097d00d`.
+Two text dimensions make eight groups; eight numeric text columns contain exact quarter-unit
+amounts. Seven groups have 25,000 data rows and one has 24,999. Every measured call checks all
+eight groups, 64 independently specified sums, scanned and matched row counts, and metric
+counted/skipped totals. A successful response digest alone is not the correctness oracle.
+
+### Before and after phase 1
+
+The pre-phase-1 build at `1cc88fedfba83dd9c1d73542edaa0b583ccdbb61` and the typed-text build at
+`ddeced64c1978cc0760b2c0104f2e62ee3ad0579` ran alternately, three fresh workers each. Each
+worker made the same `aggregate_sheet` call twice. The old build needed `coerceText: true`;
+the new build read the numeric text automatically. Both produced the expected numbers.
+
+| Median of three trials | Before phase 1 |        Phase 1 |             Change |
+| ---------------------- | -------------: | -------------: | -----------------: |
+| First call             |  644.793419 ms | 4255.648355 ms | 6.60 times as long |
+| Cached call            |  410.449058 ms | 4099.916487 ms | 9.99 times as long |
+| First-call peak RSS    |     330324 KiB |     374668 KiB |       13.4% higher |
+| Whole-worker peak RSS  |     367140 KiB |     472580 KiB |       28.7% higher |
+
+First-call trials in milliseconds were `626.679189, 877.275277, 644.793419` before and
+`4255.648355, 4378.779728, 4211.162647` after. Cached-call trials were
+`410.449058, 636.252540, 399.887833` before and `4099.916487, 4276.567782, 4008.620263` after.
+Whole-worker RSS trials in KiB were `367140, 366804, 369056` before and
+`473864, 472580, 462616` after.
+
+Responses grew from 2580 to 3007 bytes because phase 1 adds reading and diagnostic metadata.
+Their numeric answers agree, but the old and new complete payloads are intentionally different.
+Within each build, first and cached responses had identical digests in every trial.
+
+### Bounded follow-up
+
+`typedCell.number()` now retains its numeric reading for that cell, so multiple metrics reuse
+it. Ordinary ASCII decimals with at most 15 integer and 15 fractional digits use a narrow
+validation path when the column has already selected a decimal point. Signs and a single zero
+are allowed; grouping marks, leading-zero identifiers, long digit-only identifiers, exponent
+notation, surrounding whitespace, percent and currency forms still reach the general parser.
+The memoization stores one result per live cell wrapper and retains no column or workbook map.
+
+A second paired experiment compared the unchanged phase-1 build with that same build plus only
+the `column-reading.ts` performance change. Three fresh workers of each build ran alternately.
+The benchmark's five-module implementation hashes distinguish the original build
+(`0e4318e9aa756db3c53d7ecc272e2e7a8ef408f5090c420ea7845782945b122e`) from the optimized build
+(`f003d77054c77eacb763f91196d4596126d2dd3ee0bbfed71cb8addb7d2d01c9`).
+
+| Median of three trials | Unchanged phase 1 | Phase 1 with follow-up |      Change |
+| ---------------------- | ----------------: | ---------------------: | ----------: |
+| First call             |    4429.410809 ms |         1813.679267 ms | 59.1% lower |
+| Cached call            |    4208.984288 ms |         1482.819535 ms | 64.8% lower |
+| First-call peak RSS    |        375444 KiB |             373544 KiB |  0.5% lower |
+| Whole-worker peak RSS  |        469916 KiB |             464408 KiB |  1.2% lower |
+
+First-call trials in milliseconds were `4429.410809, 4383.772509, 5028.649198` before and
+`1941.661050, 1630.332992, 1813.679267` after. Cached-call trials were
+`4148.906556, 4208.984288, 4241.059586` before and `1435.938287, 1482.819535, 1484.193055` after.
+Whole-worker RSS trials in KiB were `469916, 467304, 473908` before and
+`464408, 462152, 468260` after. The tables report medians of per-worker peaks,
+not the largest observed trial. The whole-worker worst observed peaks were 473908 and
+468260 KiB; first-call worst observed peaks were 375736 and 376708 KiB. The small median
+RSS difference does not establish a memory improvement.
+
+All twelve responses in this second experiment were 3007 bytes and had SHA-256
+`0c3efa7abbfdd3dbaf0cf6f302d43fdfa9e7df80bb7b6dd123ee3238a11e0bdc`.
+The additional handler-level compatibility case in `test/typed-text.spec.ts` also passes on
+both builds: it checks repeated metrics and an `isNumber` predicate across ordinary decimals,
+15- and 16-digit integers, leading zeroes, percentages, currency, exponents and grouped text.
+This test preserves existing semantics; it is not evidence of a previously wrong answer.
+The complete Excel package gate on the isolated follow-up build passed through Turbo:
+43 test files and 789 tests passed; the two external-corpus test files were skipped. Build,
+lint and type checking also passed for the Excel server and lab.
+
+The follow-up recovers much of the added time but does not remove the regression. Against the
+earlier pre-phase-1 medians it is still about 2.8 times as long for the first call and 3.6 times
+as long for the cached call. Those ratios span two paired experiments and are indicative,
+not another controlled comparison. Peak memory remains materially above the old baseline.
+This high-repetition ASCII fixture does not establish performance for every locale, mixed
+column or wide workbook. The first call is cold only with respect to the server cache;
+operating-system disk caches were not flushed.
+
+### Reproducing the comparison
+
+Build each isolated checkout through Turbo, then run the same benchmark source in each
+checkout so its static package imports use that build. The before-phase-1 checkout needs a
+copy of this lab file because that commit predates it. For each of three rounds, run these
+commands once in the respective checkout roots (do not use `--runs 3` for alternation):
+
+```bash
+node packages/lab/excel-lab/src/aggregate-bench.ts --out /tmp/excel-aggregate-phase1-pair --revision 1cc88fedfba83dd9c1d73542edaa0b583ccdbb61 --legacy-coerce-text
+node packages/lab/excel-lab/src/aggregate-bench.ts --out /tmp/excel-aggregate-phase1-pair --revision ddeced64c1978cc0760b2c0104f2e62ee3ad0579
+```
+
+For the follow-up experiment, use another output directory and two checkouts at `ddeced6`,
+applying only the `column-reading.ts` performance change to one. Run the second command
+above once in each checkout per round without `--legacy-coerce-text`. The `revision` field
+then matches and the implementation hashes distinguish the builds. Generation happens in
+the parent, outside the measured worker; no downloaded corpus bytes are needed.
+
+### Phase-2 combined characterization
+
+One fresh worker measured the phase-2 implementation with the same 2,000,000-cell fixture
+after the independent phase-1 comparison. The first call took 2458.200012 ms and the cached
+call 2174.960371 ms. First-call peak RSS was 379520 KiB; the worker's peak was 401676 KiB.
+Both replies were 3007 UTF-8 bytes, and all eight groups and 64 independently specified
+metric sums and counts passed. This is one characterization sample, not a paired performance
+comparison or evidence that the remaining regression has been eliminated.
+
+The checkout was based on `1e5790cd4f5a026af0e76421b6d4bbd838bb2d9e` with the phase-2 changes.
+The benchmark's five-module implementation hash was
+`e88813cc4e1131c48d9d2a1877d40581823d7917aeea3da17fdd531a6eb66bbf`; that fingerprint
+covers the aggregate entry and phase-1 readers, not every new phase-2 helper. Both replies
+had SHA-256 `23e5590c9d6c2c763606af1d18ad1bea0b983fda04fd7b6c7a532d05451a2fd8`.
+Future measurements should identify the complete committed revision as well as this fingerprint.
+
+The separate public-handler commerce regression returns an overall total and country,
+category, payment and 36-month breakdowns from 2,000 rows and 15 columns in one call.
+It returned 50 aggregate rows in 2973 UTF-8 bytes of JSON text, excluding the MCP envelope.
+Every expected total is specified independently in `test/aggregate-analysis.spec.ts`.
+
+### Phase-3 combined characterization
+
+One invocation of the same benchmark worker characterized the uncommitted phase-3 tree
+based on `d071a1ef2e185e6d1525514701f253125898452b`. First call: 2703.629124 ms; cached call:
+2658.669570 ms. First-call peak RSS: 397696 KiB; process peak RSS: 427480 KiB. Both responses
+were 3007 bytes and had SHA-256
+`23e5590c9d6c2c763606af1d18ad1bea0b983fda04fd7b6c7a532d05451a2fd8`.
+All eight groups, 64 known sums and the row/metric counts passed. The five-module
+implementation fingerprint was
+`f98655f7e6f9b9447e1fda0dead7af2874fff8189d834305490d0ce26984de5b`.
+
+The parent runner received empty child stdout in the workspace sandbox, so this sample ran
+the same worker directly with `--max-old-space-size=512`; fixture generation had already
+finished. It therefore has a different launch method from the controlled phase-1 pairs and
+must not be presented as a new paired experiment. The exact executed command was:
+
+```bash
+node --max-old-space-size=512 packages/lab/excel-lab/src/aggregate-bench.ts --worker --out /workspace/scratch/9419ca03a883/excel-benchmark-phase3-current --revision d071a1ef2e185e6d1525514701f253125898452b
+```
+
+The original JSON line and methodology note are in that external output directory. This
+single sample still shows material cost above the old pre-phase-1 baseline. It predates the
+corpus-discovered Myanmar month-alias correction and does not measure localized column
+performance or establish the final phase-3 performance distribution. No further optimization
+or performance rerun was made on the strength of this one sample.
+
+## Global typed corpus evidence
+
+The new original corpus generator and verifier ran on 2026-10-18 with Node v24.19.0,
+ICU 78.3, CLDR 48.0 and Unicode 17.0. It exercises 19 locale/numbering-system configurations
+through real MCP calls. The independent oracle chooses exact quarter-unit amounts, dates,
+booleans and elapsed seconds before Intl formats the input text. Fixture and oracle digests
+are checked before each file is opened. No external private corpus was available or counted.
+
+The first 64-row/configuration test exposed a real bug in the draft global reader: accent
+folding merged Myanmar January abbreviation `ဇန်` with June `ဇွန်`, making the locale fail
+compilation. A fixed regression with independently specified January/June dates failed before
+the change and passed after exact NFC and Unicode case aliases were preserved ahead of
+unambiguous folded aliases. The ambiguous stripped spelling `ဇန` is still refused. The
+same generated suite covers Bengali and Thai month names, not just Latin-script accents.
+The primary Unicode chart and other sources are in [TYPED_TEXT_SOURCES.md](TYPED_TEXT_SOURCES.md).
+
+After that correction the focused lab gate passed all three tests: deterministic fixture/oracle
+digests; every raw and typed cell plus grouped totals, predicates, month buckets and reusable
+profile plans; and rejection of changed input bytes before tool invocation with a saved replay
+failure. Its 19 files contain 1,216 data rows, so it checks 7,296 raw and 7,296 typed cells across
+171 MCP calls. All 19 profile plans are reused successfully, including identifiers appearing
+after the profile sample. Lab lint and type checking also passed through Turbo.
+
+The standalone corpus run used:
+
+```bash
+node packages/lab/excel-lab/src/typed-corpus-cli.ts --out /workspace/scratch/9419ca03a883/excel-global-corpus --seed 1804289383 --rows 250 --revision d071a1ef2e185e6d1525514701f253125898452b
+```
+
+It wrote `/workspace/scratch/9419ca03a883/excel-global-corpus/typed-M4YLku` and passed all
+19 files: 4,750 data rows, 28,500 raw and 28,500 typed cells, 342 MCP calls and 19 reused
+profile plans. Verification took 1069.236280 ms in that process; peak RSS was 201832 KiB.
+These timings characterize a small correctness corpus, not a large-file benchmark. The built
+twelve-module fingerprint was
+`f78fd1d1186fdbd8fa81cb2a001159dd72c668e8f0f2736ae24a0b74abca829b`.
+The revision labels the phase-2 parent; the measured implementation includes uncommitted
+phase-3 changes. The output records generator and verifier runtime versions separately.
+
+The saved `typed-M4YLku` directory was then replayed with `--verify`, without regenerating
+either inputs or expected answers. The same 342 calls and all cell/aggregate checks passed
+with the same implementation fingerprint. That verification took 1238.536673 ms and peaked
+at 197496 KiB. The first report is retained as `typed-results-initial.json`; the latest replay
+is `typed-results.json`. Final lab lint/type checking passed all twelve Turbo tasks.
+
+The focused global parser suite has 40 cases. Its deterministic fuzz case checks 3,000 exact
+number round-trips, 6,000 invalid grouping/control mutations and 3,000 leading-zero identifier
+spellings under both refusal and explicit-read policies per seed. Invalid locale, numbering
+system, calendar, currency and long-text regressions are fixed cases. The six public MCP
+global-locale regressions went from six genuine failures on `ddeced6` to six passes: Arabic
+digits, Indian grouping, French month filtering and three impossible offset components.
+Both the default seed `1804289383` and alternate seed `3435973836` passed the focused
+40-case parser suite. The alternate seed was supplied through Turbo with
+`SEZZLEE_TYPED_FUZZ_SEED`; the package task passes it through and includes it in the cache key.
+
+Six independent legacy-byte fixtures also pass through the public MCP interface, preserving
+their raw identifier strings: windows-1251, windows-1256, Shift_JIS, GB18030, Big5 and EUC-KR.
+Four malformed fixtures ending in known multibyte lead bytes produce `undecodable_text`.
+The focused encoding plus existing CSV gate passed 38 tests. This is bounded evidence for
+those vectors, not proof of complete codec-index conformance or automatic encoding detection.
+
+## Native and rich-value fixture evidence
+
+Phase-4 research resolved the missing linked-data example with the MIT-licensed Microsoft
+Open XML SDK `RichData` sample, pinned at `431ab05cf160248cc3885a4a766026d4f8243792`.
+The exact upstream source generated an 8,544-byte workbook with SHA-256
+`537a61c16e9c09a33d405e5f828d0e17b9462a69396e42203cc77706e63c6a12`.
+The SDK's Microsoft365 validator reported zero errors, and an independent Python ZIP/XML
+oracle verified `Linked!A1` through `vm`, metadata type, future block, rich value and structure
+to `_linkedentity2` and the literal display string `Seattle`. Its metadata relationship targets
+`/xl/metadata1.xml`, so this also exercises relationship-based part discovery.
+
+A separate original XlsxWriter 3.2.9 workbook contains in-cell images, explicit dynamic caches,
+elapsed times, ordinary errors, native booleans, percentages, identifiers, a table with a totals
+row, saved filtered rows and a hidden sheet. A controlled variant adds specification-defined
+`_error` records for `#SPILL!` and `#CALC!`, plus separate direct-error cache cases. The rich-error
+variant also passed Microsoft365 schema validation with zero errors. The independent verifier
+passed all three committed base64 CI snapshots with fixed digests and literal expected values:
+
+```bash
+python3 packages/lab/excel-lab/scripts/verify-rich-fixtures.py
+```
+
+These checks verify saved bytes and their format meaning. None of the files was recalculated
+in Excel, no linked provider or external image was fetched, and no private corpus was used.
+The three small fixtures have explicit MIT provenance and are separate from the optional
+external corpus. The complete source manifest, exact cell/format matrix, generation commands
+and unsupported linked-data scope are in [RICH_VALUE_SOURCES.md](RICH_VALUE_SOURCES.md).
+Schema and XML results are not counted as public MCP test passes.
+
+## Phase-4 public-handler and regression evidence
+
+The immutable pre-phase-4 snapshot is `991bc5654de73494d8d1ceeb70ddc8762c485796`.
+The external `phase4-red-evidence/baseline-manifests.json` records matching package manifests
+and lockfile bytes. The saved RED logs distinguish missing behavior from passing controls:
+
+| Capability                                                      | Baseline result                                                 | Saved evidence and committed regression                                                                                                                                                                             |
+| --------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native numeric meaning and error distributions                  | 45 failures, 9 passing controls across 54 cases                 | `native-expanded-red.log`; [number-format-meaning.spec.ts](../../servers/excel-mcp/test/number-format-meaning.spec.ts), [native-format-meaning.spec.ts](../../servers/excel-mcp/test/native-format-meaning.spec.ts) |
+| Named table bodies and saved row visibility                     | 5 missing-capability failures, 1 passing control across 6 cases | Table subset of `native-and-table-red.log`; [table-visibility.spec.ts](../../servers/excel-mcp/test/table-visibility.spec.ts)                                                                                       |
+| In-cell images, dynamic metadata, linked labels and rich errors | 7 failures, 1 passing ordinary-error control across 8 cases     | `rich-expanded-red.log`; [rich-values.spec.ts](../../servers/excel-mcp/test/rich-values.spec.ts), [rich-linked-errors.spec.ts](../../servers/excel-mcp/test/rich-linked-errors.spec.ts)                             |
+
+The first native GREEN log records 135 passing tests across five files, including existing
+calendar, temporal-metric and aggregate-analysis tests. Two additional integration defects
+were then reproduced against the phase-4 working tree. A headerless table declaring `D5:E6`
+with two entirely absent data rows returned `empty_sheet`; the table rectangle now supplies
+finite range evidence, and [table-empty-body.spec.ts](../../servers/excel-mcp/test/table-empty-body.spec.ts)
+checks the two null rows, both empty profiles, count 2 and nonempty count 0. A 10,000-row
+single-column workbook passed its ordinary read control but `visibleOnly` produced 532,986
+bytes, exceeding the 524,288-byte response limit because the parallel array's separators were
+not fully budgeted. [visible-row-budget.spec.ts](../../servers/excel-mcp/test/visible-row-budget.spec.ts)
+now checks all four combinations of `visibleOnly` and `includeTyped`, exact parallel row
+alignment, byte limits and continuation cursors. The subsequent root integration run passed
+77 tests across eight files, including these two regressions and existing read, header,
+profile, cursor and typed-I/O cases.
+
+The independent [rich-differential.spec.ts](../../servers/excel-mcp/test/rich-differential.spec.ts)
+passed all six tests through Turbo. It asserts the exact modern and historical adapter
+snapshots for the three fixed original workbooks. Image and linked cells differ from the
+stored `#VALUE!` compatibility fallback; elapsed seconds are checked against independent
+literal day/second answers; metadata-backed `#SPILL!` and `#CALC!` differ while direct error
+caches agree. SheetJS 0.20.3 itself retains the dynamic `F` and `D` fields in this fixture;
+the historical adapter discards them. The test records that specific adapter loss and keeps
+ordinary errors, booleans, identifiers and numeric caches as exact controls. It does not add
+a blanket mismatch exclusion to the corpus comparator.
+
+Three additional public regressions reproduced a composition loss: an unsupported rich type
+lost its diagnostic when the same cell already had a formula, hyperlink or truncation note.
+The closed `richValue` annotation now preserves both facts. Two further regressions moved
+verified rich-image targets outside `xl/media/` and exposed colliding `imageId: -1` values.
+Existing media IDs are preserved and sorted verified rich targets append deterministic IDs,
+independently of worksheet and call order. Distinct decorative images remain distinct, and
+unused invalid rich-value records are not eagerly interpreted.
+
+The final whole-package phase-4 Turbo gate passed **1,076 tests**, with one optional external
+CSV corpus test skipped: 64 test files passed and one was skipped. Lint and type checking also
+passed, with 12 successful Turbo tasks. Documentation generation and validation passed, and
+the actual formula/table recipe refreshed eight command outputs. The earlier final integration
+fixture required a correct styles content-type declaration for the independent SheetJS reader;
+that correction changed only the fixture. These checks use original generated fixtures and
+saved values; they do not claim external corpus, Excel recalculation or phase-4 performance
+coverage.
+
+## Phase-5 CSV separator declaration evidence
+
+The reader now recognizes an exact first decoded physical line of `sep=X` or `"sep=X"`,
+with ASCII case-insensitive `sep` and one comma, semicolon, literal tab or pipe. The line
+must end at LF, CRLF, CR or end of input. Detection follows strict decoding and BOM handling;
+whitespace, unsupported delimiters, Unicode lookalikes and later occurrences are not
+silently consumed. A valid declaration is omitted from headers, records and CSV counters.
+Its delimiter reports `csv.delimiterSource: "sep"`; an explicit delimiter still wins, reports
+`"explicit"`, and adds a warning when it conflicts. The declaration is omitted in either case.
+
+The primary [LibreOffice CSV filter documentation](https://help.libreoffice.org/latest/en-US/text/shared/guide/csv_params.html),
+checked on 2026-10-19, documents both bare and quoted declarations as the only content of the
+first line. It also describes retaining that line as cell data unless import starts at row 2.
+Omitting the declaration is this reader's intentional contract; the source does not establish
+that omission as the default behavior of other spreadsheet applications.
+
+The 45 cases in [csv-sep.spec.ts](../../servers/excel-mcp/test/csv-sep.spec.ts) use independent
+literal records and fixed hexadecimal byte vectors. They cover UTF-8 with BOM, UTF-16LE and
+UTF-16BE with BOM, explicit UTF-16LE without BOM, and explicit windows-1251 preserving
+`Привет` and `00123`. Other cases verify exact raw records, header and diagnostic counts,
+declaration-only input, preserved blank records, malformed lookalikes, LF/CRLF/CR mixtures,
+quoted multiline cells and fault locations in the original physical file. Public-handler
+checks page all three identifier/amount rows, assert sum 60 and count 3, locate `002` at
+`A3`, preserve explicit delimiter choices across pages and retain the existing `stale_cursor`
+response after source mutation.
+
+On immutable `557935f9bf1e1e7e21882486fd47bcab1f76003b`, the new suite produced **24 intended
+failures and 21 passing preservation controls**. From that isolated checkout, the command was:
+
+```bash
+pnpm_config_verify_deps_before_run=warn corepack pnpm exec turbo run test --filter=@sezzlee/excel-mcp -- test/csv-sep.spec.ts
+```
+
+The current implementation passed **134 focused tests** across five files and six Turbo
+tasks: 45 separator cases, 45 existing tokenizer cases including differential fuzz, 28 CSV
+cases, six cursor cases and ten encoding cases. Lint and type checking passed ten tasks.
+The following commands ran from the vendor root:
+
+```bash
+corepack pnpm exec turbo run test --filter=@sezzlee/excel-mcp -- test/csv-sep.spec.ts test/csv.spec.ts test/csv-tokenizer.spec.ts test/cursor.spec.ts test/global-encoding.spec.ts
+corepack pnpm exec turbo run lint check-types --filter=@sezzlee/excel-mcp
+corepack pnpm exec turbo run lint check-types test --filter=@sezzlee/excel-mcp --ui=stream > ../phase5-red-evidence/final-phase5-gate.log 2>&1
+```
+
+The final whole-package gate passed **1,121 tests**, with one optional external CSV corpus
+test skipped: 65 test files passed, one was skipped, and all 12 Turbo tasks succeeded.
+Saved evidence outside the repository is in `phase5-red-evidence/sep-summary.json`,
+`sep-red.log`, `sep-focused-green.log`, `sep-lint-types.log` and `final-phase5-gate.log`;
+the summary includes the baseline revision and tested source digests.
+
+The final documentation validation passed all 11 Turbo tasks, including the actual server
+reference check. No input schema changed in this phase, so the generated references remained
+current. The global CSV recipe ran through the real CLI and captured five output blocks,
+including `delimiterSource: "sep"`, explicit override, preserved raw/typed rows and the
+existing aggregate answers. The clean run used npm's standard error log level to keep an
+unrelated host proxy-configuration warning out of the example output:
+
+```bash
+corepack pnpm exec turbo run validate --filter=@sezzlee/docs --ui=stream
+env npm_config_loglevel=error node apps/docs/scripts/run-examples.mjs --write 07-profile-and-read-global-data.md
+```
+
+The runtime change is confined to CSV declaration handling and response diagnostics in
+[csv.ts](../../servers/excel-mcp/src/format/csv.ts). The tokenizer, input schemas, cursor
+representation and parser limits are unchanged. These original regression inputs and the
+existing fuzz checks establish no external-corpus coverage, live Excel/LibreOffice behavior,
+new streaming capacity or join implementation. The existing 16 MiB resident CSV limit remains.
+
+## Review against the local corpus
+
+The phases above were measured without the external corpus. A review ran them against it, at the
+base `1cc88fe`, at the phase-5 head `a92c48d` and at the reviewed head, each over all 4,932 corpus
+files with the default probe.
+
+| Comparison              | Same files | Outcome changes | Response changes |
+| ----------------------- | ---------: | --------------: | ---------------: |
+| Base → phase-5 head     |      4,430 |               0 |              502 |
+| Phase-5 → reviewed head |      4,932 |               0 |                0 |
+
+Every one of the 502 changes is intended: 487 encoding recovery texts, 11 time-only cells read as
+times instead of `1899-12-31` dates, two UK workbooks whose `vm=` in-cell images and `cm=`
+dynamic-array cells the reader now reports, and the `sep=` file. The adapter-level parity test
+found the same two workbooks and the `sep=` contract change; the first is now a `rich-values`
+tolerance and the second an updated corpus answer. The review's own fixes change no default
+response.
+
+They change typed reading, which the default probe does not call. Each was reproduced at the tool
+boundary first and fails on `a92c48d` for the reason it names
+([typed-reading-boundaries.spec.ts](../../servers/excel-mcp/test/typed-reading-boundaries.spec.ts)):
+under `locale: "tr-TR"` no early-month dotted date was grouped; one `100:30` turned an amount
+column into durations and summed 361,800; a grade `E` read as `true`; `eq "N/A"` matched nothing;
+`missingValues: ["N"]` was refused; a complete page was refused for its cursor; ungrouped rows
+counted as omitted; a reader's locale ordered or silently misread a US file. An elapsed second
+read as `0.9999999999999997`.
+
+Timings from the corpus runs are not comparable, because the machine was in use. The aggregate
+benchmark now runs on a GitHub runner instead, through the `bench` label; its first result is in
+the [roadmap](../../../ROADMAP.md).
+
 ## Next steps
 
-1. Decide whether a CSV that is not UTF-8 should stay refused until the caller passes
-   `encoding`, or guess windows-1254 when the bytes contain Turkish letters and windows-1252
-   otherwise, and report that guess.
+1. Keep legacy decoding explicit. The global typed-text work selected a closed encoding list
+   with fatal decoding; no Turkish/Western or global encoding guess is made. Expand it only
+   with independent byte fixtures and clear runtime support.
 2. Measure what Excel runs when it opens a CSV, with the cases in `_tools/csv/formula-like`, and
    widen `formulaLikeCellCount` only for what it measures.
 3. Then `xml-mcp` (`libxml2-wasm` is a separate decision).

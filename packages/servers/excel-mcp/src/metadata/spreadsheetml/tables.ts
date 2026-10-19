@@ -14,6 +14,8 @@ export interface OoxmlTable {
   readonly ref: string;
   readonly headerRow: boolean;
   readonly totalsRow: boolean;
+  readonly headerRowCount: number;
+  readonly totalsRowCount: number;
   readonly autoFilterRef?: string;
   readonly columns: readonly OoxmlTableColumn[];
 }
@@ -31,6 +33,8 @@ function readTable(opc: OpcPackage, tablePart: string): OoxmlTable | undefined {
   let ref: string | undefined;
   let headerRow = false;
   let totalsRow = false;
+  let headerRowCount = 1;
+  let totalsRowCount = 0;
   let autoFilterRef: string | undefined;
   const columns: ColumnDraft[] = [];
   const filterButtons = new Map<number, boolean>();
@@ -47,6 +51,8 @@ function readTable(opc: OpcPackage, tablePart: string): OoxmlTable | undefined {
           ref = node.attr("ref");
           headerRow = (node.attr("headerRowCount") ?? "1") !== "0";
           totalsRow = (node.attr("totalsRowCount") ?? "0") !== "0";
+          headerRowCount = Number(node.attr("headerRowCount") ?? "1");
+          totalsRowCount = Number(node.attr("totalsRowCount") ?? "0");
           break;
         case "autoFilter":
           inAutoFilter = true;
@@ -96,6 +102,8 @@ function readTable(opc: OpcPackage, tablePart: string): OoxmlTable | undefined {
     ref,
     headerRow,
     totalsRow,
+    headerRowCount,
+    totalsRowCount,
     ...(autoFilterRef === undefined ? {} : { autoFilterRef }),
     columns: columns.map((column, index): OoxmlTableColumn => {
       const filterButton = filterButtons.get(index);

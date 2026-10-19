@@ -8,14 +8,51 @@ import {
 } from "@sezzlee/file-core";
 import { z } from "zod";
 import { limits } from "../platform/limits.js";
+import { metricFunctions } from "../grid/aggregate-metrics.js";
 import {
   columnRef,
+  columnSpecs,
   delimiter,
   drawingKind,
   encoding,
   filePath,
+  groupAxis,
+  rowConditions,
+  readingHintsSchema,
   sheetName,
+  table,
+  visibleOnly,
 } from "./schemas.js";
+
+const typedOptions = {
+  columns: columnSpecs,
+  ...readingHintsSchema,
+  columnMode: z
+    .enum(["auto", "header", "letter"])
+    .optional()
+    .describe(
+      "Resolve column names automatically (default), by header text, or by A1 letter. Letter mode avoids duplicate/colliding headers.",
+    ),
+};
+
+const selectionOptions = { table, visibleOnly };
+
+const profileHeaders = {
+  headerRow: z
+    .int()
+    .min(0)
+    .max(1_048_576)
+    .optional()
+    .describe(
+      "Header row, default 1. Use 0 for no headers; cannot combine with headerScan=true.",
+    ),
+  headerScan: z
+    .boolean()
+    .optional()
+    .describe(
+      "Prove a header row from the sheet, default false. Ambiguous headers are refused.",
+    ),
+};
 
 export const toolDefinitions = {
   list_workbooks: {
@@ -63,11 +100,19 @@ export const toolDefinitions = {
     inputSchema: z.object({
       filePath,
       sheetName,
+      ...selectionOptions,
       range: z
         .string()
         .optional()
         .describe(
           "A1 range such as B2:D40, B:D or 2:40. Defaults to the used range.",
+        ),
+      ...typedOptions,
+      includeTyped: z
+        .boolean()
+        .optional()
+        .describe(
+          "Add a parallel typedValues grid while preserving raw values, default false. Requires explicit columns (for example from profile_sheet). Missing or unreadable typed cells are null and counted. Interpretation is fixed across cursor pages.",
         ),
       cursor: z
         .string()
@@ -119,6 +164,45 @@ export const toolDefinitions = {
     }),
     annotations: readOnly,
   },
+  profile_sheet: {
+    description:
+      "Profile a bounded rectangular prefix: types and confidence, formats, missing and distinct values, extrema, frequent values, unreadable examples and identifier signals. Returns reusable columns plus explicit sampling limits. This inspects cell contents.",
+    inputSchema: z.object({
+      filePath,
+      sheetName,
+      ...selectionOptions,
+      range: z
+        .string()
+        .optional()
+        .describe("A1 range including any header row, default used range."),
+      ...profileHeaders,
+      ...typedOptions,
+      mergedCells: z
+        .enum(["master", "repeat"])
+        .optional()
+        .describe("Merged cell policy, default master."),
+      maxRows: z
+        .int()
+        .min(1)
+        .max(limits.maxProfileRowsHard)
+        .optional()
+        .describe(
+          "Maximum sampled data rows, default 1000. A rectangular prefix is also bounded by maxProfileCells; omissions are reported.",
+        ),
+      maxColumns: z
+        .int()
+        .min(1)
+        .max(limits.maxProfileColumnsHard)
+        .optional()
+        .describe(
+          "Maximum profiled columns, default 16, hard maximum 64. Extra columns are counted as omitted.",
+        ),
+      delimiter,
+      encoding,
+    }),
+    annotations: readOnly,
+  },
+
   get_merged_ranges: {
     description: "List the merged cell ranges of a worksheet.",
     inputSchema: z.object({ filePath, sheetName }),
@@ -147,7 +231,7 @@ export const toolDefinitions = {
 
   get_images: {
     description:
-      "List the pictures embedded in a worksheet: the cells a picture spans (range), or its top-left cell and pixel size when only those are anchored (cell), plus byte size and file extension. Charts belong to get_charts; pivot tables and sparklines are refused rather than reported as absent.",
+      "List worksheet pictures, including Place in Cell images: source cell or drawing anchor, byte size, extension, stored alternative text and decorative flag when available. imageId identifies the same embedded media in read_sheet values. Alternative text is clipped with its original length; image pixels are not interpreted. Charts belong to get_charts; pivot tables and sparklines are refused.",
     inputSchema: z.object({ filePath, sheetName, kind: drawingKind }),
     annotations: readOnly,
   },
@@ -183,88 +267,76 @@ export const toolDefinitions = {
     inputSchema: z.object({
       filePath,
       sheetName,
+      ...selectionOptions,
       range: z
         .string()
         .optional()
         .describe(
           "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
         ),
-      groupBy: z
-        .array(columnRef)
-        .max(limits.maxMetrics)
+      groupBy: groupAxis
         .optional()
-        .describe("Columns to group by. Omit for a single whole-range total."),
+        .describe(
+          "Row grouping keys. A plain column keeps raw values unless columns, a filter or a metric already reads that column as numbers or dates. Date parts and bins request that reading explicitly. Omit for a whole-range total.",
+        ),
+      pivotBy: groupAxis
+        .optional()
+        .describe(
+          "Column axis of a dense pivot, with the same key forms as groupBy. Missing combinations have count 0 and other metrics null. The full row-key × pivot-key × metric count is bounded, before maxGroups slicing.",
+        ),
+      groupingSets: z
+        .array(
+          z.strictObject({
+            groupBy: groupAxis.describe(
+              "Keys for this independent breakdown, using the same forms as the primary groupBy. Pass an empty array for a grand total.",
+            ),
+          }),
+        )
+        .min(1)
+        .max(limits.maxGroupingSets)
+        .optional()
+        .describe(
+          "Additional independent groupings computed with the same metrics, filters and pivotBy in one shared scan. Results appear in groupingSets in this order; the primary groupBy result stays in rows. An empty groupBy computes a grand total.",
+        ),
+      compact: z
+        .boolean()
+        .optional()
+        .describe(
+          "Omit repeated CSV format and mode metadata, default false. CSV warnings and nonzero quality counts, typed-reading decisions and aggregation diagnostics remain.",
+        ),
       metrics: z
         .array(
-          z.object({
+          z.strictObject({
             fn: z
-              .enum([
-                "count",
-                "countValues",
-                "countDistinct",
-                "sum",
-                "avg",
-                "min",
-                "max",
-                "stddev",
-              ])
+              .enum(metricFunctions)
               .describe(
-                "count counts matched rows and needs no column. countValues counts the column's non-empty cells, countDistinct its distinct values. sum, avg and stddev read numeric cells; min and max read numbers, dates or text, one kind per column. Other cells are counted as skipped.",
+                "countTrue/countFalse count valid boolean values; trueRatio is true divided by all valid booleans (null if none). count counts matched rows. countValues counts non-empty cells; countDistinct counts distinct stored values. sum, avg, stddev, median, p50, p90 and percentile read numeric text column by column and exclude identifiers. stddev is the sample deviation. Percentiles use exact linear interpolation (Excel PERCENTILE.INC), bounded across the call. min/max compare one kind per group; a mixed group is refused.",
               ),
             column: columnRef.optional(),
+            percentile: z
+              .number()
+              .min(0)
+              .max(1)
+              .optional()
+              .describe(
+                "Required only for fn percentile: fraction from 0 to 1 inclusive. median and p50 use 0.5, p90 uses 0.9.",
+              ),
+            where: rowConditions
+              .optional()
+              .describe(
+                "Additional filter for this metric only; all conditions must match. It is applied after the top-level filter. filtered counts rows excluded here; skipped counts included rows whose values the metric could not use.",
+              ),
           }),
         )
         .min(1)
         .max(limits.maxMetrics)
         .describe(
-          "Values to compute. Each metric becomes one output column after the groupBy columns, labelled fn(column).",
+          "Values to compute. Each becomes an output column after the group keys, or one column per pivot key. Percentiles sharing a column and identical metric filter share their stored samples.",
         ),
-      where: z
-        .array(
-          z.object({
-            column: columnRef,
-            op: z
-              .enum([
-                "eq",
-                "ne",
-                "lt",
-                "lte",
-                "gt",
-                "gte",
-                "contains",
-                "startsWith",
-                "endsWith",
-                "in",
-                "between",
-                "isEmpty",
-                "isNotEmpty",
-                "isError",
-                "isNumber",
-                "isText",
-              ])
-              .describe(
-                "Comparison and text operators take value; in takes values; between takes values as [low, high], both inclusive and of one kind; isEmpty, isNotEmpty, isError, isNumber and isText take neither.",
-              ),
-            value: z
-              .union([z.string(), z.number(), z.boolean()])
-              .optional()
-              .describe(
-                "Operand of eq, ne, lt, lte, gt, gte, contains, startsWith and endsWith.",
-              ),
-            values: z
-              .array(z.union([z.string(), z.number(), z.boolean()]))
-              .min(1)
-              .max(limits.maxInValues)
-              .optional()
-              .describe(
-                "Operands of in (any of them) and between (exactly two: low and high).",
-              ),
-          }),
-        )
-        .max(limits.maxConditions)
+      where: rowConditions
         .optional()
         .describe(
-          "Row filter. A cell of a different kind from the operand never matches and is counted as skipped.",
+          "Row filter. Numeric and ISO date operands read text column by column. Incomparable cells are reported with counts and examples.",
         ),
       match: z
         .enum(["all", "any"])
@@ -295,12 +367,8 @@ export const toolDefinitions = {
         .describe(
           "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
         ),
-      coerceText: z
-        .boolean()
-        .optional()
-        .describe(
-          'Treat numeric text such as "1234.50" as a number. Off by default.',
-        ),
+      columns: columnSpecs,
+      ...readingHintsSchema,
       mergedCells: z
         .enum(["master", "repeat"])
         .optional()
@@ -346,6 +414,9 @@ export const toolDefinitions = {
           "Text to find, or a JavaScript regular expression of at most 256 characters when matchMode is regex.",
         ),
       sheetName,
+      ...selectionOptions,
+      ...profileHeaders,
+      ...typedOptions,
       matchMode: z
         .enum(["contains", "exact", "regex"])
         .optional()

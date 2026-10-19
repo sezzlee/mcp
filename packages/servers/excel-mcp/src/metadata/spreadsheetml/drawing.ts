@@ -28,11 +28,27 @@ export interface AnchorPlacement {
   readonly editAs?: string;
 }
 
-export interface OoxmlImage extends AnchorPlacement {
+interface ImageContent {
   readonly mediaPart?: string;
   readonly hyperlink?: string;
   readonly tooltip?: string;
+  readonly altText?: string;
+  readonly decorative?: boolean;
 }
+
+export type OoxmlImage = ImageContent &
+  (
+    | AnchorPlacement
+    | {
+        readonly anchor: "inCell";
+        readonly cell: string;
+        readonly from?: never;
+        readonly to?: never;
+        readonly widthPx?: never;
+        readonly heightPx?: never;
+        readonly editAs?: never;
+      }
+  );
 
 /**
  * The part a chart frame points at. `missing` is a frame whose relationship
@@ -93,6 +109,8 @@ interface AnchorDraft {
   embedId?: string;
   hyperlinkId?: string;
   tooltip?: string;
+  altText?: string;
+  decorative?: boolean;
   isPicture: boolean;
   frames: ChartFrameDraft[];
 }
@@ -214,6 +232,7 @@ function readDrawing(opc: OpcPackage, drawingPart: string): SheetDrawing {
             break;
           case "cNvPr":
             if (frame !== undefined) frame.name ??= node.attr("name");
+            else if (anchor.isPicture) anchor.altText ??= node.attr("descr");
             break;
           case "col":
           case "colOff":
@@ -230,6 +249,17 @@ function readDrawing(opc: OpcPackage, drawingPart: string): SheetDrawing {
         return;
       }
       if (anchor === undefined) return;
+      if (
+        anchor.isPicture &&
+        node.uri ===
+          "http://schemas.microsoft.com/office/drawing/2017/decorative" &&
+        node.local === "decorative"
+      ) {
+        const flag = node.attr("val");
+        if (flag === "1" || flag === "true") anchor.decorative = true;
+        else if (flag === "0" || flag === "false") anchor.decorative = false;
+        return;
+      }
       if (node.local === "chart" && frame !== undefined) {
         const format =
           node.uri === namespaces.chart
@@ -324,6 +354,10 @@ function readDrawing(opc: OpcPackage, drawingPart: string): SheetDrawing {
         ...placement,
         ...(link === undefined ? {} : { hyperlink: link.target }),
         ...(draft.tooltip === undefined ? {} : { tooltip: draft.tooltip }),
+        ...(draft.altText === undefined ? {} : { altText: draft.altText }),
+        ...(draft.decorative === undefined
+          ? {}
+          : { decorative: draft.decorative }),
       });
     }
     for (const chartFrame of draft.frames) {

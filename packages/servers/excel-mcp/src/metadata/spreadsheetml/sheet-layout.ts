@@ -4,6 +4,7 @@ import { namespaces, type PartScan, type XmlVisitor } from "./xml.js";
 export interface SheetLayout {
   readonly merges: readonly GridBounds[];
   readonly autoFilter: string | undefined;
+  readonly hiddenRows: ReadonlySet<number>;
   /** The range the `<dimension>` element declares; a single cell declares none. */
   readonly dimension: GridBounds | undefined;
   /** The first and last row a `<row>` element names, empty rows included. */
@@ -44,6 +45,7 @@ export function rangeOf(ref: string): GridBounds | undefined {
 export function layoutScan(): PartScan<SheetLayout> {
   const merges: GridBounds[] = [];
   let autoFilter: string | undefined;
+  const hiddenRows = new Set<number>();
   let dimension: GridBounds | undefined;
   let rows: { first: number; last: number } | undefined;
   let depth = 0;
@@ -64,6 +66,9 @@ export function layoutScan(): PartScan<SheetLayout> {
       } else if (inSheetData && depth === 3 && node.local === "row") {
         const stated = Number(node.attr("r"));
         row = Number.isInteger(stated) && stated > 0 ? stated : row + 1;
+        const hidden = node.attr("hidden");
+        if ((hidden === "1" || hidden === "true") && row <= 1_048_576)
+          hiddenRows.add(row);
         rows =
           rows === undefined
             ? { first: row, last: row }
@@ -99,7 +104,7 @@ export function layoutScan(): PartScan<SheetLayout> {
   };
   return {
     visitor,
-    finish: () => ({ merges, autoFilter, dimension, rows }),
+    finish: () => ({ merges, autoFilter, hiddenRows, dimension, rows }),
   };
 }
 

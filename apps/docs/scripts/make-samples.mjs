@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -120,7 +120,19 @@ async function report() {
   await book.xlsx.writeFile(path.join(out, "report.xlsx"));
 }
 
+function pictures() {
+  const fixture = path.resolve(
+    here,
+    "../../../packages/servers/excel-mcp/test/fixtures/rich-values.xlsx.base64",
+  );
+  writeFileSync(
+    path.join(out, "pictures.xlsx"),
+    Buffer.from(readFileSync(fixture, "utf8"), "base64"),
+  );
+}
+
 mkdirSync(out, { recursive: true });
 await sales();
 await report();
+pictures();
 process.stdout.write(`wrote ${path.relative(process.cwd(), out)}\n`);

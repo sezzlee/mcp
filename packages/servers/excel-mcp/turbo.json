@@ -2,7 +2,14 @@
   "extends": ["//"],
   "tasks": {
     "build": { "inputs": ["$TURBO_DEFAULT$", "!test/**", "!vitest.config.ts"] },
-    "test": { "dependsOn": ["build"], "env": ["SEZZLEE_CORPUS", "TZ"] },
-    "test:coverage": { "dependsOn": ["build"], "outputs": ["coverage/**"] }
+    "test": {
+      "dependsOn": ["build"],
+      "env": ["SEZZLEE_CORPUS", "SEZZLEE_TYPED_FUZZ_SEED", "TZ"]
+    },
+    "test:coverage": {
+      "dependsOn": ["build"],
+      "env": ["SEZZLEE_TYPED_FUZZ_SEED"],
+      "outputs": ["coverage/**"]
+    }
   }
 }

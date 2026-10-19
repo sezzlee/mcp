@@ -44,7 +44,8 @@ excel aggregate_sheet --tool-arg filePath=sales.xlsx \
 ```
 
 `matchedRows` tells an empty group apart from a filter that matched nothing. A cell of a different
-kind from the value never matches; pass `coerceText: true` to read numeric text as a number.
+kind from the value never matches and is counted in `warnings` with examples; text such as
+`1.234,50` or `02.01.2023` is first read as a number or a date, column by column.
 
 ## The top groups
 

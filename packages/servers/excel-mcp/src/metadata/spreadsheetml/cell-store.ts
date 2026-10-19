@@ -30,6 +30,8 @@ export interface CellStore {
   value(index: number): RawValue;
   style(index: number): number;
   formula(index: number): FormulaSource | undefined;
+  valueMetadata(index: number): number | undefined;
+  cellMetadata(index: number): number | undefined;
 }
 
 export interface StoredCells {
@@ -103,6 +105,9 @@ export function cellStoreBuilder(): CellStoreBuilder {
   const sourceOf = formulaSourcer();
   const texts: string[] = [];
   const formulas: FormulaSource[] = [];
+  /** Guard: sparse metadata adds no typed-array field to ordinary cells. */
+  const vm = new Map<number, number>();
+  const cm = new Map<number, number>();
   let rows = new Int32Array(1024);
   let columns = new Int32Array(1024);
   let styles = new Uint32Array(1024);
@@ -162,6 +167,8 @@ export function cellStoreBuilder(): CellStoreBuilder {
     rows[count] = row;
     columns[count] = column;
     styles[count] = Math.min(cell.style, maxStyle);
+    if (cell.vm !== undefined && cell.vm !== 0) vm.set(count, cell.vm);
+    if (cell.cm !== undefined && cell.cm !== 0) cm.set(count, cell.cm);
     encode(cell.value, count);
     const source = sourceOf(cell);
     formulaOf[count] = source === undefined ? -1 : formulas.push(source) - 1;
@@ -218,6 +225,8 @@ export function cellStoreBuilder(): CellStoreBuilder {
     const cellKinds = new Uint8Array(length);
     const cellPayloads = new Float64Array(length);
     const cellFormulas = new Int32Array(length);
+    const valueMetadata = new Map<number, number>();
+    const cellMetadata = new Map<number, number>();
     const rowNumbers: number[] = [];
     const rowStarts: number[] = [];
     for (let position = 0; position < length; position += 1) {
@@ -232,6 +241,10 @@ export function cellStoreBuilder(): CellStoreBuilder {
       cellKinds[position] = kindOf[index] ?? kinds.none;
       cellPayloads[position] = payloads[index] ?? 0;
       cellFormulas[position] = formulaOf[index] ?? -1;
+      const valueMeta = vm.get(index);
+      const cellMeta = cm.get(index);
+      if (valueMeta !== undefined) valueMetadata.set(position, valueMeta);
+      if (cellMeta !== undefined) cellMetadata.set(position, cellMeta);
     }
     rowStarts.push(length);
     const rowIndex = Int32Array.from(rowNumbers);
@@ -247,6 +260,8 @@ export function cellStoreBuilder(): CellStoreBuilder {
     kindOf = new Uint8Array(0);
     payloads = new Float64Array(0);
     formulaOf = new Int32Array(0);
+    vm.clear();
+    cm.clear();
 
     const rowSpan = (row: number): readonly [number, number] | undefined => {
       const slot = lowerBound(rowIndex, row, 0, rowIndex.length);
@@ -309,6 +324,8 @@ export function cellStoreBuilder(): CellStoreBuilder {
         const reference = cellFormulas[index] ?? -1;
         return reference === -1 ? undefined : formulas[reference];
       },
+      valueMetadata: (index) => valueMetadata.get(index),
+      cellMetadata: (index) => cellMetadata.get(index),
     };
     return {
       store,

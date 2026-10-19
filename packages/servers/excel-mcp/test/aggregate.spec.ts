@@ -20,7 +20,6 @@ const base: AggregateOptions = {
   headerRowSource: "default",
   columnMode: "auto",
   caseSensitive: false,
-  coerceText: false,
   mergedCells: "master",
   orderBy: "group",
   descending: false,
@@ -79,39 +78,69 @@ describe("accounting", () => {
     );
   });
 
-  it("excludes error, boolean and text cells and reports why", async () => {
+  it("reads numeric text, excludes error and boolean cells and reports why", async () => {
     const result = aggregateSheet(await open("analysis.xlsx"), {
       ...base,
       columnMode: "letter",
       metrics: [{ fn: "sum", column: "B" }],
     });
-    expect(result.rows[0]?.[0]).toBe(30.5);
+    expect(result.rows[0]?.[0]).toBe(10 + 12 + 20.5);
     expect(result.columnStats?.["B"]).toMatchObject({
       numbers: 2,
       texts: 1,
+      textNumbers: 1,
       booleans: 1,
       errors: 1,
     });
+    expect(result.readAs?.["B"]).toEqual([
+      { type: "number", decimal: ".", group: "none" },
+    ]);
   });
 
-  it("warns about numeric text instead of silently dropping it", async () => {
+  it("sums only what every reading of a mixed-format column agrees on and names the rest", async () => {
     const result = aggregateSheet(await open("analysis.xlsx"), {
       ...base,
       metrics: [{ fn: "sum", column: "Amount" }],
     });
-    expect(result.rows[0]?.[0]).toBeNull();
+    expect(result.rows[0]?.[0]).toBe(8 + 9);
+    const warnings = result.warnings ?? [];
     expect(
-      result.warnings?.some((entry) => entry.includes("numeric text")),
+      warnings.some(
+        (entry) =>
+          entry.startsWith("H: values such as '1234.50'") &&
+          entry.includes('[{"column":"H","type":"number","decimal":","}]'),
+      ),
     ).toBe(true);
+    expect(warnings).toContain(
+      "H: 3 text cells do not read as a number, such as '1234.50', '1.234,56', 'x'; the totals exclude them.",
+    );
+    expect(warnings).toContain(
+      `H: 1 cell looks like an identifier (a leading zero or more than 15 digits), such as '007'; the totals exclude them. If they are quantities, pass columns [{"column":"H","type":"number","decimal":"."}].`,
+    );
   });
 
-  it("includes numeric text once coerceText is on", async () => {
+  it("reads a column with the marks columns names", async () => {
     const result = aggregateSheet(await open("analysis.xlsx"), {
       ...base,
-      coerceText: true,
+      columns: [{ column: "Amount", type: "number", decimal: "." }],
       metrics: [{ fn: "sum", column: "Amount" }],
     });
     expect(result.rows[0]?.[0]).toBe(1234.5 + 7 + 8 + 9);
+  });
+
+  it("refuses a decimal mark that is also the group mark", async () => {
+    const source = await open("analysis.xlsx");
+    expect(
+      await codeOf(() =>
+        aggregateSheet(source, {
+          ...base,
+          columns: [
+            { column: "Amount", type: "number", decimal: ",", group: "," },
+          ],
+          metrics: [{ fn: "sum", column: "Amount" }],
+        }),
+      ),
+    ).toBe("invalid_argument");
   });
 });
 
@@ -319,10 +348,9 @@ describe("failures", () => {
 });
 
 describe("csv", () => {
-  it("aggregates a csv with coerceText", async () => {
+  it("sums a csv's numeric text without any option", async () => {
     const result = aggregateSheet(await open("csv/big.csv"), {
       ...base,
-      coerceText: true,
       metrics: [{ fn: "sum", column: "amount" }, { fn: "count" }],
     });
     expect(result.rows[0]?.[0]).toBe((999 * 1000 * 3) / 2);

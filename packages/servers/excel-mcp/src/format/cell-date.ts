@@ -1,6 +1,7 @@
 import { asciiLower, asciiUpper } from "@sezzlee/file-core";
+import { boundedMemo } from "../grid/memo.js";
 
-const elapsedTime = /\[[HhMmSsชนท]*\]/;
+const elapsedTime = /^\[(?:h+|m+|s+)\]$/i;
 const numberRun = "0#?.,E+-%";
 const digits = "0123456789";
 
@@ -114,6 +115,56 @@ export function isDateFormat(code: string): boolean {
     }
   }
   return false;
+}
+
+const quotedOrEscaped = /"[^"]*"|\\.|_.|\*./g;
+const bracketed = /\[[^\]]*\]/g;
+const meridiem = /AM\/PM|A\/P|上午\/下午/gi;
+const dateLetters = /[dDyYeEgGbB]/;
+const clockRuns = /[hH]+|[mM]+|[sS]+/g;
+
+/**
+ * Decides whether a date format shows a time of day and nothing else, such as
+ * `h:mm` or `hh:mm:ss AM/PM`.
+ *
+ * Guard: `m` is a minute only right after an hour or right before a second,
+ * as Excel reads it; anywhere else it is a month and the format is a date.
+ * An elapsed `[h]` is a duration, which may pass 24 hours, so it is not a
+ * time of day.
+ */
+export function isTimeOnlyFormat(code: string): boolean {
+  return timeOnlyFormat(code);
+}
+
+const timeOnlyFormat = boundedMemo(
+  (code: string): boolean => {
+    const plain = code.replace(quotedOrEscaped, "");
+    const brackets = plain.match(bracketed) ?? [];
+    if (brackets.some((bracket) => elapsedTime.test(bracket))) return false;
+    const letters = plain.replace(bracketed, "").replace(meridiem, "");
+    if (dateLetters.test(letters)) return false;
+    const runs = (letters.match(clockRuns) ?? []).map((run) =>
+      asciiLower(run.charAt(0)),
+    );
+    if (runs.length === 0) return false;
+    return runs.every(
+      (run, at) => run !== "m" || runs[at - 1] === "h" || runs[at + 1] === "s",
+    );
+  },
+  (code) => code,
+  4096,
+);
+
+/**
+ * Renders the time of day an Excel serial names as `HH:mm:ss`, or `undefined`
+ * for a serial the calendar cannot place.
+ */
+export function serialToClock(
+  serial: number,
+  date1904: boolean,
+): string | undefined {
+  if (serial < 0) return undefined;
+  return serialToDate(serial, date1904)?.toISOString().slice(11, 19);
 }
 
 const epoch1900 = Date.UTC(1899, 11, 30);

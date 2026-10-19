@@ -34,12 +34,23 @@ export {
   fingerprint,
 } from "./grid/cursor.js";
 export type { MergePolicy, SheetCursor, ValueMode } from "./grid/cursor.js";
-export { normalizeCell } from "./grid/cell-value.js";
+export {
+  normalizeCell,
+  isCellError,
+  isCellImage,
+  isCellLinkedValue,
+  isCellDuration,
+} from "./grid/cell-value.js";
 export type {
   CellNote,
   CellScalar,
   CellFacts,
   CellSnapshot,
+  CellImage,
+  CellLinkedValue,
+  LinkedValue,
+  CellArrayFormula,
+  CellUnsupportedRichValue,
   NormalizedCell,
 } from "./grid/cell-value.js";
 export { buildColumnIndex, resolveColumn } from "./grid/columns.js";
@@ -49,7 +60,6 @@ export {
   compareWithin,
   emptyCensus,
   evaluate,
-  majorityKind,
   validateCondition,
 } from "./grid/predicate.js";
 export type {

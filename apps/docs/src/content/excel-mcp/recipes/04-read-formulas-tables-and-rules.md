@@ -85,6 +85,25 @@ excel get_tables --tool-arg filePath=sales.xlsx \
 A table's `ref` and column names are what the author declared: the most reliable way to know where a
 dataset starts and ends.
 
+Pass that name to read or analyze the table's data rows. The table header supplies column names;
+the header and totals row are excluded from the selected data body.
+
+```sh
+excel aggregate_sheet --tool-arg filePath=sales.xlsx table=Orders visibleOnly=true \
+  'metrics=[{"fn":"count"}]' | jq -c '{table,rows,visibility}'
+```
+
+```text
+{"table":{"name":"Orders","ref":"A1:H13","dataRange":"A2:H13","totalsRowExcluded":false},"rows":[[12]],"visibility":{"basis":"savedHiddenRows","hiddenRowsSkipped":0,"filterCriteriaReevaluated":false,"autoFilterRef":"A1:H13"}}
+```
+
+`visibleOnly` uses saved hidden-row flags, including rows saved as hidden after AutoFilter. It does
+not reevaluate filter criteria; the response says so. This sample has no hidden rows. Filtered
+`read_sheet` calls also return `rowNumbers`, so each returned row keeps its original Excel address.
+Both options travel in a read cursor. Without `sheetName`, the table name is resolved across the
+workbook; duplicate names require a worksheet restriction. Do not combine `table` with `range`
+or a conflicting `headerRow`.
+
 ## Validation and conditional formatting
 
 ```sh

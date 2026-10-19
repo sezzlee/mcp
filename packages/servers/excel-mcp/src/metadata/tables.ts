@@ -37,8 +37,15 @@ export function declaredTablesOf(
 ): DeclaredTable[] {
   return tables.map((table) => ({
     name: table.name,
+    displayName: table.displayName,
     ref: table.ref,
     headerRow: table.headerRow,
+    totalsRow: table.totalsRow,
+    headerRowCount: table.headerRowCount,
+    totalsRowCount: table.totalsRowCount,
+    ...(table.autoFilterRef === undefined
+      ? {}
+      : { autoFilterRef: table.autoFilterRef }),
     columns: table.columns.map((column) => column.name ?? null),
   }));
 }
