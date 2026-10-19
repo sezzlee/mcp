@@ -12,11 +12,11 @@ import { catalogPath } from "./task.ts";
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/);
 
 export const manifestSchema = z.strictObject({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   catalog: sha256,
   oracle: sha256,
   graderVersion: z.string(),
-  lab: z.strictObject({ commit: z.string().nullable(), sources: sha256 }),
+  lab: z.strictObject({ sources: sha256 }),
   server: z.strictObject({ version: z.string(), dist: sha256 }),
   tools: sha256,
   systemPrompt: sha256,
@@ -36,6 +36,7 @@ export const manifestSchema = z.strictObject({
     timeoutMs: z.int().positive(),
   }),
   node: z.string(),
+  provenance: z.strictObject({ labCommit: z.string().nullable() }),
 });
 export type Manifest = z.infer<typeof manifestSchema>;
 
@@ -44,6 +45,36 @@ const oraclePath = new URL("../../scripts/agent-oracle.py", import.meta.url);
 
 function digest(data: string | Uint8Array): string {
   return createHash("sha256").update(data).digest("hex");
+}
+
+/**
+ * Guard: the lab's part of a condition is the files a run's outcome depends
+ * on, the loop, the grader and submit tool, the host protocol, the catalog
+ * reader and the workspace, and nothing else, so changing a report or a
+ * comparison does not make a later run a different condition.
+ */
+const runSources = [
+  "agent-cli.ts",
+  "agent-run.ts",
+  "grade.ts",
+  "host.ts",
+  "ollama.ts",
+  "task.ts",
+  "workspace.ts",
+] as const;
+
+async function filesDigest(
+  root: string,
+  names: readonly string[],
+): Promise<string> {
+  const hash = createHash("sha256");
+  for (const name of [...names].sort())
+    hash
+      .update(name)
+      .update("\0")
+      .update(await readFile(join(root, name)))
+      .update("\0");
+  return hash.digest("hex");
 }
 
 async function treeDigest(root: string): Promise<string> {
@@ -99,13 +130,12 @@ export async function buildManifest(input: {
       ),
     );
   return manifestSchema.parse({
-    schemaVersion: 1,
+    schemaVersion: 2,
     catalog: digest(await readFile(catalogPath)),
     oracle: digest(await readFile(oraclePath)),
     graderVersion,
     lab: {
-      commit: commitOf(labRoot),
-      sources: await treeDigest(join(labRoot, "src")),
+      sources: await filesDigest(join(labRoot, "src", "agent"), runSources),
     },
     server: {
       version: serverPackage.version,
@@ -116,14 +146,23 @@ export async function buildManifest(input: {
     host: input.host,
     generation: input.generation,
     node: process.version,
+    provenance: { labCommit: commitOf(labRoot) },
   });
+}
+
+/** A manifest without its provenance: what identifies the condition. */
+export function identityOf(manifest: Manifest): Omit<Manifest, "provenance"> {
+  const { provenance: _provenance, ...identity } = manifest;
+  return identity;
 }
 
 /** The fields two manifests disagree on, as dotted paths. */
 export function manifestDifferences(
-  left: Manifest,
-  right: Manifest,
+  leftManifest: Manifest,
+  rightManifest: Manifest,
 ): readonly string[] {
+  const left = identityOf(leftManifest);
+  const right = identityOf(rightManifest);
   const differences: string[] = [];
   const walk = (a: unknown, b: unknown, path: string): void => {
     if (

@@ -196,7 +196,7 @@ const report = [
   "",
   `${runs.length} runs of ${new Set(runs.map((run) => run.task)).size} tasks; ${eligible.length} count toward accuracy${excluded > 0 ? `, ${excluded} do not (host failures, refused preflights, another loaded window)` : ""}.`,
   set.manifest === null
-    ? "No manifest: this directory predates experiment records."
+    ? "No readable manifest: this directory predates the current experiment record, so its condition is not known."
     : `Model ${set.manifest.host.model} (${set.manifest.host.digest?.slice(0, 12) ?? "digest unknown"}), Ollama ${set.manifest.host.version ?? "unknown"}, window ${set.manifest.generation.window}, thinking ${set.manifest.generation.thinking}, server ${set.manifest.server.version}.`,
   "",
   "A run is correct when its value means the answer and comes in the form the tool asks for; the two columns after it count each alone.",

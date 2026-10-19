@@ -125,7 +125,7 @@ export async function readRunSet(
     manifest:
       manifestText === null
         ? null
-        : manifestSchema.parse(JSON.parse(manifestText)),
+        : (manifestSchema.safeParse(JSON.parse(manifestText)).data ?? null),
     runs,
   };
 }

@@ -17,6 +17,7 @@ import { thinkingPolicies } from "./host.ts";
 import {
   buildManifest,
   canonicalHash,
+  identityOf,
   manifestDifferences,
   manifestSchema,
 } from "./manifest.ts";
@@ -112,7 +113,7 @@ const manifest = await buildManifest({
     timeoutMs: options.timeoutMs,
   },
 });
-const manifestHash = canonicalHash(manifest);
+const manifestHash = canonicalHash(identityOf(manifest));
 const manifestPath = join(options.out, "manifest.json");
 const runsPath = join(options.out, "runs.jsonl");
 const eventsPath = join(options.out, "events.jsonl");
