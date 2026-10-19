@@ -78,6 +78,14 @@ spec, a guard comment or the package README.
   snapshot validation. The architecture below must be reviewed before implementation.
 - **Multiple-source analysis.** Cross-sheet and cross-file joins need an explicit execution
   owner and cardinality, memory and provenance limits. The options below are design only.
+- **Typed-text aggregate cost.** Reading every text value to decide a column's separators and
+  day/month order made an eight-sum aggregate over a 2,000,000-cell CSV 3.9 times slower on the
+  first call and 5.7 times slower on a cached call than `coerceText` was (median of five
+  alternating trials on a GitHub runner: 885 to 3,455 ms and 555 to 3,150 ms). A CPU profile puts
+  about 32% in number-mark sniffing and 6% in duration sniffing, repeated on every call. Keeping
+  each column's decision with the cached workbook and rejecting plain ASCII decimals before the
+  full sniff are the candidates; either has to keep the every-value ambiguity contract and is
+  measured with the `bench` label before it lands.
 
 ### Streaming CSV: proposed contract, pending approval
 

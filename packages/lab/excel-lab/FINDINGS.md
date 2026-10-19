@@ -840,6 +840,37 @@ representation and parser limits are unchanged. These original regression inputs
 existing fuzz checks establish no external-corpus coverage, live Excel/LibreOffice behavior,
 new streaming capacity or join implementation. The existing 16 MiB resident CSV limit remains.
 
+## Review against the local corpus
+
+The phases above were measured without the external corpus. A review ran them against it, at the
+base `1cc88fe`, at the phase-5 head `a92c48d` and at the reviewed head, each over all 4,932 corpus
+files with the default probe.
+
+| Comparison              | Same files | Outcome changes | Response changes |
+| ----------------------- | ---------: | --------------: | ---------------: |
+| Base → phase-5 head     |      4,430 |               0 |              502 |
+| Phase-5 → reviewed head |      4,932 |               0 |                0 |
+
+Every one of the 502 changes is intended: 487 encoding recovery texts, 11 time-only cells read as
+times instead of `1899-12-31` dates, two UK workbooks whose `vm=` in-cell images and `cm=`
+dynamic-array cells the reader now reports, and the `sep=` file. The adapter-level parity test
+found the same two workbooks and the `sep=` contract change; the first is now a `rich-values`
+tolerance and the second an updated corpus answer. The review's own fixes change no default
+response.
+
+They change typed reading, which the default probe does not call. Each was reproduced at the tool
+boundary first and fails on `a92c48d` for the reason it names
+([typed-reading-boundaries.spec.ts](../../servers/excel-mcp/test/typed-reading-boundaries.spec.ts)):
+under `locale: "tr-TR"` no early-month dotted date was grouped; one `100:30` turned an amount
+column into durations and summed 361,800; a grade `E` read as `true`; `eq "N/A"` matched nothing;
+`missingValues: ["N"]` was refused; a complete page was refused for its cursor; ungrouped rows
+counted as omitted; a reader's locale ordered or silently misread a US file. An elapsed second
+read as `0.9999999999999997`.
+
+Timings from the corpus runs are not comparable, because the machine was in use. The aggregate
+benchmark now runs on a GitHub runner instead, through the `bench` label; its first result is in
+the [roadmap](../../../ROADMAP.md).
+
 ## Next steps
 
 1. Keep legacy decoding explicit. The global typed-text work selected a closed encoding list
