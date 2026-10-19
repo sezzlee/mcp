@@ -123,7 +123,7 @@ export function nativeCellDifference(
     !Number.isFinite(raw.serial)
   )
     return undefined;
-  const seconds = raw.serial * 86400;
+  const seconds = Math.round(raw.serial * 86_400_000) / 1000;
   if (!Number.isFinite(seconds)) return undefined;
   let converted = false;
   const translate = (

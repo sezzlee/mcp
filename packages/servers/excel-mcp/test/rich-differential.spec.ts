@@ -149,7 +149,7 @@ describe("exact modern-value differences from the historical SheetJS adapter", (
       ) {
         throw new Error(`D${row} did not retain elapsed duration`);
       }
-      expect(duration.durationSeconds).toBeCloseTo(seconds, 12);
+      expect(duration.durationSeconds).toBe(seconds);
       expect(cell(rich.historical, row, 4)).toEqual({
         merged: false,
         numberFormat: "[h]:mm:ss",

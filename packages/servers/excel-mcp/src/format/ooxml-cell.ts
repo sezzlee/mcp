@@ -48,7 +48,12 @@ function factsOf(
       const format = numericFormat(numberFormat, value.value);
       if (format === undefined) return { value: value.value };
       if (format.elapsed) {
-        const seconds = value.value * 86400;
+        /**
+         * Guard: a serial is a fraction of a day, so one second is stored as
+         * 1/86400 and multiplies back to 0.9999999999999997. Excel resolves
+         * time to the millisecond, so the product is rounded to it.
+         */
+        const seconds = Math.round(value.value * 86_400_000) / 1000;
         if (!Number.isFinite(seconds))
           throw new SezzleeExcelError(
             "numeric_overflow",
