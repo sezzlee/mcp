@@ -96,7 +96,7 @@ export const toolDefinitions = {
   },
   read_sheet: {
     description:
-      "Read a rectangular cell range as a compact grid: hoisted column headers plus row arrays. Pass nextCursor back to continue a truncated read.",
+      "Read a rectangular cell range as a compact grid: hoisted column headers plus row arrays. Pass nextCursor back to continue a truncated read. A date and time stored without a zone is returned without one, as a local wall clock; a written offset is kept.",
     inputSchema: z.object({
       filePath,
       sheetName,
@@ -263,7 +263,7 @@ export const toolDefinitions = {
 
   aggregate_sheet: {
     description:
-      "Answer questions with filtered totals, conditional metrics, rankings, several breakdowns or a pivot in one call. Use this instead of paging rows for a calculation. Known files and columns need no prior discovery call. Columns are named by header text or by A1 letter.",
+      "Answer questions with filtered totals, conditional metrics, rankings, several breakdowns or a pivot in one call. Use this instead of paging rows for a calculation. Known files and columns need no prior discovery call. Columns are named by header text or by A1 letter. A date and time stored without a zone is returned without one, as a local wall clock.",
     inputSchema: z.object({
       filePath,
       sheetName,

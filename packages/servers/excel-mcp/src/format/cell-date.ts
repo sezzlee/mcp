@@ -1,5 +1,6 @@
 import { asciiLower, asciiUpper } from "@sezzlee/file-core";
 import { boundedMemo } from "../grid/memo.js";
+import { offsetText } from "../grid/date-text.js";
 
 const elapsedTime = /^\[(?:h+|m+|s+)\]$/i;
 const numberRun = "0#?.,E+-%";
@@ -204,16 +205,23 @@ function hasTimeToken(numberFormat: string | undefined): boolean {
 
 /**
  * Renders a date cell for the tool surface: the calendar day alone when the
- * instant is midnight and the format shows no time, else the full ISO 8601
- * instant.
+ * wall clock is midnight and the format shows no time, else the zoneless
+ * `yyyy-MM-ddTHH:mm:ss.SSS` Excel stores. A cell written with an offset keeps
+ * its own wall clock followed by that offset.
+ * @param value the wall clock read as UTC, or the instant when `offsetMinutes` is given
  */
 export function formatDate(
   value: Date,
   numberFormat: string | undefined,
+  offsetMinutes?: number,
 ): string {
+  if (offsetMinutes !== undefined) {
+    const wall = new Date(value.getTime() + offsetMinutes * 60_000);
+    return `${wall.toISOString().slice(0, 23)}${offsetText(offsetMinutes)}`;
+  }
   const iso = value.toISOString();
   if (iso.endsWith("T00:00:00.000Z") && !hasTimeToken(numberFormat)) {
     return iso.slice(0, 10);
   }
-  return iso;
+  return iso.slice(0, 23);
 }

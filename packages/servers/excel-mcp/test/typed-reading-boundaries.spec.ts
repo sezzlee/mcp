@@ -170,6 +170,26 @@ beforeAll(async () => {
       "Date\n01.15.2026\n02.03.2026",
     ),
     writeFile(join(directory, "points.csv"), 'Amount\n1.234\n"1,234.50"'),
+    writeFile(
+      join(directory, "slash-split-dotted.csv"),
+      "Date\n01/02/2026\n25.03.2026",
+    ),
+    writeFile(
+      join(directory, "us-moved-dotted.csv"),
+      "Date\n04/13/2026\n03/04/2026\n05.03.2026",
+    ),
+    writeFile(
+      join(directory, "us-kept-dotted.csv"),
+      "Date\n04/13/2026\n03.03.2026",
+    ),
+    writeFile(
+      join(directory, "zoneless-times.csv"),
+      "Created;Amount\n30.12.2019 08:15;1\n31.12.2019 23:40;2",
+    ),
+    writeFile(
+      join(directory, "offset-times.csv"),
+      "Created,Amount\n2019-12-31T23:40:00+03:00,1\n2019-12-31T20:10:00Z,2",
+    ),
   ]);
 });
 
@@ -386,6 +406,97 @@ describe("day and month order does not follow the caller's locale", () => {
         ),
       ]),
     );
+  });
+});
+
+describe("dotted dates beside inferred slash dates", () => {
+  it.each([undefined, "tr-TR"])(
+    "keeps a day-first dotted date readable beside an unresolved slash date under locale %s",
+    async (locale) => {
+      const result = body(
+        await handlers.aggregate_sheet({
+          filePath: "slash-split-dotted.csv",
+          ...(locale === undefined ? {} : { locale }),
+          groupBy: [{ column: "Date", by: "month" }],
+          metrics: [{ fn: "count" }],
+        }),
+      );
+      expect(result["rows"]).toEqual([["2026-03", 1]]);
+      expect(result["ungroupedRows"]).toBe(1);
+    },
+  );
+
+  it("keeps a month-first order out of readAs when it would move a dotted date", async () => {
+    const result = body(
+      await handlers.aggregate_sheet({
+        filePath: "us-moved-dotted.csv",
+        groupBy: [{ column: "Date", by: "month" }],
+        metrics: [{ fn: "count" }],
+      }),
+    );
+    expect(result["rows"]).toEqual([
+      ["2026-03", 2],
+      ["2026-04", 1],
+    ]);
+    expect(result["readAs"] ?? {}).not.toHaveProperty("A");
+    expect(result["warnings"]).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("dotted dates such as '05.03.2026'"),
+      ]),
+    );
+  });
+
+  it("still reports a month-first order that leaves every dotted date in place", async () => {
+    const result = body(
+      await handlers.aggregate_sheet({
+        filePath: "us-kept-dotted.csv",
+        groupBy: [{ column: "Date", by: "month" }],
+        metrics: [{ fn: "count" }],
+      }),
+    );
+    expect(result["rows"]).toEqual([
+      ["2026-03", 1],
+      ["2026-04", 1],
+    ]);
+    expect(result["readAs"]).toEqual({ A: [{ type: "date", order: "mdy" }] });
+  });
+});
+
+describe("date and time values without a zone", () => {
+  it("returns the wall clock without a UTC designator", async () => {
+    const result = body(
+      await handlers.aggregate_sheet({
+        filePath: "zoneless-times.csv",
+        metrics: [{ fn: "max", column: "Created" }],
+        columns: [{ column: "Created", type: "date" }],
+      }),
+    );
+    expect(result["rows"]).toEqual([["2019-12-31T23:40:00.000"]]);
+  });
+
+  it("groups a value written with an offset by its UTC hour, as documented", async () => {
+    const result = body(
+      await handlers.aggregate_sheet({
+        filePath: "offset-times.csv",
+        groupBy: [{ column: "Created", by: "hour" }],
+        metrics: [{ fn: "sum", column: "Amount" }],
+      }),
+    );
+    expect(result["rows"]).toEqual([[20, 3]]);
+  });
+
+  it("keeps the offset a value was written with", async () => {
+    const result = body(
+      await handlers.read_sheet({
+        filePath: "offset-times.csv",
+        columns: [{ column: "Created", type: "date" }],
+        includeTyped: true,
+      }),
+    );
+    expect(result["typedValues"]).toEqual([
+      ["2019-12-31T23:40:00.000+03:00", "1"],
+      ["2019-12-31T20:10:00.000Z", "2"],
+    ]);
   });
 });
 

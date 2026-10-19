@@ -56,6 +56,12 @@ A digit run with a leading zero or more than 15 digits is an identifier and is n
 
 ## Grouped analysis
 
+A date is returned as `yyyy-MM-dd`. A date and time is returned as `yyyy-MM-ddTHH:mm:ss.SSS` with no
+zone when the source stores none, which is every Excel date cell and every CSV value written
+without an offset: it is a local wall clock, and a `Z` would claim UTC. A value written with an
+offset keeps its wall clock and offset (`2019-12-31T23:40:00.000+03:00`) and is ordered by its
+instant.
+
 `groupBy` accepts a column name or a closed transformation. Calendar groups use UTC after applying
 an explicit timestamp offset. Month and quarter keys include their year, weeks use the ISO
 week-year, weekdays run from Monday 1 to Sunday 7, and hours run from 0 to 23. A plain column
@@ -105,7 +111,9 @@ or long digit identifiers beyond the sampled prefix are still excluded and count
 number column supplied by the caller keeps the earlier default `identifiers: "read"`.
 
 A recommended date plan is checked against every sampled date using the explicit reader. When
-an order-free plan cannot preserve the sample, a fixed numeric pattern can pin its separators.
+an order-free plan cannot preserve the sample, a day-first column takes `order: "dmy"`, which
+reads dotted dates day first as well. A month-first column is pinned by a fixed numeric pattern
+instead, because an explicit order would also reorder dotted dates after the sample.
 If one explicit plan cannot represent the observed mixture, the recommendation keeps text and
 adds a warning. A later value outside a fixed pattern remains raw and is counted as unreadable
 in typed output. Date specifications explicitly supplied by the caller retain their format/order.
@@ -150,7 +158,9 @@ A date column accepts a fixed `format`, an explicit `order`, or unambiguous date
 locale supplies Gregorian month names, including format and standalone forms, but never the
 day/month order: inferred slash and dash dates take it from the column's values, while inferred
 dotted dates use a day-first convention under every locale. A dotted value that can only be read
-month first makes the inference ambiguous. An explicit date `order` also applies to dotted dates;
+month first makes the inference ambiguous; slash dates that read both ways leave dotted dates
+day first. An inferred month-first order is left out of `readAs` when the column also holds a
+dotted date it would move, with a warning. An explicit date `order` also applies to dotted dates;
 `format` pins the separators as well. A locale names the file's language, not the reader's; when
 its separators read a value as a different number than the column's own marks, a warning names
 the value. Non-Gregorian calendar

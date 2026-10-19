@@ -731,6 +731,58 @@ describe("bounded column profiling", () => {
     },
   );
 
+  it.each([
+    {
+      name: "day-first timestamps",
+      filePath: "date-recipe-dmy-clock.csv",
+      rows: ["25/12/2026 10:30,10", "01/02/2026 09:00,20"],
+      months: [
+        ["2026-02", 20],
+        ["2026-12", 10],
+      ],
+    },
+    {
+      name: "day-first slash and dotted dates",
+      filePath: "date-recipe-dmy-dotted.csv",
+      rows: ["25/12/2026,10", "05.03.2026,20", "01/02/2026,30"],
+      months: [
+        ["2026-02", 30],
+        ["2026-03", 20],
+        ["2026-12", 10],
+      ],
+    },
+  ])(
+    "reuses a day-first order for $name with an ambiguous value",
+    async ({ filePath, rows, months }) => {
+      await writeFile(
+        join(directory, filePath),
+        `Date,Amount\n${rows.join("\n")}`,
+      );
+      const profile = body(await handlers.profile_sheet({ filePath }));
+      expect(profile["columns"]).toEqual(
+        expect.arrayContaining([{ column: "A", type: "date", order: "dmy" }]),
+      );
+      expect(profile["profiles"]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            letter: "A",
+            readAs: [{ type: "date", order: "dmy" }],
+          }),
+        ]),
+      );
+      const request = toolDefinitions.aggregate_sheet.inputSchema.parse({
+        filePath,
+        columns: profile["columns"],
+        columnMode: profile["columnMode"],
+        groupBy: [{ column: "A", by: "month" }],
+        metrics: [{ fn: "sum", column: "B" }],
+      });
+      expect(body(await handlers.aggregate_sheet(request))["rows"]).toEqual(
+        months,
+      );
+    },
+  );
+
   it("distinguishes clocks from elapsed duration evidence", async () => {
     const profile = body(
       await handlers.profile_sheet({ filePath: "temporal.csv" }),

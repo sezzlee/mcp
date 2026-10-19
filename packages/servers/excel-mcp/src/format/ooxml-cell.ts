@@ -10,7 +10,15 @@ import {
 } from "./cell-date.js";
 import { numericFormat } from "./number-format.js";
 
-const zoneSuffix = /(?:[Zz]|[+-]\d{2}:?\d{2})$/;
+const zoneSuffix = /(?:[Zz]|([+-])(\d{2}):?(\d{2}))$/;
+
+function offsetOfSuffix(text: string): number | undefined {
+  const match = zoneSuffix.exec(text);
+  if (match === null) return undefined;
+  if (match[1] === undefined) return 0;
+  const minutes = Number(match[2]) * 60 + Number(match[3]);
+  return match[1] === "-" ? -minutes : minutes;
+}
 
 function factsOf(
   value: RawValue,
@@ -31,12 +39,13 @@ function factsOf(
        * and `Date` would read it in the server's own zone; it is read as UTC so
        * the same file gives the same answer on every host.
        */
+      const offset = offsetOfSuffix(value.value);
       const instant = new Date(
-        zoneSuffix.test(value.value) ? value.value : `${value.value}Z`,
+        offset === undefined ? `${value.value}Z` : value.value,
       );
       return Number.isNaN(instant.getTime())
         ? { value: value.value }
-        : { value: formatDate(instant, numberFormat) };
+        : { value: formatDate(instant, numberFormat, offset) };
     }
     case "number": {
       if (!Number.isFinite(value.value)) {

@@ -73,20 +73,20 @@ describe("scalars", () => {
     expect(normalizeCell(cell, values).value).toBe("2026-01-15");
   });
 
-  it("renders a timed date as a full instant", () => {
+  it("renders a timed date as a zoneless wall clock", () => {
     const cell = snapshot({
       value: { kind: "number", value: january15At0930 },
       numberFormat: "yyyy-mm-dd hh:mm",
     });
-    expect(normalizeCell(cell, values).value).toBe("2026-01-15T09:30:00.000Z");
+    expect(normalizeCell(cell, values).value).toBe("2026-01-15T09:30:00.000");
   });
 
-  it("keeps the instant when the format carries a time token", () => {
+  it("keeps the time when the format carries a time token", () => {
     const cell = snapshot({
       value: { kind: "number", value: january15 },
       numberFormat: "yyyy-mm-dd hh:mm",
     });
-    expect(normalizeCell(cell, values).value).toBe("2026-01-15T00:00:00.000Z");
+    expect(normalizeCell(cell, values).value).toBe("2026-01-15T00:00:00.000");
   });
 
   it("refuses a non-finite number", () => {
@@ -138,13 +138,24 @@ describe("an ISO date cell without a zone", () => {
    * Guard: on a UTC host the zone-less reading and the UTC reading agree, so
    * the host zone is moved off UTC to make the difference observable.
    */
-  it("reads as UTC whatever the host zone", () => {
+  it("reads the same wall clock whatever the host zone", () => {
     process.env.TZ = "Asia/Tokyo";
     const cell = snapshot({
       value: { kind: "date", value: "2026-01-15T09:30:00" },
       numberFormat: "yyyy-mm-dd hh:mm",
     });
-    expect(normalizeCell(cell, values).value).toBe("2026-01-15T09:30:00.000Z");
+    expect(normalizeCell(cell, values).value).toBe("2026-01-15T09:30:00.000");
+  });
+
+  it("keeps the wall clock and offset a date cell was written with", () => {
+    process.env.TZ = "Asia/Tokyo";
+    const cell = snapshot({
+      value: { kind: "date", value: "2026-01-15T09:30:00+03:00" },
+      numberFormat: "yyyy-mm-dd hh:mm",
+    });
+    expect(normalizeCell(cell, values).value).toBe(
+      "2026-01-15T09:30:00.000+03:00",
+    );
   });
 });
 

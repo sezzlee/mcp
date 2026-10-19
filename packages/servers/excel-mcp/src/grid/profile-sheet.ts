@@ -337,6 +337,15 @@ function reusableDate(
   if (decision === undefined || !("order" in decision)) return undefined;
   const order = decision.order;
   if (order === undefined) return undefined;
+  /**
+   * Guard: an explicit order also applies to dotted dates. Day first agrees
+   * with the dotted convention, so a dotted value past the sample keeps its
+   * meaning; month first would move it, so that order is pinned by a format.
+   */
+  if (order === "dmy") {
+    const ordered = { ...base, order };
+    if (equivalent(ordered)) return ordered;
+  }
   const tried = new Set<string>();
   for (const raw of sample.values) {
     if (typeof raw !== "string") continue;

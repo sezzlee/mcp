@@ -198,7 +198,7 @@ describe("explicit Gregorian month vocabularies", () => {
     ).toEqual({ kind: "date", iso: "2026-02-13" });
     expect(
       format("yyyy-MM-dd a h:mm", "ja-JP").read("2026-02-13 午後 1:30"),
-    ).toEqual({ kind: "date", iso: "2026-02-13T13:30:00.000Z" });
+    ).toEqual({ kind: "date", iso: "2026-02-13T13:30:00.000" });
   });
 
   it("leaves ambiguous slash and dash dates undecided and reads dotted dates day first", () => {

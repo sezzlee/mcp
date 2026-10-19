@@ -3,7 +3,7 @@ import { limits } from "../../platform/limits.js";
 import { parseCellRef } from "../../grid/range.js";
 import { namespaces, type PartScan, type XmlVisitor } from "./xml.js";
 
-export type ValidationFormula = string | number | Date;
+export type ValidationFormula = string | number;
 
 export interface OoxmlValidationRule {
   readonly ranges: readonly string[];
@@ -56,6 +56,17 @@ function serialToDate(serial: number, date1904: boolean): Date {
   );
 }
 
+/**
+ * A date bound is an Excel serial with no zone: the day alone at midnight,
+ * else the zoneless wall clock, never an instant with `Z`.
+ */
+function dateFormula(text: string, date1904: boolean): ValidationFormula {
+  const value = serialToDate(Number.parseFloat(text), date1904);
+  if (Number.isNaN(value.getTime())) return text;
+  const iso = value.toISOString();
+  return iso.endsWith("T00:00:00.000Z") ? iso.slice(0, 10) : iso.slice(0, 23);
+}
+
 /** ECMA-376 leaves `operator` meaningless for these types, so none is reported. */
 const operatorlessTypes = new Set(["any", "list", "custom"]);
 
@@ -71,7 +82,7 @@ function coerce(
     case "decimal":
       return Number.parseFloat(text);
     case "date":
-      return serialToDate(Number.parseFloat(text), date1904);
+      return dateFormula(text, date1904);
     default:
       return text;
   }
@@ -109,9 +120,7 @@ function rangesOf(sqref: string | undefined): string[] {
 function identityOf(draft: Draft): string {
   return JSON.stringify([
     draft.type,
-    draft.formulae.map((formula) =>
-      formula instanceof Date ? formula.toISOString() : formula,
-    ),
+    draft.formulae,
     Object.entries(draft.attributes).sort(([left], [right]) =>
       left < right ? -1 : left > right ? 1 : 0,
     ),

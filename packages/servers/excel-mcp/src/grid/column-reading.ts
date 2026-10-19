@@ -13,6 +13,7 @@ import {
 import {
   DateFormat,
   DateLocale,
+  isDottedDate,
   orderedPatternOf,
   readDateText,
   sniffDateOrder,
@@ -59,7 +60,11 @@ type NumberPlan =
   | { readonly kind: "off" };
 
 type DatePlan =
-  | { readonly kind: "order"; readonly order: DateOrder }
+  | {
+      readonly kind: "order";
+      readonly order: DateOrder;
+      readonly dottedDayFirst?: string;
+    }
   | { readonly kind: "unordered" }
   | { readonly kind: "format"; readonly format: DateFormat }
   | {
@@ -67,10 +72,12 @@ type DatePlan =
       readonly locale: DateLocale;
       readonly order?: DateOrder;
       readonly orderedDots?: boolean;
+      readonly dottedDayFirst?: string;
     }
   | {
       readonly kind: "ambiguous";
       readonly example: string;
+      readonly orderedDots: boolean;
       readonly locale?: DateLocale;
     }
   | { readonly kind: "off" };
@@ -436,6 +443,7 @@ function localeDatePlan(
         locale,
         order: decision.order,
         orderedDots: false,
+        ...dottedDayFirstOf(texts, decision.order),
       };
     case "ambiguous":
       return { ...decision, locale };
@@ -493,11 +501,41 @@ function numberPlanOf(texts: readonly string[]): NumberPlan {
   }
 }
 
+/**
+ * Guard: an inferred month-first order leaves dotted dates day first, but the
+ * same order passed back as an explicit `columns` entry applies to dotted
+ * dates too and moves them. The example keeps that order out of `readAs`.
+ */
+function dottedDayFirstOf(
+  texts: readonly string[],
+  order: DateOrder,
+): { readonly dottedDayFirst?: string } {
+  const example =
+    order === "mdy"
+      ? texts.find((text) => {
+          if (!isDottedDate(text)) return false;
+          const inferred = readDateText(text, order);
+          const explicit = readDateText(text, order, true);
+          return (
+            inferred.kind !== explicit.kind ||
+            (inferred.kind === "date" &&
+              explicit.kind === "date" &&
+              inferred.iso !== explicit.iso)
+          );
+        })
+      : undefined;
+  return example === undefined ? {} : { dottedDayFirst: example };
+}
+
 function datePlanOf(texts: readonly string[]): DatePlan {
   const decision = sniffDateOrder(texts);
   switch (decision.kind) {
     case "decided":
-      return { kind: "order", order: decision.order };
+      return {
+        kind: "order",
+        order: decision.order,
+        ...dottedDayFirstOf(texts, decision.order),
+      };
     case "unordered":
       return decision;
     case "ambiguous":
@@ -567,8 +605,8 @@ function dateText(text: string, plan: DatePlan): DateReading {
     case "ambiguous": {
       const readings = (["dmy", "mdy"] as const).map((order) =>
         plan.locale === undefined
-          ? readDateText(text, order, true)
-          : plan.locale.read(text, order),
+          ? readDateText(text, order, plan.orderedDots)
+          : plan.locale.read(text, order, plan.orderedDots),
       );
       return (
         agreed(
@@ -768,12 +806,14 @@ export function readAsOf(reading: ColumnReading): readonly ReadAs[] {
   if (reading.target === "text") out.push({ type: "text" });
   switch (reading.date.kind) {
     case "order":
-      out.push({ type: "date", order: reading.date.order });
+      if (reading.date.dottedDayFirst === undefined)
+        out.push({ type: "date", order: reading.date.order });
       break;
     case "unordered":
       out.push({ type: "date" });
       break;
     case "locale":
+      if (reading.date.dottedDayFirst !== undefined) break;
       out.push({
         type: "date",
         ...(reading.date.locale.locale === undefined
@@ -839,5 +879,12 @@ export function readingWarnings(
       `${letter}: dates such as '${date.example}' read either day first or month first, so they were not read as dates. Pass columns ${options}.`,
     );
   }
+  if (
+    (date.kind === "order" || date.kind === "locale") &&
+    date.dottedDayFirst !== undefined
+  )
+    warnings.push(
+      `${letter}: slash and dash dates were read month first and dotted dates such as '${date.dottedDayFirst}' day first. An explicit order also applies to dotted dates, so readAs omits it; reuse the columns recipe from profile_sheet or pass a format to keep both readings.`,
+    );
   return warnings;
 }

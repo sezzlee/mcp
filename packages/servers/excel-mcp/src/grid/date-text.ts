@@ -9,7 +9,11 @@ export type DateReading =
 export type OrderDecision =
   | { readonly kind: "decided"; readonly order: DateOrder }
   | { readonly kind: "unordered" }
-  | { readonly kind: "ambiguous"; readonly example: string }
+  | {
+      readonly kind: "ambiguous";
+      readonly example: string;
+      readonly orderedDots: boolean;
+    }
   | { readonly kind: "none" };
 
 interface Clock {
@@ -470,9 +474,11 @@ function daysIn(year: number, month: number): number {
 }
 
 /**
- * Guard: a value without a zone is a wall-clock time and is returned as UTC,
- * as the OOXML reader returns zoneless `t="d"` cells, so the same file reads
- * the same on every host.
+ * Guard: a value without a zone is a wall-clock time and is written without
+ * one (`2019-12-31T23:40:00.000`). A `Z` there would claim UTC, and a reader
+ * converting it to a local zone would move the time, even across a year. A
+ * value written with an offset keeps its wall clock and that offset. The wall
+ * clock is computed through `Date.UTC` only so every host reads it the same.
  */
 function canonicalOf(civil: Civil): string | undefined {
   const { year, month, day, clock, offsetMinutes } = civil;
@@ -485,7 +491,7 @@ function canonicalOf(civil: Civil): string | undefined {
     return undefined;
   if (clock === undefined && offsetMinutes === undefined)
     return `${pad(year, 4)}-${pad(month, 2)}-${pad(day, 2)}`;
-  const instant =
+  const wall = new Date(
     Date.UTC(
       year,
       month - 1,
@@ -494,10 +500,55 @@ function canonicalOf(civil: Civil): string | undefined {
       clock?.minute ?? 0,
       clock?.second ?? 0,
       clock?.millisecond ?? 0,
-    ) -
-    (offsetMinutes ?? 0) * 60_000;
-  const iso = new Date(instant).toISOString();
-  return /^\d{4}-/.test(iso) ? iso : undefined;
+    ),
+  ).toISOString();
+  if (!/^\d{4}-/.test(wall)) return undefined;
+  const local = wall.slice(0, 23);
+  return offsetMinutes === undefined
+    ? local
+    : `${local}${offsetText(offsetMinutes)}`;
+}
+
+/** Writes a UTC offset in minutes as `Z` or `±hh:mm`. */
+export function offsetText(minutes: number): string {
+  if (minutes === 0) return "Z";
+  const size = Math.abs(minutes);
+  return `${minutes < 0 ? "-" : "+"}${pad(Math.floor(size / 60), 2)}:${pad(size % 60, 2)}`;
+}
+
+const canonicalForm =
+  /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}):(\d{2})\.(\d{3})(Z|[+-]\d{2}:\d{2})?)?$/;
+
+/**
+ * Whether text has the exact shape the reader writes dates in: `yyyy-MM-dd`,
+ * a zoneless `yyyy-MM-ddTHH:mm:ss.SSS`, or that followed by `Z` or `±hh:mm`.
+ */
+export function isCanonicalDate(text: string): boolean {
+  return canonicalForm.test(text);
+}
+
+function wallClockOf(text: string): number | undefined {
+  const match = canonicalForm.exec(text);
+  if (match === null) return undefined;
+  return Date.UTC(
+    numberAt(match, 1),
+    numberAt(match, 2) - 1,
+    numberAt(match, 3),
+    Number(match[4] ?? "0"),
+    Number(match[5] ?? "0"),
+    Number(match[6] ?? "0"),
+    Number(match[7] ?? "0"),
+  );
+}
+
+/**
+ * The ordering key of a canonical date: the instant for a value with an
+ * offset, and the wall clock read as UTC for a zoneless one.
+ */
+export function orderOfDate(text: string): number | undefined {
+  const wall = wallClockOf(text);
+  if (wall === undefined) return undefined;
+  return wall - (offsetOf(canonicalForm.exec(text)?.[8]) ?? 0) * 60_000;
 }
 
 function civilOf(parsed: Parsed, order: DateOrder): Civil {
@@ -605,7 +656,9 @@ function readsMonthFirstOnly(normalized: string): boolean {
  *
  * Guard: when both orders read every value and some value differently
  * (`01/02/2023`) the column is ambiguous; a guess there moves rows between
- * months without a trace.
+ * months without a trace. `orderedDots` is true only when a dotted value is
+ * the cause: a slash split alone leaves dotted dates day first, so
+ * `25.03.2023` stays readable beside `01/02/2023`.
  */
 export function sniffDateOrder(values: Iterable<string>): OrderDecision {
   const support: Record<DateOrder, number> = { dmy: 0, mdy: 0 };
@@ -632,13 +685,13 @@ export function sniffDateOrder(values: Iterable<string>): OrderDecision {
       split = value;
   }
   if (monthFirstDots !== undefined)
-    return { kind: "ambiguous", example: monthFirstDots };
+    return { kind: "ambiguous", example: monthFirstDots, orderedDots: true };
   if (support.dmy === 0 && support.mdy === 0) return { kind: "none" };
   if (support.dmy > support.mdy) return { kind: "decided", order: "dmy" };
   if (support.mdy > support.dmy) return { kind: "decided", order: "mdy" };
   return split === undefined
     ? { kind: "unordered" }
-    : { kind: "ambiguous", example: split };
+    : { kind: "ambiguous", example: split, orderedDots: false };
 }
 
 type Token =
@@ -891,6 +944,11 @@ export class DateFormat {
     });
     return iso === undefined ? { kind: "text" } : { kind: "date", iso };
   }
+}
+
+export function isDottedDate(text: string): boolean {
+  const normalized = normalize(text);
+  return normalized !== undefined && dottedForm.test(normalized);
 }
 
 /**

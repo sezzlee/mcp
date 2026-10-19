@@ -2,7 +2,7 @@ import { SezzleeExcelError } from "../platform/errors.js";
 import { limits } from "../platform/limits.js";
 import { isCellDuration, type CellScalar } from "./cell-value.js";
 import { resolveColumn, type ColumnIndex, type ColumnMode } from "./columns.js";
-import { readDateText } from "./date-text.js";
+import { orderOfDate, readDateText } from "./date-text.js";
 import { classify, type ReadingNeed, type TypedCell } from "./predicate.js";
 import { columnToLetters } from "./range.js";
 
@@ -189,8 +189,15 @@ function valueOf(value: CellScalar, order: CellScalar = value): GroupValue {
   return { kind: "value", value, order };
 }
 
+/**
+ * Guard: calendar parts come from the UTC instant, as documented: a zoneless
+ * value is its own wall clock, and one written with an offset falls in the
+ * UTC bucket its instant belongs to. The text's leading characters are the
+ * written wall clock, so they are never sliced into a key.
+ */
 function datePart(iso: string, by: DatePart): CellScalar {
-  const date = new Date(iso.length === 10 ? `${iso}T00:00:00.000Z` : iso);
+  const date = new Date(orderOfDate(iso) ?? Number.NaN);
+  const utc = date.toISOString();
   const year = date.getUTCFullYear();
   const month = date.getUTCMonth() + 1;
   const weekday = date.getUTCDay() || 7;
@@ -200,9 +207,9 @@ function datePart(iso: string, by: DatePart): CellScalar {
     case "quarter":
       return `${year}-Q${Math.ceil(month / 3)}`;
     case "month":
-      return iso.slice(0, 7);
+      return utc.slice(0, 7);
     case "day":
-      return iso.slice(0, 10);
+      return utc.slice(0, 10);
     case "weekday":
       return weekday;
     case "hour":

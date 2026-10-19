@@ -145,3 +145,38 @@ describe("a header row that carries no text", () => {
     }
   });
 });
+
+describe("a header row that holds a single title cell", () => {
+  function recoveryOf(cells: readonly (string | null)[]): string {
+    try {
+      resolveColumn(
+        buildColumnIndex("Sales!A1:H10", bounds, 1, cells),
+        "Amount",
+      );
+    } catch (error) {
+      return (error as SezzleeExcelError).recovery ?? "";
+    }
+    return "";
+  }
+
+  it("offers headerRow when the title sits in the first column", () => {
+    expect(
+      recoveryOf([
+        "2026 Sales Report",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+      ]),
+    ).toContain("Pass headerRow");
+  });
+
+  it("does not offer headerRow when the one label sits further right", () => {
+    expect(
+      recoveryOf([null, null, "Region", null, null, null, null, null]),
+    ).not.toContain("Pass headerRow");
+  });
+});
