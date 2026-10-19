@@ -25,7 +25,10 @@ const products = {
   "excel-mcp": {
     bins: { "sezzlee-excel": "packages/servers/excel-mcp/dist/cli.js" },
     folder: "sezzlee-sheets",
-    samples: { default: ["sales.xlsx", "report.xlsx"] },
+    samples: {
+      default: ["sales.xlsx", "report.xlsx"],
+      "recipes/08-read-pictures-and-spilled-results.md": ["pictures.xlsx"],
+    },
     preamble: `excel() {
   npx -y @modelcontextprotocol/inspector --cli sezzlee-excel ~/sezzlee-sheets \\
     --method tools/call --tool-name "$@" | jq '.content[0].text | fromjson'

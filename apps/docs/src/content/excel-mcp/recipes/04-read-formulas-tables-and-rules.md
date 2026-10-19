@@ -18,7 +18,6 @@ excel describe_workbook --tool-arg filePath=sales.xlsx \
 ```
 
 ```json
-npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
 {"name":"Orders","tableCount":1,"dataValidationRuleCount":1,"conditionalFormatRuleCount":1,"mergeCount":0,"imageCount":0,"chartCount":0}
 {"name":"Targets","tableCount":0,"dataValidationRuleCount":0,"conditionalFormatRuleCount":0,"mergeCount":0,"imageCount":0,"chartCount":0}
 ```
@@ -31,7 +30,6 @@ excel read_sheet --tool-arg filePath=sales.xlsx range=F1:H3 valueMode=both \
 ```
 
 ```json
-npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
 {
   "values": [
     [
@@ -80,7 +78,6 @@ excel get_tables --tool-arg filePath=sales.xlsx \
 ```
 
 ```json
-npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
 {"name":"Orders","ref":"A1:H13","headerRow":true,"totalsRow":false}
 ["A=Order","B=Date","C=Region","D=Rep","E=Product","F=Units","G=Unit price","H=Total"]
 ```
@@ -97,7 +94,6 @@ excel aggregate_sheet --tool-arg filePath=sales.xlsx table=Orders visibleOnly=tr
 ```
 
 ```text
-npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
 {"table":{"name":"Orders","ref":"A1:H13","dataRange":"A2:H13","totalsRowExcluded":false},"rows":[[12]],"visibility":{"basis":"savedHiddenRows","hiddenRowsSkipped":0,"filterCriteriaReevaluated":false,"autoFilterRef":"A1:H13"}}
 ```
 
@@ -115,7 +111,6 @@ excel get_data_validations --tool-arg filePath=sales.xlsx | jq -c '.rules[]'
 ```
 
 ```json
-npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
 {"ranges":["C2:C13"],"rangesTruncated":false,"type":"list","formulae":["\"North,South,East,West\""]}
 ```
 
@@ -124,7 +119,6 @@ excel get_conditional_formats --tool-arg filePath=sales.xlsx | jq -c '.rules[]'
 ```
 
 ```json
-npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
 {"ranges":["H2:H13"],"rangesTruncated":false,"type":"cellIs","priority":1,"operator":"greaterThan","formulae":["800"]}
 ```
 
@@ -138,7 +132,6 @@ excel get_merged_ranges --tool-arg filePath=report.xlsx | jq -c '.merges'
 ```
 
 ```json
-npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
 ["A1:H1"]
 ```
 
@@ -151,7 +144,6 @@ excel get_images --tool-arg filePath=sales.xlsx kind=pivotTable
 ```
 
 ```text
-npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
 {"error":{"code":"tool_is_error","message":"Tool 'get_images' returned isError:true."}}
 {
   "error": "unsupported_object_kind",

@@ -63,6 +63,8 @@ The amount excludes N/A, the ratio uses valid booleans, and the duration total i
 
 Locale-specific digits and grouping require the corresponding column definition. A locale is a
 formatting convention, not an instruction to guess which country produced an ambiguous number.
+Name the locale the file was written in, never the language of the person asking, and omit it when
+you do not know: the column's own values then decide.
 
 ```sh
 printf 'Amount\n"١٬٢٣٤٫٥٠"\n' > ~/sezzlee-sheets/arabic.csv
@@ -76,9 +78,45 @@ excel aggregate_sheet --tool-arg filePath=arabic.csv delimiter=comma compact=tru
 ```
 
 `hi-IN` accepts Indian 3+2 grouping; `fr-FR` supplies French Gregorian month names for a format
-such as `d MMMM yyyy`. Date `format` and `order` are mutually exclusive. Without either, explicit
-date reading accepts only unambiguous dates. Unsupported locales, numbering systems and
-non-Gregorian calendar requests are refused. See the [tool reference](/docs/excel-mcp/tools).
+such as `d MMMM yyyy`. Unsupported locales, numbering systems and non-Gregorian calendar requests
+are refused. When a locale's separators read a value as a different number than the column's own
+marks do, a warning names that value. See the [tool reference](/docs/excel-mcp/tools).
+
+## Let the column order its dates
+
+A locale never decides whether `03/04/2026` is March or April. A US export read by someone who
+names `tr-TR` still takes its order from its own values: `04/13/2026` can only be month first.
+
+```sh
+printf 'Date,Amount\n04/13/2026,10\n03/04/2026,20\n' > ~/sezzlee-sheets/us-dates.csv
+excel aggregate_sheet --tool-arg filePath=us-dates.csv locale=tr-TR \
+  'groupBy=[{"column":"Date","by":"month"}]' 'metrics=[{"fn":"sum","column":"Amount"}]' \
+  | jq -c '.rows[]'
+```
+
+```text
+["2026-03",20]
+["2026-04",10]
+```
+
+When no value proves the order, the dates are not read and a warning names the `columns` entries
+that settle it.
+
+```sh
+printf 'Date,Amount\n03/04/2026,10\n05/06/2026,20\n' > ~/sezzlee-sheets/early-dates.csv
+excel aggregate_sheet --tool-arg filePath=early-dates.csv locale=tr-TR \
+  'groupBy=[{"column":"Date","by":"month"}]' 'metrics=[{"fn":"sum","column":"Amount"}]' \
+  | jq -c '{rows,ungroupedRows,warnings}'
+```
+
+```text
+{"rows":[],"ungroupedRows":2,"warnings":["A: dates such as '03/04/2026' read either day first or month first, so they were not read as dates. Pass columns [{\"column\":\"A\",\"type\":\"date\",\"format\":\"dd/MM/yyyy\"}] or [{\"column\":\"A\",\"type\":\"date\",\"format\":\"MM/dd/yyyy\"}].","Grouping Date (month): 2 cells in A could not be read for this key, such as '03/04/2026', '05/06/2026'; these rows are counted in ungroupedRows for each affected grouping."]}
+```
+
+A dotted date is read day first under any locale, because no locale writes numeric dates month
+first with dots. A dotted column holding a value only month first can read, such as `01.15.2026`,
+is reported the same way. Date `format` and `order` are mutually exclusive; an explicit `order`
+also applies to dotted dates.
 
 ## Override a separator declaration
 

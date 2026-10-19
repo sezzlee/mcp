@@ -132,6 +132,7 @@
           "maxErrorCodeChars": "Maximum named native-error code length; longer codes are counted in other",
           "maxConditions": "Conditions in one `where` filter",
           "maxColumnSpecs": "Shared column specifications accepted by profile_sheet, read_sheet, find_in_sheet and aggregate_sheet",
+          "maxCursorChars": "Characters in a `read_sheet` cursor, which carries the call's column specifications; a page whose next cursor would be longer is refused",
           "maxInValues": "Values in one `in` condition",
           "headerScanRows": "Rows at the top of the range that `headerScan` examines"
         }
