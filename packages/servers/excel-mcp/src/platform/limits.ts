@@ -47,6 +47,9 @@ export const limits = {
   maxProfileCells: 64_000,
   maxProfileDistinct: 1_000,
   maxMetrics: 8,
+  maxErrorCodes: 32,
+  maxErrorExamples: 3,
+  maxErrorCodeChars: 128,
   maxInValues: 64,
   guidanceRowThreshold: 5_000,
 } as const;

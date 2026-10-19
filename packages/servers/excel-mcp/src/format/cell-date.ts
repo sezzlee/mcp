@@ -1,6 +1,6 @@
 import { asciiLower, asciiUpper } from "@sezzlee/file-core";
 
-const elapsedTime = /\[[HhMmSsชนท]*\]/;
+const elapsedTime = /^\[(?:h+|m+|s+)\]$/i;
 const numberRun = "0#?.,E+-%";
 const digits = "0123456789";
 

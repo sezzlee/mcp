@@ -63,6 +63,16 @@ const unitTokens: readonly (readonly [string, NumberUnit])[] = [
   ["₩", { kind: "currency", code: "₩" }],
 ];
 
+/** Resolves an isolated currency token without guessing the country of a shared symbol. */
+export function currencyCodeOf(token: string): string | undefined {
+  if (token.length > 3) return undefined;
+  if (currencyCodes.has(token)) return token;
+  for (const [text, unit] of unitTokens) {
+    if (text === token && unit.kind === "currency") return unit.code;
+  }
+  return undefined;
+}
+
 const spaceLike = /[    ]/g;
 const letter = /\p{L}/u;
 const exponent = /[eE][+-]?\d+$/;

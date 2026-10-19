@@ -33,6 +33,8 @@ export interface SheetPosition {
 }
 
 export interface CursorOptions extends CsvOptions, ReadingHints {
+  readonly table?: string;
+  readonly visibleOnly?: boolean;
   readonly columns?: readonly ColumnSpec[];
   readonly columnMode?: ColumnMode;
   readonly includeTyped?: boolean;
@@ -44,6 +46,8 @@ export interface CursorOptions extends CsvOptions, ReadingHints {
 }
 
 const cursorOptionsSchema = z.strictObject({
+  table: z.string().min(1).max(255).optional(),
+  visibleOnly: z.boolean().optional(),
   valueMode: z.enum(["values", "formulas", "both"]),
   mergedCells: z.enum(["master", "repeat"]),
   headerRow: z.int().min(0).max(1_048_576),
@@ -103,6 +107,8 @@ export function inheritCursorOptions<
   const cursor = decodeCursor(args.cursor);
   for (const key of [
     "valueMode",
+    "table",
+    "visibleOnly",
     "mergedCells",
     "headerRow",
     "headerScan",

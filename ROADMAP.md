@@ -73,9 +73,6 @@ spec, a guard comment or the package README.
 
 ## Excel analysis and typed data
 
-- **Rich workbook values.** In-cell images and their alternative text, array anchors, elapsed
-  durations, error distributions, table addressing and saved row visibility. Linked entities
-  require a verified fixture before their fields can be claimed as supported.
 - **Streaming CSV.** Reading beyond the current 16 MiB byte and two-million-cell limits needs
   a bounded streaming document contract, stable dialect/type decisions, cancellation and
   snapshot validation. The architecture below must be reviewed before implementation.

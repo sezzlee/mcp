@@ -3,6 +3,7 @@ import { maxColumn, maxRow } from "../../grid/range.js";
 import { SezzleeExcelError } from "../../platform/errors.js";
 import { cellText, stringItemVisitor } from "./shared-strings.js";
 import { namespaces, type PartScan, type XmlVisitor } from "./xml.js";
+import { metadataIndex } from "./rich-data.js";
 
 export type RawValue =
   | { readonly kind: "number"; readonly value: number }
@@ -38,6 +39,8 @@ export interface RawCell {
   readonly value: RawValue;
   readonly style: number;
   readonly formula?: RawFormula;
+  readonly vm?: number;
+  readonly cm?: number;
 }
 
 const cellReference = /^([A-Za-z]{1,3})([1-9][0-9]*)$/;
@@ -59,7 +62,7 @@ function columnOf(letters: string): number {
   return column;
 }
 
-function positionOf(
+export function positionOf(
   reference: string,
   part: string,
 ): { readonly row: number; readonly column: number } {
@@ -83,7 +86,7 @@ function positionOf(
   return { row, column };
 }
 
-function rowOf(
+export function rowOf(
   attribute: string | undefined,
   previous: number,
   part: string,
@@ -180,6 +183,8 @@ interface CellDraft {
   readonly column: number;
   readonly type: string;
   readonly style: number;
+  readonly vm: number | undefined;
+  readonly cm: number | undefined;
   value: string | undefined;
   inline: string | undefined;
   formula: FormulaDraft | undefined;
@@ -243,6 +248,8 @@ export function cellScan(
           column: position.column,
           type: node.attr("t") ?? "n",
           style: Number.isInteger(style) && style >= 0 ? style : 0,
+          vm: metadataIndex(node.attr("vm"), sheetPart, "value metadata"),
+          cm: metadataIndex(node.attr("cm"), sheetPart, "cell metadata"),
           value: undefined,
           inline: undefined,
           formula: undefined,
@@ -274,6 +281,8 @@ export function cellScan(
           column: cell.column,
           value,
           style: cell.style,
+          ...(cell.vm === undefined ? {} : { vm: cell.vm }),
+          ...(cell.cm === undefined ? {} : { cm: cell.cm }),
           ...(cell.formula === undefined
             ? {}
             : { formula: formulaOf(cell.formula) }),

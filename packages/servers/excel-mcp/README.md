@@ -43,7 +43,7 @@ Requires Node.js 22 or 24 on macOS (x64, arm64), glibc Linux (x64, arm64) or Win
 | `get_data_validations`    | Validation rules, regrouped into rectangular ranges                                                                                              |
 | `get_conditional_formats` | Conditional formatting rules as predicates                                                                                                       |
 | `get_merged_ranges`       | Merged cell ranges                                                                                                                               |
-| `get_images`              | Embedded pictures: anchor, size, extension. Charts belong to `get_charts`; pivot tables and sparklines are refused                               |
+| `get_images`              | Drawing and in-cell pictures: anchor, alt text, size and extension. Charts belong to `get_charts`                                                |
 | `get_charts`              | Charts: type, title, axes (incl. secondary, scale, format), series refs/points, trendlines, hidden series, pivot source. Chart sheets included   |
 
 Every argument, error code and limit is listed in the [reference](https://docs.sezzlee.app/docs/excel-mcp/tools).
@@ -52,7 +52,7 @@ Every argument, error code and limit is listed in the [reference](https://docs.s
 
 A CSV holds only text, and a workbook may store numbers and dates as text too. `read_sheet` and default `find_in_sheet` return that text as written. `aggregate_sheet` reads it as a number or a date only where a metric or a `where` operand needs one, and decides the format per column from every value in the range: the decimal and thousands separators (`1.234,50`, `1,234.50`, `1 234,50`, `1'234.50`), and whether slash dates put the day or the month first. The marks or order that read the most values win. When the winners read some value differently (`1.234`, `01/02/2023`) the column is ambiguous: none of those values is read, and a warning names the `columns` entry that settles it. Accounting parentheses, a leading or trailing `%` (read as a ratio) and a currency symbol or code are understood; dotted dates are day first, and Turkish and English month names are read.
 
-A digit run with a leading zero or more than 15 digits is an identifier and is never summed unless `columns` declares the column a number. A column whose amounts name more than one currency is summed as written and reported. Every value a call could not read, compare or sum is counted in `warnings` with examples, and `readAs` reports how each column's text was read. A time-only number format (`h:mm`, `hh:mm:ss AM/PM`) is returned as `HH:mm:ss`; an elapsed `[h]` format is a duration and is still returned as a date.
+A digit run with a leading zero or more than 15 digits is an identifier and is never summed unless `columns` declares the column a number. A column whose amounts name more than one currency is summed as written and reported. Every value a call could not read, compare or sum is counted in `warnings` with examples, and `readAs` reports how each column's text was read. A time-only number format (`h:mm`, `hh:mm:ss AM/PM`) is returned as `HH:mm:ss`; elapsed `[h]`, `[m]` and `[s]` formats return `{"durationSeconds": number}` and can be summed in seconds.
 
 ## Grouped analysis
 
@@ -145,6 +145,68 @@ Percent and per-mille quantities are fractions, with unit metadata; currency lab
 without exchange-rate conversion. See the [CSV profile recipe](../../../../apps/docs/src/content/excel-mcp/recipes/07-profile-and-read-global-data.md)
 and the reproducible generator/fuzz instructions in the repository's lab.
 
+## Named tables and saved row visibility
+
+`read_sheet`, `profile_sheet`, `find_in_sheet` and `aggregate_sheet` accept `table: "Orders"`.
+The name selects a declared table across the workbook; `sheetName` restricts the lookup.
+Names use Unicode folding and ambiguous matches are refused. The selected range is the table's
+data body, excluding its header and totals row. Column references use the table's declared names,
+including when its header row is hidden. A table cannot be combined with `range` or a conflicting
+`headerRow`. Tables with no declared data rows and unsupported header/totals row counts are explicitly refused. A declared body containing only blank cells remains readable.
+
+Pass `visibleOnly: true` to omit saved hidden rows. This covers manually hidden rows and the
+rows an author saved as hidden after applying AutoFilter. The reader uses those saved flags;
+it does not reevaluate filter criteria. Every such answer includes `visibility` with
+`basis: "savedHiddenRows"`, `hiddenRowsSkipped` and `filterCriteriaReevaluated: false`, plus the
+relevant AutoFilter range when one is declared. Conditions saved without matching hidden flags
+do not remove rows. Excel's saved row visibility and its filter definition are separate data.
+
+Filtered reads add `rowNumbers` beside `values`, preserving each row's original worksheet address.
+The cursor binds both `table` and `visibleOnly`; omitted options are inherited and conflicts are
+refused. `hiddenRowsSkipped` covers the visited page for reads, the full selected range for search
+and aggregation, and the selected data rows for profiles. Profile totals and sampling limits count
+eligible visible rows; hidden omissions are reported separately. CSV supports neither table
+metadata nor hidden-row flags, so `table` and `visibleOnly: true` are refused for CSV.
+
+## Native number formats and rich cell values
+
+Native numeric cells retain the meaning of their active number-format section. Elapsed `[h]`,
+`[m]` and `[s]` tokens return seconds, including negative values and durations beyond 24 hours,
+independently of the workbook's date system. Percentage formatting adds `unit: "fraction"`
+without scaling an already stored fraction: 0.25 stays 0.25. Explicit currency tokens flow into
+aggregate metric descriptors; ambiguous currency symbols keep their symbol label. Conditional
+sections are selected before interpreting tokens, and quoted or escaped literals cannot turn an
+ordinary number into a date or percentage. This is a bounded semantic reader, not a full display
+renderer; unsupported format syntax preserves the native numeric value. The rules follow
+[Microsoft's number-format specification](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oi29500/17d11129-219b-4e2c-88db-45844d21e528).
+
+An in-cell image returns an `imageId` with optional `altText` and `decorative` fields
+instead of its `#VALUE!` compatibility cache. `get_images` also lists it with `anchor: "inCell"`,
+its source `cell` and the same media ID. Verified rich-image relationships may target other
+internal package paths; IDs stay stable across worksheets and call order, preserving existing
+media IDs. Drawing images now retain their saved alternative text.
+The supported linked-data shape is `_linkedentity2`: a closed `linkedValue` object contains the
+saved `displayText` and, when present, its entity ID, culture and numeric service ID. No linked
+provider is refreshed, no external image is downloaded, and nested property bags are not expanded.
+Search matches the complete saved alt text or linked label before presentation limits are applied.
+Unknown rich types retain their stored scalar and an explicit unsupported `richValue` note;
+malformed referenced indices or relationship chains are refused as `corrupt_workbook`.
+
+Array-formula notes retain the anchor, declared `ref`, `dynamic` flag and optional `collapsed`
+flag. Cached spill members retain their values and refer to the same array anchor. The reader
+never recalculates formulas or fills missing caches. Native and metadata-backed `#SPILL!` and
+`#CALC!` errors carry an explanation without guessing the obstructing cell or calculation cause.
+The fixed original XlsxWriter and Microsoft Open XML SDK fixtures, independent XML verifiers,
+licenses and verified coverage boundaries are recorded in
+[RICH_VALUE_SOURCES.md](../../lab/excel-lab/RICH_VALUE_SOURCES.md).
+
+`aggregate_sheet.errorDistribution` counts distinct participating native-error cells after
+call-level and metric-level filtering. Repeated metrics, grouping sets and pivots do not multiply
+a physical cell's count. Up to 32 codes have three example addresses each; extra or overlong codes
+enter an explicit `other` bucket. Numeric, boolean and extreme metrics report `skippedErrors`
+as a subset of `skipped`. Stored errors still count for `countValues` and `countDistinct`.
+Images and supported linked values are not classified as errors.
+
 ## How the metadata is read
 
 Every tool reads the OOXML parts directly through `@sezzlee/ooxml-core`: cells, number formats, formulas, hyperlinks, merges and defined names as much as data validation, Excel Tables, conditional formatting, images and frozen panes. No spreadsheet library is present at runtime. SheetJS and exceljs are dev dependencies: exceljs writes the test fixtures, and SheetJS is the reference the cell reader is compared against.
@@ -156,7 +218,7 @@ The OOXML parts are read namespace-aware by `@sezzlee/ooxml-core`'s own XML toke
 | `get_data_validations`    | worksheet part, `dataValidations/dataValidation`. Ranges are taken verbatim from `sqref`, not opened cell by cell — a rule covering an entire column still counts as exact, so `dataValidationRuleCountExact` is always `true`                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `get_tables`              | worksheet `tableParts` → sheet rels → `xl/tables/*.xml`. `filterButton` is matched by `colId`, not by position                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `get_conditional_formats` | worksheet `conditionalFormatting/cfRule`. The `containsText` family is parsed into type + operator. A `cfvo type="formula"` threshold's expression is preserved in the `formula` field                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `get_images`              | worksheet `drawing` → sheet rels → `xl/drawings/*.xml` → `a:blip r:embed` → drawing rels → `xl/media/*`. `twoCell`, `oneCell` and `absolute` anchors are all reported. Only a two-cell anchor gets a `range`; a one-cell anchor gets its top-left `cell` and its size in whole pixels, because the cells that size covers depend on column widths, and an absolute anchor gets the size alone. `get_charts` places a chart the same way                                                                                                                                                                                                                                   |
+| `get_images`              | Cell `vm` → workbook sheet metadata → rich-value structures and relationships → media for in-cell images. Drawing pictures use worksheet `drawing` → sheet rels → `xl/drawings/*.xml` → `a:blip r:embed` → drawing rels → `xl/media/*`. `twoCell`, `oneCell` and `absolute` anchors are all reported. Only a two-cell anchor gets a `range`; a one-cell anchor gets its top-left `cell` and its size in whole pixels, because the cells that size covers depend on column widths, and an absolute anchor gets the size alone. `get_charts` places a chart the same way                                                                                                    |
 | `get_charts`              | worksheet or chart sheet `drawing` → chart / chartEx frames → `xl/charts/*.xml` for type, title, axes (min/max/log, number format), series refs and cached points, trendlines and `pivotSource`. Every element is matched under its parent, so a data label's `c:tx` is never a series name. A number cache is returned as numbers and a text cache as text, with the cache's `numberFormat`; a multi-level category keeps its outer `levels`. An axis is `secondary` when the first plot does not use it. A series under `c15:filtered*Series` is listed as `hidden`. Markup Compatibility chooses one `AlternateContent` branch. `chartEx` is reported as `unsupported` |
 
 `describe_workbook` marks each sheet's `kind` as `worksheet` or `chartsheet` and reports `chartCount`. A chart sheet is refused by `read_sheet`, `profile_sheet`, `aggregate_sheet`, `find_in_sheet` and `get_merged_ranges` as `chart_sheet`, with recovery pointing at `get_charts`. A call without `sheetName` lands on the first visible worksheet, never on a chart sheet, except `get_charts`, which takes the first visible sheet of either kind. Pivot tables and sparklines remain unread. `get_images` with `kind: "chart"` still returns `unsupported_object_kind` and points at `get_charts`.

@@ -20,7 +20,7 @@ import {
 import {
   normalizeCell,
   presentScalar,
-  isCellDuration,
+  scalarText,
   resolveCell,
   type CellNote,
   type CellScalar,
@@ -34,11 +34,17 @@ import {
   type ValueMode,
 } from "./cursor.js";
 import { SezzleeExcelError } from "../platform/errors.js";
+import { headerWarnings, type HeaderRowSource } from "./header.js";
 import {
-  headerWarnings,
-  readHeaderRow,
-  type HeaderRowSource,
-} from "./header.js";
+  selectSheetRange,
+  selectionHeaders,
+  visibilityOf,
+  visibleRows,
+  type SelectionOptions,
+  type SheetSelection,
+  type TableSelection,
+  type VisibilityReport,
+} from "./select-sheet.js";
 import { limits } from "../platform/limits.js";
 import { withRegex } from "../platform/regex.js";
 import { inheritCursorOptions, type CursorOptions } from "./cursor.js";
@@ -47,14 +53,9 @@ import {
   formatCellRef,
   formatRange,
   parseCellRef,
-  resolveRange,
   type GridBounds,
 } from "./range.js";
-import {
-  requireSheetBounds,
-  type SheetSource,
-  type SheetView,
-} from "./sheet.js";
+import type { SheetSource } from "./sheet.js";
 
 export interface ColumnInfo {
   readonly letter: string;
@@ -63,7 +64,7 @@ export interface ColumnInfo {
   readonly numberFormat: string | null;
 }
 
-export interface ReadSheetOptions extends ReadingHints {
+export interface ReadSheetOptions extends ReadingHints, SelectionOptions {
   readonly columns?: readonly ColumnSpec[];
   readonly columnMode?: ColumnMode;
   readonly includeTyped?: boolean;
@@ -90,6 +91,9 @@ export interface ReadSheetResult {
   readonly headerRowSource: HeaderRowSource;
   readonly columns: readonly ColumnInfo[];
   readonly values: readonly (readonly CellScalar[])[];
+  readonly rowNumbers?: readonly number[];
+  readonly table?: TableSelection;
+  readonly visibility?: VisibilityReport;
   readonly typedValues?: readonly (readonly CellScalar[])[];
   readonly typed?: {
     readonly scope: "returnedRows";
@@ -106,10 +110,7 @@ export interface ReadSheetResult {
   readonly warnings?: readonly string[];
 }
 
-interface Window {
-  readonly sheet: SheetView;
-  readonly used: GridBounds;
-  readonly bounds: GridBounds;
+interface Window extends SheetSelection {
   readonly startRow: number;
   readonly valueMode: ValueMode;
   readonly mergedCells: MergePolicy;
@@ -123,18 +124,15 @@ function resolveWindow(
     Required<Pick<ReadSheetOptions, "valueMode" | "mergedCells" | "headerRow">>,
 ): Window {
   if (options.cursor === undefined) {
-    const sheet = source.sheetFor(options.sheetName);
-    const used = requireSheetBounds(sheet);
-    const bounds = resolveRange(used, options.range);
+    const selected = selectSheetRange(source, options);
+    const { bounds } = selected;
     const headerRow = options.headerRow;
     const startRow =
       headerRow >= bounds.top && headerRow <= bounds.bottom
         ? Math.max(bounds.top, headerRow + 1)
         : bounds.top;
     return {
-      sheet,
-      used,
-      bounds,
+      ...selected,
       startRow,
       valueMode: options.valueMode,
       mergedCells: options.mergedCells,
@@ -151,8 +149,12 @@ function resolveWindow(
   }
   const cursor = decodeCursor(options.cursor);
   assertFresh(cursor, source.stamp);
-  const sheet = source.sheetFor(cursor.s);
-  const used = requireSheetBounds(sheet);
+  const selected = selectSheetRange(source, {
+    sheetName: cursor.s,
+    ...(cursor.o.table === undefined
+      ? {}
+      : { table: cursor.o.table, headerRow: cursor.h }),
+  });
   const end = parseCellRef(cursor.e);
   const bounds: GridBounds = {
     top: cursor.r,
@@ -166,9 +168,20 @@ function resolveWindow(
       "The cursor points past the end of the range.",
     );
   }
+  if (
+    selected.table !== undefined &&
+    (bounds.left !== selected.bounds.left ||
+      bounds.right !== selected.bounds.right ||
+      bounds.bottom !== selected.bounds.bottom ||
+      bounds.top < selected.bounds.top)
+  )
+    throw new SezzleeExcelError(
+      "invalid_cursor",
+      "The cursor range conflicts with its table data range.",
+      "Start a new read with table.",
+    );
   return {
-    sheet,
-    used,
+    ...selected,
     bounds,
     startRow: cursor.r,
     valueMode: cursor.m,
@@ -217,12 +230,7 @@ export function readSheet(
     includeHyperlinks: options.includeHyperlinks,
   };
   const width = window.bounds.right - window.bounds.left + 1;
-  const headers = readHeaderRow(
-    window.sheet,
-    window.bounds,
-    window.headerRow,
-    normalizeOptions,
-  );
+  const headers = selectionHeaders(window, window.headerRow, normalizeOptions);
   const plans = explicitPlans(
     buildColumnIndex(
       window.sheet.name,
@@ -244,6 +252,7 @@ export function readSheet(
   const typedValues: CellScalar[][] = [];
   const numberFormats: (string | null)[] = new Array(width).fill(null);
   const values: CellScalar[][] = [];
+  const rowNumbers: number[] = [];
   const cellNotes: Record<string, CellNote> = {};
 
   let returnedCells = 0;
@@ -261,7 +270,7 @@ export function readSheet(
           window.bounds,
           window.headerRow,
           headers,
-          options.range !== undefined,
+          options.range !== undefined || window.table !== undefined,
           window.mergedCells,
         )
       : [];
@@ -298,6 +307,10 @@ export function readSheet(
         ...(options.includeTyped === undefined
           ? {}
           : { includeTyped: options.includeTyped }),
+        ...(options.table === undefined ? {} : { table: options.table }),
+        ...(options.visibleOnly === undefined
+          ? {}
+          : { visibleOnly: options.visibleOnly }),
         valueMode: window.valueMode,
         mergedCells: window.mergedCells,
         headerRow: window.headerRow,
@@ -322,6 +335,14 @@ export function readSheet(
   const hintFor = (rows: number): string =>
     `${rows} rows remain. Prefer aggregate_sheet for totals, find_in_sheet to locate a value, or a narrower range over paging.`;
 
+  const rowLimit = Math.min(
+    window.bounds.bottom - window.startRow + 1,
+    Math.max(1, Math.floor(options.maxCells / width)),
+  );
+  const parallelSeparators =
+    Math.max(0, rowLimit - 1) *
+    (Number(options.visibleOnly === true) +
+      Number(options.includeTyped === true));
   const reserveBytes =
     measureJson({
       sheet: window.sheet.name,
@@ -331,6 +352,17 @@ export function readSheet(
       headerRowSource: window.headerRowSource,
       columns: columnsFrom(new Array<string | null>(width).fill(null)),
       values: [],
+      ...(window.table === undefined ? {} : { table: window.table }),
+      ...(options.visibleOnly === true
+        ? {
+            rowNumbers: [],
+            visibility: visibilityOf(
+              window,
+              window.startRow,
+              window.bounds.bottom,
+            ),
+          }
+        : {}),
       ...(options.includeTyped === true
         ? {
             typedValues: [],
@@ -349,7 +381,9 @@ export function readSheet(
       nextCursor: cursorAt(window.bounds.bottom + 1),
       hint: hintFor(Math.max(0, window.bounds.bottom - window.startRow + 1)),
       warnings: [...headerNotices, uncachedFormulaWarning(options.maxCells)],
-    }) + (options.extraEnvelopeBytes ?? 0);
+    }) +
+    (options.extraEnvelopeBytes ?? 0) +
+    parallelSeparators;
   const budget = createPageBudget({
     maxBytes: limits.maxPayloadBytes,
     reserveBytes,
@@ -360,6 +394,13 @@ export function readSheet(
     rowNumber <= window.bounds.bottom;
     rowNumber += 1
   ) {
+    if (
+      options.visibleOnly === true &&
+      window.sheet.hiddenRows.has(rowNumber)
+    ) {
+      nextRow = rowNumber + 1;
+      continue;
+    }
     if (values.length > 0 && returnedCells + width > options.maxCells) {
       truncationReason = "maxCells";
       break;
@@ -421,6 +462,7 @@ export function readSheet(
     if (
       !budget.admit(
         line,
+        ...(options.visibleOnly === true ? [rowNumber] : []),
         ...(options.includeTyped === true ? [typedLine] : []),
         ...notes,
         ...formats,
@@ -439,6 +481,7 @@ export function readSheet(
       }
     }
     values.push(line);
+    if (options.visibleOnly === true) rowNumbers.push(rowNumber);
     if (options.includeTyped === true) {
       typedValues.push(typedLine);
       for (const item of observations)
@@ -484,6 +527,13 @@ export function readSheet(
     headerRowSource: window.headerRowSource,
     columns,
     values,
+    ...(window.table === undefined ? {} : { table: window.table }),
+    ...(options.visibleOnly === true
+      ? {
+          rowNumbers,
+          visibility: visibilityOf(window, window.startRow, nextRow - 1),
+        }
+      : {}),
     ...(options.includeTyped === true
       ? {
           typedValues,
@@ -506,7 +556,7 @@ export function readSheet(
   };
 }
 
-export interface FindOptions extends ReadingHints {
+export interface FindOptions extends ReadingHints, SelectionOptions {
   readonly extraEnvelopeBytes?: number;
   readonly columns?: readonly ColumnSpec[];
   readonly columnMode?: ColumnMode;
@@ -538,6 +588,8 @@ export interface FindResult {
   readonly scannedCells: number;
   readonly matching: Matching;
   readonly matches: readonly FindMatch[];
+  readonly table?: TableSelection;
+  readonly visibility?: VisibilityReport;
   readonly truncationReason?: "maxPayloadBytes";
   readonly typed?: {
     readonly scope: "scannedCells";
@@ -587,18 +639,20 @@ async function findWithMatcher(
   options: FindOptions,
   regexTest?: (texts: readonly string[]) => Promise<readonly boolean[]>,
 ): Promise<FindResult> {
-  const sheet = source.sheetFor(options.sheetName);
-  const used = requireSheetBounds(sheet);
-  const bounds = resolveRange(used, options.range);
+  const selected = selectSheetRange(source, options);
+  const { sheet, bounds } = selected;
+  const visibility =
+    options.visibleOnly === true
+      ? visibilityOf(selected, bounds.top, bounds.bottom)
+      : undefined;
   const matcher = regexTest === undefined ? createMatcher(options) : undefined;
   const normalizeOptions: NormalizeOptions = {
     valueMode: "values",
     mergePolicy: "master",
     includeHyperlinks: false,
   };
-  const headers = readHeaderRow(
-    sheet,
-    bounds,
+  const headers = selectionHeaders(
+    selected,
     options.headerRow ?? 1,
     normalizeOptions,
   );
@@ -620,6 +674,8 @@ async function findWithMatcher(
         truncated: true,
         matching: "canonical",
         matches: [],
+        ...(selected.table === undefined ? {} : { table: selected.table }),
+        ...(visibility === undefined ? {} : { visibility }),
         ...(plans.size === 0 || options.searchIn === "formulas"
           ? {}
           : {
@@ -663,11 +719,15 @@ async function findWithMatcher(
   const withCovered =
     normalizeOptions.mergePolicy === "repeat" || options.searchIn !== "values";
   let visitedRows = 0;
-  for (const rowNumber of sheet.populatedRows({
-    from: bounds.top,
-    to: bounds.bottom,
-    withCovered,
-  })) {
+  for (const rowNumber of visibleRows(
+    sheet.populatedRows({
+      from: bounds.top,
+      to: bounds.bottom,
+      withCovered,
+    }),
+    sheet,
+    options.visibleOnly === true,
+  )) {
     if (regexTest !== undefined && visitedRows % 128 === 0) await regexTest([]);
     visitedRows += 1;
     const row = sheet.rowAt(rowNumber);
@@ -750,6 +810,8 @@ async function findWithMatcher(
     scannedCells,
     matching: matcher?.matching ?? "regex",
     matches: found,
+    ...(selected.table === undefined ? {} : { table: selected.table }),
+    ...(visibility === undefined ? {} : { visibility }),
     ...(budget.refused ? { truncationReason: "maxPayloadBytes" as const } : {}),
     ...(plans.size === 0 || options.searchIn === "formulas"
       ? {}
@@ -763,11 +825,5 @@ async function findWithMatcher(
 }
 
 function renderScalar(value: CellScalar): string {
-  if (value === null) {
-    return "";
-  }
-  if (typeof value === "object") {
-    return isCellDuration(value) ? String(value.durationSeconds) : value.error;
-  }
-  return String(value);
+  return scalarText(value);
 }

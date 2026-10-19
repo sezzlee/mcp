@@ -20,6 +20,8 @@ import {
   rowConditions,
   readingHintsSchema,
   sheetName,
+  table,
+  visibleOnly,
 } from "./schemas.js";
 
 const typedOptions = {
@@ -32,6 +34,8 @@ const typedOptions = {
       "Resolve column names automatically (default), by header text, or by A1 letter. Letter mode avoids duplicate/colliding headers.",
     ),
 };
+
+const selectionOptions = { table, visibleOnly };
 
 const profileHeaders = {
   headerRow: z
@@ -96,6 +100,7 @@ export const toolDefinitions = {
     inputSchema: z.object({
       filePath,
       sheetName,
+      ...selectionOptions,
       range: z
         .string()
         .optional()
@@ -165,6 +170,7 @@ export const toolDefinitions = {
     inputSchema: z.object({
       filePath,
       sheetName,
+      ...selectionOptions,
       range: z
         .string()
         .optional()
@@ -225,7 +231,7 @@ export const toolDefinitions = {
 
   get_images: {
     description:
-      "List the pictures embedded in a worksheet: the cells a picture spans (range), or its top-left cell and pixel size when only those are anchored (cell), plus byte size and file extension. Charts belong to get_charts; pivot tables and sparklines are refused rather than reported as absent.",
+      "List worksheet pictures, including Place in Cell images: source cell or drawing anchor, byte size, extension, stored alternative text and decorative flag when available. imageId identifies the same embedded media in read_sheet values. Alternative text is clipped with its original length; image pixels are not interpreted. Charts belong to get_charts; pivot tables and sparklines are refused.",
     inputSchema: z.object({ filePath, sheetName, kind: drawingKind }),
     annotations: readOnly,
   },
@@ -261,6 +267,7 @@ export const toolDefinitions = {
     inputSchema: z.object({
       filePath,
       sheetName,
+      ...selectionOptions,
       range: z
         .string()
         .optional()
@@ -407,6 +414,7 @@ export const toolDefinitions = {
           "Text to find, or a JavaScript regular expression of at most 256 characters when matchMode is regex.",
         ),
       sheetName,
+      ...selectionOptions,
       ...profileHeaders,
       ...typedOptions,
       matchMode: z

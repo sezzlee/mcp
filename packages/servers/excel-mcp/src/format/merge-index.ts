@@ -16,10 +16,13 @@ function overlap(
   part: string,
   first: MergeRange,
   second: MergeRange,
+  kind: string,
 ): SezzleeExcelError {
   return new SezzleeExcelError(
     "corrupt_workbook",
-    `'${part}' merges ${first.ref} and ${second.ref}, which overlap.`,
+    kind === "merges"
+      ? `'${part}' merges ${first.ref} and ${second.ref}, which overlap.`
+      : `'${part}' has overlapping ${kind} ${first.ref} and ${second.ref}.`,
     "Open the file in Excel and re-save it as .xlsx.",
   );
 }
@@ -38,6 +41,7 @@ function overlap(
 export function mergeIndex(
   part: string,
   merges: readonly MergeRange[],
+  kind = "merges",
 ): MergeIndex {
   const sorted = [...merges].sort((a, b) => a.top - b.top);
   const reach = new Int32Array(sorted.length);
@@ -82,7 +86,7 @@ export function mergeIndex(
           after !== undefined &&
           after.left <= before.right
         ) {
-          throw overlap(part, before, after);
+          throw overlap(part, before, after, kind);
         }
       }
       return found;

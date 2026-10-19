@@ -150,3 +150,21 @@ and explicit-read policies. Fixed regressions add date ambiguity, combining scri
 offsets, currencies, ratios, legacy encodings and bounded hostile input. Primary sources,
 redistribution choices and the precise supported scope are in
 [TYPED_TEXT_SOURCES.md](TYPED_TEXT_SOURCES.md).
+
+## Native and rich-value fixtures
+
+The Excel package retains three small MIT-licensed CI snapshots: an original XlsxWriter
+workbook, a linked-data workbook produced by Microsoft's pinned Open XML SDK example,
+and an original specification-derived rich-error variant. They are distinct from the optional
+external corpus. A fixed Python ZIP/XML oracle checks their decoded hashes and saved
+meaning independently of the MCP reader:
+
+```bash
+python3 packages/lab/excel-lab/scripts/verify-rich-fixtures.py
+```
+
+The optional verifier requires only Python's standard library, performs no network access,
+and writes JSON to stdout. MCP tests consume the same committed bytes without requiring
+Python or .NET. The source manifest, independent cell/format matrix, licensing, schema
+validation and limits are in [RICH_VALUE_SOURCES.md](RICH_VALUE_SOURCES.md). None of these
+fixtures is presented as an Excel recalculation or a live linked-provider test.

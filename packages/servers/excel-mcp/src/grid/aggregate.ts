@@ -1,12 +1,8 @@
 import { fold } from "@sezzlee/file-core";
-import type { CellScalar } from "./cell-value.js";
+import type { CellFacts, CellScalar } from "./cell-value.js";
 import { buildColumnIndex, resolveColumn, type ColumnMode } from "./columns.js";
 import { SezzleeExcelError } from "../platform/errors.js";
-import {
-  headerWarnings,
-  readHeaderRow,
-  type HeaderRowSource,
-} from "./header.js";
+import { headerWarnings, type HeaderRowSource } from "./header.js";
 import { limits } from "../platform/limits.js";
 import {
   explicitReading,
@@ -38,15 +34,27 @@ import {
   type ReadingNeed,
   type TypedCell,
 } from "./predicate.js";
-import { columnToLetters, formatRange, resolveRange } from "./range.js";
+import { columnToLetters, formatRange } from "./range.js";
 import {
   isCellDuration,
+  scalarText,
+  isCellError,
   isUncachedFormula,
   presentScalar,
-  resolveCell,
+  resolveFacts,
 } from "./cell-value.js";
+import { ErrorTally, type ErrorDistribution } from "./error-distribution.js";
 import type { RowView } from "./sheet.js";
-import { requireSheetBounds, type SheetSource } from "./sheet.js";
+import type { SheetSource } from "./sheet.js";
+import {
+  selectSheetRange,
+  selectionHeaders,
+  visibilityOf,
+  visibleRows,
+  type SelectionOptions,
+  type TableSelection,
+  type VisibilityReport,
+} from "./select-sheet.js";
 import {
   addMetric,
   finishMetric,
@@ -74,7 +82,7 @@ import {
 
 export type { MetricFunction, MetricRequest } from "./aggregate-metrics.js";
 
-export interface AggregateOptions extends ReadingHints {
+export interface AggregateOptions extends ReadingHints, SelectionOptions {
   readonly sheetName?: string;
   readonly range?: string;
   readonly groupBy?: readonly GroupRequest[];
@@ -104,6 +112,7 @@ export interface AggregateColumn {
   readonly fn?: MetricFunction;
   readonly counted?: number;
   readonly skipped?: number;
+  readonly skippedErrors?: number;
   readonly filtered?: number;
   readonly kindUsed?: ComparableKind;
   readonly percentile?: number;
@@ -138,6 +147,8 @@ export interface AggregateResult extends GroupingResult {
   readonly sheet: string;
   readonly range: string;
   readonly usedRange: string;
+  readonly table?: TableSelection;
+  readonly visibility?: VisibilityReport;
   readonly headerRow: number;
   readonly headerRowSource: HeaderRowSource;
   readonly groupingSets?: readonly GroupingResult[];
@@ -148,6 +159,7 @@ export interface AggregateResult extends GroupingResult {
   readonly columnStats?: Readonly<Record<string, Partial<Census>>>;
   readonly readAs?: Readonly<Record<string, readonly ReadAs[]>>;
   readonly warnings?: readonly string[];
+  readonly errorDistribution?: ErrorDistribution;
 }
 
 interface GroupKey {
@@ -204,19 +216,21 @@ function samplesOf(tally: Tally): string {
 
 function keyLabel(value: CellScalar): string {
   const shown = presentScalar(value);
-  return isCellDuration(shown) ? `${shown.durationSeconds} s` : String(shown);
+  return isCellDuration(shown)
+    ? `${shown.durationSeconds} s`
+    : scalarText(shown);
 }
 
 function readGrid(
   rowView: RowView | undefined,
   column: number,
   mergedCells: "master" | "repeat",
-): { readonly value: CellScalar; readonly uncachedFormula: boolean } {
+): CellFacts & { readonly uncachedFormula: boolean } {
   const snapshot = rowView?.cellAt(column);
   if (snapshot === undefined) return { value: null, uncachedFormula: false };
   const merged = snapshot.merged && mergedCells === "master";
   return {
-    value: resolveCell(snapshot, {
+    ...resolveFacts(snapshot, {
       valueMode: "values",
       mergePolicy: mergedCells,
     }),
@@ -312,10 +326,9 @@ export function aggregateSheet(
       `At most ${limits.maxGroupingSets} additional grouping sets are accepted.`,
     );
 
-  const sheet = source.sheetFor(options.sheetName);
-  const used = requireSheetBounds(sheet);
-  const bounds = resolveRange(used, options.range);
-  const headers = readHeaderRow(sheet, bounds, options.headerRow, {
+  const selected = selectSheetRange(source, options);
+  const { sheet, used, bounds } = selected;
+  const headers = selectionHeaders(selected, options.headerRow, {
     valueMode: "values",
     mergePolicy: options.mergedCells,
     includeHyperlinks: false,
@@ -404,8 +417,16 @@ export function aggregateSheet(
       ? Math.max(bounds.top, options.headerRow + 1)
       : bounds.top;
   const withCovered = options.mergedCells === "repeat";
+  const visibility =
+    options.visibleOnly === true
+      ? visibilityOf(selected, startRow, bounds.bottom)
+      : undefined;
   const rowsInRange = (): Iterable<number> =>
-    sheet.populatedRows({ from: startRow, to: bounds.bottom, withCovered });
+    visibleRows(
+      sheet.populatedRows({ from: startRow, to: bounds.bottom, withCovered }),
+      sheet,
+      options.visibleOnly === true,
+    );
 
   const readings = new Map<number, ColumnReading>();
   const fallbackReading = rawReadingFor(options);
@@ -550,6 +571,7 @@ export function aggregateSheet(
   };
 
   const census = new Map<number, Census>();
+  const errors = new ErrorTally();
   const unreadable = new Map<number, Tally>();
   const unreadableBooleans = new Map<number, Tally>();
   const identifiers = new Map<number, Tally>();
@@ -596,6 +618,7 @@ export function aggregateSheet(
       const cell = typedCell(
         read.value,
         readings.get(column) ?? fallbackReading,
+        read.meaning,
       );
       rowCells.set(column, cell);
       return cell;
@@ -647,7 +670,11 @@ export function aggregateSheet(
         !booleanColumns.has(entry.column)
       ) {
         booleanColumns.add(entry.column);
-        if (!cell.missing && typeof cell.as("boolean") !== "boolean") {
+        if (
+          !cell.missing &&
+          !isCellError(cell.raw) &&
+          typeof cell.as("boolean") !== "boolean"
+        ) {
           const tally = unreadableBooleans.get(entry.column) ?? tallyOf();
           unreadableBooleans.set(entry.column, tally);
           note(tally, cell.raw, weight);
@@ -663,6 +690,12 @@ export function aggregateSheet(
         census.set(entry.column, tally);
         if (weight > 1) tally.nulls += weight;
         else record(tally, cell);
+        if (isCellError(cell.raw))
+          errors.add(
+            cell.raw,
+            `${columnToLetters(entry.column)}${row}`,
+            weight,
+          );
         countedColumns.add(entry.column);
       }
       if (
@@ -734,7 +767,10 @@ export function aggregateSheet(
     processRow(rowView, row, 1);
   }
   /** Guard: absent rows are all null; weighting them avoids walking a sparse sheet's rectangle. */
-  const absent = Math.max(0, bounds.bottom - startRow + 1) - scannedRows;
+  const absent =
+    Math.max(0, bounds.bottom - startRow + 1) -
+    (visibility?.hiddenRowsSkipped ?? 0) -
+    scannedRows;
   if (absent > 0) {
     scannedRows += absent;
     blankRows += absent;
@@ -747,7 +783,7 @@ export function aggregateSheet(
       bounds,
       options.headerRow,
       headers,
-      options.range !== undefined,
+      options.range !== undefined || selected.table !== undefined,
       options.mergedCells,
     ),
   ];
@@ -784,6 +820,7 @@ export function aggregateSheet(
       metricColumns.map((entry, slot) => {
         let counted = 0;
         let skipped = 0;
+        let skippedErrors = 0;
         let filtered = 0;
         let kindUsed: ComparableKind | undefined;
         let meaning: MetricMeaning | undefined;
@@ -793,6 +830,7 @@ export function aggregateSheet(
           )?.[slot];
           counted += state?.counted ?? 0;
           skipped += state?.skipped ?? 0;
+          skippedErrors += state?.skippedErrors ?? 0;
           filtered += state?.filtered ?? 0;
           kindUsed ??= metricKind(state);
           meaning = mergeMetricMeaning(meaning, state?.meaning);
@@ -821,6 +859,7 @@ export function aggregateSheet(
           fn: entry.metric.fn,
           counted,
           skipped,
+          ...(skippedErrors === 0 ? {} : { skippedErrors }),
           ...(filtered === 0 ? {} : { filtered }),
           ...(kindUsed === undefined ? {} : { kindUsed }),
           ...(entry.metric.fn === "trueRatio"
@@ -961,20 +1000,31 @@ export function aggregateSheet(
     warnings.push(
       `${uncachedFormulas} formula cells in the aggregated columns have no cached value; the totals exclude them.`,
     );
+  const errorDistribution = errors.report();
+  let firstScannedRow = startRow;
+  if (options.visibleOnly === true)
+    while (
+      firstScannedRow <= bounds.bottom &&
+      sheet.hiddenRows.has(firstScannedRow)
+    )
+      firstScannedRow += 1;
   return {
     sheet: sheet.name,
     range: formatRange(bounds),
     usedRange: formatRange(used),
+    ...(selected.table === undefined ? {} : { table: selected.table }),
+    ...(visibility === undefined ? {} : { visibility }),
     headerRow: options.headerRow,
     headerRowSource: options.headerRowSource,
     ...main,
     ...(sets.length === 0 ? {} : { groupingSets: sets }),
     scannedRows,
     matchedRows,
-    firstScannedRow: startRow,
+    firstScannedRow,
     blankRows,
     ...(Object.keys(stats).length === 0 ? {} : { columnStats: stats }),
     ...(Object.keys(readAs).length === 0 ? {} : { readAs }),
+    ...(errorDistribution === undefined ? {} : { errorDistribution }),
     ...(warnings.length === 0 ? {} : { warnings: [...new Set(warnings)] }),
   };
 }

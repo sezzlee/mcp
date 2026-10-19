@@ -2,7 +2,23 @@
 
 ## Unreleased
 
+### Rich workbook values
+
+- In-cell images resolve their rich-value metadata into image IDs, alternative text and decorative flags instead of `#VALUE!` compatibility errors. `get_images` lists their source cells and retains saved alt text for drawing images too.
+- A verified Microsoft Open XML SDK fixture establishes support for cached `_linkedentity2` labels and closed entity metadata. Unsupported rich types retain their scalar and an explicit note; malformed referenced metadata is refused. External refresh and arbitrary entity property expansion remain unsupported.
+- Array formulas expose their anchor, declared spill range and dynamic/collapsed metadata. Cached spill children preserve their values. Native and rich `#SPILL!`/`#CALC!` errors carry bounded explanations.
+- Aggregate results expose a bounded, deduplicated `errorDistribution` over participating metric inputs. Numeric, boolean and extreme metrics report `skippedErrors`; images and supported linked values do not inflate error counts.
+
+### Workbook selection
+
+- `read_sheet`, `profile_sheet`, `find_in_sheet` and `aggregate_sheet` accept a declared `table` name. They select its data body, retain declared column names, exclude header/totals rows and refuse ambiguous names or conflicting ranges and headers.
+- `visibleOnly` excludes saved hidden rows, including saved AutoFilter exclusions. It reports the skipped count and states that filter criteria are not reevaluated. Filtered reads retain original `rowNumbers`; table and visibility choices are bound to the cursor.
+
 ### Compatibility changes
+
+- Low-level `SheetView` adapters now expose saved `hiddenRows`, and `SheetSource` adapters enumerate declared tables. Cell scalar and note unions include rich values and array metadata.
+- **Native elapsed formats now return seconds.** `[h]`, `[m]` and `[s]` values return `{durationSeconds}` instead of calendar dates and can be summed. Negative durations, fractional precision and either date system are preserved.
+- Native percentage and currency meaning now reaches aggregate descriptors. Stored fractions are not scaled again. Only the active number-format section contributes semantic tokens; quoted and escaped literals are ignored, and ambiguous currency symbols are not assigned a country.
 
 - Missing literals N/A, NULL, -, — and #N/A now count as missing during typed operations, as do blank strings. Raw reads remain unchanged, and stored Excel errors remain errors. Literal lists are configurable, including an empty missing-token override.
 - Invalid ISO offset hours/minutes and impossible canonical dates or clocks are no longer accepted by typed comparisons.
@@ -34,6 +50,8 @@
 - `median`, `p50`, `p90` and `percentile` use exact inclusive linear interpolation. Each metric accepts its own `where` and reports `filtered` separately from `counted` and `skipped`.
 
 ### Resource bounds
+
+- Native error distributions retain at most 32 named codes, three addresses per bucket and 128 characters per code. Overflow and overlong codes remain counted in `other`. Rich metadata has bounded records, fields and values; image and linked-label output participates in the existing response and string budgets.
 
 - Column profiles retain at most 64,000 sampled cells, 64 columns and 1,000 distinct values per column, with explicit omissions and lower-bound flags. Shared column lists accept at most 64 entries. Typed reads and searches include their added values and diagnostics in the response budget; cursor interpretation is bounded to the existing token limit.
 

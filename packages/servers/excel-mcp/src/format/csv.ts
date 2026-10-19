@@ -430,6 +430,7 @@ export function csvSheetView(table: CsvTable): SheetView {
     merges: [],
     tables: [],
     autoFilter: undefined,
+    hiddenRows: new Set<number>(),
     rowAt(row): RowView | undefined {
       const record = table.rows[row - 1];
       if (record === undefined) {

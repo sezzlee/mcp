@@ -19,6 +19,7 @@ import {
   csvReportOf,
   describeDocument,
   documentSheet,
+  type LoadedDocument,
   sheetSource,
 } from "../format/document.js";
 import { aggregateSheet } from "../grid/aggregate.js";
@@ -50,6 +51,29 @@ function csvOptionsOf(args: CsvOptions): CsvOptions {
   return {
     ...(args.delimiter === undefined ? {} : { delimiter: args.delimiter }),
     ...(args.encoding === undefined ? {} : { encoding: args.encoding }),
+  };
+}
+
+function gridSelection(
+  loaded: LoadedDocument,
+  args: {
+    readonly table?: string;
+    readonly visibleOnly?: boolean;
+    readonly filePath: string;
+  },
+): { readonly table?: string; readonly visibleOnly?: boolean } {
+  rejectForCsv(loaded, "table", args.table, args.filePath);
+  rejectForCsv(
+    loaded,
+    "visibleOnly",
+    args.visibleOnly === true ? true : undefined,
+    args.filePath,
+  );
+  return {
+    ...(args.table === undefined ? {} : { table: args.table }),
+    ...(args.visibleOnly === undefined
+      ? {}
+      : { visibleOnly: args.visibleOnly }),
   };
 }
 
@@ -114,6 +138,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
       return json(
         withCsv(
           readSheet(sheetSource(loaded), {
+            ...gridSelection(loaded, args),
             extraEnvelopeBytes: csvEnvelope(report) + modeEnvelopeBytes,
             ...(args.sheetName === undefined
               ? {}
@@ -155,6 +180,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         return json(
           withCsv(
             profileSheet(sheetSource(loaded), {
+              ...gridSelection(loaded, args),
               ...readingHintsOf(args),
               ...(args.sheetName === undefined
                 ? {}
@@ -287,6 +313,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         return json(
           withAggregateEnvelope(
             aggregateSheet(sheetSource(loaded), {
+              ...gridSelection(loaded, args),
               ...readingHintsOf(args),
               ...(args.sheetName === undefined
                 ? {}
@@ -334,6 +361,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         return json(
           withCsv(
             await findInSheet(sheetSource(loaded), {
+              ...gridSelection(loaded, args),
               extraEnvelopeBytes:
                 modeEnvelopeBytes +
                 (csvReportOf(loaded) === undefined

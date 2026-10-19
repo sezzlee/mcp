@@ -690,6 +690,88 @@ Four malformed fixtures ending in known multibyte lead bytes produce `undecodabl
 The focused encoding plus existing CSV gate passed 38 tests. This is bounded evidence for
 those vectors, not proof of complete codec-index conformance or automatic encoding detection.
 
+## Native and rich-value fixture evidence
+
+Phase-4 research resolved the missing linked-data example with the MIT-licensed Microsoft
+Open XML SDK `RichData` sample, pinned at `431ab05cf160248cc3885a4a766026d4f8243792`.
+The exact upstream source generated an 8,544-byte workbook with SHA-256
+`537a61c16e9c09a33d405e5f828d0e17b9462a69396e42203cc77706e63c6a12`.
+The SDK's Microsoft365 validator reported zero errors, and an independent Python ZIP/XML
+oracle verified `Linked!A1` through `vm`, metadata type, future block, rich value and structure
+to `_linkedentity2` and the literal display string `Seattle`. Its metadata relationship targets
+`/xl/metadata1.xml`, so this also exercises relationship-based part discovery.
+
+A separate original XlsxWriter 3.2.9 workbook contains in-cell images, explicit dynamic caches,
+elapsed times, ordinary errors, native booleans, percentages, identifiers, a table with a totals
+row, saved filtered rows and a hidden sheet. A controlled variant adds specification-defined
+`_error` records for `#SPILL!` and `#CALC!`, plus separate direct-error cache cases. The rich-error
+variant also passed Microsoft365 schema validation with zero errors. The independent verifier
+passed all three committed base64 CI snapshots with fixed digests and literal expected values:
+
+```bash
+python3 packages/lab/excel-lab/scripts/verify-rich-fixtures.py
+```
+
+These checks verify saved bytes and their format meaning. None of the files was recalculated
+in Excel, no linked provider or external image was fetched, and no private corpus was used.
+The three small fixtures have explicit MIT provenance and are separate from the optional
+external corpus. The complete source manifest, exact cell/format matrix, generation commands
+and unsupported linked-data scope are in [RICH_VALUE_SOURCES.md](RICH_VALUE_SOURCES.md).
+Schema and XML results are not counted as public MCP test passes.
+
+## Phase-4 public-handler and regression evidence
+
+The immutable pre-phase-4 snapshot is `991bc5654de73494d8d1ceeb70ddc8762c485796`.
+The external `phase4-red-evidence/baseline-manifests.json` records matching package manifests
+and lockfile bytes. The saved RED logs distinguish missing behavior from passing controls:
+
+| Capability                                                      | Baseline result                                                 | Saved evidence and committed regression                                                                                                                                                                             |
+| --------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native numeric meaning and error distributions                  | 45 failures, 9 passing controls across 54 cases                 | `native-expanded-red.log`; [number-format-meaning.spec.ts](../../servers/excel-mcp/test/number-format-meaning.spec.ts), [native-format-meaning.spec.ts](../../servers/excel-mcp/test/native-format-meaning.spec.ts) |
+| Named table bodies and saved row visibility                     | 5 missing-capability failures, 1 passing control across 6 cases | Table subset of `native-and-table-red.log`; [table-visibility.spec.ts](../../servers/excel-mcp/test/table-visibility.spec.ts)                                                                                       |
+| In-cell images, dynamic metadata, linked labels and rich errors | 7 failures, 1 passing ordinary-error control across 8 cases     | `rich-expanded-red.log`; [rich-values.spec.ts](../../servers/excel-mcp/test/rich-values.spec.ts), [rich-linked-errors.spec.ts](../../servers/excel-mcp/test/rich-linked-errors.spec.ts)                             |
+
+The first native GREEN log records 135 passing tests across five files, including existing
+calendar, temporal-metric and aggregate-analysis tests. Two additional integration defects
+were then reproduced against the phase-4 working tree. A headerless table declaring `D5:E6`
+with two entirely absent data rows returned `empty_sheet`; the table rectangle now supplies
+finite range evidence, and [table-empty-body.spec.ts](../../servers/excel-mcp/test/table-empty-body.spec.ts)
+checks the two null rows, both empty profiles, count 2 and nonempty count 0. A 10,000-row
+single-column workbook passed its ordinary read control but `visibleOnly` produced 532,986
+bytes, exceeding the 524,288-byte response limit because the parallel array's separators were
+not fully budgeted. [visible-row-budget.spec.ts](../../servers/excel-mcp/test/visible-row-budget.spec.ts)
+now checks all four combinations of `visibleOnly` and `includeTyped`, exact parallel row
+alignment, byte limits and continuation cursors. The subsequent root integration run passed
+77 tests across eight files, including these two regressions and existing read, header,
+profile, cursor and typed-I/O cases.
+
+The independent [rich-differential.spec.ts](../../servers/excel-mcp/test/rich-differential.spec.ts)
+passed all six tests through Turbo. It asserts the exact modern and historical adapter
+snapshots for the three fixed original workbooks. Image and linked cells differ from the
+stored `#VALUE!` compatibility fallback; elapsed seconds are checked against independent
+literal day/second answers; metadata-backed `#SPILL!` and `#CALC!` differ while direct error
+caches agree. SheetJS 0.20.3 itself retains the dynamic `F` and `D` fields in this fixture;
+the historical adapter discards them. The test records that specific adapter loss and keeps
+ordinary errors, booleans, identifiers and numeric caches as exact controls. It does not add
+a blanket mismatch exclusion to the corpus comparator.
+
+Three additional public regressions reproduced a composition loss: an unsupported rich type
+lost its diagnostic when the same cell already had a formula, hyperlink or truncation note.
+The closed `richValue` annotation now preserves both facts. Two further regressions moved
+verified rich-image targets outside `xl/media/` and exposed colliding `imageId: -1` values.
+Existing media IDs are preserved and sorted verified rich targets append deterministic IDs,
+independently of worksheet and call order. Distinct decorative images remain distinct, and
+unused invalid rich-value records are not eagerly interpreted.
+
+The final whole-package phase-4 Turbo gate passed **1,076 tests**, with one optional external
+CSV corpus test skipped: 64 test files passed and one was skipped. Lint and type checking also
+passed, with 12 successful Turbo tasks. Documentation generation and validation passed, and
+the actual formula/table recipe refreshed eight command outputs. The earlier final integration
+fixture required a correct styles content-type declaration for the independent SheetJS reader;
+that correction changed only the fixture. These checks use original generated fixtures and
+saved values; they do not claim external corpus, Excel recalculation or phase-4 performance
+coverage.
+
 ## Next steps
 
 1. Keep legacy decoding explicit. The global typed-text work selected a closed encoding list

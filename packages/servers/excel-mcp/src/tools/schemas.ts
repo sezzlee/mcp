@@ -14,6 +14,20 @@ export const sheetName = z
   .describe(
     "Case-sensitive worksheet name with NFC equivalence; no case-insensitive fallback. Defaults to the first visible sheet. Unknown names return available names.",
   );
+export const table = z
+  .string()
+  .min(1)
+  .max(255)
+  .optional()
+  .describe(
+    "Declared table name, matched with Unicode folding; ambiguous names are refused. Selects data rows across the workbook, or within sheetName. Excludes header/totals rows; cannot combine with range or conflicting headerRow. XLSX only.",
+  );
+export const visibleOnly = z
+  .boolean()
+  .optional()
+  .describe(
+    "Skip saved hidden rows, including rows hidden by AutoFilter, default false. Uses saved visibility without reevaluating filter criteria. read_sheet returns source rowNumbers. Cursor-bound; XLSX only.",
+  );
 export { columnRef, readingHintsSchema } from "../grid/column-spec.js";
 import { columnRef, columnSpecsSchema } from "../grid/column-spec.js";
 

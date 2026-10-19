@@ -7,6 +7,8 @@ export interface SheetJsCell {
   readonly v?: string | number | boolean | Date;
   readonly w?: string;
   readonly f?: string;
+  readonly F?: string;
+  readonly D?: boolean;
   readonly z?: string;
   readonly l?: { readonly Target?: string };
 }
@@ -72,6 +74,15 @@ function withHyperlink(facts: CellFacts, cell: SheetJsCell): CellFacts {
   return href === undefined ? facts : { ...facts, href };
 }
 
+/**
+ * Returns the reference scalar, formula, format and hyperlink projection.
+ * Rich image/entity/error compatibility caches remain ordinary errors here.
+ * Raw SheetJS `F`/`D` array metadata is retained by the library but excluded
+ * from this projection. Native numeric meaning is absent and elapsed values
+ * supplied as Dates keep their calendar rendering. Exact differences are
+ * pinned by rich-differential.spec.ts and the fixed-fixture divergence table
+ * in corpus-cells-parity.spec.ts; unlisted corpus differences must still fail.
+ */
 export function sheetjsSnapshot(
   cell: SheetJsCell,
   merged: boolean,

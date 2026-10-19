@@ -1,5 +1,9 @@
 import { fold } from "@sezzlee/file-core";
-import { isCellDuration, type CellScalar } from "./cell-value.js";
+import {
+  isCellDuration,
+  type CellNumericMeaning,
+  type CellScalar,
+} from "./cell-value.js";
 import type { ColumnSpec, ReadingHints } from "./column-spec.js";
 import {
   readDurationText,
@@ -470,9 +474,18 @@ function booleanText(raw: string, reading: ColumnReading): boolean | undefined {
       : undefined;
 }
 
-function numberOf(raw: CellScalar, reading: ColumnReading): NumberRead {
+function numberOf(
+  raw: CellScalar,
+  reading: ColumnReading,
+  meaning: CellNumericMeaning | undefined,
+): NumberRead {
   if (typeof raw === "number")
-    return { kind: "number", value: finiteNumber(raw), currency: undefined };
+    return {
+      kind: "number",
+      value: finiteNumber(raw),
+      currency: meaning?.currency,
+      ...(meaning?.unit === undefined ? {} : { unit: meaning.unit }),
+    };
   if (isCellDuration(raw))
     return {
       kind: "number",
@@ -522,13 +535,17 @@ function numberOf(raw: CellScalar, reading: ColumnReading): NumberRead {
   }
 }
 
-export function typedCell(raw: CellScalar, reading: ColumnReading): TypedCell {
+export function typedCell(
+  raw: CellScalar,
+  reading: ColumnReading,
+  meaning?: CellNumericMeaning,
+): TypedCell {
   const missing =
     raw === null ||
     (typeof raw === "string" && missingText(raw, reading.tokens));
   let numeric: NumberRead | undefined;
   const number = (): NumberRead =>
-    (numeric ??= missing ? { kind: "other" } : numberOf(raw, reading));
+    (numeric ??= missing ? { kind: "other" } : numberOf(raw, reading, meaning));
   const as = (kind: ReadableKind): CellScalar => {
     if (missing) return null;
     if (kind === "number") {

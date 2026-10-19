@@ -5,8 +5,13 @@ import type { GridBounds } from "./range.js";
 
 export interface DeclaredTable {
   readonly name: string;
+  readonly displayName?: string;
   readonly ref: string;
   readonly headerRow: boolean;
+  readonly totalsRow?: boolean;
+  readonly headerRowCount?: number;
+  readonly totalsRowCount?: number;
+  readonly autoFilterRef?: string;
   readonly columns: readonly (string | null)[];
 }
 
@@ -32,6 +37,7 @@ export interface SheetView {
   readonly merges: readonly string[];
   readonly tables: readonly DeclaredTable[];
   readonly autoFilter: string | undefined;
+  readonly hiddenRows: ReadonlySet<number>;
   rowAt(row: number): RowView | undefined;
   /** @returns the rows in range that can carry a snapshot, ascending. */
   populatedRows(span: Populated): Iterable<number>;
@@ -40,6 +46,9 @@ export interface SheetView {
 export interface SheetSource {
   readonly stamp: Fingerprint;
   sheetFor(sheetName: string | undefined): SheetView;
+  tables(
+    sheetName?: string,
+  ): Iterable<{ readonly sheet: string; readonly table: DeclaredTable }>;
 }
 
 export interface BoundedSheet {

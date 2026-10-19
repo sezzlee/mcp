@@ -370,6 +370,11 @@ export function sheetjsSheetView(
     merges: merges.map((merge) => merge.ref),
     tables,
     autoFilter: autoFilterOf(sheet),
+    hiddenRows: new Set(
+      (sheet["!rows"] ?? []).flatMap((row, index) =>
+        row.hidden === true ? [index + 1] : [],
+      ),
+    ),
     rowAt(row): RowView | undefined {
       const covering = merges.filter(
         (merge) => merge.top <= row && row <= merge.bottom,

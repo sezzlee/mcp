@@ -48,6 +48,9 @@ Every limit is fixed at build time; none is configurable. A call that would cros
 | Metric cells in the complete dense row-key by pivot-key result before allocation                      | 10,000     |
 | Cells one `aggregate_sheet` call may read before it is refused with `resource_limit`                  | 20,000,000 |
 | Metrics in one `aggregate_sheet` call                                                                 | 8          |
+| Named native-error code buckets in one aggregate result; further codes are counted in other           | 32         |
+| Example source addresses retained per native-error bucket                                             | 3          |
+| Maximum named native-error code length; longer codes are counted in other                             | 128        |
 | Conditions in one `where` filter                                                                      | 16         |
 | Shared column specifications accepted by profile_sheet, read_sheet, find_in_sheet and aggregate_sheet | 64         |
 | Values in one `in` condition                                                                          | 64         |

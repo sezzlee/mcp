@@ -1,5 +1,10 @@
 import { isDeepStrictEqual } from "node:util";
-import type { CellSnapshot } from "../../src/grid/cell-value.js";
+import * as XLSX from "@e965/xlsx";
+import {
+  isCellDuration,
+  type CellFacts,
+  type CellSnapshot,
+} from "../../src/grid/cell-value.js";
 import { formatCellRef, maxColumn, maxRow } from "../../src/grid/range.js";
 import type { SheetView } from "../../src/grid/sheet.js";
 import {
@@ -42,6 +47,8 @@ export type CellComparison =
       readonly mismatches: readonly CellMismatch[];
       readonly implicitFormatCells: number;
       readonly chartSheetRanges: number;
+      readonly nativeMeaningCells: number;
+      readonly nativeElapsedCells: number;
     };
 
 const meta = {
@@ -67,6 +74,82 @@ function onlyMissingFormat(
   }
   const { numberFormat: _format, ...rest } = ours;
   return isDeepStrictEqual(rest, theirs);
+}
+
+interface RawNumericCell {
+  readonly serial: number;
+  readonly numberFormat: string;
+}
+
+const simpleElapsed =
+  /^\[(?:h{1,2}|m{1,2}|s{1,2})\](?::m{1,2})?(?::s{1,2})?(?:\.0{1,3})?$/i;
+
+function withoutMeaning(facts: CellFacts): CellFacts {
+  const { meaning: _meaning, ...rest } = facts;
+  return rest;
+}
+
+function hasMeaning(snapshot: CellSnapshot): boolean {
+  return (
+    snapshot.value.meaning !== undefined ||
+    snapshot.cached?.meaning !== undefined
+  );
+}
+
+/**
+ * Counts only the additional meaning field when every other snapshot fact is
+ * identical; native-format-meaning and number-format-meaning tests independently
+ * verify its unit and currency semantics. Elapsed differences require the raw
+ * numeric serial and one simple elapsed format; dates are never inverted.
+ */
+export function nativeCellDifference(
+  ours: CellSnapshot | null,
+  theirs: CellSnapshot | null,
+  raw?: RawNumericCell,
+): "meaning" | "elapsed" | undefined {
+  if (ours === null || theirs === null || !hasMeaning(ours)) return undefined;
+  const stripped: CellSnapshot = {
+    ...ours,
+    value: withoutMeaning(ours.value),
+    ...(ours.cached === undefined
+      ? {}
+      : { cached: withoutMeaning(ours.cached) }),
+  };
+  if (isDeepStrictEqual(stripped, theirs)) return "meaning";
+  if (
+    raw === undefined ||
+    ours.numberFormat !== raw.numberFormat ||
+    !simpleElapsed.test(raw.numberFormat) ||
+    !Number.isFinite(raw.serial)
+  )
+    return undefined;
+  const seconds = raw.serial * 86400;
+  if (!Number.isFinite(seconds)) return undefined;
+  let converted = false;
+  const translate = (
+    mine: CellFacts,
+    counterpart: CellFacts | undefined,
+  ): CellFacts => {
+    if (!isCellDuration(mine.value) || counterpart === undefined) return mine;
+    if (
+      mine.value.durationSeconds !== seconds ||
+      (typeof counterpart.value !== "number" &&
+        typeof counterpart.value !== "string")
+    )
+      return mine;
+    converted = true;
+    return { ...mine, value: counterpart.value };
+  };
+  const normalized: CellSnapshot = {
+    ...stripped,
+    value: translate(stripped.value, theirs.value),
+    ...(stripped.cached === undefined
+      ? {}
+      : { cached: translate(stripped.cached, theirs.cached) }),
+  };
+  return converted && isDeepStrictEqual(normalized, theirs)
+    ? "elapsed"
+    : undefined;
 }
 
 function rowsOf(view: SheetView, withCovered: boolean): readonly number[] {
@@ -102,6 +185,34 @@ export function compareWorkbook(bytes: Buffer, limit = 20): CellComparison {
   };
   let implicitFormatCells = 0;
   let chartSheetRanges = 0;
+  let nativeMeaningCells = 0;
+  let nativeElapsedCells = 0;
+  let numericReference: XLSX.WorkBook | undefined;
+  const rawNumericCell = (
+    name: string,
+    address: string,
+  ): RawNumericCell | undefined => {
+    numericReference ??= XLSX.read(bytes, {
+      type: "buffer",
+      cellDates: false,
+      cellNF: true,
+      cellFormula: true,
+      sheetStubs: true,
+    });
+    const cell: unknown = numericReference.Sheets[name]?.[address];
+    if (
+      typeof cell !== "object" ||
+      cell === null ||
+      !("t" in cell) ||
+      cell.t !== "n" ||
+      !("v" in cell) ||
+      typeof cell.v !== "number" ||
+      !("z" in cell) ||
+      typeof cell.z !== "string"
+    )
+      return undefined;
+    return { serial: cell.v, numberFormat: cell.z };
+  };
   if (!isDeepStrictEqual(workbook.sheetNames, reference.sheetNames)) {
     return {
       kind: "compared",
@@ -114,6 +225,8 @@ export function compareWorkbook(bytes: Buffer, limit = 20): CellComparison {
       ],
       implicitFormatCells,
       chartSheetRanges,
+      nativeMeaningCells,
+      nativeElapsedCells,
     };
   }
   const options = { includeDefinedNames: true };
@@ -234,6 +347,26 @@ export function compareWorkbook(bytes: Buffer, limit = 20): CellComparison {
             implicitFormatCells += 1;
             continue;
           }
+          const address = formatCellRef(row, column);
+          const difference = nativeCellDifference(mine, counterpart);
+          if (difference === "meaning") {
+            nativeMeaningCells += 1;
+            continue;
+          }
+          if (
+            mine !== null &&
+            (isCellDuration(mine.value.value) ||
+              (mine.cached !== undefined &&
+                isCellDuration(mine.cached.value))) &&
+            nativeCellDifference(
+              mine,
+              counterpart,
+              rawNumericCell(name, address),
+            ) === "elapsed"
+          ) {
+            nativeElapsedCells += 1;
+            continue;
+          }
           report({
             kind: "cell",
             sheet: name,
@@ -250,5 +383,7 @@ export function compareWorkbook(bytes: Buffer, limit = 20): CellComparison {
     mismatches,
     implicitFormatCells,
     chartSheetRanges,
+    nativeMeaningCells,
+    nativeElapsedCells,
   };
 }

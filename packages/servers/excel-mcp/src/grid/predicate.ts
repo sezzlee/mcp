@@ -1,6 +1,8 @@
 import { fold } from "@sezzlee/file-core";
 import {
   isCellDuration,
+  isCellImage,
+  isCellLinkedValue,
   type CellError,
   type CellScalar,
 } from "./cell-value.js";
@@ -15,6 +17,8 @@ export type CellKind =
   | "time"
   | "text"
   | "boolean"
+  | "image"
+  | "linkedValue"
   | "error"
   | "empty";
 
@@ -31,6 +35,8 @@ export const kindPrecedence: readonly CellKind[] = [
   "time",
   "text",
   "boolean",
+  "image",
+  "linkedValue",
   "error",
   "empty",
 ];
@@ -48,6 +54,8 @@ export function classify(value: CellScalar): CellKind {
     return "boolean";
   }
   if (typeof value === "object") {
+    if (isCellImage(value)) return "image";
+    if (isCellLinkedValue(value)) return "linkedValue";
     return isCellDuration(value) ? "duration" : "error";
   }
   if (isoDate.test(value) && readDateText(value, "dmy").kind === "date")
@@ -419,6 +427,8 @@ export function evaluate(
 }
 
 export interface Census {
+  images?: number;
+  linkedValues?: number;
   numbers: number;
   durations: number;
   dates: number;
@@ -477,6 +487,12 @@ export function record(census: Census, cell: TypedCell): CellKind {
     }
     case "boolean":
       census.booleans += 1;
+      break;
+    case "image":
+      census.images = (census.images ?? 0) + 1;
+      break;
+    case "linkedValue":
+      census.linkedValues = (census.linkedValues ?? 0) + 1;
       break;
     case "error":
       census.errors += 1;

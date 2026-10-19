@@ -1,4 +1,9 @@
-import { documentSheet, type LoadedDocument } from "../format/document.js";
+import {
+  documentSheet,
+  sheetSource,
+  type LoadedDocument,
+} from "../format/document.js";
+import { selectSheetRange } from "../grid/select-sheet.js";
 import {
   declaredHeaderRow,
   scanHeaderRow,
@@ -14,9 +19,17 @@ export function resolveHeaderRow(
     readonly headerRow?: number;
     readonly sheetName?: string;
     readonly range?: string;
+    readonly table?: string;
     readonly mergedCells?: "master" | "repeat";
   },
 ): { headerRow: number; headerRowSource: HeaderRowSource } {
+  if (args.table !== undefined) {
+    const selected = selectSheetRange(sheetSource(loaded), args);
+    return {
+      headerRow: selected.tableHeaderRow ?? 0,
+      headerRowSource: "declared",
+    };
+  }
   if (args.headerScan !== true) {
     return {
       headerRow: args.headerRow ?? 1,

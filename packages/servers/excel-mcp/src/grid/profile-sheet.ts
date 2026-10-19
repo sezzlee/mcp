@@ -3,6 +3,8 @@ import { SezzleeExcelError } from "../platform/errors.js";
 import { limits } from "../platform/limits.js";
 import {
   isCellDuration,
+  presentScalarWithin,
+  scalarText,
   isUncachedFormula,
   resolveCell,
   type CellScalar,
@@ -20,17 +22,21 @@ import {
 } from "./column-reading.js";
 import { buildColumnIndex, resolveColumn, type ColumnMode } from "./columns.js";
 import type { MergePolicy } from "./cursor.js";
-import {
-  headerWarnings,
-  readHeaderRow,
-  type HeaderRowSource,
-} from "./header.js";
+import { headerWarnings, type HeaderRowSource } from "./header.js";
 import { asciiDecimalDigits } from "./locale-text.js";
 import { classify, compareWithin, type CellKind } from "./predicate.js";
-import { columnToLetters, formatRange, resolveRange } from "./range.js";
-import { requireSheetBounds, type SheetSource } from "./sheet.js";
+import { columnToLetters, formatRange } from "./range.js";
+import type { SheetSource } from "./sheet.js";
+import {
+  selectSheetRange,
+  selectionHeaders,
+  visibilityOf,
+  type SelectionOptions,
+  type TableSelection,
+  type VisibilityReport,
+} from "./select-sheet.js";
 
-export interface ProfileOptions extends ReadingHints {
+export interface ProfileOptions extends ReadingHints, SelectionOptions {
   readonly sheetName?: string;
   readonly range?: string;
   readonly headerRow: number;
@@ -91,6 +97,8 @@ export interface ProfileResult {
   readonly sheet: string;
   readonly range: string;
   readonly usedRange: string;
+  readonly table?: TableSelection;
+  readonly visibility?: VisibilityReport;
   readonly headerRow: number;
   readonly headerRowSource: HeaderRowSource;
   readonly columnMode: "letter";
@@ -151,27 +159,16 @@ function bounded(
 }
 
 function example(value: CellScalar): Example {
-  if (typeof value === "string" && value.length > maxExampleChars)
-    return {
-      value: truncateWellFormed(value, maxExampleChars),
-      truncatedFrom: value.length,
-    };
-  if (
-    value !== null &&
-    typeof value === "object" &&
-    !isCellDuration(value) &&
-    value.error.length > maxExampleChars
-  )
-    return {
-      value: { error: truncateWellFormed(value.error, maxExampleChars) },
-      truncatedFrom: value.error.length,
-    };
-  return { value };
+  const text = scalarText(value);
+  return {
+    value: presentScalarWithin(value, maxExampleChars),
+    ...(text.length > maxExampleChars ? { truncatedFrom: text.length } : {}),
+  };
 }
 
 function scalarKey(value: Exclude<CellScalar, null>): ScalarKey {
   if (typeof value !== "object") return value;
-  return isCellDuration(value) ? value.durationSeconds : value.error;
+  return isCellDuration(value) ? value.durationSeconds : JSON.stringify(value);
 }
 
 /**
@@ -307,6 +304,8 @@ function compare(
         ? left.durationSeconds - right.durationSeconds
         : undefined;
     case "error":
+    case "image":
+    case "linkedValue":
     case "empty":
     case "mixed":
       return undefined;
@@ -484,10 +483,9 @@ export function profileSheet(
     limits.maxProfileColumnsHard,
     "maxColumns",
   );
-  const sheet = source.sheetFor(options.sheetName);
-  const used = requireSheetBounds(sheet);
-  const bounds = resolveRange(used, options.range);
-  const headers = readHeaderRow(sheet, bounds, options.headerRow, {
+  const selected = selectSheetRange(source, options);
+  const { sheet, used, bounds } = selected;
+  const headers = selectionHeaders(selected, options.headerRow, {
     valueMode: "values",
     mergePolicy: options.mergedCells,
     includeHyperlinks: false,
@@ -516,11 +514,26 @@ export function profileSheet(
     options.headerRow >= bounds.top && options.headerRow <= bounds.bottom
       ? options.headerRow + 1
       : bounds.top;
-  const totalRows = Math.max(0, bounds.bottom - startRow + 1);
+  const visibility =
+    options.visibleOnly === true
+      ? visibilityOf(selected, startRow, bounds.bottom)
+      : undefined;
+  const totalRows =
+    Math.max(0, bounds.bottom - startRow + 1) -
+    (visibility?.hiddenRowsSkipped ?? 0);
   const totalColumns = bounds.right - bounds.left + 1;
   const sampledColumns = Math.min(totalColumns, maxColumns);
   const cellBoundRows = Math.floor(limits.maxProfileCells / sampledColumns);
   const sampledRows = Math.min(totalRows, maxRows, cellBoundRows);
+  const sampleRows: number[] = [];
+  for (
+    let row = startRow;
+    row <= bounds.bottom && sampleRows.length < sampledRows;
+    row += 1
+  ) {
+    if (options.visibleOnly === true && sheet.hiddenRows.has(row)) continue;
+    sampleRows.push(row);
+  }
   const results: {
     readonly profile: ColumnProfile;
     readonly spec: ColumnSpec;
@@ -529,7 +542,7 @@ export function profileSheet(
     const column = bounds.left + offset;
     const values: CellScalar[] = [];
     let uncachedFormulas = 0;
-    for (let row = startRow; row < startRow + sampledRows; row += 1) {
+    for (const row of sampleRows) {
       const snapshot = sheet.rowAt(row)?.cellAt(column);
       if (snapshot === undefined) {
         values.push(null);
@@ -577,7 +590,7 @@ export function profileSheet(
       bounds,
       options.headerRow,
       headers,
-      options.range !== undefined,
+      options.range !== undefined || selected.table !== undefined,
       options.mergedCells,
     ),
   ];
@@ -593,6 +606,8 @@ export function profileSheet(
     sheet: sheet.name,
     range: formatRange(bounds),
     usedRange: formatRange(used),
+    ...(selected.table === undefined ? {} : { table: selected.table }),
+    ...(visibility === undefined ? {} : { visibility }),
     headerRow: options.headerRow,
     headerRowSource: options.headerRowSource,
     columnMode: "letter",

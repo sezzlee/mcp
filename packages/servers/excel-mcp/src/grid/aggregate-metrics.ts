@@ -1,5 +1,5 @@
 import { SezzleeExcelError } from "../platform/errors.js";
-import type { CellScalar } from "./cell-value.js";
+import { isCellError, type CellScalar } from "./cell-value.js";
 import {
   classify,
   compareWithin,
@@ -53,6 +53,7 @@ type Extreme =
 interface MetricCounts {
   counted: number;
   skipped: number;
+  skippedErrors?: number;
   filtered: number;
   meaning?: MetricMeaning;
 }
@@ -265,6 +266,15 @@ export function addMetric(
   }
   if (cell.missing) {
     state.skipped += context.weight;
+    return;
+  }
+  if (
+    isCellError(cell.raw) &&
+    state.kind !== "count" &&
+    state.kind !== "distinct"
+  ) {
+    state.skipped += context.weight;
+    state.skippedErrors = (state.skippedErrors ?? 0) + context.weight;
     return;
   }
   switch (state.kind) {

@@ -1,5 +1,9 @@
-import { truncateWellFormed } from "@sezzlee/file-core";
-import { isCellDuration, type CellScalar } from "./cell-value.js";
+import {
+  isCellDuration,
+  presentScalarWithin,
+  scalarText,
+  type CellScalar,
+} from "./cell-value.js";
 import {
   explicitReading,
   readAsOf,
@@ -126,16 +130,9 @@ function briefExample(raw: CellScalar): {
   readonly value: CellScalar;
   readonly truncatedFrom?: number;
 } {
-  const text =
-    typeof raw === "string"
-      ? raw
-      : raw !== null && typeof raw === "object" && !isCellDuration(raw)
-        ? raw.error
-        : undefined;
-  if (text === undefined) return { value: raw };
-  const clipped = truncateWellFormed(text, 128);
+  const text = scalarText(raw);
   return {
-    value: typeof raw === "string" ? clipped : { error: clipped },
+    value: presentScalarWithin(raw, 128),
     ...(text.length > 128 ? { truncatedFrom: text.length } : {}),
   };
 }
