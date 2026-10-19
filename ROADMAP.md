@@ -78,50 +78,92 @@ spec, a guard comment or the package README.
   snapshot validation. The architecture below must be reviewed before implementation.
 - **Multiple-source analysis.** Cross-sheet and cross-file joins need an explicit execution
   owner and cardinality, memory and provenance limits. The options below are design only.
-- **Excel delimiter declarations.** Recognize a leading `sep=;` declaration without treating it
-  as a header, and report the delimiter's source and explicit-argument precedence.
 
 ### Streaming CSV: proposed contract, pending approval
 
-The current `chunked` mode is a response policy, not streaming input. `createDocumentStore`
-reads the complete native snapshot, hashes it, and gives parsers a `bufferSource`; the CSV
-adapter materializes the complete table. Raising a byte limit would retain both costs.
+The current `chunked` mode controls responses. `createDocumentStore` still reads the complete
+native snapshot, hashes it, and gives parsers a `bufferSource`; CSV parsing materializes the
+complete table. The native file ceiling is 50 MiB, CSV input is limited to 16 MiB and two million
+cells, and `readRange` resolves a fresh handle for each call. Its existence does not establish
+a single large-file snapshot. Raising a byte limit would retain the allocation and consistency
+problems. The following design requires approval before runtime implementation.
 
-1. **Preserve secure access.** Add a format-neutral, cancellable snapshot reader to
-   `file-core-native` and `file-core`. Every open and range read must retain the pinned-root,
-   regular-file and changed-file checks. Do not reopen a path through JavaScript's filesystem
-   API. A bounded, private temporary snapshot is the preferred first implementation because
-   pages and repeated aggregates must read the same bytes. Its disk quota, permissions,
-   cancellation cleanup and cache eviction are part of the contract, not caller conventions.
-   This choice adds disk I/O and must be approved with the native change.
-2. **Separate sequential and random access.** Keep the synchronous `SheetView` for resident
-   workbooks. Introduce an asynchronous row-source contract for CSV scanning, with a known
-   column span, row batches, cancellation and explicit unknown totals until a scan completes.
-   Adapt aggregation, profiling and search to that contract before selecting it for large
-   files. An optional sparse record-offset index supports later pages without retaining cell
-   strings. Quoted newlines, decoder state and CRLF boundaries belong to the tokenizer;
-   a byte offset alone is not a valid row cursor.
-3. **Freeze decisions.** Encoding, `sep=` and delimiter precedence are decided once. Infer
-   types from the first bounded sample of non-missing values, record the sample size and
-   decision version, then freeze the `columns` plan. Later incompatible values increment
-   contradiction, skipped and example counters. Never change a grouping key or previously
-   emitted value after discovering a later row. Explicit `columns` bypass inference.
-4. **Budget every retained resource.** The first proposal is 256 KiB input batches, a 1 MiB
-   record limit, at most 10,000 sampled values per column and 100,000 across columns, and a
-   2 GiB file / 4 GiB aggregate snapshot-disk quota. These are proposed operator limits,
-   not implemented promises. Existing result, group, dense pivot, distinct and percentile
-   limits still apply; exact percentiles fail when their sample budget is exhausted.
-   A bounded time and cell-visit budget is required even when input can be streamed.
-5. **Bind continuation to the snapshot.** A cursor carries the snapshot identity, dialect,
-   frozen type-plan identity and next complete record. Eviction or a changed source returns
-   a restartable error. Responses state whether totals and diagnostics cover a page, a
-   sample or a completed scan. Aggregate results are emitted only after the scan completes.
+1. **Capture one authorized version.** Add a format-neutral, cancellable snapshot capability
+   to `file-core-native` and `file-core`. Capture through one verified native handle, retaining
+   pinned-root, regular-file and before/after identity checks. Do not reopen a caller path
+   through JavaScript's filesystem API. Copy and hash the complete bounded source into a
+   private temporary file before publishing any cursor. Existing native checks detect observed
+   concurrent changes; they do not promise an atomic filesystem snapshot. Once capture succeeds,
+   the private copy is immutable and its digest identifies exactly the bytes being analyzed.
+   This makes the first response wait for full-file I/O. Native integer widths and byte limits
+   must be reviewed before accepting the proposed 2 GiB input size.
+2. **Bind authority and lifetime.** A snapshot lease binds the configured root, server session,
+   selected source and captured version, not only a public digest or a guessed cache key.
+   Native-owned temporary files have private permissions, accept no caller-selected paths,
+   and are removed only through their owning lease. A live operation prevents eviction while
+   it reads. Idle expiry, the hard lifetime, restart or quota eviction returns an explicit
+   snapshot-expired error requiring a new cursorless call; it never silently reopens the source.
+   The hard lifetime blocks new reuse; an operation already holding a lease can finish within
+   its own deadline, then release and clean up. Cancellation reaches copying, hashing, decoding,
+   tokenizing, aggregation and cleanup.
+3. **Publish stable structure and interpretation.** A structural prepass over the captured
+   bytes establishes record count, maximum width and ragged-record diagnostics before the
+   first page. This preserves existing padding semantics when a late record is wider.
+   Freeze encoding, BOM, `sep=`/delimiter precedence, header, locale, numbering system, literal
+   lists and the parser/runtime version with the inferred or explicit `columns` plan.
+   Inference uses a bounded prefix and bounded non-missing evidence, then stops. Later
+   incompatible values increment contradiction, skipped and bounded-example counters; they
+   cannot revise earlier groups or values. Explicit columns bypass type inference. Raw values
+   remain available. Scanning all blank records to fill a sample is prohibited by the prefix
+   and time budgets.
+4. **Separate resident and sequential access.** Keep synchronous `SheetView` for resident
+   workbooks. Add an asynchronous row-source contract for complete row batches, stable column
+   span and cancellation, then adapt read, profile, find and aggregate to it. Sparse indexes
+   store tokenizer restart points, including decoder state where necessary. Quoted newlines,
+   escaped quotes and CRLF boundaries prevent treating an arbitrary byte offset as a row
+   cursor. The initial design retains A1 limits of 1,048,576 rows and 16,384 columns and refuses
+   larger dimensions explicitly. A CSV ordinal API beyond those limits needs a separate schema
+   and cursor-version decision; a larger byte cap alone does not authorize larger coordinates.
+5. **Continue the captured version.** A cursor carries the snapshot lease, dialect and frozen
+   plan identities and next complete record. It continues that captured version even when
+   the original file later changes; a new cursorless call captures the latest source. Responses
+   expose the version used. This deliberately differs from current changed-file cursor refusal
+   and avoids rehashing a multi-gigabyte source before every page. Preparation failures publish
+   no cursor. No partial scan may be reported as a completed aggregate.
+
+All values below are proposed operator limits, not implemented or measured guarantees. Byte
+accounting includes retained text and state; counts alone do not bound their sizes.
+
+| Resource                   | Proposed first limit                                             | Refusal or accounting rule                                                                                     |
+| -------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Input batch                | 256 KiB                                                          | Preserve decoder and tokenizer state between batches.                                                          |
+| Logical record             | 1 MiB encoded bytes and 2 MiB decoded UTF-16 payload             | Refuse excess; never truncate a field. This can reject a large record accepted by the current resident parser. |
+| File and temporary storage | 2 GiB per file; 4 GiB per server process                         | The shared quota includes captures, persisted indexes and any future owned spill files.                        |
+| Sample prefix              | First 20,000 records or 8 MiB decoded text, whichever ends first | Blank and missing records consume the prefix budget too.                                                       |
+| Type evidence              | 10,000 non-missing values per column; 100,000 across columns     | Stop at any earlier prefix, byte or time limit and report the actual sample scope.                             |
+| Retained working data      | 128 MiB across active streaming data and cached indexes          | Includes at most 32 MiB sample/evidence data; byte accounting is not an exact RSS ceiling.                     |
+| Sparse index               | 8 MiB per snapshot                                               | Included in working-data accounting and the disk quota when persisted.                                         |
+| Cached captures            | At most two                                                      | A current lease blocks eviction during its operation; admission can fail instead.                              |
+| Work admission             | One active preparation or scan per server process; no queue      | A concurrent request receives a bounded busy refusal.                                                          |
+| Lifetime                   | 15-minute idle expiry; 60-minute hard lifetime                   | Expiry ends reuse; a cursor does not pin a capture indefinitely.                                               |
+| Deadline                   | 120 seconds for preparation and for each query                   | Cancel work and clean up; never return partial totals as complete.                                             |
+
+Existing response, per-page, profile, group, metric-state, dense-pivot, distinct, exact-percentile
+and 20-million aggregate cell-visit limits remain explicit. The resident two-million-cell
+materialization limit cannot be blindly reused as an allocation strategy for streaming.
+Diagnostics distinguish a page, a sample, a scanned prefix and a completed selected scope.
+Full aggregates require a completed scan of that scope; a deadline or state-budget refusal
+does not become a partial answer. Resident-cache coexistence must be included in admission
+and memory measurement. A 512 MiB peak-RSS target for streaming acceptance workloads is a
+proposed measurement target, not a guarantee for arbitrary mixed cached workbooks.
 
 Acceptance requires independent CSV oracles across every chunk boundary of multibyte text,
-escaped quotes, CRLF and embedded line breaks; mutation and cancellation tests; frozen-plan
-contradiction tests; and measured peak memory and temporary-disk use on progressively larger
-files. A bounded 16 MiB fixture must produce the same values through resident and streaming
-paths. Native platform CI is required. No streaming runtime code is part of the current work.
+escaped quotes, CRLF and embedded line breaks; late wider records and type contradictions;
+mutation during capture and after publication; concurrent requests, cancellation, expiry,
+eviction and restart; and measured memory and temporary-disk use on progressively larger files.
+A bounded 16 MiB fixture must produce the same values through resident and streaming paths,
+apart from explicitly documented sampling diagnostics. Native platform CI is required.
+No streaming runtime code is part of the current work.
 
 ### Multiple-source analysis: execution owner to be decided
 
@@ -131,15 +173,32 @@ paths. Native platform CI is required. No streaming runtime code is part of the 
 | Host-managed local worker  | Ad hoc joins of explicitly selected files or sheets       | Keeps a closed join plan and per-source approvals in the host; needs worker cancellation, memory limits and optional private spill storage               |
 | Persisted semantic service | Repeated governed analysis over stable datasets           | Requires ingestion, refresh, ownership and storage policy; too much setup for an isolated workbook question                                              |
 
-The recommendation is a host-managed local worker for ad hoc joins. The caller selects each
-source explicitly; a closed plan names join kind, composite key columns, per-source type
-specifications and output columns. No spreadsheet cell or tool argument becomes executable
-code or unrestricted SQL. Identifier keys remain text unless explicitly typed, null keys do
-not match, duplicate-key multiplicity is measured before emitting results, and an output-row
-and memory budget refuses accidental many-to-many expansion. Return source fingerprints,
-matched/unmatched row counts and key-read failures. Currency conversion, fuzzy matching and
-time-zone guessing are outside that contract. The execution owner and these semantics must
-be chosen before code or a new tool is added.
+The recommendation is a host-managed local worker for ad hoc joins. The first closed contract
+would support `inner` and `left`, with an explicitly authorized captured version for each
+source, aliases, composite keys, per-source types and output columns. A key is a typed tuple,
+not a delimiter-concatenated string. Identifier keys remain text unless explicitly typed.
+Null keys do not match; unreadable keys have separate counts. No implicit trimming, case
+folding, numeric conversion, currency conversion, fuzzy matching, executable cell content or
+unrestricted SQL is allowed. Currency and unit compatibility must be checked before a typed
+comparison is admitted.
+
+The plan declares one-to-one, many-to-one or one-to-many cardinality. Unexpected duplicate keys
+are refused; many-to-many is excluded from the first version. Count multiplicity before
+materialization, using bounded arithmetic: a left join emits the left-key count multiplied
+by the larger of the right-key count and one. Enforce build-side bytes, distinct keys, visited
+cells, output rows and output bytes before emission. The first version has no spill path;
+any later spill belongs to the same private-storage quota and cancellation contract.
+
+Results preserve left-source order, then right-match order. Conflicting column names require
+explicit aliases. Return both source versions and row provenance, distinct matched/unmatched
+counts for each input, key-read failures and the output-row count; output rows are not a proxy
+for matched input rows. Proposed first-worker limits are two sources, 100,000 distinct keys,
+100,000 output rows, one million output cells, 64 MiB total serialized output and 128 MiB
+accounted working data, with 512 KiB response pages, one active job and a 120-second deadline.
+These are unimplemented candidate limits; every applicable limit must pass. Budget excess is
+an explicit refusal, not silent truncation of a full analysis. The execution owner,
+first-version cardinalities and operator budgets must be chosen before code or a new tool is
+added.
 
 ## llm-mcp
 

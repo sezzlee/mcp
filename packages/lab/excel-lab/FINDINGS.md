@@ -772,6 +772,74 @@ that correction changed only the fixture. These checks use original generated fi
 saved values; they do not claim external corpus, Excel recalculation or phase-4 performance
 coverage.
 
+## Phase-5 CSV separator declaration evidence
+
+The reader now recognizes an exact first decoded physical line of `sep=X` or `"sep=X"`,
+with ASCII case-insensitive `sep` and one comma, semicolon, literal tab or pipe. The line
+must end at LF, CRLF, CR or end of input. Detection follows strict decoding and BOM handling;
+whitespace, unsupported delimiters, Unicode lookalikes and later occurrences are not
+silently consumed. A valid declaration is omitted from headers, records and CSV counters.
+Its delimiter reports `csv.delimiterSource: "sep"`; an explicit delimiter still wins, reports
+`"explicit"`, and adds a warning when it conflicts. The declaration is omitted in either case.
+
+The primary [LibreOffice CSV filter documentation](https://help.libreoffice.org/latest/en-US/text/shared/guide/csv_params.html),
+checked on 2026-10-19, documents both bare and quoted declarations as the only content of the
+first line. It also describes retaining that line as cell data unless import starts at row 2.
+Omitting the declaration is this reader's intentional contract; the source does not establish
+that omission as the default behavior of other spreadsheet applications.
+
+The 45 cases in [csv-sep.spec.ts](../../servers/excel-mcp/test/csv-sep.spec.ts) use independent
+literal records and fixed hexadecimal byte vectors. They cover UTF-8 with BOM, UTF-16LE and
+UTF-16BE with BOM, explicit UTF-16LE without BOM, and explicit windows-1251 preserving
+`Привет` and `00123`. Other cases verify exact raw records, header and diagnostic counts,
+declaration-only input, preserved blank records, malformed lookalikes, LF/CRLF/CR mixtures,
+quoted multiline cells and fault locations in the original physical file. Public-handler
+checks page all three identifier/amount rows, assert sum 60 and count 3, locate `002` at
+`A3`, preserve explicit delimiter choices across pages and retain the existing `stale_cursor`
+response after source mutation.
+
+On immutable `557935f9bf1e1e7e21882486fd47bcab1f76003b`, the new suite produced **24 intended
+failures and 21 passing preservation controls**. From that isolated checkout, the command was:
+
+```bash
+pnpm_config_verify_deps_before_run=warn corepack pnpm exec turbo run test --filter=@sezzlee/excel-mcp -- test/csv-sep.spec.ts
+```
+
+The current implementation passed **134 focused tests** across five files and six Turbo
+tasks: 45 separator cases, 45 existing tokenizer cases including differential fuzz, 28 CSV
+cases, six cursor cases and ten encoding cases. Lint and type checking passed ten tasks.
+The following commands ran from the vendor root:
+
+```bash
+corepack pnpm exec turbo run test --filter=@sezzlee/excel-mcp -- test/csv-sep.spec.ts test/csv.spec.ts test/csv-tokenizer.spec.ts test/cursor.spec.ts test/global-encoding.spec.ts
+corepack pnpm exec turbo run lint check-types --filter=@sezzlee/excel-mcp
+corepack pnpm exec turbo run lint check-types test --filter=@sezzlee/excel-mcp --ui=stream > ../phase5-red-evidence/final-phase5-gate.log 2>&1
+```
+
+The final whole-package gate passed **1,121 tests**, with one optional external CSV corpus
+test skipped: 65 test files passed, one was skipped, and all 12 Turbo tasks succeeded.
+Saved evidence outside the repository is in `phase5-red-evidence/sep-summary.json`,
+`sep-red.log`, `sep-focused-green.log`, `sep-lint-types.log` and `final-phase5-gate.log`;
+the summary includes the baseline revision and tested source digests.
+
+The final documentation validation passed all 11 Turbo tasks, including the actual server
+reference check. No input schema changed in this phase, so the generated references remained
+current. The global CSV recipe ran through the real CLI and captured five output blocks,
+including `delimiterSource: "sep"`, explicit override, preserved raw/typed rows and the
+existing aggregate answers. The clean run used npm's standard error log level to keep an
+unrelated host proxy-configuration warning out of the example output:
+
+```bash
+corepack pnpm exec turbo run validate --filter=@sezzlee/docs --ui=stream
+env npm_config_loglevel=error node apps/docs/scripts/run-examples.mjs --write 07-profile-and-read-global-data.md
+```
+
+The runtime change is confined to CSV declaration handling and response diagnostics in
+[csv.ts](../../servers/excel-mcp/src/format/csv.ts). The tokenizer, input schemas, cursor
+representation and parser limits are unchanged. These original regression inputs and the
+existing fuzz checks establish no external-corpus coverage, live Excel/LibreOffice behavior,
+new streaming capacity or join implementation. The existing 16 MiB resident CSV limit remains.
+
 ## Next steps
 
 1. Keep legacy decoding explicit. The global typed-text work selected a closed encoding list

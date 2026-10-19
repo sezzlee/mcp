@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### CSV delimiter declarations
+
+- An exact first decoded physical line `sep=X` or `"sep=X"` selects comma, semicolon, tab or pipe and is excluded from headers and record diagnostics. The ASCII keyword is case-insensitive. BOM validation remains strict, and syntax errors retain physical file line numbers.
+- `csv.delimiterSource` adds `"sep"`. An explicit `delimiter` takes precedence, retains `"explicit"` and warns on a conflicting declaration. Paging retains the same parsing choice. Lookalikes with extra text, whitespace, unsupported separators or a later position remain data.
+
 ### Rich workbook values
 
 - In-cell images resolve their rich-value metadata into image IDs, alternative text and decorative flags instead of `#VALUE!` compatibility errors. `get_images` lists their source cells and retains saved alt text for drawing images too.

@@ -118,6 +118,17 @@ CSV decoding accepts explicit UTF-8/UTF-16, Windows-1251/1252/1254/1256, ISO-885
 Shift_JIS, GB18030, Big5 and EUC-KR. Legacy encodings are never guessed, and malformed multibyte
 sequences are refused. The same encoding selection is retained in paging cursors.
 
+A first decoded physical line consisting exactly of `sep=X` or `"sep=X"` declares a comma,
+semicolon, tab or pipe separator. The `sep` keyword accepts ASCII case variants; whitespace,
+other separators and later lookalikes remain ordinary data. A tab must be the actual character,
+not the two-character spelling `\t`. The recognized line is removed before header selection
+and record, ragged, blank and formula-like counts. The first remaining record is sheet row 1;
+syntax faults still report physical file lines, and `csv.lineBreak` includes the declaration's
+line ending. With no explicit delimiter, `csv.delimiterSource` is `"sep"`. An explicit
+`delimiter` wins and keeps source `"explicit"`; a conflicting declaration adds a warning but
+is still removed. BOM and strict decoding checks run first. See the
+[CSV profile recipe](../../../../apps/docs/src/content/excel-mcp/recipes/07-profile-and-read-global-data.md).
+
 An explicit number column may provide `locale` and `numberingSystem` instead of decimal/group
 marks, for example `{"column":"Amount","type":"number","locale":"ar-EG","numberingSystem":"arab"}`.
 Decimal digit systems, local separators, signs and grouping sizes are compiled from the runtime's
