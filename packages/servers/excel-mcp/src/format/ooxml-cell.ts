@@ -50,10 +50,11 @@ function factsOf(
       if (format.elapsed) {
         /**
          * Guard: a serial is a fraction of a day, so one second is stored as
-         * 1/86400 and multiplies back to 0.9999999999999997. Excel resolves
-         * time to the millisecond, so the product is rounded to it.
+         * 1/86400 and multiplies back to 0.9999999999999997. Excel keeps 15
+         * significant digits, so the product is cut to them: the noise goes
+         * and an exactly stored fraction of a second stays as it was.
          */
-        const seconds = Math.round(value.value * 86_400_000) / 1000;
+        const seconds = Number((value.value * 86400).toPrecision(15));
         if (!Number.isFinite(seconds))
           throw new SezzleeExcelError(
             "numeric_overflow",

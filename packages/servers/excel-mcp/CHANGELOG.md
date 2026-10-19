@@ -19,6 +19,7 @@
 - A caller's `missingValues`, `trueValues` or `falseValues` takes its words from the defaults of the other lists; only two lists the caller wrote may not overlap.
 - A complete `read_sheet` page is no longer refused because the cursor it would have emitted exceeds the cursor budget.
 - `omittedMatchedRows` no longer counts ungrouped rows, which no `maxGroups` value returns.
+- An elapsed duration keeps Excel's 15 significant digits, so one second reads as `1`, not `0.9999999999999997`, and an exactly stored fraction of a second is unchanged.
 - Numeric format sections, time-only checks and compiled locales are cached instead of being parsed again for every cell or column.
 
 ### CSV delimiter declarations
