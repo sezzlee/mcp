@@ -34,6 +34,8 @@ export interface ChatRequest {
   readonly window: number;
   readonly temperature: number;
   readonly timeoutMs: number;
+  /** Ollama's num_predict; null leaves output unbounded, as the product does. */
+  readonly numPredict: number | null;
 }
 
 export interface Usage {
@@ -62,8 +64,11 @@ export interface HostIdentity {
   readonly details: Readonly<Record<string, unknown>> | null;
 }
 
-/** What a failed request means for the run: try again, the window was too small, or give up. */
-export type HostFailure = "retryable" | "context" | "fatal";
+/**
+ * What a failed request means for the run: try again, try once more after a
+ * timeout, the window was too small, or give up.
+ */
+export type HostFailure = "retryable" | "timeout" | "context" | "fatal";
 
 export class HostRequestError extends Error {
   readonly failure: HostFailure;

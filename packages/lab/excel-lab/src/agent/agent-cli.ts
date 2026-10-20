@@ -39,6 +39,7 @@ const { values } = parseArgs({
     thinking: { type: "string", default: "product" },
     budget: { type: "string", default: "15" },
     "timeout-ms": { type: "string", default: "600000" },
+    "num-predict": { type: "string" },
     "retry-delay-ms": { type: "string", default: "30000" },
     "keep-alive": { type: "string", default: "10m" },
     resume: { type: "boolean", default: false },
@@ -62,6 +63,7 @@ const options = z
     thinking: z.enum(thinkingPolicies),
     budget: positive,
     timeoutMs: positive,
+    numPredict: positive.nullable(),
     retryDelayMs: z.coerce.number().int().nonnegative(),
     keepAlive: z.string().min(1),
     resume: z.boolean(),
@@ -71,6 +73,7 @@ const options = z
     ...values,
     corpus: values.corpus ?? process.env["SEZZLEE_CORPUS"],
     timeoutMs: values["timeout-ms"],
+    numPredict: values["num-predict"] ?? null,
     retryDelayMs: values["retry-delay-ms"],
     keepAlive: values["keep-alive"],
     baseUrl: process.env["SEZZLEE_AGENT_LAB_OLLAMA_URL"],
@@ -111,6 +114,7 @@ const manifest = await buildManifest({
     keepAlive: options.keepAlive,
     callBudget: options.budget,
     timeoutMs: options.timeoutMs,
+    numPredict: options.numPredict,
   },
 });
 const manifestHash = canonicalHash(identityOf(manifest));
@@ -147,8 +151,29 @@ if (options.resume)
   )) {
     if (line.trim() === "") continue;
     const record: RunRecord = JSON.parse(line);
-    if (record.outcome !== "hostError") records.set(record.trialId, record);
+    if (record.outcome !== "hostError" && record.outcome !== "interrupted")
+      records.set(record.trialId, record);
   }
+
+/**
+ * Guard: a trial started while the host is unreachable spends its retries in
+ * seconds and ends as a host error. Waiting before each trial keeps it for
+ * when the host answers again, which is what a resume script did by hand.
+ */
+async function hostReachable(): Promise<void> {
+  for (let waits = 0; ; waits += 1) {
+    try {
+      await host.identity();
+      return;
+    } catch {
+      if (waits === 0)
+        process.stderr.write(
+          `${new Date().toISOString()} host unreachable; waiting\n`,
+        );
+      await new Promise((resolve) => setTimeout(resolve, 30_000));
+    }
+  }
+}
 
 for (const task of tasks)
   for (const language of options.languages)
@@ -161,6 +186,7 @@ for (const task of tasks)
       };
       const trialId = trialIdOf(manifestHash, key);
       if (records.has(trialId)) continue;
+      await hostReachable();
       const record = await runTask({
         task,
         key,
@@ -176,6 +202,7 @@ for (const task of tasks)
         thinking: options.thinking,
         callBudget: options.budget,
         timeoutMs: options.timeoutMs,
+        numPredict: options.numPredict,
         retryDelayMs: options.retryDelayMs,
         onEvent: (event) =>
           appendFile(eventsPath, `${JSON.stringify(event)}\n`),

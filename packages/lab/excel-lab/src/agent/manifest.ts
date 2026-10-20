@@ -34,6 +34,7 @@ export const manifestSchema = z.strictObject({
     keepAlive: z.string(),
     callBudget: z.int().positive(),
     timeoutMs: z.int().positive(),
+    numPredict: z.int().positive().nullable().default(null),
   }),
   node: z.string(),
   provenance: z.strictObject({ labCommit: z.string().nullable() }),

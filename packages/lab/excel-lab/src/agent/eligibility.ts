@@ -5,6 +5,7 @@ export type Eligibility =
       readonly eligible: false;
       readonly reason:
         | "hostError"
+        | "interrupted"
         | "preflightRefused"
         | "providerContextError"
         | "windowMismatch";
@@ -12,7 +13,7 @@ export type Eligibility =
 
 /**
  * The one rule every report, comparison and summary applies: a run the host
- * failed, a request the preflight refused, and a run whose host held the
+ * failed or the machine's sleep cut short, a request the preflight refused, and a run whose host held the
  * model with another window measure the setup, not the model, so they are
  * counted apart from accuracy. Runs saved before the outcome was split call a
  * refused preflight `contextExceeded`.
@@ -24,6 +25,8 @@ export function eligibilityOf(run: {
 }): Eligibility {
   if (run.outcome === "hostError")
     return { eligible: false, reason: "hostError" };
+  if (run.outcome === "interrupted")
+    return { eligible: false, reason: "interrupted" };
   if (run.outcome === "preflightRefused" || run.outcome === "contextExceeded")
     return { eligible: false, reason: "preflightRefused" };
   if (run.outcome === "providerContextError")

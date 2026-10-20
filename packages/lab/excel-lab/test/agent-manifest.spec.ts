@@ -29,6 +29,7 @@ const manifest: Manifest = {
     keepAlive: "10m",
     callBudget: 15,
     timeoutMs: 600000,
+    numPredict: null,
   },
   node: "v24.12.0",
   provenance: { labCommit: "abc" },

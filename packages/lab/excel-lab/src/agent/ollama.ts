@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   HostRequestError,
+  type HostFailure,
   type ChatRequest,
   type ChatResult,
   type HostIdentity,
@@ -67,6 +68,16 @@ function modelName(name: string): string {
 
 function contextMessage(text: string): boolean {
   return /context|num_ctx|too long|exceeds/i.test(text);
+}
+
+/**
+ * Guard: at temperature 0 a request that timed out repeats the same long
+ * generation, so a timeout is retried once and a dropped connection more.
+ */
+function failureOf(error: unknown): HostFailure {
+  return error instanceof Error && error.name === "TimeoutError"
+    ? "timeout"
+    : "retryable";
 }
 
 /**
@@ -151,7 +162,13 @@ export class OllamaHost implements ModelHost {
       tools: request.tools,
       stream: true,
       keep_alive: this.#keepAlive,
-      options: { num_ctx: request.window, temperature: request.temperature },
+      options: {
+        num_ctx: request.window,
+        temperature: request.temperature,
+        ...(request.numPredict === null
+          ? {}
+          : { num_predict: request.numPredict }),
+      },
     });
     const estimatedTokens = estimateTokens(body);
     const reserve = Math.min(4096, Math.floor(request.window / 4));
@@ -167,7 +184,7 @@ export class OllamaHost implements ModelHost {
         signal: AbortSignal.timeout(request.timeoutMs),
       });
     } catch (error) {
-      throw new HostRequestError(String(error), "retryable");
+      throw new HostRequestError(String(error), failureOf(error));
     }
     if (!response.ok) {
       const text = (await response.text()).slice(0, 300);
@@ -211,7 +228,7 @@ export class OllamaHost implements ModelHost {
       take(pending + decoder.decode());
     } catch (error) {
       if (error instanceof HostRequestError) throw error;
-      throw new HostRequestError(String(error), "retryable");
+      throw new HostRequestError(String(error), failureOf(error));
     }
     if (last === undefined)
       throw new HostRequestError("Ollama ended the stream early.", "retryable");

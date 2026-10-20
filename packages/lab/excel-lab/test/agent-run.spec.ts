@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { createExcelMcpServer, createWorkbookRoot } from "@sezzlee/excel-mcp";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   runTask,
   toolSpecsOf,
@@ -107,7 +107,7 @@ function reply(input: {
   });
 }
 
-function fail(failure: "retryable" | "context"): Step {
+function fail(failure: "retryable" | "timeout" | "context"): Step {
   return () => {
     throw new HostRequestError("host failed", failure);
   };
@@ -158,6 +158,7 @@ async function run(input: {
     thinking: input.thinking ?? "product",
     callBudget: input.callBudget ?? 15,
     timeoutMs: 10_000,
+    numPredict: null,
     retryDelayMs: 0,
     onEvent: async (event) => {
       events.push(event);
@@ -212,6 +213,42 @@ describe("running one task against a model host", () => {
       "submitted",
       "trialFinished",
     ]);
+  });
+
+  it("gives a timed-out request one more try, not two", async () => {
+    const host = new ScriptedHost([
+      fail("timeout"),
+      fail("timeout"),
+      reply({ calls: [["submit_answer", { value: 3 }]] }),
+    ]);
+    const { record } = await run({ host });
+    expect(record.outcome).toBe("hostError");
+    expect(host.requests).toHaveLength(2);
+  });
+
+  it("closes a trial whose request overlapped the machine's sleep as interrupted, without retrying", async () => {
+    const wall = Date.now();
+    const asleep: Step = () => {
+      vi.spyOn(Date, "now").mockReturnValue(wall + 120_000);
+      throw new HostRequestError("fetch failed", "retryable");
+    };
+    const host = new ScriptedHost([
+      asleep,
+      reply({ calls: [["submit_answer", { value: 3 }]] }),
+    ]);
+    try {
+      const { record, events } = await run({ host });
+      expect(record.outcome).toBe("interrupted");
+      expect(host.requests).toHaveLength(1);
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          kind: "requestFailed",
+          failure: "interrupted",
+        }),
+      );
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 
   it("does not retry a request the host refused for its context window", async () => {

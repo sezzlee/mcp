@@ -29,7 +29,8 @@ export type RunOutcome =
   | "callBudget"
   | "preflightRefused"
   | "providerContextError"
-  | "hostError";
+  | "hostError"
+  | "interrupted";
 
 export interface CallMetric {
   readonly tool: string;
@@ -196,7 +197,7 @@ type Requested =
   | { readonly kind: "result"; readonly result: ChatResult }
   | {
       readonly kind: "failed";
-      readonly failure: "context" | "host";
+      readonly failure: "context" | "host" | "interrupted";
       readonly error: string;
     };
 
@@ -227,7 +228,10 @@ export async function runTask(input: {
   readonly thinking: ThinkingPolicy;
   readonly callBudget: number;
   readonly timeoutMs: number;
+  readonly numPredict: number | null;
   readonly retryDelayMs: number;
+  /** Wall-clock time a request may outlast its monotonic time before the machine is taken to have slept. */
+  readonly sleepGapMs?: number;
   readonly onEvent: (event: TrialEvent) => Promise<void>;
 }): Promise<RunRecord> {
   const { task, language, host, client, window } = input;
@@ -261,9 +265,23 @@ export async function runTask(input: {
   let failure: string | null = null;
   await emit({ kind: "trialStarted", key: input.key });
 
+  /**
+   * Guard: the monotonic clock stops while the machine sleeps and the wall
+   * clock does not, so a gap between them means the request overlapped a
+   * sleep. Its failure says nothing about the host, and its retries would
+   * spend themselves against a network that is not there, so the trial is
+   * closed as interrupted for a resume to run again.
+   */
+  const slept = (wall: number, monotonic: number): boolean =>
+    Date.now() - wall - (performance.now() - monotonic) >
+    (input.sleepGapMs ?? 30_000);
+
   const request = async (offered: readonly ToolSpec[]): Promise<Requested> => {
     const index = usages.length + 1;
+    let timeouts = 0;
     for (let attempt = 1; ; attempt += 1) {
+      const wall = Date.now();
+      const monotonic = performance.now();
       try {
         return {
           kind: "result",
@@ -273,21 +291,30 @@ export async function runTask(input: {
             window,
             temperature: input.temperature,
             timeoutMs: input.timeoutMs,
+            numPredict: input.numPredict,
           }),
         };
       } catch (error) {
         if (!(error instanceof HostRequestError)) throw error;
         failedRequests += 1;
+        const interrupted = slept(wall, monotonic);
         await emit({
           kind: "requestFailed",
           request: index,
           attempt,
-          failure: error.failure,
+          failure: interrupted ? "interrupted" : error.failure,
           error: error.message,
         });
+        if (interrupted)
+          return {
+            kind: "failed",
+            failure: "interrupted",
+            error: error.message,
+          };
         if (error.failure === "context")
           return { kind: "failed", failure: "context", error: error.message };
-        if (error.failure === "fatal" || attempt >= 3)
+        if (error.failure === "timeout") timeouts += 1;
+        if (error.failure === "fatal" || attempt >= 3 || timeouts >= 2)
           return { kind: "failed", failure: "host", error: error.message };
         await wait(input.retryDelayMs);
       }
@@ -299,7 +326,11 @@ export async function runTask(input: {
     const requested = await request(lastChance ? [submit] : tools);
     if (requested.kind === "failed") {
       outcome =
-        requested.failure === "context" ? "providerContextError" : "hostError";
+        requested.failure === "context"
+          ? "providerContextError"
+          : requested.failure === "interrupted"
+            ? "interrupted"
+            : "hostError";
       failure = requested.error;
       break;
     }

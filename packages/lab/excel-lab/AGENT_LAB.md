@@ -16,16 +16,16 @@ Two questions drive every measurement:
 A task is one question about one or more corpus files, with everything needed to judge an
 attempt:
 
-| Field       | Meaning                                                                                                                                                                                                         |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`        | Stable name, e.g. `uk-spend-top-supplier`                                                                                                                                                                       |
-| `files`     | Corpus entries by `source`, `file` and `sha256`; a byte mismatch refuses the task                                                                                                                               |
-| `knowledge` | How the file reaches the agent: `K0` not attached, `K1` attached, `K2` attached and named as the user sees it                                                                                                   |
-| `level`     | Difficulty, `L1` to `L5` (see [Coverage](#coverage))                                                                                                                                                            |
-| `cases`     | The corner-case ids the task exercises                                                                                                                                                                          |
-| `question`  | The question as a user types it, in Turkish and in English                                                                                                                                                      |
-| `answer`    | The expected answer as typed fields: `integer`, `decimal` and `percent` with their own tolerance, `text`, `date`, `month`, `localDateTime`; a `list`, `set` or `record` of them; or a `refusal` with its reason |
-| `plan`      | The calls that answer the question at this knowledge level, each marked `discover` or `answer`, and how the answer is derived from their responses                                                              |
+| Field       | Meaning                                                                                                                                                                                                                                                     |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`        | Stable name, e.g. `uk-spend-top-supplier`                                                                                                                                                                                                                   |
+| `files`     | Corpus entries by `source`, `file` and `sha256`; a byte mismatch refuses the task                                                                                                                                                                           |
+| `knowledge` | How the file reaches the agent: `K0` not attached, `K1` attached, `K2` attached and named as the user sees it                                                                                                                                               |
+| `level`     | Difficulty, `L1` to `L5` (see [Coverage](#coverage))                                                                                                                                                                                                        |
+| `cases`     | The corner-case ids the task exercises                                                                                                                                                                                                                      |
+| `question`  | The question as a user types it, in Turkish and in English                                                                                                                                                                                                  |
+| `answer`    | The expected answer as typed fields: `integer`, `decimal` and `percent` with their own tolerance, `text` with optional `accept` wordings for a label, `date`, `month`, `localDateTime`; a `list`, `set` or `record` of them; or a `refusal` with its reason |
+| `plan`      | The calls that answer the question at this knowledge level, each marked `discover` or `answer`, and how the answer is derived from their responses                                                                                                          |
 
 Questions are written the way a person types them in a chat. They never carry a file path, a
 cell range, a column letter, an encoding or a separator; finding those is the agent's work and
@@ -173,8 +173,9 @@ Metrics per run:
 
 A tag says a task is meant to meet a scenario; the run's trace says whether it did. The error
 and recovery scenarios are read from the server's answers (`src/agent/exercised.ts`): `R1`,
-`R2`, `R3`, `R6` and `Z3` from the error code of a call, `R4` from an ambiguity warning and `R5`
-from a truncated answer. Each is an episode of one file, judged by its first occurrence on that
+`R2`, `R3`, `R6` and `Z3` from the error code of a call, `R4` from an ambiguity warning's code
+(`ambiguous_decimal`, `ambiguous_day_order`) and column, or its wording in a run recorded before
+excel-mcp coded its warnings, and `R5` from a truncated answer. Each is an episode of one file, judged by its first occurrence on that
 file: a later successful call on the same file (the same sheet for `R1` and `R3`, the same tool
 for `R6`), `columns` naming the warned column after `R4`, that response's cursor or an aggregate
 of the file after `R5`, and for `Z3` a `limit` refusal with no further call to the file. A call
@@ -369,7 +370,7 @@ to choose from, not a derivation. The full report is `baseline.json` in the outp
 SEZZLEE_AGENT_LAB_OLLAMA_URL=http://host:11434 node packages/lab/excel-lab/src/agent/agent-cli.ts \
   --out /path/outside/repo --corpus "$SEZZLEE_CORPUS" --model qwen3.8:latest \
   [--window 65536] [--thinking product|field|drop] [--languages tr,en] [--runs 3] \
-  [--levels L1,L2] [--only <task,...>] [--budget 15] [--resume]
+  [--levels L1,L2] [--only <task,...>] [--budget 15] [--num-predict 16384] [--resume]
 ```
 
 `agent-cli.ts` runs one condition, one model and one window, against the built server. It first
@@ -378,9 +379,15 @@ build, the server's tool list, the system prompt, the grader version, the host's
 Ollama version, and the generation settings. A directory holds one manifest; `--resume`
 continues it only while every field matches, and names the fields that changed otherwise. Each
 trial is a task revision, a language and a repetition; `runs.jsonl` gets one record per trial and
-`events.jsonl` every request, failed attempt, tool result and submission as it happens. A failed
-request is retried on its own, up to three times, and only for a transport failure; a request
-the host refuses for its window ends the trial as `providerContextError`. The call budget holds
+`events.jsonl` every request, failed attempt, tool result and submission as it happens. Before each
+trial the runner waits until the host answers. A failed request is retried on its own, up to three
+times for a dropped connection and once for a timeout, because at temperature 0 a timed-out
+request repeats the same long generation; a request the host refuses for its window ends the trial
+as `providerContextError`. A request whose wall-clock time outran its monotonic time by more than
+30 seconds overlapped the machine's sleep: the trial ends as `interrupted`, is not counted, and
+`--resume` runs it again, as it does a `hostError`. A machine running a matrix overnight stays
+awake and on power (`caffeinate -dims` on macOS). `--num-predict` caps each reply's output tokens;
+it is unset by default, as in the product, and recorded in the manifest when set. The call budget holds
 within a batch, and a run that spends it gets one last request offering `submit_answer` alone.
 The model's thinking is carried as the product's provider carries it, appended to the reply's
 text (`--thinking product`); `field` sends it in Ollama's `thinking` field and `drop` leaves it
@@ -389,8 +396,8 @@ window as `num_ctx`, as the product's do. The user message lists the task's file
 `K2` under "Attached files"; `K0` gets the question alone. The grading rules are pinned by
 [test/agent-grade.spec.ts](test/agent-grade.spec.ts).
 
-A run counts toward accuracy unless the host failed it, the preflight refused it, the host
-refused the window, or the host held the model with another window (`src/agent/eligibility.ts`);
+A run counts toward accuracy unless the host failed it, the machine's sleep cut it short, the
+preflight refused it, the host refused the window, or the host held the model with another window (`src/agent/eligibility.ts`);
 reports count those apart.
 
 ```bash
@@ -442,3 +449,14 @@ function and fails on a mismatch, a task without an oracle or an oracle without 
 | 2     | Done        |
 | 3     | Running     |
 | 4     | Not started |
+
+Phase 3's first server changes are in `@sezzlee/excel-mcp`'s unreleased section: the header row is
+detected when a call names none and previewed by `describe_workbook`, `read_sheet` returns
+`rowNumbers`, warnings carry codes, limit errors name the size and the next call, `aggregate_sheet`
+computes derived metrics and tests a key against another file's column, data validation bounds
+read as their cells do, and the tool list is 36 KB instead of 67 KB. Against that build the
+baseline verifies all 84 tasks; the plans of `trabzon-yomra-density`,
+`ibb-esenyurt-highrise-share`, `uk-aug-big-payments-raise` and `trabzon-hayrat-coverage` compute
+with `derived` and `notInColumn` instead of in the lab. Replaying the recorded runs shows each
+changed answer at its first JSON pointer; what a model does with the new answers takes a new
+baseline run.
