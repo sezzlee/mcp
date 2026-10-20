@@ -33,11 +33,13 @@ import {
   type SheetFacts,
 } from "../metadata/spreadsheetml/worksheet.js";
 import { metadataLimitations } from "../metadata/support.js";
+import { declaredTablesOf } from "../metadata/tables.js";
 import type {
   CellArrayFormula,
   CellFacts,
   CellSnapshot,
 } from "../grid/cell-value.js";
+import { defaultHeaderRow, previewHeader } from "../grid/header.js";
 import { formatCellRef, formatRange, type GridBounds } from "../grid/range.js";
 import {
   type DeclaredTable,
@@ -540,9 +542,15 @@ export function describeOoxml(
         autoFilterRef: null,
         frozenRowCount: 0,
         frozenColumnCount: 0,
+        header: null,
       };
     }
     const sheet = loaded.sheet(name);
+    const view = ooxmlSheetView(
+      loaded,
+      name,
+      declaredTablesOf(sheet.facts.tables),
+    );
     const { bounds, declared } = sheet;
     return {
       name,
@@ -569,6 +577,10 @@ export function describeOoxml(
       autoFilterRef: sheet.autoFilter ?? null,
       frozenRowCount: sheet.facts.panes.rows,
       frozenColumnCount: sheet.facts.panes.columns,
+      header:
+        view.bounds === undefined
+          ? null
+          : previewHeader(view, defaultHeaderRow(view, view.bounds, "master")),
     };
   });
   const tallest = sheets.reduce(

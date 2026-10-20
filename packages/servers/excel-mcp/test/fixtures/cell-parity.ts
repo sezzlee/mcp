@@ -252,6 +252,11 @@ export function compareWorkbook(bytes: Buffer, limit = 20): CellComparison {
   ourSheets.forEach((summary, index) => {
     const other = theirSheets[index];
     for (const [field, mine] of Object.entries(summary)) {
+      /**
+       * Guard: the header preview is read from the header row's cells, which
+       * the cell pass already compares one by one, so the oracle reports none.
+       */
+      if (field === "header") continue;
       const counterpart: unknown =
         other === undefined
           ? undefined

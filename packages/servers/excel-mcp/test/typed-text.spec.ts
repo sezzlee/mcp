@@ -22,7 +22,10 @@ function rowsOf(result: CallToolResult): readonly (readonly unknown[])[] {
 }
 
 function warningsOf(result: CallToolResult): readonly string[] {
-  return (body(result)["warnings"] as readonly string[] | undefined) ?? [];
+  return (
+    (body(result)["warnings"] as readonly { message: string }[] | undefined) ??
+    []
+  ).map((entry) => entry.message);
 }
 
 beforeAll(async () => {

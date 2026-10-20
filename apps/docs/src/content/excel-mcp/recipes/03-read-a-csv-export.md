@@ -50,7 +50,7 @@ excel aggregate_sheet --tool-arg filePath=orders.csv \
 ```json
 [14]
 {"C":[{"type":"number","decimal":".","group":"none"}]}
-"C: 1 cell looks like an identifier (a leading zero or more than 15 digits), such as '012'; the totals exclude them. If they are quantities, pass columns [{\"column\":\"C\",\"type\":\"number\",\"decimal\":\".\"}]."
+{"code":"identifier_cells","message":"C: 1 cell looks like an identifier (a leading zero or more than 15 digits), such as '012'; the totals exclude them. If they are quantities, pass columns [{\"column\":\"C\",\"type\":\"number\",\"decimal\":\".\"}].","column":"C"}
 ```
 
 `012` has a leading zero, the mark of a postcode or an account number, so it is left out and the

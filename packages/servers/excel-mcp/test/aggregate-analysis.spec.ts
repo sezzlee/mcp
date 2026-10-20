@@ -219,7 +219,11 @@ describe("derived grouping on the public aggregate handler", () => {
     ]);
     expect(result["ungroupedRows"]).toBe(2);
     expect(result["warnings"]).toEqual(
-      expect.arrayContaining([expect.stringContaining("24:00:00")]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: expect.stringContaining("24:00:00"),
+        }),
+      ]),
     );
   });
 
@@ -242,7 +246,11 @@ describe("derived grouping on the public aggregate handler", () => {
     expect(result["ungroupedRows"]).toBe(1);
     expect(result["returnedMatchedRows"]).toBe(7);
     expect(result["warnings"]).toEqual(
-      expect.arrayContaining([expect.stringContaining("not a date")]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: expect.stringContaining("not a date"),
+        }),
+      ]),
     );
   });
 
@@ -430,7 +438,10 @@ describe("bounded pivot and conditional percentiles", () => {
     );
     expect(filtered["warnings"]).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("metrics[1].where Kind gt: 5 cells"),
+        expect.objectContaining({
+          code: "uncomparable_cells",
+          message: expect.stringContaining("metrics[1].where Kind gt: 5 cells"),
+        }),
       ]),
     );
   });

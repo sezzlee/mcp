@@ -8,7 +8,7 @@ import { limits } from "../src/platform/limits.js";
 import { createWorkbookRoot } from "../src/platform/paths.js";
 import { createExcelMcpServer } from "../src/server.js";
 
-it("pages parallel raw, typed, and source-row arrays within the complete response budget", async () => {
+it("pages parallel raw, typed, and source-row arrays within the complete response budget, and the next page continues the row numbers", async () => {
   const directory = await mkdtemp(join(tmpdir(), "excel-visible-budget-"));
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Rows");
@@ -49,7 +49,7 @@ it("pages parallel raw, typed, and source-row arrays within the complete respons
       );
       const result = JSON.parse(content.text) as {
         values: unknown[][];
-        rowNumbers?: number[];
+        rowNumbers: number[];
         typedValues?: unknown[][];
         truncated: boolean;
         nextCursor?: string;
@@ -58,13 +58,18 @@ it("pages parallel raw, typed, and source-row arrays within the complete respons
       expect(result.values.length).toBeGreaterThan(0);
       expect(result.nextCursor).toEqual(expect.any(String));
       expect(result.values).toEqual(result.values.map(() => [label]));
-      if (visibleOnly) {
-        expect(result.rowNumbers).toEqual(
-          result.values.map((_, index) => index + 2),
-        );
-      } else {
-        expect(result.rowNumbers).toBeUndefined();
-      }
+      expect(result.rowNumbers).toEqual(
+        result.values.map((_, index) => index + 2),
+      );
+      const next = await client.callTool({
+        name: "read_sheet",
+        arguments: { filePath: "rows.xlsx", cursor: result.nextCursor },
+      });
+      const page = next.content[0];
+      if (page?.type !== "text") throw new Error("Missing text response");
+      expect(
+        (JSON.parse(page.text) as { rowNumbers: number[] }).rowNumbers[0],
+      ).toBe(result.values.length + 2);
       if (includeTyped) expect(result.typedValues).toEqual(result.values);
       else expect(result.typedValues).toBeUndefined();
     }

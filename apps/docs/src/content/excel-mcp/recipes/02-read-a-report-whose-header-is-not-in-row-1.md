@@ -1,43 +1,56 @@
 # Read a report whose header is not in row 1
 
-Exported reports often start with a title and a blank row. The server assumes the header is row 1
-until told otherwise, and says so when that looks wrong. Name the row, or let the server prove it.
+Exported reports often start with a title and a blank row. The server finds the header row below
+them on its own and says how it chose; name the row yourself when the choice is wrong.
 
 Uses the `excel` helper from the [Quickstart](/docs/excel-mcp/quickstart#see-what-the-agent-receives).
 Save [report.xlsx](/samples/excel-mcp/report.xlsx) next to `sales.xlsx`: row 1 is a merged title,
 row 2 is blank and row 3 holds the headers.
 
-## Spot it
+## See which row the server chose
 
 ```sh
 excel read_sheet --tool-arg filePath=report.xlsx maxCells=16 \
-  | jq '{headerRow, headerRowSource, headers: [.columns[].header], warnings}'
+  | jq -c '.headerRow, .headerRowSource, [.columns[].header], .rowNumbers'
 ```
 
 ```json
-{
-  "headerRow": 1,
-  "headerRowSource": "default",
-  "headers": [
-    "January sales report",
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    null
-  ],
-  "warnings": [
-    "headerRow 1 produced no usable header text across columns A..H. Row 3 is the only row in rows 1-15 that qualifies as a header row by text; pass headerRow 3, or headerScan true."
-  ]
-}
+3
+"scanned"
+["Order","Date","Region","Rep","Product","Units","Unit price","Total"]
+[4,5]
 ```
 
-`headerRowSource: "default"` with a warning means row 1 was assumed, not established. The warning
-names the row that looks right, and appears only when no `range` was passed.
+`headerRowSource: "scanned"` says no Excel Table or autofilter declared the header, so the server
+took the first of the top rows whose cells are all text. `rowNumbers` gives the sheet row of each
+returned row. `describe_workbook` reports the same row for every sheet before anything is read:
+
+```sh
+excel describe_workbook --tool-arg filePath=report.xlsx | jq -c '.sheets[].header'
+```
+
+```json
+{"row":3,"source":"scanned","columns":[{"letter":"A","text":"Order"},{"letter":"B","text":"Date"},{"letter":"C","text":"Region"},{"letter":"D","text":"Rep"},{"letter":"E","text":"Product"},{"letter":"F","text":"Units"},{"letter":"G","text":"Unit price"},{"letter":"H","text":"Total"}],"moreColumns":0}
+```
+
+Columns are named by that row on every tool, so `aggregate_sheet` needs nothing more:
+
+```sh
+excel aggregate_sheet --tool-arg filePath=report.xlsx \
+  'groupBy=["Region"]' 'metrics=[{"fn":"sum","column":"Total"}]' \
+  | jq -c '.rows[]'
+```
+
+```json
+["East",1290]
+["North",1660]
+["South",1810]
+["West",1865]
+```
 
 ## Name the row
+
+When the chosen row is wrong, pass it:
 
 ```sh
 excel read_sheet --tool-arg filePath=report.xlsx headerRow=3 maxCells=16 \
@@ -51,38 +64,11 @@ excel read_sheet --tool-arg filePath=report.xlsx headerRow=3 maxCells=16 \
 [1002,"2026-01-06","South","Emre","Chair",10,85,850]
 ```
 
-`headerRow` works the same on `aggregate_sheet`:
-
-```sh
-excel aggregate_sheet --tool-arg filePath=report.xlsx headerRow=3 \
-  'groupBy=["Region"]' 'metrics=[{"fn":"sum","column":"Total"}]' \
-  | jq -c '.rows[]'
-```
-
-```json
-["East",1290]
-["North",1660]
-["South",1810]
-["West",1865]
-```
-
 `headerRow: 0` reads with no headers; columns are then named by letter.
 
-## Let the server prove it
+## Ask for proof
 
-```sh
-excel read_sheet --tool-arg filePath=report.xlsx headerScan=true maxCells=16 \
-  | jq -c '.headerRow, .headerRowSource, [.columns[].header]'
-```
-
-```json
-3
-"scanned"
-["Order","Date","Region","Rep","Product","Units","Unit price","Total"]
-```
-
-The scan first looks for an Excel Table or autofilter that declares the header, as `sales.xlsx`
-does:
+`headerScan: true` runs the same detection strictly: it answers only when one row is possible.
 
 ```sh
 excel read_sheet --tool-arg filePath=sales.xlsx headerScan=true range=A1:H2 \
@@ -94,18 +80,19 @@ excel read_sheet --tool-arg filePath=sales.xlsx headerScan=true range=A1:H2 \
 "declared"
 ```
 
-Without a declaration it needs exactly one row of text headers in the first 20 rows. None fails with
-`unknown_header_row`, two or more with `ambiguous_header_row`, quoting the candidates. `headerScan`
-cannot be combined with `headerRow` and is not available on CSV files.
+No qualifying row fails with `unknown_header_row`, two or more with `ambiguous_header_row`, quoting
+the candidates. `headerScan` cannot be combined with `headerRow` and is not available on CSV files.
 
-:::details[Why the server never guesses]
+:::details[How the server picks the row]
 
-Every useful answer depends on the header row: `aggregate_sheet` finds `Total` by it, and `where`
-names columns by it. A guess that lands on a title band produces data that looks fine and is wrong,
-and nothing in the answer says a choice was made. Row 1 by default is wrong on the same sheets, but
-predictably, and `headerRowSource` on every answer says who chose the row: `default`, `explicit`,
-`declared`, `scanned` or `cursor`. `headerScan` answers only when the file declares the row or only
-one row is possible.
+A declared Excel Table or autofilter wins. Otherwise the row is the first of the top 20 rows of the
+used range whose filled cells are all text, at least two of them and none merged across columns,
+with no row of numbers or dates above it, so a merged title and a blank row are skipped and a
+placeholder row inside the data is not taken for a header. If no row qualifies, row 1 is used and
+`headerRowSource` says `default`. The scan always covers the whole used range, so a call that reads
+three rows or a single column gets the same header row as one that reads the whole sheet. A CSV
+always reads row 1. Every answer carries `headerRowSource` — `default`, `explicit`, `declared`,
+`scanned` or `cursor` — so a choice the caller did not make is never hidden.
 
 :::
 

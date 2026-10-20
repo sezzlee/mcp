@@ -34,6 +34,7 @@ export interface MetricRequest {
   readonly column?: string;
   readonly percentile?: number;
   readonly where?: readonly Condition[];
+  readonly round?: number;
 }
 
 interface SumState {

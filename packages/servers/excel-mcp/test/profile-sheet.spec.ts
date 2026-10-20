@@ -218,7 +218,10 @@ describe("bounded column profiling", () => {
     expect(body(result)["rows"]).toEqual([[30.75]]);
     expect(body(result)["warnings"]).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("2 cells look like identifiers"),
+        expect.objectContaining({
+          code: "identifier_cells",
+          message: expect.stringContaining("2 cells look like identifiers"),
+        }),
       ]),
     );
   });
@@ -512,7 +515,10 @@ describe("bounded column profiling", () => {
             inferredType: "date",
             readAs: [],
             warnings: expect.arrayContaining([
-              expect.stringContaining("reusable date"),
+              expect.objectContaining({
+                code: "no_reusable_date_format",
+                message: expect.stringContaining("reusable date"),
+              }),
             ]),
           }),
         ]),

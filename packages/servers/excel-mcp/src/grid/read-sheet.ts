@@ -36,6 +36,7 @@ import {
 } from "./cursor.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { headerWarnings, type HeaderRowSource } from "./header.js";
+import { warning, type Warning } from "./warnings.js";
 import {
   selectSheetRange,
   selectionHeaders,
@@ -92,7 +93,8 @@ export interface ReadSheetResult {
   readonly headerRowSource: HeaderRowSource;
   readonly columns: readonly ColumnInfo[];
   readonly values: readonly (readonly CellScalar[])[];
-  readonly rowNumbers?: readonly number[];
+  /** The sheet row of each entry in `values`, so no row is found by counting. */
+  readonly rowNumbers: readonly number[];
   readonly table?: TableSelection;
   readonly visibility?: VisibilityReport;
   readonly typedValues?: readonly (readonly CellScalar[])[];
@@ -108,7 +110,7 @@ export interface ReadSheetResult {
   readonly truncationReason?: "maxCells" | "maxPayloadBytes";
   readonly nextCursor?: string;
   readonly hint?: string;
-  readonly warnings?: readonly string[];
+  readonly warnings?: readonly Warning[];
 }
 
 interface Window extends SheetSelection {
@@ -207,8 +209,11 @@ function overlaps(merge: string, bounds: GridBounds): boolean {
   );
 }
 
-function uncachedFormulaWarning(count: number): string {
-  return `${count} formula cells have no cached value; this workbook has not been recalculated by Excel.`;
+function uncachedFormulaWarning(count: number): Warning {
+  return warning(
+    "uncached_formulas",
+    `${count} formula cells have no cached value; this workbook has not been recalculated by Excel.`,
+  );
 }
 
 export function readSheet(
@@ -343,9 +348,7 @@ export function readSheet(
     Math.max(1, Math.floor(options.maxCells / width)),
   );
   const parallelSeparators =
-    Math.max(0, rowLimit - 1) *
-    (Number(options.visibleOnly === true) +
-      Number(options.includeTyped === true));
+    Math.max(0, rowLimit - 1) * (1 + Number(options.includeTyped === true));
   const reserveBytes =
     measureJson({
       sheet: window.sheet.name,
@@ -355,10 +358,10 @@ export function readSheet(
       headerRowSource: window.headerRowSource,
       columns: columnsFrom(new Array<string | null>(width).fill(null)),
       values: [],
+      rowNumbers: [],
       ...(window.table === undefined ? {} : { table: window.table }),
       ...(options.visibleOnly === true
         ? {
-            rowNumbers: [],
             visibility: visibilityOf(
               window,
               window.startRow,
@@ -468,7 +471,7 @@ export function readSheet(
     if (
       !budget.admit(
         line,
-        ...(options.visibleOnly === true ? [rowNumber] : []),
+        rowNumber,
         ...(options.includeTyped === true ? [typedLine] : []),
         ...notes,
         ...formats,
@@ -487,7 +490,7 @@ export function readSheet(
       }
     }
     values.push(line);
-    if (options.visibleOnly === true) rowNumbers.push(rowNumber);
+    rowNumbers.push(rowNumber);
     if (options.includeTyped === true) {
       typedValues.push(typedLine);
       for (const item of observations)
@@ -514,29 +517,41 @@ export function readSheet(
   const truncated = truncationReason !== undefined;
   const remaining = window.bounds.bottom - nextRow + 1;
 
-  const warnings: string[] = [];
+  const headerOnly = window.startRow > window.bounds.bottom;
+  const warnings: Warning[] = [];
   if (uncachedFormulas > 0) {
     warnings.push(uncachedFormulaWarning(uncachedFormulas));
   }
+  if (headerOnly)
+    warnings.push(
+      warning(
+        "header_only_range",
+        `The requested rows hold only header row ${window.headerRow}; its texts are in columns[].header and no data row was read.`,
+      ),
+    );
   warnings.push(...headerNotices);
 
   return {
     sheet: window.sheet.name,
-    range: formatRange({
-      top: window.startRow,
-      left: window.bounds.left,
-      bottom: Math.max(window.startRow, nextRow - 1),
-      right: window.bounds.right,
-    }),
+    range: formatRange(
+      headerOnly
+        ? window.bounds
+        : {
+            top: window.startRow,
+            left: window.bounds.left,
+            bottom: Math.max(window.startRow, nextRow - 1),
+            right: window.bounds.right,
+          },
+    ),
     usedRange: formatRange(window.used),
     headerRow: window.headerRow,
     headerRowSource: window.headerRowSource,
     columns,
     values,
+    rowNumbers,
     ...(window.table === undefined ? {} : { table: window.table }),
     ...(options.visibleOnly === true
       ? {
-          rowNumbers,
           visibility: visibilityOf(window, window.startRow, nextRow - 1),
         }
       : {}),

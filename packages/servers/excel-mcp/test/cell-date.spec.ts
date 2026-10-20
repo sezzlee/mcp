@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  isDateFormat,
-  isTimeOnlyFormat,
-  serialToClock,
-  serialToDate,
-} from "../src/format/cell-date.js";
+import { isDateFormat, isTimeOnlyFormat } from "../src/format/cell-date.js";
+import { serialToClock, serialToDate } from "../src/grid/excel-serial.js";
 
 describe("isDateFormat", () => {
   it.each([
@@ -81,5 +77,10 @@ describe("serialToDate", () => {
 
   it("keeps serial 60, Excel's phantom 29 February 1900, as a number", () => {
     expect(serialToDate(60, false)).toBeUndefined();
+  });
+
+  it("keeps a serial no date can hold as a number instead of throwing", () => {
+    expect(serialToDate(1e300, false)).toBeUndefined();
+    expect(serialToClock(1e300, false)).toBeUndefined();
   });
 });

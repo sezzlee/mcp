@@ -9,6 +9,15 @@
     },
     "test": {
       "cache": false
+    },
+    "agent": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "env": [
+        "SEZZLEE_CORPUS",
+        "SEZZLEE_AGENT_LAB_OLLAMA_URL",
+        "SEZZLEE_AGENT_LAB_OLLAMA_KEY"
+      ]
     }
   }
 }

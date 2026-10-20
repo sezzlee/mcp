@@ -117,7 +117,7 @@ excel aggregate_sheet --tool-arg filePath=early-dates.csv locale=tr-TR \
 ```
 
 ```text
-{"rows":[],"ungroupedRows":2,"warnings":["A: dates such as '03/04/2026' read either day first or month first, so they were not read as dates. Pass columns [{\"column\":\"A\",\"type\":\"date\",\"format\":\"dd/MM/yyyy\"}] or [{\"column\":\"A\",\"type\":\"date\",\"format\":\"MM/dd/yyyy\"}].","Grouping Date (month): 2 cells in A could not be read for this key, such as '03/04/2026', '05/06/2026'; these rows are counted in ungroupedRows for each affected grouping."]}
+{"rows":[],"ungroupedRows":2,"warnings":[{"code":"ambiguous_day_order","message":"A: dates such as '03/04/2026' read either day first or month first, so they were not read as dates. Pass columns [{\"column\":\"A\",\"type\":\"date\",\"format\":\"dd/MM/yyyy\"}] or [{\"column\":\"A\",\"type\":\"date\",\"format\":\"MM/dd/yyyy\"}].","column":"A"},{"code":"ungrouped_cells","message":"Grouping Date (month): 2 cells in A could not be read for this key, such as '03/04/2026', '05/06/2026'; these rows are counted in ungroupedRows for each affected grouping.","column":"A"}]}
 ```
 
 Inferred dotted dates use a day-first convention under every locale. Custom exports can use other

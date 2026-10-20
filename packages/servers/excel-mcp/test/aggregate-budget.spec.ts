@@ -16,6 +16,7 @@ vi.mock("../src/platform/limits.js", async (importOriginal) => {
       ...original.limits,
       maxAggregateCellVisits: 200,
       maxAggregateGroups: 3,
+      maxSourceValues: 3,
     },
   };
 });
@@ -69,5 +70,25 @@ describe("aggregate_sheet bounds the work, not only the answer", () => {
     });
     expect(result.isError).toBe(true);
     expect(body(result)["error"]).toBe("resource_limit");
+  });
+});
+
+it("refuses a source column with more distinct values than the bound", async () => {
+  const result = body(
+    await handlers.aggregate_sheet({
+      filePath: "wide.csv",
+      metrics: [{ fn: "count" }],
+      where: [
+        {
+          column: "group",
+          op: "notInColumn",
+          source: { filePath: "many.csv", column: "group" },
+        },
+      ],
+    }),
+  );
+  expect(result).toMatchObject({
+    error: "resource_limit",
+    message: "The source column holds more than 3 distinct values.",
   });
 });

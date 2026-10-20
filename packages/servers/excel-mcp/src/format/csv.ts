@@ -1,6 +1,8 @@
 import type { CellSnapshot } from "../grid/cell-value.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { limits } from "../platform/limits.js";
+import { previewHeader } from "../grid/header.js";
+import { warning, type Warning } from "../grid/warnings.js";
 import { columnToLetters, type GridBounds } from "../grid/range.js";
 import { presentIndices, type RowView, type SheetView } from "../grid/sheet.js";
 import type {
@@ -18,7 +20,7 @@ import { readRecords, type CsvFault, type LineBreak } from "./csv-tokenizer.js";
 export const csvSheetName = "csv";
 
 export interface CsvReport {
-  readonly warnings?: readonly string[];
+  readonly warnings?: readonly Warning[];
   readonly delimiter: DelimiterName;
   readonly delimiterSource: "explicit" | "sep" | "sniffed" | "default";
   readonly encoding: string;
@@ -448,18 +450,24 @@ export async function parseCsv(
       ? undefined
       : { top: 1, left: 1, bottom: rows.length, right: columnCount };
 
-  const warnings: string[] = [];
+  const warnings: Warning[] = [];
   if (
     preamble !== undefined &&
     options.delimiter !== undefined &&
     preamble.delimiter !== options.delimiter
   )
     warnings.push(
-      `The CSV sep= preamble declares '${preamble.delimiter}', but explicit delimiter '${options.delimiter}' takes precedence. The preamble was omitted.`,
+      warning(
+        "csv_preamble_ignored",
+        `The CSV sep= preamble declares '${preamble.delimiter}', but explicit delimiter '${options.delimiter}' takes precedence. The preamble was omitted.`,
+      ),
     );
   if (rows[0]?.length === 0)
     warnings.push(
-      "The first CSV record is blank and remains the default header. Physical records are preserved; pass headerRow to select a different header.",
+      warning(
+        "csv_blank_first_record",
+        "The first CSV record is blank and remains the default header. Physical records are preserved; pass headerRow to select a different header.",
+      ),
     );
 
   return {
@@ -551,6 +559,10 @@ export function describeCsv(
         autoFilterRef: null,
         frozenRowCount: null,
         frozenColumnCount: null,
+        header: previewHeader(csvSheetView(table), {
+          row: 1,
+          source: "default",
+        }),
       },
     ],
     ...(bounds !== undefined && bounds.bottom > limits.guidanceRowThreshold

@@ -40,7 +40,7 @@
           "file_not_found": "No file exists at `filePath`. Call `list_workbooks` for the paths that do.",
           "not_a_file": "`filePath` names a directory or another entry that is not a regular file.",
           "unsupported_extension": "The file is not `.xlsx`, `.xlsm` or `.csv`.",
-          "file_too_large": "The file or its metadata exceeds a resource bound: 50 MB for a workbook; for a CSV, 16 MB, 16,384 fields in one record or 2,000,000 cells. Rich metadata also has bounded record, field and value counts.",
+          "file_too_large": "The file or its metadata exceeds a resource bound: 50 MB for a workbook; for a CSV, 16 MB, 16,384 fields in one record or 2,000,000 cells. Rich metadata also has bounded record, field and value counts. For the byte bounds the message names the file's size and the limit, and the recovery says that no tool of the server can open the file.",
           "file_changed": "The file was modified while it was being read. Retry the call.",
           "unsupported_platform": "The native package that gives the server safe file access is missing for this operating system and CPU. Reinstall on a supported platform."
         }
@@ -107,7 +107,8 @@
           "maxStringChars": "Longest text, in characters, returned for one cell or one formula",
           "maxCellsDefault": "Cells `read_sheet` returns when `maxCells` is omitted",
           "maxCellsHard": "Largest `maxCells` for `read_sheet`",
-          "guidanceRowThreshold": "Rows above which `describe_workbook` and `read_sheet` suggest `aggregate_sheet` or `find_in_sheet` instead of paging"
+          "guidanceRowThreshold": "Rows above which `describe_workbook` and `read_sheet` suggest `aggregate_sheet` or `find_in_sheet` instead of paging",
+          "maxHeaderPreviewColumns": "Named columns `describe_workbook` lists in each sheet's header preview; the rest are counted in `moreColumns`"
         }
       },
       {
@@ -134,7 +135,9 @@
           "maxColumnSpecs": "Shared column specifications accepted by profile_sheet, read_sheet, find_in_sheet and aggregate_sheet",
           "maxCursorChars": "Characters in a `read_sheet` continuation cursor, which carries the column specifications; an oversized cursor is refused only when more pages remain",
           "maxInValues": "Values in one `in` condition",
-          "headerScanRows": "Rows at the top of the range that `headerScan` examines"
+          "headerScanRows": "Rows at the top of the used range examined to find the header row a call names none for, and the rows `headerScan` examines",
+          "maxDerivedMetrics": "Derived metrics in one `aggregate_sheet` call",
+          "maxSourceValues": "Distinct values the `source` column of an `inColumn` or `notInColumn` condition may hold before `resource_limit`"
         }
       },
       {

@@ -96,7 +96,7 @@ export async function prepareOutRoot(outRoot: string): Promise<string> {
   return real;
 }
 
-async function sha256OfFile(path: string): Promise<Sha256> {
+export async function sha256OfFile(path: string): Promise<Sha256> {
   const hash = createHash("sha256");
   await pipeline(createReadStream(path), hash);
   const digest = hash.digest("hex");
@@ -268,7 +268,7 @@ async function probeFile({
   }
 }
 
-function commitOf(directory: string): string | null {
+export function commitOf(directory: string): string | null {
   try {
     return execFileSync("git", ["rev-parse", "HEAD"], {
       cwd: directory,

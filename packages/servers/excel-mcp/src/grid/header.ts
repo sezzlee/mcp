@@ -1,5 +1,9 @@
 import { fold } from "@sezzlee/file-core";
-import { normalizeCell, type NormalizeOptions } from "./cell-value.js";
+import {
+  normalizeCell,
+  type CellScalar,
+  type NormalizeOptions,
+} from "./cell-value.js";
 import type { MergePolicy } from "./cursor.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { limits } from "../platform/limits.js";
@@ -11,6 +15,7 @@ import {
   type GridBounds,
 } from "./range.js";
 import type { DeclaredTable, SheetView } from "./sheet.js";
+import { warning, type Warning } from "./warnings.js";
 
 export type HeaderRowSource =
   "explicit" | "declared" | "scanned" | "default" | "cursor";
@@ -160,10 +165,21 @@ export function readHeaderRow(
       headers.push(null);
       continue;
     }
-    const value = normalizeCell(snapshot, options).value;
-    headers.push(typeof value === "string" ? value : null);
+    headers.push(headerText(normalizeCell(snapshot, options).value));
   }
   return headers;
+}
+
+/**
+ * A header cell's text. A year, a number or a boolean names its column as
+ * well as a word does, so it is kept as the text Excel shows for it instead
+ * of becoming null; a date already arrives as its ISO text.
+ */
+function headerText(value: CellScalar): string | null {
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+  return null;
 }
 
 export function rowFacts(
@@ -266,6 +282,98 @@ export function scanHeaderRow(
   return header.row;
 }
 
+export type DefaultHeaderSource = "declared" | "scanned" | "default";
+
+/**
+ * The header row a call that names none reads by: the row a table or the
+ * autofilter declares, else the first of the top rows of the used range that
+ * names its columns by text alone and has no row of data above it, else row 1.
+ *
+ * Guard: the scan always covers the whole used range, never the requested
+ * window, so every tool and describe_workbook name the same row whatever rows
+ * or columns a call asks for. A window that starts below the header would
+ * otherwise elect a text-only data row, and a single column would elect a
+ * title sitting above it.
+ *
+ * Guard: a header sits above its data, so the scan stops at the first row
+ * holding a number, date or other non-text cell. NAEP's score table, whose
+ * header row holds years, has a data row of only `---` and `‡` placeholders
+ * further down; without the stop that row became the header and every row
+ * above it was dropped from the data.
+ */
+export function defaultHeaderRow(
+  sheet: SheetView,
+  requested: GridBounds,
+  mergePolicy: MergePolicy,
+): { readonly row: number; readonly source: DefaultHeaderSource } {
+  const declared = declaredUnlessAmbiguous(sheet, requested, mergePolicy);
+  if (declared !== undefined) return { row: declared.row, source: "declared" };
+  const used = sheet.bounds;
+  if (used === undefined) return { row: 1, source: "default" };
+  const { first, last } = scanWindow(used);
+  for (let row = first; row <= last; row += 1) {
+    const facts = rowFacts(sheet, used, row, mergePolicy);
+    if (isHeaderCandidate(facts)) return { row, source: "scanned" };
+    if (facts.disqualifying > 0) break;
+  }
+  return { row: 1, source: "default" };
+}
+
+export interface HeaderPreview {
+  readonly row: number;
+  readonly source: DefaultHeaderSource;
+  readonly columns: readonly {
+    readonly letter: string;
+    readonly text: string;
+  }[];
+  readonly moreColumns: number;
+}
+
+/**
+ * The header row a call that names none reads by, with its first named
+ * columns, so a caller can name columns before reading a row. `null` for a
+ * sheet with no cells.
+ */
+export function previewHeader(
+  sheet: SheetView,
+  found: { readonly row: number; readonly source: DefaultHeaderSource },
+): HeaderPreview | null {
+  const bounds = sheet.bounds;
+  if (bounds === undefined) return null;
+  const named = readHeaderRow(sheet, bounds, found.row, {
+    valueMode: "values",
+    mergePolicy: "master",
+    includeHyperlinks: false,
+  }).flatMap((text, offset) =>
+    text === null || text === ""
+      ? []
+      : [{ letter: columnToLetters(bounds.left + offset), text }],
+  );
+  return {
+    row: found.row,
+    source: found.source,
+    columns: named.slice(0, limits.maxHeaderPreviewColumns),
+    moreColumns: Math.max(0, named.length - limits.maxHeaderPreviewColumns),
+  };
+}
+
+function declaredUnlessAmbiguous(
+  sheet: SheetView,
+  bounds: GridBounds,
+  mergePolicy: MergePolicy,
+): DeclaredHeader | undefined {
+  try {
+    return declaredHeaderRow(sheet, bounds, mergePolicy);
+  } catch (error) {
+    if (
+      error instanceof SezzleeExcelError &&
+      error.code === "ambiguous_header_row"
+    )
+      return undefined;
+    throw error;
+  }
+}
+
 export function headerWarnings(
   sheet: SheetView,
   bounds: GridBounds,
@@ -273,13 +381,16 @@ export function headerWarnings(
   headers: readonly (string | null)[],
   hasExplicitRange: boolean,
   mergePolicy: MergePolicy,
-): string[] {
+): Warning[] {
   const malformed = sheet.tables.filter((table) =>
     table.columns.some((name) => name === null),
   );
   if (malformed.length > 0)
     return [
-      `Table metadata has missing column names (${malformed.map((table) => table.name).join(", ")}); column positions were preserved.`,
+      warning(
+        "table_missing_names",
+        `Table metadata has missing column names (${malformed.map((table) => table.name).join(", ")}); column positions were preserved.`,
+      ),
     ];
   const width = bounds.right - bounds.left + 1;
   if (headerRow <= 0 || width < 2 || hasExplicitRange) {
@@ -291,7 +402,10 @@ export function headerWarnings(
   const declared = declaredHeaderRow(sheet, bounds, mergePolicy);
   if (declared !== undefined && declared.row !== headerRow) {
     return [
-      `headerRow ${headerRow} is not the header row declared by ${declared.source}, which declares row ${declared.row}; pass headerRow ${declared.row}, or headerScan true.`,
+      warning(
+        "header_row_mismatch",
+        `headerRow ${headerRow} is not the header row declared by ${declared.source}, which declares row ${declared.row}; pass headerRow ${declared.row}, or headerScan true.`,
+      ),
     ];
   }
   if (named > 1 || declared !== undefined) {
@@ -319,6 +433,9 @@ export function headerWarnings(
       ? `Row ${only.row} is the only row in rows ${first}-${last} that qualifies as a header row by text`
       : `Rows ${rows.join(", ")} qualify as header rows by text`;
   return [
-    `headerRow ${headerRow} produced no usable header text across columns ${span}. ${where}; pass headerRow ${only.row}, or headerScan true.`,
+    warning(
+      "header_row_unnamed",
+      `headerRow ${headerRow} produced no usable header text across columns ${span}. ${where}; pass headerRow ${only.row}, or headerScan true.`,
+    ),
   ];
 }

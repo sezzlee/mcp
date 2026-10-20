@@ -142,7 +142,9 @@ export type Operator =
   | "isNotEmpty"
   | "isError"
   | "isNumber"
-  | "isText";
+  | "isText"
+  | "inSet"
+  | "notInSet";
 
 export type PredicateScalar = string | number | boolean;
 
@@ -151,6 +153,25 @@ export interface Condition {
   readonly op: Operator;
   readonly value?: PredicateScalar;
   readonly values?: readonly PredicateScalar[];
+  /** The `memberKey`s of another column, for inSet and notInSet. */
+  readonly members?: ReadonlySet<string>;
+}
+
+/**
+ * The key a stored value is matched by against another column's values, by
+ * the rule `eq` compares with: a number matches the same number and text the
+ * same text, folded unless the comparison is case-sensitive, never trimmed.
+ * A blank or non-scalar cell has no key and is never a member.
+ */
+export function memberKey(
+  value: CellScalar,
+  caseSensitive: boolean,
+): string | undefined {
+  if (typeof value === "number") return `n:${value}`;
+  if (typeof value === "boolean") return `b:${value}`;
+  if (typeof value !== "string") return undefined;
+  if (value.trim() === "") return undefined;
+  return `t:${caseSensitive ? value : fold(value)}`;
 }
 
 export interface PredicateOptions {
@@ -166,6 +187,7 @@ export type Outcome = "match" | "miss" | "incomparable";
 
 const orderingOperators = new Set<Operator>(["lt", "lte", "gt", "gte"]);
 const textOperators = new Set<Operator>(["contains", "startsWith", "endsWith"]);
+const setOperators = new Set<Operator>(["inSet", "notInSet"]);
 const nullaryOperators = new Set<Operator>([
   "isEmpty",
   "isNotEmpty",
@@ -214,7 +236,8 @@ export function kindsRead(condition: Condition): readonly ReadingNeed[] {
     return ["number", "date", "time", "duration", "boolean"];
   if (nullaryOperators.has(condition.op) || condition.op === "isError")
     return [];
-  if (textOperators.has(condition.op)) return [];
+  if (textOperators.has(condition.op) || setOperators.has(condition.op))
+    return [];
   const operands =
     condition.op === "in" || condition.op === "between"
       ? (condition.values ?? [])
@@ -249,6 +272,14 @@ export function validateCondition(
     return;
   }
   if (condition.op === "isError") {
+    return;
+  }
+  if (setOperators.has(condition.op)) {
+    if (condition.members === undefined)
+      throw new SezzleeExcelError(
+        "invalid_argument",
+        `Operator '${condition.op}' on column '${condition.column}' needs the other column's values.`,
+      );
     return;
   }
   if (condition.op === "in") {
@@ -336,6 +367,13 @@ export function evaluate(
       return verdict(!cell.missing && classify(cell.value()) === "text");
     default:
       break;
+  }
+
+  if (condition.op === "inSet" || condition.op === "notInSet") {
+    const key = memberKey(raw, options.caseSensitive);
+    if (key === undefined) return "miss";
+    const member = condition.members?.has(key) ?? false;
+    return verdict(condition.op === "inSet" ? member : !member);
   }
 
   if (condition.op === "in") {

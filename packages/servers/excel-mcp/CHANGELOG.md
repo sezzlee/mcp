@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Breaking
+
+- `warnings` in every response, `csv.warnings` and `profiles[].warnings` included, is a list of `{ code, message, column? }` instead of strings. The README lists the codes; a caller branches on `code`, never on the message.
+- A call that names no `headerRow` no longer assumes row 1 of a workbook sheet. It reads by the header row a table or the autofilter declares, else the first of the top 20 used rows that names its columns by text alone with no row of data above it, else row 1, and reports which as `headerRowSource` (`declared`, `scanned` or `default`). Totals and counts over a sheet with a title band above its columns change accordingly: the title and the header row no longer count as data. A CSV still reads row 1, and `headerScan: true` keeps refusing an ambiguous or missing header.
+
+### Reading fixes
+
+- A header cell holding a number or a boolean names its column by its text instead of being `null`, so a year heading is addressable as `"2008"`.
+- A `read_sheet` range holding only the header row reports that range, with no values and a warning, instead of the row below it.
+
+- A data validation bound is a number only when the whole formula is one numeric literal. A reference such as `$B$1` was reported as `null` and an expression such as `45000+1` as `45000`; both now come back as the formula text, as does a `whole` bound that is not an integer.
+- A `date` bound reads its serial by the rule a cell does: serials before March 1900 no longer land one day early, and serial 60, the 29 February 1900 Excel invents, stays the formula text. A `time` bound reads as `HH:mm:ss`.
+- A date-formatted cell or bound whose serial is past the range a date can hold stays a number instead of failing the call.
+
 ## 0.9.1
 
 ### Breaking
@@ -60,6 +76,10 @@
 
 ### Tool surface
 
+- The served tool list is 36 KB instead of 67 KB, and every request carries it. A nested schema carries a few words instead of repeating its parent's description, a column specification is published as one flat object, and long descriptions are shorter. Every input accepted before is accepted now, and every input refused before is refused.
+- `aggregate_sheet` metrics take `round`, and `derived` computes ratios, shares of the total, differences and weighted totals from each group's metrics, with `orderByDerived` to rank by one. A zero denominator gives null and a warning.
+- `where` takes `inColumn` and `notInColumn` with a `source` column in this or another file under the root, so one call lists the keys one list has and the other lacks. The source is bounded by `maxSourceValues` distinct values.
+- `describe_workbook` reports each worksheet's `header`: the row a read that names no `headerRow` uses, where it came from, and its first 12 named columns with their letters (`maxHeaderPreviewColumns`), so columns can be named before any row is read.
 - CSV encoding selection adds Windows-1251, Windows-1256, Shift_JIS, GB18030, Big5 and EUC-KR. Every selected decoder is strict; invalid sequences are refused and decoding is never guessed from replacement characters.
 
 - New `profile_sheet` returns bounded statistical profiles, confidence, sampling scope, unreadable examples, identifier signals and reusable `columns`. Profile-generated numeric plans refuse identifiers even outside the sampled prefix.

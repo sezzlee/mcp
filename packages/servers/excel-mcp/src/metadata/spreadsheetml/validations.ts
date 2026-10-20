@@ -1,5 +1,6 @@
 import { asciiUpper } from "@sezzlee/file-core";
 import { limits } from "../../platform/limits.js";
+import { serialToClock, serialToDate } from "../../grid/excel-serial.js";
 import { parseCellRef } from "../../grid/range.js";
 import { namespaces, type PartScan, type XmlVisitor } from "./xml.js";
 
@@ -44,25 +45,30 @@ function flag(raw: string | undefined): boolean | undefined {
   return raw === "1" || raw === "true";
 }
 
+const numericLiteral = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
+
 /**
- * The serial epoch offset already absorbs the phantom 1900-02-29 that Excel
- * counts, so no leap-year correction belongs here for dates at or after
- * 1900-03-01. `date1904` shifts the epoch by the 1462 days between the two
- * date systems.
+ * Guard: a bound is a number only when the whole formula is one numeric
+ * literal. `parseFloat` read the prefix of `45000+1` as 45000 and turned a
+ * reference such as `$B$1` into NaN, which JSON writes as null, so a rule
+ * reported a bound the file never declared or lost the one it did.
  */
-function serialToDate(serial: number, date1904: boolean): Date {
-  return new Date(
-    Math.round((serial - 25569 + (date1904 ? 1462 : 0)) * 86_400_000),
-  );
+function literal(text: string): number | undefined {
+  const trimmed = text.trim();
+  return numericLiteral.test(trimmed) ? Number(trimmed) : undefined;
 }
 
 /**
  * A date bound is an Excel serial with no zone: the day alone at midnight,
- * else the zoneless wall clock, never an instant with `Z`.
+ * else the zoneless wall clock, never an instant with `Z`. The serial is read
+ * by the same rule as a cell, so a bound and the cells it constrains name the
+ * same day; serial 60, which names no day, stays the formula text.
  */
 function dateFormula(text: string, date1904: boolean): ValidationFormula {
-  const value = serialToDate(Number.parseFloat(text), date1904);
-  if (Number.isNaN(value.getTime())) return text;
+  const serial = literal(text);
+  const value =
+    serial === undefined ? undefined : serialToDate(serial, date1904);
+  if (value === undefined) return text;
   const iso = value.toISOString();
   return iso.endsWith("T00:00:00.000Z") ? iso.slice(0, 10) : iso.slice(0, 23);
 }
@@ -77,12 +83,21 @@ function coerce(
 ): ValidationFormula {
   switch (type) {
     case "whole":
-    case "textLength":
-      return Number.parseInt(text, 10);
+    case "textLength": {
+      const value = literal(text);
+      return value !== undefined && Number.isInteger(value) ? value : text;
+    }
     case "decimal":
-      return Number.parseFloat(text);
+      return literal(text) ?? text;
     case "date":
       return dateFormula(text, date1904);
+    case "time": {
+      const value = literal(text);
+      return (
+        (value === undefined ? undefined : serialToClock(value, date1904)) ??
+        text
+      );
+    }
     default:
       return text;
   }

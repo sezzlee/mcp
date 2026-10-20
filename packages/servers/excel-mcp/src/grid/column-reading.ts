@@ -30,6 +30,7 @@ import {
 } from "./number-text.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { boundedMemo } from "./memo.js";
+import { warning, type Warning } from "./warnings.js";
 import {
   classify,
   finiteNumber,
@@ -842,8 +843,8 @@ export function readAsOf(reading: ColumnReading): readonly ReadAs[] {
 export function readingWarnings(
   reading: ColumnReading,
   letter: string,
-): readonly string[] {
-  const warnings: string[] = [];
+): readonly Warning[] {
+  const warnings: Warning[] = [];
   if (reading.number.kind === "ambiguous") {
     const decimals = [
       ...new Set(reading.number.candidates.map((marks) => marks.decimal)),
@@ -855,7 +856,11 @@ export function readingWarnings(
       )
       .join(" or ");
     warnings.push(
-      `${letter}: values such as '${reading.number.example}' read differently with a decimal point and with a decimal comma, so they were not read as numbers. Pass columns ${options}.`,
+      warning(
+        "ambiguous_decimal",
+        `${letter}: values such as '${reading.number.example}' read differently with a decimal point and with a decimal comma, so they were not read as numbers. Pass columns ${options}.`,
+        letter,
+      ),
     );
   }
   if (
@@ -863,7 +868,11 @@ export function readingWarnings(
     reading.number.contradiction !== undefined
   )
     warnings.push(
-      `${letter}: values such as '${reading.number.contradiction}' read as a different number with locale ${reading.number.locale.locale} than with the column's own separators. Check that the locale names the file's language, or pass columns with an explicit decimal.`,
+      warning(
+        "locale_separator_conflict",
+        `${letter}: values such as '${reading.number.contradiction}' read as a different number with locale ${reading.number.locale.locale} than with the column's own separators. Check that the locale names the file's language, or pass columns with an explicit decimal.`,
+        letter,
+      ),
     );
   const date = reading.date;
   if (date.kind === "ambiguous") {
@@ -876,7 +885,11 @@ export function readingWarnings(
       )
       .join(" or ");
     warnings.push(
-      `${letter}: dates such as '${date.example}' read either day first or month first, so they were not read as dates. Pass columns ${options}.`,
+      warning(
+        "ambiguous_day_order",
+        `${letter}: dates such as '${date.example}' read either day first or month first, so they were not read as dates. Pass columns ${options}.`,
+        letter,
+      ),
     );
   }
   if (
@@ -884,7 +897,11 @@ export function readingWarnings(
     date.dottedDayFirst !== undefined
   )
     warnings.push(
-      `${letter}: slash and dash dates were read month first and dotted dates such as '${date.dottedDayFirst}' day first. An explicit order also applies to dotted dates, so readAs omits it; reuse the columns recipe from profile_sheet or pass a format to keep both readings.`,
+      warning(
+        "mixed_date_order",
+        `${letter}: slash and dash dates were read month first and dotted dates such as '${date.dottedDayFirst}' day first. An explicit order also applies to dotted dates, so readAs omits it; reuse the columns recipe from profile_sheet or pass a format to keep both readings.`,
+        letter,
+      ),
     );
   return warnings;
 }

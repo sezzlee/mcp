@@ -107,16 +107,25 @@ describe("accounting", () => {
     expect(
       warnings.some(
         (entry) =>
-          entry.startsWith("H: values such as '1234.50'") &&
-          entry.includes('[{"column":"H","type":"number","decimal":","}]'),
+          entry.code === "ambiguous_decimal" &&
+          entry.column === "H" &&
+          entry.message.startsWith("H: values such as '1234.50'") &&
+          entry.message.includes(
+            '[{"column":"H","type":"number","decimal":","}]',
+          ),
       ),
     ).toBe(true);
-    expect(warnings).toContain(
-      "H: 3 text cells do not read as a number, such as '1234.50', '1.234,56', 'x'; the totals exclude them.",
-    );
-    expect(warnings).toContain(
-      `H: 1 cell looks like an identifier (a leading zero or more than 15 digits), such as '007'; the totals exclude them. If they are quantities, pass columns [{"column":"H","type":"number","decimal":"."}].`,
-    );
+    expect(warnings).toContainEqual({
+      code: "unread_numbers",
+      column: "H",
+      message:
+        "H: 3 text cells do not read as a number, such as '1234.50', '1.234,56', 'x'; the totals exclude them.",
+    });
+    expect(warnings).toContainEqual({
+      code: "identifier_cells",
+      column: "H",
+      message: `H: 1 cell looks like an identifier (a leading zero or more than 15 digits), such as '007'; the totals exclude them. If they are quantities, pass columns [{"column":"H","type":"number","decimal":"."}].`,
+    });
   });
 
   it("reads a column with the marks columns names", async () => {
@@ -225,7 +234,11 @@ describe("grouping", () => {
     expect(labels).toContain("İSTANBUL");
     expect(labels).toContain("istanbul");
     expect(
-      result.warnings?.some((entry) => entry.includes("differ only by case")),
+      result.warnings?.some(
+        (entry) =>
+          entry.code === "case_variant_groups" &&
+          entry.message.includes("differ only by case"),
+      ),
     ).toBe(true);
   });
 
@@ -388,8 +401,9 @@ describe("a title band shifts the header row", () => {
 
   it("warns and names the real header row at the default", async () => {
     const result = await invoices(1);
-    expect(result.warnings?.[0]).toContain("headerRow 1");
-    expect(result.warnings?.[0]).toContain("Row 3");
+    expect(result.warnings?.[0]?.code).toBe("header_row_unnamed");
+    expect(result.warnings?.[0]?.message).toContain("headerRow 1");
+    expect(result.warnings?.[0]?.message).toContain("Row 3");
   });
 
   it("echoes where the header row came from", async () => {

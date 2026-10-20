@@ -76,7 +76,10 @@ describe("compact grid", () => {
       formula: "=NOCACHE()",
       cached: false,
     });
-    expect(result.warnings?.[0]).toContain("no cached value");
+    expect(result.warnings?.[0]).toMatchObject({
+      code: "uncached_formulas",
+      message: expect.stringContaining("no cached value"),
+    });
   });
 
   it("returns formula text in formulas mode", async () => {

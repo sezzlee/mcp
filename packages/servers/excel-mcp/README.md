@@ -54,6 +54,56 @@ A CSV holds only text, and a workbook may store numbers and dates as text too. `
 
 A digit run with a leading zero or more than 15 digits is an identifier and is never summed unless `columns` declares the column a number. A column whose amounts name more than one currency is summed as written and reported. Every value a call could not read, compare or sum is counted in `warnings` with examples, and `readAs` reports how each column's text was read. A time-only number format (`h:mm`, `hh:mm:ss AM/PM`) is returned as `HH:mm:ss`; elapsed `[h]`, `[m]` and `[s]` formats return `{"durationSeconds": number}` and can be summed in seconds.
 
+## Which row is the header row
+
+A call that names no `headerRow` reads by the row a declared table or the autofilter heads; failing
+those, by the first of the top 20 rows of the used range whose filled cells are all text, at least
+two of them and none merged across columns, provided no row above it holds a number, a date or
+another non-text cell; failing that, by row 1. A header sits above its data, so a text-only data
+row lower down, such as a row of `---` placeholders, is never taken for one. The response says which
+(`headerRowSource`: `declared`, `scanned` or `default`). The scan always covers the whole used
+range, so a call reading a few rows or a single column gets the same header row as one reading the
+sheet, and a title band above the columns is skipped without the caller knowing it is there. A CSV
+always reads row 1. `headerScan: true` asks for a strict detection: it refuses when two rows
+qualify or none does. A header cell holding a number or a boolean names its column by its text, so
+a year heading is addressable as `"2008"`.
+
+## Warnings
+
+A response's `warnings` is a list of `{ code, message, column? }`. Branch on `code`; `message` is
+for a person and its wording may change. `column` is the letter a warning is about, when it is
+about one.
+
+| Code                        | Raised when                                                         |
+| --------------------------- | ------------------------------------------------------------------- |
+| `csv_preamble_ignored`      | A `sep=` line names another delimiter than the one passed           |
+| `csv_blank_first_record`    | The first CSV record is blank and stays the header                  |
+| `table_missing_names`       | A declared table has columns without names                          |
+| `header_row_mismatch`       | `headerRow` differs from the row a table or the autofilter declares |
+| `header_row_unnamed`        | `headerRow` names no column while another top row does              |
+| `header_only_range`         | A `read_sheet` range holds only the header row                      |
+| `uncached_formulas`         | Formula cells carry no cached value                                 |
+| `ambiguous_decimal`         | Values read differently with a decimal point and a decimal comma    |
+| `locale_separator_conflict` | `locale` reads values as other numbers than the column's own marks  |
+| `ambiguous_day_order`       | Dates read either day first or month first                          |
+| `mixed_date_order`          | Slash dates read month first while dotted dates read day first      |
+| `distinct_lower_bound`      | A profiled column has more distinct values than are counted         |
+| `no_majority_type`          | No type holds a strict majority of a profiled column                |
+| `identifier_text`           | A profiled column looks like identifiers and stays text             |
+| `no_reusable_date_format`   | No single date format reads a profiled column's dates               |
+| `prefix_sample`             | A profile describes only the first rows                             |
+| `columns_not_profiled`      | Columns past `maxColumns` were not profiled                         |
+| `mixed_units`               | A metric adds plain numbers, fractions or durations                 |
+| `mixed_currencies`          | A metric adds different or unlabelled currencies                    |
+| `case_variant_groups`       | Groups differ only by case or accent                                |
+| `uncomparable_cells`        | `where` cells could not be compared with the operand                |
+| `ungrouped_cells`           | Cells could not be read for a grouping key                          |
+| `currencies_added`          | A column's amounts are written in more than one currency            |
+| `unread_numbers`            | Text cells do not read as numbers and are left out of totals        |
+| `identifier_cells`          | Cells look like identifiers and are left out of totals              |
+| `unread_booleans`           | Cells do not read as booleans and are left out of boolean metrics   |
+| `derived_division_by_zero`  | A derived metric divided by zero in a group and is null there       |
+
 ## Grouped analysis
 
 A date is returned as `yyyy-MM-dd`. A date and time is returned as `yyyy-MM-ddTHH:mm:ss.SSS` with no
@@ -94,6 +144,22 @@ its own grouping keys and diagnostics, while column readings and global resource
 shared. `compact` reduces repeated provenance while retaining loss and ambiguity diagnostics.
 The 2,000-row, 15-column commerce regression in `test/aggregate-analysis.spec.ts` checks an
 overall total, country, category, payment and 36 monthly breakdowns in one response under 8 KiB.
+
+A metric's `round` rounds its numeric result half away from zero, as Excel's `ROUND` does;
+sorting uses the unrounded value. `derived` computes up to four values from each group's metrics
+after aggregation: a numerator and an optional denominator, each a sum of `factor × metric`
+terms, then `scale` and `round`. A term with `scope: "total"` uses the metric summed over every
+group before `maxGroups`, which gives a group's share of the total; it accepts only metrics that
+add up (`count`, `countValues`, `countTrue`, `countFalse`, `sum`). A zero denominator gives null
+and a `derived_division_by_zero` warning. `orderByDerived` sorts by one of them. Derived values
+are not offered with `pivotBy`.
+
+`inColumn` and `notInColumn` keep the rows whose cell is, or is not, among the values of another
+column, named by `source`: a sheet and column of the same file or of another file under the
+root, opened through the same gates. Values match as `eq` compares them, never trimmed; the
+source holds at most 100,000 distinct values (`maxSourceValues`). Two calls, one in each
+direction, answer which keys one list has and the other lacks. This is a filter, not a join:
+no columns of the source are returned.
 
 ## Profile and reuse a column interpretation
 

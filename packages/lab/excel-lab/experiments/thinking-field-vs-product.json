@@ -1,0 +1,9 @@
+{
+  "id": "thinking-field-vs-product",
+  "hypothesis": "Carrying qwen3.8's thinking back in Ollama's own thinking field, instead of appended to the reply text as the product's provider does, changes how often a run is correct.",
+  "treatment": ["generation.thinking"],
+  "tasks": "Turkish, one repetition, these 40 tasks: one per file family in catalog order, then the next tasks in catalog order: trabzon-yomra-buildings, trabzon-hayrat-units, trabzon-hayrat-avenues, ibb-kadikoy-pre1980, konya-most-streets, uk-aug-total, uk-three-months, uk-glos-format-rule, fire-dropdown-years, sivas-chart-peak, heatpump-logo, gaziantep-busiest-month, flights-2019-international, izmir-metro-2021, manisa-yunusemre-divorced-women, manisa-plants-most-varieties, grocery-broken-prices, naep-female-2013, tariff-arcade-tax, sample-utf16-izmir, sample-sep-columns, sample-formula-phone, sfo-noise-limit, boiler-air-to-water-paid, audit-sticker-seen, toilets-extract-date, trabzon-yomra-top-units, trabzon-yomra-ocak, trabzon-three-districts, trabzon-hayrat-table, trabzon-hayrat-neighbourhoods, trabzon-hayrat-coverage, trabzon-yomra-density, trabzon-yomra-permits, ibb-highrise-districts, ibb-median-new-buildings, ibb-no-highrise, ibb-uavt-lookup, ibb-esenyurt-highrise-share, uk-aug-top-supplier",
+  "rule": {
+    "kind": "superiority"
+  }
+}

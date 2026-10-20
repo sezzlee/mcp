@@ -245,7 +245,11 @@ describe("inferred global date boundaries", () => {
     if (entry.ungroupedRows > 0)
       expect(result["warnings"]).toEqual(
         expect.arrayContaining([
-          expect.stringContaining("read either day first or month first"),
+          expect.objectContaining({
+            message: expect.stringContaining(
+              "read either day first or month first",
+            ),
+          }),
         ]),
       );
   });
@@ -356,7 +360,11 @@ describe("day and month order does not follow the caller's locale", () => {
     expect(result["ungroupedRows"]).toBe(2);
     expect(result["warnings"]).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("read either day first or month first"),
+        expect.objectContaining({
+          message: expect.stringContaining(
+            "read either day first or month first",
+          ),
+        }),
       ]),
     );
   });
@@ -387,7 +395,11 @@ describe("day and month order does not follow the caller's locale", () => {
     expect(result["rows"]).toEqual([]);
     expect(result["ungroupedRows"]).toBe(2);
     expect(result["warnings"]).toEqual(
-      expect.arrayContaining([expect.stringContaining('"MM.dd.yyyy"')]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: expect.stringContaining('"MM.dd.yyyy"'),
+        }),
+      ]),
     );
   });
 
@@ -401,9 +413,11 @@ describe("day and month order does not follow the caller's locale", () => {
     );
     expect(result["warnings"]).toEqual(
       expect.arrayContaining([
-        expect.stringContaining(
-          "values such as '1.234' read as a different number with locale tr-TR",
-        ),
+        expect.objectContaining({
+          message: expect.stringContaining(
+            "values such as '1.234' read as a different number with locale tr-TR",
+          ),
+        }),
       ]),
     );
   });
@@ -441,7 +455,9 @@ describe("dotted dates beside inferred slash dates", () => {
     expect(result["readAs"] ?? {}).not.toHaveProperty("A");
     expect(result["warnings"]).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("dotted dates such as '05.03.2026'"),
+        expect.objectContaining({
+          message: expect.stringContaining("dotted dates such as '05.03.2026'"),
+        }),
       ]),
     );
   });

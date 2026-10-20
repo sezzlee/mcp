@@ -23,10 +23,13 @@ import {
   sheetSource,
 } from "../format/document.js";
 import { aggregateSheet } from "../grid/aggregate.js";
+import type { ColumnMode } from "../grid/columns.js";
+import { columnMembers } from "../grid/members.js";
+import type { Condition } from "../grid/predicate.js";
 import type { CsvReport } from "../format/csv.js";
 import type { DelimiterName, EncodingName } from "../platform/delimited.js";
 import { inheritCursorOptions, decodeCursor } from "../grid/cursor.js";
-import type { ToolHandlers } from "./definitions.js";
+import type { ToolHandlers, ToolInput } from "./definitions.js";
 import { guard } from "./guard.js";
 import {
   assertHeaderScan,
@@ -35,6 +38,7 @@ import {
   rejectForCsv,
 } from "./gate.js";
 import { resolveHeaderRow } from "./coerce.js";
+import { SezzleeExcelError } from "../platform/errors.js";
 import {
   modeEnvelopeBytes,
   withAggregateEnvelope,
@@ -77,11 +81,87 @@ function gridSelection(
   };
 }
 
+type ToolCondition = NonNullable<ToolInput<"aggregate_sheet">["where"]>[number];
+
 export function createHandlers(root: WorkbookRoot): ToolHandlers {
   const cache = createDocumentCache(root.real);
   const openXlsx = createXlsxOpener(root, cache);
   const openFor = async (path: string, csv: CsvOptions = {}) =>
     cache.load(await resolveWorkbookPath(root, path), csv);
+
+  /**
+   * Turns inColumn and notInColumn into set membership over the source
+   * column's values, read once per call; every other condition passes
+   * through as the grid reads it.
+   */
+  const withMembers = async (
+    conditions: readonly ToolCondition[] | undefined,
+    context: {
+      readonly loaded: LoadedDocument;
+      readonly columnMode: ColumnMode;
+      readonly mergedCells: "master" | "repeat";
+      readonly caseSensitive: boolean;
+    },
+  ): Promise<Condition[] | undefined> => {
+    if (conditions === undefined) return undefined;
+    return Promise.all(
+      conditions.map(async (condition): Promise<Condition> => {
+        const op = condition.op;
+        if (op !== "inColumn" && op !== "notInColumn") {
+          if (condition.source !== undefined)
+            throw new SezzleeExcelError(
+              "invalid_argument",
+              `Operator '${op}' on column '${condition.column}' takes no source.`,
+              "Use inColumn or notInColumn to test against another column.",
+            );
+          return {
+            column: condition.column,
+            op,
+            ...(condition.value === undefined
+              ? {}
+              : { value: condition.value }),
+            ...(condition.values === undefined
+              ? {}
+              : { values: condition.values }),
+          };
+        }
+        const source = condition.source;
+        if (source === undefined)
+          throw new SezzleeExcelError(
+            "invalid_argument",
+            `Operator '${op}' on column '${condition.column}' needs source.`,
+            "Pass source with the column to compare against.",
+          );
+        const target =
+          source.filePath === undefined
+            ? context.loaded
+            : await openFor(source.filePath);
+        const sourceArgs = {
+          ...(source.sheetName === undefined
+            ? {}
+            : { sheetName: source.sheetName }),
+          ...(source.range === undefined ? {} : { range: source.range }),
+        };
+        return {
+          column: condition.column,
+          op: op === "inColumn" ? "inSet" : "notInSet",
+          members: columnMembers(sheetSource(target), {
+            ...sourceArgs,
+            column: source.column,
+            headerRow: resolveHeaderRow(target, {
+              ...sourceArgs,
+              ...(source.headerRow === undefined
+                ? {}
+                : { headerRow: source.headerRow }),
+            }).headerRow,
+            columnMode: context.columnMode,
+            mergedCells: context.mergedCells,
+            caseSensitive: context.caseSensitive,
+          }),
+        };
+      }),
+    );
+  };
 
   return {
     list_workbooks: guard(
@@ -310,6 +390,21 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
       async (args) => {
         assertHeaderScan(args, args.filePath);
         const loaded = await openFor(args.filePath, csvOptionsOf(args));
+        const context = {
+          loaded,
+          columnMode: args.columnMode ?? "auto",
+          mergedCells: args.mergedCells ?? "master",
+          caseSensitive: args.caseSensitive ?? false,
+        } as const;
+        const where = await withMembers(args.where, context);
+        const metrics = await Promise.all(
+          args.metrics.map(async ({ where: metricWhere, ...metric }) => {
+            const resolved = await withMembers(metricWhere, context);
+            return resolved === undefined
+              ? metric
+              : { ...metric, where: resolved };
+          }),
+        );
         return json(
           withAggregateEnvelope(
             aggregateSheet(sheetSource(loaded), {
@@ -324,8 +419,8 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               ...(args.groupingSets === undefined
                 ? {}
                 : { groupingSets: args.groupingSets }),
-              metrics: args.metrics,
-              ...(args.where === undefined ? {} : { where: args.where }),
+              metrics,
+              ...(where === undefined ? {} : { where }),
               match: args.match ?? "all",
               ...resolveHeaderRow(loaded, args),
               columnMode: args.columnMode ?? "auto",
@@ -336,6 +431,10 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               ...(args.orderByMetric === undefined
                 ? {}
                 : { orderByMetric: args.orderByMetric }),
+              ...(args.orderByDerived === undefined
+                ? {}
+                : { orderByDerived: args.orderByDerived }),
+              ...(args.derived === undefined ? {} : { derived: args.derived }),
               descending: args.descending ?? false,
               maxGroups: args.maxGroups ?? limits.maxGroupsDefault,
             }),
