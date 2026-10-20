@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Reading fixes
+
+- A data validation bound is a number only when the whole formula is one numeric literal. A reference such as `$B$1` was reported as `null` and an expression such as `45000+1` as `45000`; both now come back as the formula text, as does a `whole` bound that is not an integer.
+- A `date` bound reads its serial by the rule a cell does: serials before March 1900 no longer land one day early, and serial 60, the 29 February 1900 Excel invents, stays the formula text. A `time` bound reads as `HH:mm:ss`.
+
 ## 0.9.1
 
 ### Breaking

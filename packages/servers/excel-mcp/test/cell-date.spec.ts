@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  isDateFormat,
-  isTimeOnlyFormat,
-  serialToClock,
-  serialToDate,
-} from "../src/format/cell-date.js";
+import { isDateFormat, isTimeOnlyFormat } from "../src/format/cell-date.js";
+import { serialToClock, serialToDate } from "../src/grid/excel-serial.js";
 
 describe("isDateFormat", () => {
   it.each([

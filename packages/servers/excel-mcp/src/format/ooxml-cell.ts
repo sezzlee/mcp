@@ -1,13 +1,8 @@
 import type { CellFacts, CellSnapshot } from "../grid/cell-value.js";
 import type { RawValue } from "../metadata/spreadsheetml/cells.js";
 import { SezzleeExcelError } from "../platform/errors.js";
-import {
-  formatDate,
-  isDateFormat,
-  isTimeOnlyFormat,
-  serialToClock,
-  serialToDate,
-} from "./cell-date.js";
+import { serialToClock, serialToDate } from "../grid/excel-serial.js";
+import { formatDate, isDateFormat, isTimeOnlyFormat } from "./cell-date.js";
 import { numericFormat } from "./number-format.js";
 
 const zoneSuffix = /(?:[Zz]|([+-])(\d{2}):?(\d{2}))$/;

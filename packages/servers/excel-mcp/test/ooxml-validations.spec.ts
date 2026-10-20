@@ -9,6 +9,7 @@ import {
 } from "../src/platform/paths.js";
 import { createHandlers } from "../src/tools/handlers.js";
 import { collectValidations } from "../src/metadata/validations.js";
+import { rawWorkbook } from "./fixtures/raw-workbook.js";
 
 function payload(result: CallToolResult): Record<string, unknown> {
   const first = result.content[0];
@@ -211,4 +212,56 @@ describe("validations no longer need the ExcelJS metadata reader", () => {
       ).toHaveLength(1);
     });
   }
+});
+
+describe("a validation bound reads like the cells it constrains", () => {
+  async function boundOf(input: {
+    readonly type: string;
+    readonly formula: string;
+    readonly date1904?: boolean;
+  }): Promise<unknown> {
+    const bytes = await rawWorkbook({
+      sheetData: '<row r="1"><c r="A1"><v>1</v></c></row>',
+      afterSheetData: `<dataValidations count="1"><dataValidation type="${input.type}" operator="greaterThan" sqref="A2"><formula1>${input.formula}</formula1></dataValidation></dataValidations>`,
+      parts:
+        input.date1904 === true
+          ? {
+              "xl/workbook.xml":
+                '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><workbookPr date1904="1"/><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>',
+            }
+          : {},
+    });
+    const { parseOoxml } = await import("../src/format/ooxml-workbook.js");
+    const report = collectValidations(
+      "S",
+      parseOoxml(Buffer.from(bytes), "bound.xlsx").facts("S").validations,
+    );
+    return report.rules[0]?.formulae?.[0];
+  }
+
+  it.each([
+    { type: "date", formula: "1", bound: "1900-01-01" },
+    { type: "date", formula: "59", bound: "1900-02-28" },
+    { type: "date", formula: "60", bound: "60" },
+    { type: "date", formula: "61", bound: "1900-03-01" },
+    { type: "date", formula: "45000", bound: "2023-03-15" },
+    { type: "date", formula: "45000.5", bound: "2023-03-15T12:00:00.000" },
+    { type: "date", formula: "45000+1", bound: "45000+1" },
+    { type: "date", formula: "TODAY()", bound: "TODAY()" },
+    { type: "time", formula: "0.5", bound: "12:00:00" },
+    { type: "whole", formula: "10", bound: 10 },
+    { type: "whole", formula: "10.5", bound: "10.5" },
+    { type: "whole", formula: "$B$1", bound: "$B$1" },
+    { type: "decimal", formula: "-2.5e1", bound: -25 },
+    { type: "decimal", formula: "A1*2", bound: "A1*2" },
+    { type: "textLength", formula: "10+5", bound: "10+5" },
+  ])("reads a $type bound $formula as $bound", async (row) => {
+    expect(await boundOf(row)).toEqual(row.bound);
+  });
+
+  it("reads serial 0 as the first day of the 1904 date system", async () => {
+    expect(await boundOf({ type: "date", formula: "0", date1904: true })).toBe(
+      "1904-01-01",
+    );
+  });
 });
