@@ -133,7 +133,11 @@ describe("native XLSX numeric meaning", () => {
       { fn: "sum", currency: "$", counted: 3, skipped: 0 },
     ]);
     expect(result["warnings"]).toEqual(
-      expect.arrayContaining([expect.stringContaining("EUR, GBP")]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: expect.stringContaining("EUR, GBP"),
+        }),
+      ]),
     );
   });
 

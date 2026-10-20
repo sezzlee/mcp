@@ -2,6 +2,7 @@ import { limits } from "../platform/limits.js";
 import type { OoxmlTable, OoxmlTableColumn } from "./spreadsheetml/tables.js";
 import { columnToLetters, parseCellRef } from "../grid/range.js";
 import type { DeclaredTable } from "../grid/sheet.js";
+import { warning, type Warning } from "../grid/warnings.js";
 
 export interface TableColumnDetail {
   readonly name: string | null;
@@ -29,7 +30,7 @@ export interface TableReport {
   readonly truncated: boolean;
   readonly truncationReason?: "maxTablesPerSheet";
   readonly hint?: string;
-  readonly warnings?: readonly string[];
+  readonly warnings?: readonly Warning[];
 }
 
 export function declaredTablesOf(
@@ -148,7 +149,10 @@ export function collectTables(
     )
       ? {
           warnings: [
-            "Table metadata has missing column names; null entries preserve column positions.",
+            warning(
+              "table_missing_names",
+              "Table metadata has missing column names; null entries preserve column positions.",
+            ),
           ],
         }
       : {}),

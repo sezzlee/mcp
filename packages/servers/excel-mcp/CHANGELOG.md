@@ -4,6 +4,7 @@
 
 ### Breaking
 
+- `warnings` in every response, `csv.warnings` and `profiles[].warnings` included, is a list of `{ code, message, column? }` instead of strings. The README lists the codes; a caller branches on `code`, never on the message.
 - A call that names no `headerRow` no longer assumes row 1 of a workbook sheet. It reads by the header row a table or the autofilter declares, else the first of the top 20 used rows that names its columns by text alone, else row 1, and reports which as `headerRowSource` (`declared`, `scanned` or `default`). Totals and counts over a sheet with a title band above its columns change accordingly: the title and the header row no longer count as data. A CSV still reads row 1, and `headerScan: true` keeps refusing an ambiguous or missing header.
 
 ### Reading fixes

@@ -15,6 +15,7 @@ import {
   type GridBounds,
 } from "./range.js";
 import type { DeclaredTable, SheetView } from "./sheet.js";
+import { warning, type Warning } from "./warnings.js";
 
 export type HeaderRowSource =
   "explicit" | "declared" | "scanned" | "default" | "cursor";
@@ -314,7 +315,10 @@ export function defaultHeaderRow(
 export interface HeaderPreview {
   readonly row: number;
   readonly source: DefaultHeaderSource;
-  readonly columns: readonly { readonly letter: string; readonly text: string }[];
+  readonly columns: readonly {
+    readonly letter: string;
+    readonly text: string;
+  }[];
   readonly moreColumns: number;
 }
 
@@ -370,13 +374,16 @@ export function headerWarnings(
   headers: readonly (string | null)[],
   hasExplicitRange: boolean,
   mergePolicy: MergePolicy,
-): string[] {
+): Warning[] {
   const malformed = sheet.tables.filter((table) =>
     table.columns.some((name) => name === null),
   );
   if (malformed.length > 0)
     return [
-      `Table metadata has missing column names (${malformed.map((table) => table.name).join(", ")}); column positions were preserved.`,
+      warning(
+        "table_missing_names",
+        `Table metadata has missing column names (${malformed.map((table) => table.name).join(", ")}); column positions were preserved.`,
+      ),
     ];
   const width = bounds.right - bounds.left + 1;
   if (headerRow <= 0 || width < 2 || hasExplicitRange) {
@@ -388,7 +395,10 @@ export function headerWarnings(
   const declared = declaredHeaderRow(sheet, bounds, mergePolicy);
   if (declared !== undefined && declared.row !== headerRow) {
     return [
-      `headerRow ${headerRow} is not the header row declared by ${declared.source}, which declares row ${declared.row}; pass headerRow ${declared.row}, or headerScan true.`,
+      warning(
+        "header_row_mismatch",
+        `headerRow ${headerRow} is not the header row declared by ${declared.source}, which declares row ${declared.row}; pass headerRow ${declared.row}, or headerScan true.`,
+      ),
     ];
   }
   if (named > 1 || declared !== undefined) {
@@ -416,6 +426,9 @@ export function headerWarnings(
       ? `Row ${only.row} is the only row in rows ${first}-${last} that qualifies as a header row by text`
       : `Rows ${rows.join(", ")} qualify as header rows by text`;
   return [
-    `headerRow ${headerRow} produced no usable header text across columns ${span}. ${where}; pass headerRow ${only.row}, or headerScan true.`,
+    warning(
+      "header_row_unnamed",
+      `headerRow ${headerRow} produced no usable header text across columns ${span}. ${where}; pass headerRow ${only.row}, or headerScan true.`,
+    ),
   ];
 }

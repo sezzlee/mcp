@@ -132,7 +132,9 @@ describe("shared temporal and boolean aggregate readings", () => {
       ),
     );
     expect(result["warnings"]).toEqual(
-      expect.arrayContaining([expect.stringContaining("bad")]),
+      expect.arrayContaining([
+        expect.objectContaining({ message: expect.stringContaining("bad") }),
+      ]),
     );
     const extrema = body(
       await handlers.aggregate_sheet({
@@ -331,7 +333,11 @@ describe("shared temporal and boolean aggregate readings", () => {
     expect(columns[2]).not.toHaveProperty("unit");
     expect(result["warnings"]).toEqual(
       expect.arrayContaining([
-        "sum(Mixed) combines plain numbers, fractions or duration seconds; no common unit is assigned.",
+        expect.objectContaining({
+          code: "mixed_units",
+          message:
+            "sum(Mixed) combines plain numbers, fractions or duration seconds; no common unit is assigned.",
+        }),
       ]),
     );
   });

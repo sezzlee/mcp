@@ -59,7 +59,11 @@ describe("CSV first-line separator declarations", () => {
       delimiter: "comma",
       delimiterSource: "explicit",
       warnings: [
-        "The CSV sep= preamble declares 'semicolon', but explicit delimiter 'comma' takes precedence. The preamble was omitted.",
+        {
+          code: "csv_preamble_ignored",
+          message:
+            "The CSV sep= preamble declares 'semicolon', but explicit delimiter 'comma' takes precedence. The preamble was omitted.",
+        },
       ],
     });
   });
@@ -105,8 +109,16 @@ describe("CSV first-line separator declarations", () => {
       blankRecordCount: 1,
     });
     expect(table.report.warnings).toEqual([
-      "The CSV sep= preamble declares 'semicolon', but explicit delimiter 'comma' takes precedence. The preamble was omitted.",
-      "The first CSV record is blank and remains the default header. Physical records are preserved; pass headerRow to select a different header.",
+      {
+        code: "csv_preamble_ignored",
+        message:
+          "The CSV sep= preamble declares 'semicolon', but explicit delimiter 'comma' takes precedence. The preamble was omitted.",
+      },
+      {
+        code: "csv_blank_first_record",
+        message:
+          "The first CSV record is blank and remains the default header. Physical records are preserved; pass headerRow to select a different header.",
+      },
     ]);
   });
 
@@ -387,7 +399,12 @@ describe("separator declarations through public handlers", () => {
     expect(second["csv"]).toMatchObject({
       delimiter: "comma",
       delimiterSource: "explicit",
-      warnings: [expect.stringContaining("explicit delimiter 'comma'")],
+      warnings: [
+        expect.objectContaining({
+          code: "csv_preamble_ignored",
+          message: expect.stringContaining("explicit delimiter 'comma'"),
+        }),
+      ],
     });
     expect(
       errorCode(

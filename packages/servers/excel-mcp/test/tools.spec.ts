@@ -250,7 +250,10 @@ describe("handlers", () => {
       "Tutar",
     );
     expect(body["warnings"]).toEqual([
-      expect.stringContaining("only header row 3"),
+      expect.objectContaining({
+        code: "header_only_range",
+        message: expect.stringContaining("only header row 3"),
+      }),
     ]);
   });
 

@@ -122,7 +122,10 @@ describe("the OOXML table reader agrees with ExcelJS", () => {
       "three",
     ]);
     const report = collectTables("T", parsed.facts("T").tables);
-    expect(report.warnings?.[0]).toContain("missing column names");
+    expect(report.warnings?.[0]).toMatchObject({
+      code: "table_missing_names",
+      message: expect.stringContaining("missing column names"),
+    });
   });
 });
 

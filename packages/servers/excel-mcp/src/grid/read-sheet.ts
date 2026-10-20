@@ -36,6 +36,7 @@ import {
 } from "./cursor.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { headerWarnings, type HeaderRowSource } from "./header.js";
+import { warning, type Warning } from "./warnings.js";
 import {
   selectSheetRange,
   selectionHeaders,
@@ -109,7 +110,7 @@ export interface ReadSheetResult {
   readonly truncationReason?: "maxCells" | "maxPayloadBytes";
   readonly nextCursor?: string;
   readonly hint?: string;
-  readonly warnings?: readonly string[];
+  readonly warnings?: readonly Warning[];
 }
 
 interface Window extends SheetSelection {
@@ -208,8 +209,11 @@ function overlaps(merge: string, bounds: GridBounds): boolean {
   );
 }
 
-function uncachedFormulaWarning(count: number): string {
-  return `${count} formula cells have no cached value; this workbook has not been recalculated by Excel.`;
+function uncachedFormulaWarning(count: number): Warning {
+  return warning(
+    "uncached_formulas",
+    `${count} formula cells have no cached value; this workbook has not been recalculated by Excel.`,
+  );
 }
 
 export function readSheet(
@@ -344,8 +348,7 @@ export function readSheet(
     Math.max(1, Math.floor(options.maxCells / width)),
   );
   const parallelSeparators =
-    Math.max(0, rowLimit - 1) *
-    (1 + Number(options.includeTyped === true));
+    Math.max(0, rowLimit - 1) * (1 + Number(options.includeTyped === true));
   const reserveBytes =
     measureJson({
       sheet: window.sheet.name,
@@ -515,13 +518,16 @@ export function readSheet(
   const remaining = window.bounds.bottom - nextRow + 1;
 
   const headerOnly = window.startRow > window.bounds.bottom;
-  const warnings: string[] = [];
+  const warnings: Warning[] = [];
   if (uncachedFormulas > 0) {
     warnings.push(uncachedFormulaWarning(uncachedFormulas));
   }
   if (headerOnly)
     warnings.push(
-      `The requested rows hold only header row ${window.headerRow}; its texts are in columns[].header and no data row was read.`,
+      warning(
+        "header_only_range",
+        `The requested rows hold only header row ${window.headerRow}; its texts are in columns[].header and no data row was read.`,
+      ),
     );
   warnings.push(...headerNotices);
 

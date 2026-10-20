@@ -24,6 +24,7 @@ import { buildColumnIndex, resolveColumn, type ColumnMode } from "./columns.js";
 import type { MergePolicy } from "./cursor.js";
 import { orderedPatternOf } from "./date-text.js";
 import { headerWarnings, type HeaderRowSource } from "./header.js";
+import { warning, type Warning } from "./warnings.js";
 import { asciiDecimalDigits } from "./locale-text.js";
 import { classify, compareWithin, type CellKind } from "./predicate.js";
 import { columnToLetters, formatRange } from "./range.js";
@@ -90,7 +91,7 @@ interface ColumnProfile {
   readonly readAs: readonly ReadAs[];
   readonly uncachedFormulas: number;
   readonly valuesTruncated?: boolean;
-  readonly warnings?: readonly string[];
+  readonly warnings?: readonly Warning[];
 }
 
 export interface ProfileResult {
@@ -113,7 +114,7 @@ export interface ProfileResult {
   readonly sampledCells: number;
   readonly sampling: "prefix";
   readonly samplingLimit?: "maxRows" | "maxProfileCells";
-  readonly warnings?: readonly string[];
+  readonly warnings?: readonly Warning[];
 }
 
 interface SampledColumn {
@@ -465,28 +466,49 @@ function describeColumn(
     if (max === null || (compare(decision.type, entry.value, max) ?? 0) > 0)
       max = entry.value;
   }
-  const warnings = readingWarnings(sample.reading, letter).map((warning) =>
-    truncateWellFormed(warning, limits.maxStringChars),
-  );
+  const warnings = readingWarnings(sample.reading, letter).map((entry) => ({
+    ...entry,
+    message: truncateWellFormed(entry.message, limits.maxStringChars),
+  }));
   if (!frequency.complete)
     warnings.push(
-      `Distinct values exceeded ${limits.maxProfileDistinct} in the sample; the distinct count is a lower bound and top values are omitted.`,
+      warning(
+        "distinct_lower_bound",
+        `Distinct values exceeded ${limits.maxProfileDistinct} in the sample; the distinct count is a lower bound and top values are omitted.`,
+        letter,
+      ),
     );
   if (decision.type === "mixed" && !ambiguous)
     warnings.push(
-      "No type has a strict majority of non-missing sample values.",
+      warning(
+        "no_majority_type",
+        "No type has a strict majority of non-missing sample values.",
+        letter,
+      ),
     );
   if (identifiers.likely)
     warnings.push(
-      "Identifier-like text was observed; reusable columns keep this column as text.",
+      warning(
+        "identifier_text",
+        "Identifier-like text was observed; reusable columns keep this column as text.",
+        letter,
+      ),
     );
   if (decision.type === "date" && spec.type === "text")
     warnings.push(
-      "No single reusable date format preserves the sampled dates; reusable columns keep this column as text. Choose an explicit date format or normalize the source before calendar analysis.",
+      warning(
+        "no_reusable_date_format",
+        "No single reusable date format preserves the sampled dates; reusable columns keep this column as text. Choose an explicit date format or normalize the source before calendar analysis.",
+        letter,
+      ),
     );
   if (sample.uncachedFormulas > 0)
     warnings.push(
-      `${sample.uncachedFormulas} formula cells have no cached value and are counted as missing.`,
+      warning(
+        "uncached_formulas",
+        `${sample.uncachedFormulas} formula cells have no cached value and are counted as missing.`,
+        letter,
+      ),
     );
   const low = example(min);
   const high = example(max);
@@ -655,11 +677,17 @@ export function profileSheet(
   ];
   if (sampledRows < totalRows)
     warnings.push(
-      "Statistics and confidence describe only the sampled prefix; later rows can contain other types or values.",
+      warning(
+        "prefix_sample",
+        "Statistics and confidence describe only the sampled prefix; later rows can contain other types or values.",
+      ),
     );
   if (sampledColumns < totalColumns)
     warnings.push(
-      `${totalColumns - sampledColumns} columns were not profiled; narrow range or increase maxColumns for their profiles.`,
+      warning(
+        "columns_not_profiled",
+        `${totalColumns - sampledColumns} columns were not profiled; narrow range or increase maxColumns for their profiles.`,
+      ),
     );
   return {
     sheet: sheet.name,

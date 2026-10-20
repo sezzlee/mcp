@@ -3,6 +3,7 @@ import type { CellFacts, CellScalar } from "./cell-value.js";
 import { buildColumnIndex, resolveColumn, type ColumnMode } from "./columns.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { headerWarnings, type HeaderRowSource } from "./header.js";
+import { distinctWarnings, warning, type Warning } from "./warnings.js";
 import { limits } from "../platform/limits.js";
 import {
   explicitReading,
@@ -158,7 +159,7 @@ export interface AggregateResult extends GroupingResult {
   readonly blankRows: number;
   readonly columnStats?: Readonly<Record<string, Partial<Census>>>;
   readonly readAs?: Readonly<Record<string, readonly ReadAs[]>>;
-  readonly warnings?: readonly string[];
+  readonly warnings?: readonly Warning[];
   readonly errorDistribution?: ErrorDistribution;
 }
 
@@ -288,13 +289,17 @@ function keyFor(
 function conditionWarnings(
   conditions: readonly ResolvedCondition[],
   prefix: string,
-): string[] {
+): Warning[] {
   return conditions.flatMap(({ condition, column, tally }) => {
     if (tally.count === 0) return [];
     const kinds = kindsRead(condition);
     const as = kinds.length === 0 ? "the operand" : `a ${kinds.join(" or ")}`;
     return [
-      `${prefix} ${condition.column} ${condition.op}: ${count(tally.count, "cell", "cells")} in ${columnToLetters(column)} could not be compared with ${as}, such as ${samplesOf(tally)}; they did not match.`,
+      warning(
+        "uncomparable_cells",
+        `${prefix} ${condition.column} ${condition.op}: ${count(tally.count, "cell", "cells")} in ${columnToLetters(column)} could not be compared with ${as}, such as ${samplesOf(tally)}; they did not match.`,
+        columnToLetters(column),
+      ),
     ];
   });
 }
@@ -837,7 +842,13 @@ export function aggregateSheet(
         }
         if (meaning?.mixedUnits)
           warnings.push(
-            `${metricLabel(entry.metric)} combines plain numbers, fractions or duration seconds; no common unit is assigned.`,
+            warning(
+              "mixed_units",
+              `${metricLabel(entry.metric)} combines plain numbers, fractions or duration seconds; no common unit is assigned.`,
+              entry.column === undefined
+                ? undefined
+                : columnToLetters(entry.column),
+            ),
           );
         if (
           meaning?.mixedCurrencies &&
@@ -845,7 +856,13 @@ export function aggregateSheet(
             (currencies.get(entry.column)?.size ?? 0) < 2)
         )
           warnings.push(
-            `${metricLabel(entry.metric)} combines different or unlabelled currencies without conversion; no common currency is assigned.`,
+            warning(
+              "mixed_currencies",
+              `${metricLabel(entry.metric)} combines different or unlabelled currencies without conversion; no common currency is assigned.`,
+              entry.column === undefined
+                ? undefined
+                : columnToLetters(entry.column),
+            ),
           );
         return {
           label:
@@ -930,7 +947,10 @@ export function aggregateSheet(
     for (const bucket of collisions.values())
       if (bucket.size > 1)
         warnings.push(
-          `Groups ${[...bucket].map((entry) => `'${entry}'`).join(" and ")} differ only by case or accent.`,
+          warning(
+            "case_variant_groups",
+            `Groups ${[...bucket].map((entry) => `'${entry}'`).join(" and ")} differ only by case or accent.`,
+          ),
         );
     return {
       columns,
@@ -977,28 +997,51 @@ export function aggregateSheet(
   );
   for (const [plan, tally] of groupFailures)
     warnings.push(
-      `Grouping ${plan.description.label}: ${count(tally.count, "cell", "cells")} in ${columnToLetters(plan.column)} could not be read for this key, such as ${samplesOf(tally)}; these rows are counted in ungroupedRows for each affected grouping.`,
+      warning(
+        "ungrouped_cells",
+        `Grouping ${plan.description.label}: ${count(tally.count, "cell", "cells")} in ${columnToLetters(plan.column)} could not be read for this key, such as ${samplesOf(tally)}; these rows are counted in ungroupedRows for each affected grouping.`,
+        columnToLetters(plan.column),
+      ),
     );
   for (const [column, seen] of currencies)
     if (seen.size > 1)
       warnings.push(
-        `${columnToLetters(column)}: amounts are written in more than one currency (${[...seen].sort().join(", ")}); the totals add them as written, without conversion.`,
+        warning(
+          "currencies_added",
+          `${columnToLetters(column)}: amounts are written in more than one currency (${[...seen].sort().join(", ")}); the totals add them as written, without conversion.`,
+          columnToLetters(column),
+        ),
       );
   for (const [column, tally] of unreadable)
     warnings.push(
-      `${columnToLetters(column)}: ${count(tally.count, "text cell does", "text cells do")} not read as a number, such as ${samplesOf(tally)}; the totals exclude them.`,
+      warning(
+        "unread_numbers",
+        `${columnToLetters(column)}: ${count(tally.count, "text cell does", "text cells do")} not read as a number, such as ${samplesOf(tally)}; the totals exclude them.`,
+        columnToLetters(column),
+      ),
     );
   for (const [column, tally] of identifiers)
     warnings.push(
-      `${columnToLetters(column)}: ${count(tally.count, "cell looks like an identifier", "cells look like identifiers")} (a leading zero or more than 15 digits), such as ${samplesOf(tally)}; the totals exclude them. If they are quantities, pass columns [{"column":"${columnToLetters(column)}","type":"number","decimal":"."}].`,
+      warning(
+        "identifier_cells",
+        `${columnToLetters(column)}: ${count(tally.count, "cell looks like an identifier", "cells look like identifiers")} (a leading zero or more than 15 digits), such as ${samplesOf(tally)}; the totals exclude them. If they are quantities, pass columns [{"column":"${columnToLetters(column)}","type":"number","decimal":"."}].`,
+        columnToLetters(column),
+      ),
     );
   for (const [column, tally] of unreadableBooleans)
     warnings.push(
-      `${columnToLetters(column)}: ${count(tally.count, "cell does", "cells do")} not read as a boolean, such as ${samplesOf(tally)}; boolean metrics exclude them.`,
+      warning(
+        "unread_booleans",
+        `${columnToLetters(column)}: ${count(tally.count, "cell does", "cells do")} not read as a boolean, such as ${samplesOf(tally)}; boolean metrics exclude them.`,
+        columnToLetters(column),
+      ),
     );
   if (uncachedFormulas > 0)
     warnings.push(
-      `${uncachedFormulas} formula cells in the aggregated columns have no cached value; the totals exclude them.`,
+      warning(
+        "uncached_formulas",
+        `${uncachedFormulas} formula cells in the aggregated columns have no cached value; the totals exclude them.`,
+      ),
     );
   const errorDistribution = errors.report();
   let firstScannedRow = startRow;
@@ -1025,7 +1068,7 @@ export function aggregateSheet(
     ...(Object.keys(stats).length === 0 ? {} : { columnStats: stats }),
     ...(Object.keys(readAs).length === 0 ? {} : { readAs }),
     ...(errorDistribution === undefined ? {} : { errorDistribution }),
-    ...(warnings.length === 0 ? {} : { warnings: [...new Set(warnings)] }),
+    ...(warnings.length === 0 ? {} : { warnings: distinctWarnings(warnings) }),
   };
 }
 
