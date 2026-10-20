@@ -75,6 +75,7 @@
 
 ### Tool surface
 
+- `describe_workbook` reports each worksheet's `header`: the row a read that names no `headerRow` uses, where it came from, and its first 12 named columns with their letters (`maxHeaderPreviewColumns`), so columns can be named before any row is read.
 - CSV encoding selection adds Windows-1251, Windows-1256, Shift_JIS, GB18030, Big5 and EUC-KR. Every selected decoder is strict; invalid sequences are refused and decoding is never guessed from replacement characters.
 
 - New `profile_sheet` returns bounded statistical profiles, confidence, sampling scope, unreadable examples, identifier signals and reusable `columns`. Profile-generated numeric plans refuse identifiers even outside the sampled prefix.

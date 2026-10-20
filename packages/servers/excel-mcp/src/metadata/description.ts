@@ -1,3 +1,4 @@
+import type { HeaderPreview } from "../grid/header.js";
 import type { MetadataLimitation } from "./support.js";
 
 export interface DocumentMeta {
@@ -31,6 +32,8 @@ export interface SheetSummary {
   readonly autoFilterRef: string | null;
   readonly frozenRowCount: number | null;
   readonly frozenColumnCount: number | null;
+  /** The header row a read that names none uses, with its first named columns. */
+  readonly header: HeaderPreview | null;
 }
 
 export interface WorkbookDescription {

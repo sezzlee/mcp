@@ -186,6 +186,43 @@ describe("handlers", () => {
     }
   });
 
+  it("previews the header row a read uses for every sheet", async () => {
+    const described = payload(
+      await handlers.describe_workbook({ filePath: "title-band.xlsx" }),
+    );
+    const sheets = described["sheets"] as {
+      name: string;
+      header: { row: number; source: string } | null;
+    }[];
+    for (const sheet of sheets) {
+      const read = payload(
+        await handlers.read_sheet({
+          filePath: "title-band.xlsx",
+          sheetName: sheet.name,
+          maxCells: 1,
+        }),
+      );
+      expect(sheet.header).toMatchObject({
+        row: read["headerRow"],
+        source: read["headerRowSource"],
+      });
+    }
+    expect(sheets.find((sheet) => sheet.name === "Faturalar")?.header).toEqual({
+      row: 3,
+      source: "scanned",
+      columns: [
+        { letter: "A", text: "Fatura Tarihi" },
+        { letter: "B", text: "Vade Tarihi" },
+        { letter: "C", text: "Fatura No" },
+        { letter: "D", text: "Tutar" },
+        { letter: "E", text: "Ödenen Tutar" },
+        { letter: "F", text: "Kalan Tutar" },
+        { letter: "G", text: "Kalan Gün" },
+      ],
+      moreColumns: 0,
+    });
+  });
+
   it("names a numeric header cell by its text", async () => {
     const body = payload(
       await handlers.read_sheet({

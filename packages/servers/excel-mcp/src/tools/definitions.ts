@@ -80,7 +80,7 @@ export const toolDefinitions = {
   },
   describe_workbook: {
     description:
-      "Discover sheets, used ranges, merge and validation counts, formula cache coverage and defined names. Use when this metadata is needed; a known file, sheet or table and columns can be read or aggregated directly. CSV typedValues capability describes native stored types, not optional text interpretation.",
+      "Discover sheets, used ranges, each sheet's header row and first column names (the row reads use when given none), merge and validation counts, formula cache coverage and defined names. Use when this metadata is needed; a known file, sheet or table and columns can be read or aggregated directly. CSV typedValues capability describes native stored types, not optional text interpretation.",
     inputSchema: z.object({
       filePath,
       includeDefinedNames: z

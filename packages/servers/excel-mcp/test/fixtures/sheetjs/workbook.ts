@@ -500,6 +500,7 @@ export function describeSheetJs(
         autoFilterRef: null,
         frozenRowCount: 0,
         frozenColumnCount: 0,
+        header: null,
       };
     }
     const sheet = sheetOf(loaded, name);
@@ -531,6 +532,7 @@ export function describeSheetJs(
       autoFilterRef: autoFilterOf(sheet) ?? null,
       frozenRowCount: loaded.panes.get(name)?.rows ?? 0,
       frozenColumnCount: loaded.panes.get(name)?.columns ?? 0,
+      header: null,
     };
   });
   const tallest = sheets.reduce(

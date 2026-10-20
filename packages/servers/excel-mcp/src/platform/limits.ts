@@ -28,6 +28,7 @@ export const limits = {
   csvSniffBytes: 64 * 1024,
   csvSniffLines: 20,
   headerScanRows: 20,
+  maxHeaderPreviewColumns: 12,
   maxGroupsDefault: 50,
   maxGroupsHard: 500,
   maxAggregateGroups: 100_000,

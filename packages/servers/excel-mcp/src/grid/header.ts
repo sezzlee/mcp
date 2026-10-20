@@ -311,6 +311,41 @@ export function defaultHeaderRow(
   return { row: 1, source: "default" };
 }
 
+export interface HeaderPreview {
+  readonly row: number;
+  readonly source: DefaultHeaderSource;
+  readonly columns: readonly { readonly letter: string; readonly text: string }[];
+  readonly moreColumns: number;
+}
+
+/**
+ * The header row a call that names none reads by, with its first named
+ * columns, so a caller can name columns before reading a row. `null` for a
+ * sheet with no cells.
+ */
+export function previewHeader(
+  sheet: SheetView,
+  found: { readonly row: number; readonly source: DefaultHeaderSource },
+): HeaderPreview | null {
+  const bounds = sheet.bounds;
+  if (bounds === undefined) return null;
+  const named = readHeaderRow(sheet, bounds, found.row, {
+    valueMode: "values",
+    mergePolicy: "master",
+    includeHyperlinks: false,
+  }).flatMap((text, offset) =>
+    text === null || text === ""
+      ? []
+      : [{ letter: columnToLetters(bounds.left + offset), text }],
+  );
+  return {
+    row: found.row,
+    source: found.source,
+    columns: named.slice(0, limits.maxHeaderPreviewColumns),
+    moreColumns: Math.max(0, named.length - limits.maxHeaderPreviewColumns),
+  };
+}
+
 function declaredUnlessAmbiguous(
   sheet: SheetView,
   bounds: GridBounds,

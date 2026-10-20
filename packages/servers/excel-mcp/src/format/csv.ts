@@ -1,6 +1,7 @@
 import type { CellSnapshot } from "../grid/cell-value.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { limits } from "../platform/limits.js";
+import { previewHeader } from "../grid/header.js";
 import { columnToLetters, type GridBounds } from "../grid/range.js";
 import { presentIndices, type RowView, type SheetView } from "../grid/sheet.js";
 import type {
@@ -551,6 +552,10 @@ export function describeCsv(
         autoFilterRef: null,
         frozenRowCount: null,
         frozenColumnCount: null,
+        header: previewHeader(csvSheetView(table), {
+          row: 1,
+          source: "default",
+        }),
       },
     ],
     ...(bounds !== undefined && bounds.bottom > limits.guidanceRowThreshold
