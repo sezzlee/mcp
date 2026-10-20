@@ -76,6 +76,8 @@
 
 ### Tool surface
 
+- `aggregate_sheet` metrics take `round`, and `derived` computes ratios, shares of the total, differences and weighted totals from each group's metrics, with `orderByDerived` to rank by one. A zero denominator gives null and a warning.
+- `where` takes `inColumn` and `notInColumn` with a `source` column in this or another file under the root, so one call lists the keys one list has and the other lacks. The source is bounded by `maxSourceValues` distinct values.
 - `describe_workbook` reports each worksheet's `header`: the row a read that names no `headerRow` uses, where it came from, and its first 12 named columns with their letters (`maxHeaderPreviewColumns`), so columns can be named before any row is read.
 - CSV encoding selection adds Windows-1251, Windows-1256, Shift_JIS, GB18030, Big5 and EUC-KR. Every selected decoder is strict; invalid sequences are refused and decoding is never guessed from replacement characters.
 

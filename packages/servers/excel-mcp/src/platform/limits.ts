@@ -29,6 +29,8 @@ export const limits = {
   csvSniffLines: 20,
   headerScanRows: 20,
   maxHeaderPreviewColumns: 12,
+  maxDerivedMetrics: 4,
+  maxSourceValues: 100_000,
   maxGroupsDefault: 50,
   maxGroupsHard: 500,
   maxAggregateGroups: 100_000,

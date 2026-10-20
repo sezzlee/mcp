@@ -142,6 +142,22 @@ shared. `compact` reduces repeated provenance while retaining loss and ambiguity
 The 2,000-row, 15-column commerce regression in `test/aggregate-analysis.spec.ts` checks an
 overall total, country, category, payment and 36 monthly breakdowns in one response under 8 KiB.
 
+A metric's `round` rounds its numeric result half away from zero, as Excel's `ROUND` does;
+sorting uses the unrounded value. `derived` computes up to four values from each group's metrics
+after aggregation: a numerator and an optional denominator, each a sum of `factor × metric`
+terms, then `scale` and `round`. A term with `scope: "total"` uses the metric summed over every
+group before `maxGroups`, which gives a group's share of the total; it accepts only metrics that
+add up (`count`, `countValues`, `countTrue`, `countFalse`, `sum`). A zero denominator gives null
+and a `derived_division_by_zero` warning. `orderByDerived` sorts by one of them. Derived values
+are not offered with `pivotBy`.
+
+`inColumn` and `notInColumn` keep the rows whose cell is, or is not, among the values of another
+column, named by `source`: a sheet and column of the same file or of another file under the
+root, opened through the same gates. Values match as `eq` compares them, never trimmed; the
+source holds at most 100,000 distinct values (`maxSourceValues`). Two calls, one in each
+direction, answer which keys one list has and the other lacks. This is a filter, not a join:
+no columns of the source are returned.
+
 ## Profile and reuse a column interpretation
 
 `profile_sheet` samples a rectangular prefix (1,000 data rows and 16 columns by default), with

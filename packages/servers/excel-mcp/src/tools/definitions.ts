@@ -54,6 +54,25 @@ const profileHeaders = {
     ),
 };
 
+const derivedTerms = z
+  .array(
+    z.strictObject({
+      metric: z
+        .int()
+        .min(1)
+        .max(limits.maxMetrics)
+        .describe("One-based index into metrics."),
+      factor: z.number().optional().describe("Multiplier, default 1."),
+      scope: z
+        .enum(["group", "total"])
+        .optional()
+        .describe(
+          "group (default) uses the group's value; total uses the metric summed over every group before maxGroups, for a share of the total. total accepts count, countValues, countTrue, countFalse and sum.",
+        ),
+    }),
+  )
+  .max(limits.maxMetrics);
+
 export const toolDefinitions = {
   list_workbooks: {
     description:
@@ -321,6 +340,14 @@ export const toolDefinitions = {
               .describe(
                 "Required only for fn percentile: fraction from 0 to 1 inclusive. median and p50 use 0.5, p90 uses 0.9.",
               ),
+            round: z
+              .int()
+              .min(0)
+              .max(10)
+              .optional()
+              .describe(
+                "Decimal places to round a numeric result to, half away from zero as Excel ROUND. Sorting uses the unrounded value.",
+              ),
             where: rowConditions
               .optional()
               .describe(
@@ -384,6 +411,45 @@ export const toolDefinitions = {
         .optional()
         .describe(
           "One-based index into metrics, default 1. Cannot exceed the actual metrics count.",
+        ),
+      orderByDerived: z
+        .string()
+        .optional()
+        .describe(
+          "Name of a derived metric to sort by with orderBy metric, instead of orderByMetric.",
+        ),
+      derived: z
+        .array(
+          z.strictObject({
+            name: z.string().min(1).max(64).describe("Output column label."),
+            numerator: derivedTerms
+              .min(1)
+              .describe("Terms added together: factor (default 1) × metric."),
+            denominator: derivedTerms
+              .min(1)
+              .optional()
+              .describe(
+                "Terms added together and divided into the numerator. A zero denominator gives null and a warning.",
+              ),
+            scale: z
+              .number()
+              .optional()
+              .describe(
+                "Multiplier applied last, such as 100 for a percentage.",
+              ),
+            round: z
+              .int()
+              .min(0)
+              .max(10)
+              .optional()
+              .describe("Decimal places, half away from zero."),
+          }),
+        )
+        .min(1)
+        .max(limits.maxDerivedMetrics)
+        .optional()
+        .describe(
+          "Values computed from the metrics of each group after aggregation: ratios, shares, differences, adjusted totals. Appended after the metrics. Not with pivotBy.",
         ),
       descending: z
         .boolean()

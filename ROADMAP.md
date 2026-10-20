@@ -77,7 +77,9 @@ spec, a guard comment or the package README.
   a bounded streaming document contract, stable dialect/type decisions, cancellation and
   snapshot validation. The architecture below must be reviewed before implementation.
 - **Multiple-source analysis.** Cross-sheet and cross-file joins need an explicit execution
-  owner and cardinality, memory and provenance limits. The options below are design only.
+  owner and cardinality, memory and provenance limits. The options below are design only. The
+  membership filter is built: `aggregate_sheet`'s `inColumn` and `notInColumn` test a row's key
+  against another column of this or another file, returning no source columns.
 - **Typed-text aggregate cost.** Reading every text value to decide a column's separators and
   day/month order made an eight-sum aggregate over a 2,000,000-cell CSV 3.9 times slower on the
   first call and 5.7 times slower on a cached call than `coerceText` was (median of five

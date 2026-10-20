@@ -29,6 +29,7 @@ export const warningCodes = [
   "unread_numbers",
   "identifier_cells",
   "unread_booleans",
+  "derived_division_by_zero",
 ] as const;
 
 export type WarningCode = (typeof warningCodes)[number];

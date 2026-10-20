@@ -92,9 +92,11 @@ export const rowConditions = z
           "isError",
           "isNumber",
           "isText",
+          "inColumn",
+          "notInColumn",
         ])
         .describe(
-          "Comparison and text operators take value; in takes values; between takes [low, high], both inclusive and of one kind. isEmpty, isNotEmpty, isNumber and isText take neither. isError optionally takes an error code in value.",
+          "Comparison and text operators take value; in takes values; between takes [low, high], both inclusive and of one kind. isEmpty, isNotEmpty, isNumber and isText take neither. isError optionally takes an error code in value. inColumn and notInColumn take source.",
         ),
       value: z
         .union([z.string(), z.number(), z.boolean()])
@@ -109,6 +111,25 @@ export const rowConditions = z
         .optional()
         .describe(
           "Operands of in (any of them) and between (exactly two: low and high).",
+        ),
+      source: z
+        .strictObject({
+          filePath: z
+            .string()
+            .optional()
+            .describe("Another file under the root; defaults to this one."),
+          sheetName: z.string().optional(),
+          column: columnRef,
+          range: z.string().optional(),
+          headerRow: z
+            .int()
+            .min(0)
+            .optional()
+            .describe("Detected as for this call when omitted."),
+        })
+        .optional()
+        .describe(
+          "The column inColumn and notInColumn test a row's cell against, such as the same key in another list. Values match as eq compares them: a number the same number, text the same text, case- and accent-insensitive unless caseSensitive, never trimmed.",
         ),
     }),
   )

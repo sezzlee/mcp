@@ -4,6 +4,12 @@ import { buildColumnIndex, resolveColumn, type ColumnMode } from "./columns.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { headerWarnings, type HeaderRowSource } from "./header.js";
 import { distinctWarnings, warning, type Warning } from "./warnings.js";
+import {
+  computeDerived,
+  roundTo,
+  validateDerived,
+  type DerivedMetric,
+} from "./derived.js";
 import { limits } from "../platform/limits.js";
 import {
   explicitReading,
@@ -101,6 +107,8 @@ export interface AggregateOptions extends ReadingHints, SelectionOptions {
   readonly mergedCells: "master" | "repeat";
   readonly orderBy: "group" | "metric";
   readonly orderByMetric?: number;
+  readonly orderByDerived?: string;
+  readonly derived?: readonly DerivedMetric[];
   readonly descending: boolean;
   readonly maxGroups: number;
   readonly headerRowSource: HeaderRowSource;
@@ -109,7 +117,7 @@ export interface AggregateOptions extends ReadingHints, SelectionOptions {
 export interface AggregateColumn {
   readonly label: string;
   readonly letter?: string;
-  readonly role: "group" | "metric";
+  readonly role: "group" | "metric" | "derived";
   readonly fn?: MetricFunction;
   readonly counted?: number;
   readonly skipped?: number;
@@ -286,6 +294,12 @@ function keyFor(
   return { values: key, order };
 }
 
+function rounded(metric: MetricRequest, value: CellScalar): CellScalar {
+  return metric.round !== undefined && typeof value === "number"
+    ? roundTo(value, metric.round)
+    : value;
+}
+
 function conditionWarnings(
   conditions: readonly ResolvedCondition[],
   prefix: string,
@@ -324,6 +338,22 @@ export function aggregateSheet(
     throw new SezzleeExcelError(
       "invalid_argument",
       "orderByMetric must identify an entry in metrics.",
+    );
+  const derived = options.derived ?? [];
+  validateDerived(derived, options.metrics, (options.pivotBy?.length ?? 0) > 0);
+  const derivedSlot =
+    options.orderByDerived === undefined
+      ? undefined
+      : derived.findIndex((entry) => entry.name === options.orderByDerived);
+  if (derivedSlot === -1)
+    throw new SezzleeExcelError(
+      "invalid_argument",
+      `orderByDerived '${options.orderByDerived}' names no entry in derived.`,
+    );
+  if (derivedSlot !== undefined && options.orderByMetric !== undefined)
+    throw new SezzleeExcelError(
+      "invalid_argument",
+      "Pass orderByMetric or orderByDerived, not both.",
     );
   if ((options.groupingSets?.length ?? 0) > limits.maxGroupingSets)
     throw new SezzleeExcelError(
@@ -794,12 +824,55 @@ export function aggregateSheet(
   ];
   const metricSlot = (options.orderByMetric ?? 1) - 1;
   const sortMetric = options.metrics[metricSlot] ?? firstMetric;
+  let divisionByZero = false;
   const finishGrouping = (set: Grouping): GroupingResult => {
+    const numeric = (value: CellScalar): number | null =>
+      typeof value === "number" ? value : null;
+    const totals = options.metrics.map((metric, slot) => {
+      let total = 0;
+      for (const group of set.groups.values()) {
+        const value = numeric(finishMetric(metric, group.metrics[slot]));
+        if (value === null) return null;
+        total += value;
+      }
+      return total;
+    });
+    const derivedValues = new Map<GroupState | undefined, (number | null)[]>();
+    const derivedOf = (group: GroupState | undefined): (number | null)[] => {
+      const known = derivedValues.get(group);
+      if (known !== undefined) return known;
+      const values = derived.map((entry) => {
+        const outcome = computeDerived(
+          entry,
+          (slot) =>
+            numeric(
+              finishMetric(
+                options.metrics[slot] ?? firstMetric,
+                group?.metrics[slot],
+              ),
+            ),
+          (slot) => totals[slot] ?? null,
+        );
+        if (outcome.kind === "divisionByZero") {
+          divisionByZero = true;
+          return null;
+        }
+        return outcome.value;
+      });
+      derivedValues.set(group, values);
+      return values;
+    };
     const ordered = [...set.groups.values()];
     ordered.sort((left, right) => {
       if (options.orderBy === "metric") {
-        const a = finishMetric(sortMetric, left.metrics[metricSlot]);
-        const b = finishMetric(sortMetric, right.metrics[metricSlot]);
+        const a =
+          derivedSlot === undefined
+            ? finishMetric(sortMetric, left.metrics[metricSlot])
+            : derivedOf(left)[derivedSlot];
+        const b =
+          derivedSlot === undefined
+            ? finishMetric(sortMetric, right.metrics[metricSlot])
+            : derivedOf(right)[derivedSlot];
         const av = typeof a === "number" ? a : Number.NEGATIVE_INFINITY;
         const bv = typeof b === "number" ? b : Number.NEGATIVE_INFINITY;
         if (av !== bv)
@@ -912,6 +985,9 @@ export function aggregateSheet(
       ...(hasPivot
         ? pivots.flatMap((pivot) => descriptors(pivot))
         : descriptors()),
+      ...derived.map(
+        (entry): AggregateColumn => ({ label: entry.name, role: "derived" }),
+      ),
     ];
     const rows = page.map((group) => [
       ...group.key.values.map(presentScalar),
@@ -922,13 +998,19 @@ export function aggregateSheet(
             ),
           )
         : options.metrics.map((metric, slot) =>
-            presentScalar(finishMetric(metric, group.metrics[slot])),
+            presentScalar(
+              rounded(metric, finishMetric(metric, group.metrics[slot])),
+            ),
           )),
+      ...derivedOf(group),
     ]);
     if (rows.length === 0 && set.columns.length === 0 && !hasPivot)
-      rows.push(
-        options.metrics.map((metric) => finishMetric(metric, undefined)),
-      );
+      rows.push([
+        ...options.metrics.map((metric) =>
+          rounded(metric, finishMetric(metric, undefined)),
+        ),
+        ...derivedOf(undefined),
+      ]);
     const returnedMatchedRows = page.reduce(
       (sum, group) => sum + group.rows,
       0,
@@ -1041,6 +1123,13 @@ export function aggregateSheet(
       warning(
         "uncached_formulas",
         `${uncachedFormulas} formula cells in the aggregated columns have no cached value; the totals exclude them.`,
+      ),
+    );
+  if (divisionByZero)
+    warnings.push(
+      warning(
+        "derived_division_by_zero",
+        "A derived metric's denominator was 0 in at least one group; its value there is null.",
       ),
     );
   const errorDistribution = errors.report();
