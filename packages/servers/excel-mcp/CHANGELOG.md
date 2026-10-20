@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.10.0
+
+### Analysis tools
+
+- Aggregate calls support derived metrics and membership filters against another file.
+- Sheet descriptions preview headers, and every `read_sheet` page identifies its original row numbers.
+- The tool catalog is smaller so each request carries fewer tool definitions.
 
 ### Breaking
 
