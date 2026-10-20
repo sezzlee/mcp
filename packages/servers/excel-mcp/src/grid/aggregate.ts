@@ -985,9 +985,10 @@ export function aggregateSheet(
       ...(hasPivot
         ? pivots.flatMap((pivot) => descriptors(pivot))
         : descriptors()),
-      ...derived.map(
-        (entry): AggregateColumn => ({ label: entry.name, role: "derived" }),
-      ),
+      ...derived.map((entry): AggregateColumn => ({
+        label: entry.name,
+        role: "derived",
+      })),
     ];
     const rows = page.map((group) => [
       ...group.key.values.map(presentScalar),

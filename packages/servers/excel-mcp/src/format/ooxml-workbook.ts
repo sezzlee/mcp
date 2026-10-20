@@ -580,10 +580,7 @@ export function describeOoxml(
       header:
         view.bounds === undefined
           ? null
-          : previewHeader(
-              view,
-              defaultHeaderRow(view, view.bounds, "master"),
-            ),
+          : previewHeader(view, defaultHeaderRow(view, view.bounds, "master")),
     };
   });
   const tallest = sheets.reduce(
