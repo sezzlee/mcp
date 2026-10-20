@@ -29,6 +29,7 @@ These bounds are exported by the server. Tool arguments can request smaller page
 | Cells `read_sheet` returns when `maxCells` is omitted                                                                                        | 2,000  |
 | Largest `maxCells` for `read_sheet`                                                                                                          | 10,000 |
 | Rows above which `describe_workbook` and `read_sheet` suggest `aggregate_sheet` or `find_in_sheet` instead of paging                         | 5,000  |
+| Named columns `describe_workbook` lists in each sheet's header preview; the rest are counted in `moreColumns`                                | 12     |
 
 ## Search and aggregation
 
@@ -55,7 +56,9 @@ These bounds are exported by the server. Tool arguments can request smaller page
 | Shared column specifications accepted by profile_sheet, read_sheet, find_in_sheet and aggregate_sheet                                                 | 64         |
 | Characters in a `read_sheet` continuation cursor, which carries the column specifications; an oversized cursor is refused only when more pages remain | 16,384     |
 | Values in one `in` condition                                                                                                                          | 64         |
-| Rows at the top of the range that `headerScan` examines                                                                                               | 20         |
+| Rows at the top of the used range examined to find the header row a call names none for, and the rows `headerScan` examines                           | 20         |
+| Derived metrics in one `aggregate_sheet` call                                                                                                         | 4          |
+| Distinct values the `source` column of an `inColumn` or `notInColumn` condition may hold before `resource_limit`                                      | 100,000    |
 
 ## Column profiles
 
