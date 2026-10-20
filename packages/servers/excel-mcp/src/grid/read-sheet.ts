@@ -92,7 +92,8 @@ export interface ReadSheetResult {
   readonly headerRowSource: HeaderRowSource;
   readonly columns: readonly ColumnInfo[];
   readonly values: readonly (readonly CellScalar[])[];
-  readonly rowNumbers?: readonly number[];
+  /** The sheet row of each entry in `values`, so no row is found by counting. */
+  readonly rowNumbers: readonly number[];
   readonly table?: TableSelection;
   readonly visibility?: VisibilityReport;
   readonly typedValues?: readonly (readonly CellScalar[])[];
@@ -344,8 +345,7 @@ export function readSheet(
   );
   const parallelSeparators =
     Math.max(0, rowLimit - 1) *
-    (Number(options.visibleOnly === true) +
-      Number(options.includeTyped === true));
+    (1 + Number(options.includeTyped === true));
   const reserveBytes =
     measureJson({
       sheet: window.sheet.name,
@@ -355,10 +355,10 @@ export function readSheet(
       headerRowSource: window.headerRowSource,
       columns: columnsFrom(new Array<string | null>(width).fill(null)),
       values: [],
+      rowNumbers: [],
       ...(window.table === undefined ? {} : { table: window.table }),
       ...(options.visibleOnly === true
         ? {
-            rowNumbers: [],
             visibility: visibilityOf(
               window,
               window.startRow,
@@ -468,7 +468,7 @@ export function readSheet(
     if (
       !budget.admit(
         line,
-        ...(options.visibleOnly === true ? [rowNumber] : []),
+        rowNumber,
         ...(options.includeTyped === true ? [typedLine] : []),
         ...notes,
         ...formats,
@@ -487,7 +487,7 @@ export function readSheet(
       }
     }
     values.push(line);
-    if (options.visibleOnly === true) rowNumbers.push(rowNumber);
+    rowNumbers.push(rowNumber);
     if (options.includeTyped === true) {
       typedValues.push(typedLine);
       for (const item of observations)
@@ -542,10 +542,10 @@ export function readSheet(
     headerRowSource: window.headerRowSource,
     columns,
     values,
+    rowNumbers,
     ...(window.table === undefined ? {} : { table: window.table }),
     ...(options.visibleOnly === true
       ? {
-          rowNumbers,
           visibility: visibilityOf(window, window.startRow, nextRow - 1),
         }
       : {}),

@@ -96,7 +96,7 @@ export const toolDefinitions = {
   },
   read_sheet: {
     description:
-      "Read a rectangular cell range as a compact grid: hoisted column headers plus row arrays. Pass nextCursor back to continue a truncated read. A date and time stored without a zone is returned without one, as a local wall clock; a written offset is kept.",
+      "Read a rectangular cell range as a compact grid: hoisted column headers plus row arrays, with rowNumbers giving the sheet row of each array. Pass nextCursor back to continue a truncated read. A date and time stored without a zone is returned without one, as a local wall clock; a written offset is kept.",
     inputSchema: z.object({
       filePath,
       sheetName,

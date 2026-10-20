@@ -26,7 +26,7 @@ export const visibleOnly = z
   .boolean()
   .optional()
   .describe(
-    "Skip saved hidden rows, including rows hidden by AutoFilter, default false. Uses saved visibility without reevaluating filter criteria. read_sheet returns source rowNumbers. Cursor-bound; XLSX only.",
+    "Skip saved hidden rows, including rows hidden by AutoFilter, default false. Uses saved visibility without reevaluating filter criteria. Cursor-bound; XLSX only.",
   );
 export { columnRef, readingHintsSchema } from "../grid/column-spec.js";
 import { columnRef, columnSpecsSchema } from "../grid/column-spec.js";
