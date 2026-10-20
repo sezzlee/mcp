@@ -17,6 +17,8 @@ import {
   encoding,
   filePath,
   groupAxis,
+  groupAxisForms,
+  rowConditionForms,
   rowConditions,
   readingHintsSchema,
   sheetName,
@@ -31,7 +33,7 @@ const typedOptions = {
     .enum(["auto", "header", "letter"])
     .optional()
     .describe(
-      "Resolve column names automatically (default), by header text, or by A1 letter. Letter mode avoids duplicate/colliding headers.",
+      "Columns are named by header text or A1 letter: auto (default), header or letter.",
     ),
 };
 
@@ -44,14 +46,12 @@ const profileHeaders = {
     .max(1_048_576)
     .optional()
     .describe(
-      "Header row; 0 for none. When omitted, a table or autofilter header, else the first of the top 20 used rows that names its columns by text alone, else row 1 (CSV: row 1). Cannot combine with headerScan=true.",
+      "Header row, 0 for none. Omitted: a table or autofilter header, else the first top row naming its columns in text, else row 1.",
     ),
   headerScan: z
     .boolean()
     .optional()
-    .describe(
-      "Detect the header row strictly: refused when two rows qualify or none does, instead of choosing. Default false.",
-    ),
+    .describe("Strict header detection: refuse when two rows or none qualify."),
 };
 
 const derivedTerms = z
@@ -67,7 +67,7 @@ const derivedTerms = z
         .enum(["group", "total"])
         .optional()
         .describe(
-          "group (default) uses the group's value; total uses the metric summed over every group before maxGroups, for a share of the total. total accepts count, countValues, countTrue, countFalse and sum.",
+          "group (default) or total: the metric summed over every group, for a share; counts and sum only.",
         ),
     }),
   )
@@ -76,7 +76,7 @@ const derivedTerms = z
 export const toolDefinitions = {
   list_workbooks: {
     description:
-      "List readable .xlsx, .xlsm and .csv files under the server root. Returns filePath values that other tools accept verbatim. totalExact distinguishes complete totals; scanTruncated is separate from the result page limit.",
+      "List readable .xlsx, .xlsm and .csv files under the server root, as filePath values the other tools accept.",
     inputSchema: z.object({
       subdirectory: z
         .string()
@@ -99,15 +99,13 @@ export const toolDefinitions = {
   },
   describe_workbook: {
     description:
-      "Discover sheets, used ranges, each sheet's header row and first column names (the row reads use when given none), merge and validation counts, formula cache coverage and defined names. Use when this metadata is needed; a known file, sheet or table and columns can be read or aggregated directly. CSV typedValues capability describes native stored types, not optional text interpretation.",
+      "Discover sheets, used ranges, each sheet's header row and first column names (the row reads use by default), merge and validation counts, formula cache coverage and defined names. A known file and columns can be read or aggregated directly.",
     inputSchema: z.object({
       filePath,
       includeDefinedNames: z
         .boolean()
         .optional()
-        .describe(
-          "Include the defined-name list, default true. The list is partial: sheet-local scopes may be missing; inspect limitations.",
-        ),
+        .describe("Include defined names, default true."),
       delimiter,
       encoding,
     }),
@@ -130,14 +128,12 @@ export const toolDefinitions = {
       includeTyped: z
         .boolean()
         .optional()
-        .describe(
-          "Add a parallel typedValues grid while preserving raw values, default false. Requires explicit columns (for example from profile_sheet). Missing or unreadable typed cells are null and counted. Interpretation is fixed across cursor pages.",
-        ),
+        .describe("Add a typedValues grid read by columns, which it requires."),
       cursor: z
         .string()
         .optional()
         .describe(
-          "Opaque v2 token from a previous response. Cannot be combined with sheetName or range. Omitted interpretation and CSV options are inherited; explicit values must match the first page. maxCells may change.",
+          "nextCursor of the previous page; not with sheetName or range. Options are inherited.",
         ),
       maxCells: z
         .int()
@@ -151,26 +147,26 @@ export const toolDefinitions = {
         .enum(["values", "formulas", "both"])
         .optional()
         .describe(
-          "Values, formulas, or values with formula notes; default values. Cursor-bound: conflicts are rejected. XLSX only.",
+          "values (default), formulas, or values with formula notes. XLSX only.",
         ),
       mergedCells: z
         .enum(["master", "repeat"])
         .optional()
         .describe(
-          "Master-only or repeated merged values, default master. Applies to headers too. Cursor-bound; XLSX only.",
+          "Merged cells: master value only (default) or repeated. XLSX only.",
         ),
       headerRow: z
         .int()
         .min(0)
         .optional()
         .describe(
-          "Header row; 0 for none. When omitted, a table or autofilter header, else the first of the top 20 used rows that names its columns by text alone, else row 1 (CSV: row 1). Cursor-bound: omit to inherit. Cannot be combined with headerScan=true.",
+          "Header row, 0 for none. Omitted: a table or autofilter header, else the first top row naming its columns in text, else row 1.",
         ),
       headerScan: z
         .boolean()
         .optional()
         .describe(
-          "Detect the header row strictly: refused when two rows qualify or none does, instead of choosing. Default false. Cannot be combined with headerRow on a new read. Cursor-bound: omit to inherit.",
+          "Strict header detection: refuse when two rows or none qualify. Cannot be combined with headerRow on a new read. Cursor-bound: omit to inherit.",
         ),
       includeHyperlinks: z
         .boolean()
@@ -205,17 +201,13 @@ export const toolDefinitions = {
         .min(1)
         .max(limits.maxProfileRowsHard)
         .optional()
-        .describe(
-          "Maximum sampled data rows, default 1000. A rectangular prefix is also bounded by maxProfileCells; omissions are reported.",
-        ),
+        .describe("Sampled rows, default 1000."),
       maxColumns: z
         .int()
         .min(1)
         .max(limits.maxProfileColumnsHard)
         .optional()
-        .describe(
-          "Maximum profiled columns, default 16, hard maximum 64. Extra columns are counted as omitted.",
-        ),
+        .describe("Profiled columns, default 16."),
       delimiter,
       encoding,
     }),
@@ -250,14 +242,14 @@ export const toolDefinitions = {
 
   get_images: {
     description:
-      "List worksheet pictures, including Place in Cell images: source cell or drawing anchor, byte size, extension, stored alternative text and decorative flag when available. imageId identifies the same embedded media in read_sheet values. Alternative text is clipped with its original length; image pixels are not interpreted. Charts belong to get_charts; pivot tables and sparklines are refused.",
+      "List worksheet pictures, in-cell images included: anchor, size, extension, alternative text and decorative flag. imageId matches read_sheet values. Pixels are not interpreted.",
     inputSchema: z.object({ filePath, sheetName, kind: drawingKind }),
     annotations: readOnly,
   },
 
   get_charts: {
     description:
-      "List charts on a worksheet or chart sheet: type, title, axes (including secondary axes, scale and number format), series cell references and cached point values, trendline types, user-filtered series as hidden, and pivot source when present. Cached values may be stale; read the ref with read_sheet for current cells. Appearance (colours, fonts) is not reported.",
+      "List charts on a worksheet or chart sheet: type, title, axes, series references with cached points, trendlines and pivot source. Cached values may be stale; read the ref for current cells.",
     inputSchema: z.object({
       filePath,
       sheetName,
@@ -296,40 +288,36 @@ export const toolDefinitions = {
       groupBy: groupAxis
         .optional()
         .describe(
-          "Row grouping keys. A plain column keeps raw values unless columns, a filter or a metric already reads that column as numbers or dates. Date parts and bins request that reading explicitly. Omit for a whole-range total.",
+          `Row grouping keys; omit for a whole-range total. ${groupAxisForms}`,
         ),
       pivotBy: groupAxis
         .optional()
         .describe(
-          "Column axis of a dense pivot, with the same key forms as groupBy. Missing combinations have count 0 and other metrics null. The full row-key × pivot-key × metric count is bounded, before maxGroups slicing.",
+          "Column axis of a dense pivot, in groupBy's key forms. Missing combinations have count 0, other metrics null.",
         ),
       groupingSets: z
         .array(
           z.strictObject({
-            groupBy: groupAxis.describe(
-              "Keys for this independent breakdown, using the same forms as the primary groupBy. Pass an empty array for a grand total.",
-            ),
+            groupBy: groupAxis.describe("Keys in groupBy's forms."),
           }),
         )
         .min(1)
         .max(limits.maxGroupingSets)
         .optional()
         .describe(
-          "Additional independent groupings computed with the same metrics, filters and pivotBy in one shared scan. Results appear in groupingSets in this order; the primary groupBy result stays in rows. An empty groupBy computes a grand total.",
+          "More breakdowns [{groupBy}] in groupBy's key forms over the same scan, returned in groupingSets; [] gives a grand total.",
         ),
       compact: z
         .boolean()
         .optional()
-        .describe(
-          "Omit repeated CSV format and mode metadata, default false. CSV warnings and nonzero quality counts, typed-reading decisions and aggregation diagnostics remain.",
-        ),
+        .describe("Omit repeated CSV and mode metadata; diagnostics remain."),
       metrics: z
         .array(
           z.strictObject({
             fn: z
               .enum(metricFunctions)
               .describe(
-                "countTrue/countFalse count valid boolean values; trueRatio is true divided by all valid booleans (null if none). count counts matched rows. countValues counts non-empty cells; countDistinct counts distinct stored values. sum, avg, stddev, median, p50, p90 and percentile read numeric text column by column and exclude identifiers. stddev is the sample deviation. Percentiles use exact linear interpolation (Excel PERCENTILE.INC), bounded across the call. min/max compare one kind per group; a mixed group is refused.",
+                "count counts matched rows, countValues non-empty cells, countDistinct distinct values; trueRatio is true over valid booleans. Numeric functions read numeric text and skip identifiers; percentiles are PERCENTILE.INC; stddev is the sample deviation.",
               ),
             column: columnRef.optional(),
             percentile: z
@@ -337,34 +325,26 @@ export const toolDefinitions = {
               .min(0)
               .max(1)
               .optional()
-              .describe(
-                "Required only for fn percentile: fraction from 0 to 1 inclusive. median and p50 use 0.5, p90 uses 0.9.",
-              ),
+              .describe("Fraction 0 to 1, for fn percentile."),
             round: z
               .int()
               .min(0)
               .max(10)
               .optional()
-              .describe(
-                "Decimal places to round a numeric result to, half away from zero as Excel ROUND. Sorting uses the unrounded value.",
-              ),
+              .describe("Decimal places, half away from zero as ROUND."),
             where: rowConditions
               .optional()
-              .describe(
-                "Additional filter for this metric only; all conditions must match. It is applied after the top-level filter. filtered counts rows excluded here; skipped counts included rows whose values the metric could not use.",
-              ),
+              .describe("Filter for this metric, in where's form."),
           }),
         )
         .min(1)
         .max(limits.maxMetrics)
         .describe(
-          "Values to compute. Each becomes an output column after the group keys, or one column per pivot key. Percentiles sharing a column and identical metric filter share their stored samples.",
+          "Values to compute [{fn, column?, percentile?, round?, where?}], one output column each after the group keys. A metric's where has the top-level where's form and applies after it.",
         ),
       where: rowConditions
         .optional()
-        .describe(
-          "Row filter. Numeric and ISO date operands read text column by column. Incomparable cells are reported with counts and examples.",
-        ),
+        .describe(`Row filter. ${rowConditionForms}`),
       match: z
         .enum(["all", "any"])
         .optional()
@@ -374,19 +354,19 @@ export const toolDefinitions = {
         .min(0)
         .optional()
         .describe(
-          "Header row; 0 for none. When omitted, a table or autofilter header, else the first of the top 20 used rows that names its columns by text alone, else row 1 (CSV: row 1).",
+          "Header row, 0 for none. Omitted: a table or autofilter header, else the first top row naming its columns in text, else row 1.",
         ),
       headerScan: z
         .boolean()
         .optional()
         .describe(
-          "Detect the header row strictly: refused when two rows qualify or none does, instead of choosing. Cannot be combined with headerRow.",
+          "Strict header detection: refuse when two rows or none qualify.",
         ),
       columnMode: z
         .enum(["auto", "header", "letter"])
         .optional()
         .describe(
-          "Automatic resolution (default), header text, or A1 letter. Letter mode ignores duplicate headers.",
+          "Columns are named by header text or A1 letter: auto (default), header or letter.",
         ),
       caseSensitive: z
         .boolean()
@@ -415,9 +395,7 @@ export const toolDefinitions = {
       orderByDerived: z
         .string()
         .optional()
-        .describe(
-          "Name of a derived metric to sort by with orderBy metric, instead of orderByMetric.",
-        ),
+        .describe("Derived metric to sort by with orderBy metric."),
       derived: z
         .array(
           z.strictObject({
@@ -428,15 +406,11 @@ export const toolDefinitions = {
             denominator: derivedTerms
               .min(1)
               .optional()
-              .describe(
-                "Terms added together and divided into the numerator. A zero denominator gives null and a warning.",
-              ),
+              .describe("Terms added together; a zero denominator gives null."),
             scale: z
               .number()
               .optional()
-              .describe(
-                "Multiplier applied last, such as 100 for a percentage.",
-              ),
+              .describe("Final multiplier, such as 100."),
             round: z
               .int()
               .min(0)
@@ -449,7 +423,7 @@ export const toolDefinitions = {
         .max(limits.maxDerivedMetrics)
         .optional()
         .describe(
-          "Values computed from the metrics of each group after aggregation: ratios, shares, differences, adjusted totals. Appended after the metrics. Not with pivotBy.",
+          "Per-group values from the metrics: ratios, shares, differences, adjusted totals; appended after the metrics. Not with pivotBy.",
         ),
       descending: z
         .boolean()
@@ -463,9 +437,7 @@ export const toolDefinitions = {
           `maxGroups is at most ${limits.maxGroupsHard} and groups past it are not paged; use orderBy "metric" with orderByMetric for the top groups, or where conditions or a coarser groupBy for fewer groups`,
         )
         .optional()
-        .describe(
-          "Maximum groups returned, default 50. matchedRows covers all groups; metric counted/skipped covers returnedMatchedRows.",
-        ),
+        .describe("Groups returned, default 50."),
       delimiter,
       encoding,
     }),

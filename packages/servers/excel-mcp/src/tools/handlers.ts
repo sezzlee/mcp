@@ -117,7 +117,9 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
           return {
             column: condition.column,
             op,
-            ...(condition.value === undefined ? {} : { value: condition.value }),
+            ...(condition.value === undefined
+              ? {}
+              : { value: condition.value }),
             ...(condition.values === undefined
               ? {}
               : { values: condition.values }),

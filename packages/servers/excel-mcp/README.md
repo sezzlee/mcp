@@ -100,6 +100,7 @@ about one.
 | `unread_numbers`            | Text cells do not read as numbers and are left out of totals        |
 | `identifier_cells`          | Cells look like identifiers and are left out of totals              |
 | `unread_booleans`           | Cells do not read as booleans and are left out of boolean metrics   |
+| `derived_division_by_zero`  | A derived metric divided by zero in a group and is null there       |
 
 ## Grouped analysis
 

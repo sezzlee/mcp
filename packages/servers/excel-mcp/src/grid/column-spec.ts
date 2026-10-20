@@ -1,102 +1,66 @@
 import { z } from "zod";
 import { limits } from "../platform/limits.js";
 
-export const columnRef = z
-  .string()
-  .describe(
-    "Header text or an A1 letter such as C. Header matching folds case and accents; columnMode resolves collisions.",
-  );
+/**
+ * Guard: a nested schema carries a few words, and the parameter that holds it
+ * carries the explanation. The served JSON Schema inlines every use of a
+ * shared schema, so a long description was repeated in each union branch,
+ * metric and condition of four tools; none is left bare, because the docs
+ * reference refuses an argument an agent would see as a name alone.
+ */
+export const columnRef = z.string().describe("Header text or A1 letter.");
 
 const tokens = z.array(z.string().min(1).max(128)).max(64);
+const locale = z.string().min(2).max(64);
+const numberingSystem = z.string().min(3).max(32);
 
 export const readingHintsSchema = {
-  locale: z
-    .string()
-    .min(2)
-    .max(64)
+  locale: locale
     .optional()
     .describe(
-      "BCP 47 locale the file was written in, never the reader's language: it decides numeric separators, digit shapes and Gregorian month names, never the day/month order. Omit it when unknown and the column's own values decide. Unsupported locales are refused; omission never uses the host locale.",
+      "BCP 47 locale the file was written in, for separators and month names, never day/month order. Omit when unknown.",
     ),
-  numberingSystem: z
-    .string()
-    .min(3)
-    .max(32)
+  numberingSystem: numberingSystem
     .optional()
-    .describe(
-      "Unicode decimal numbering system, for example arab or latn. Requires locale and must be supported by the runtime.",
-    ),
+    .describe("Numbering system such as arab; needs locale."),
   missingValues: tokens
     .optional()
-    .describe(
-      "Replace the missing-text tokens. Defaults to N/A, NULL, -, — and #N/A with folded matching. Nulls and blank strings are always missing; [] keeps other text literal. Stored Excel errors remain errors.",
-    ),
+    .describe("Missing-text tokens; default N/A, NULL, -, —, #N/A."),
   trueValues: tokens
     .optional()
-    .describe(
-      "Replace true-text tokens. Defaults to true, yes, y, Evet and E with folded matching. Tokens may use any script. Numeric 0 and 1 are not inferred as booleans.",
-    ),
+    .describe("True-text tokens; default true, yes, y, Evet, E."),
   falseValues: tokens
     .optional()
-    .describe(
-      "Replace false-text tokens. Defaults to false, no, n, Hayır and H with folded matching. True, false and missing token sets must not overlap.",
-    ),
+    .describe("False-text tokens; default false, no, n, Hayır, H."),
 } as const;
 
 const common = {
   column: columnRef,
-  missingValues: readingHintsSchema.missingValues,
+  missingValues: tokens.optional().describe("Missing-text tokens."),
 };
 
 export const columnSpecSchema = z.discriminatedUnion("type", [
   z.strictObject({
     ...common,
     type: z.literal("number"),
-    decimal: z
-      .enum([".", ","])
-      .optional()
-      .describe(
-        "Decimal separator. Supply this or locale. It cannot be combined with locale.",
-      ),
-    group: z
-      .enum(["none", ".", ",", " ", "'"])
-      .optional()
-      .describe(
-        "Thousands separator for decimal-based reading. Defaults to '.' for decimal comma and ',' for decimal point. Cannot be combined with locale.",
-      ),
-    locale: readingHintsSchema.locale,
-    numberingSystem: readingHintsSchema.numberingSystem,
-    identifiers: z
-      .enum(["refuse", "read"])
-      .optional()
-      .describe(
-        "Whether to refuse digit strings with leading zeros or more than 15 digits. Explicit number columns default to read for compatibility; reusable profile columns always say refuse.",
-      ),
+    decimal: z.enum([".", ","]).optional(),
+    group: z.enum(["none", ".", ",", " ", "'"]).optional(),
+    locale: locale.optional(),
+    numberingSystem: numberingSystem.optional(),
+    identifiers: z.enum(["refuse", "read"]).optional(),
   }),
   z.strictObject({
     ...common,
     type: z.literal("date"),
-    format: z
-      .string()
-      .min(1)
-      .max(64)
-      .optional()
-      .describe(
-        "Closed Gregorian date pattern, for example dd.MM.yyyy or d MMMM yyyy. Supports yyyy MM M MMM MMMM dd d HH H hh h mm ss a and fixed separators. Cannot be combined with order.",
-      ),
-    order: z
-      .enum(["dmy", "mdy"])
-      .optional()
-      .describe(
-        "Explicit day/month order without a fixed pattern. When format and order are omitted, only unambiguous dates are accepted.",
-      ),
-    locale: readingHintsSchema.locale,
+    format: z.string().min(1).max(64).optional(),
+    order: z.enum(["dmy", "mdy"]).optional(),
+    locale: locale.optional(),
   }),
   z.strictObject({
     ...common,
     type: z.literal("boolean"),
-    trueValues: readingHintsSchema.trueValues,
-    falseValues: readingHintsSchema.falseValues,
+    trueValues: tokens.optional(),
+    falseValues: tokens.optional(),
   }),
   z.strictObject({ ...common, type: z.literal("time") }),
   z.strictObject({ ...common, type: z.literal("duration") }),
@@ -105,8 +69,54 @@ export const columnSpecSchema = z.discriminatedUnion("type", [
 
 export type ColumnSpec = z.infer<typeof columnSpecSchema>;
 
+/**
+ * The shape a caller sends a column specification in: one object with every
+ * field, piped into the union, which accepts exactly what it did before.
+ *
+ * Guard: the union's six strict branches serialised to about 2.3 KB of JSON
+ * Schema in each of four tools; this flat object publishes the same fields
+ * once, and the pipe still refuses a field the declared type does not take.
+ */
+const flatColumnSpec = z
+  .strictObject({
+    column: columnRef,
+    type: z
+      .enum(["number", "date", "boolean", "time", "duration", "text"])
+      .describe("How to read the column."),
+    missingValues: tokens.optional().describe("Missing-text tokens."),
+    decimal: z
+      .enum([".", ","])
+      .optional()
+      .describe("Decimal separator, for number."),
+    group: z
+      .enum(["none", ".", ",", " ", "'"])
+      .optional()
+      .describe("Thousands separator, for number."),
+    locale: locale.optional().describe("File locale, for number or date."),
+    numberingSystem: numberingSystem
+      .optional()
+      .describe("Numbering system, for number."),
+    identifiers: z
+      .enum(["refuse", "read"])
+      .optional()
+      .describe("Whether to read digit identifiers, for number."),
+    format: z
+      .string()
+      .min(1)
+      .max(64)
+      .optional()
+      .describe("Date pattern such as dd.MM.yyyy, for date."),
+    order: z
+      .enum(["dmy", "mdy"])
+      .optional()
+      .describe("Day/month order without a format, for date."),
+    trueValues: tokens.optional().describe("True-text tokens, for boolean."),
+    falseValues: tokens.optional().describe("False-text tokens, for boolean."),
+  })
+  .pipe(columnSpecSchema);
+
 export const columnSpecsSchema = z
-  .array(columnSpecSchema)
+  .array(flatColumnSpec)
   .min(1)
   .max(limits.maxColumnSpecs);
 

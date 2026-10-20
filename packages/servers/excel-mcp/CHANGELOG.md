@@ -76,6 +76,7 @@
 
 ### Tool surface
 
+- The served tool list is 36 KB instead of 67 KB, and every request carries it. A nested schema carries a few words instead of repeating its parent's description, a column specification is published as one flat object, and long descriptions are shorter. Every input accepted before is accepted now, and every input refused before is refused.
 - `aggregate_sheet` metrics take `round`, and `derived` computes ratios, shares of the total, differences and weighted totals from each group's metrics, with `orderByDerived` to rank by one. A zero denominator gives null and a warning.
 - `where` takes `inColumn` and `notInColumn` with a `source` column in this or another file under the root, so one call lists the keys one list has and the other lacks. The source is bounded by `maxSourceValues` distinct values.
 - `describe_workbook` reports each worksheet's `header`: the row a read that names no `headerRow` uses, where it came from, and its first 12 named columns with their letters (`maxHeaderPreviewColumns`), so columns can be named before any row is read.
