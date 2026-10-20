@@ -108,7 +108,16 @@ const field = z.discriminatedUnion("kind", [
     value: z.number(),
     tolerance,
   }),
-  z.strictObject({ kind: z.literal("text"), value: z.string().min(1) }),
+  z.strictObject({
+    kind: z.literal("text"),
+    value: z.string().min(1),
+    /**
+     * Other wordings that name the same thing, for an answer that is a label
+     * rather than a cell, such as a rule type the file stores as an
+     * identifier. Each is compared whole, as `value` is.
+     */
+    accept: z.array(z.string().min(1)).min(1).optional(),
+  }),
   z.strictObject({
     kind: z.literal("date"),
     value: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

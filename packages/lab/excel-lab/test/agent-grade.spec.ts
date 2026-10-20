@@ -34,6 +34,26 @@ describe("grading what a submission means", () => {
       false,
     ],
     [
+      "an accepted wording names the same label",
+      {
+        kind: "text",
+        value: "duplicateValues",
+        accept: ["Duplicate values", "Yinelenen değerler"],
+      },
+      "yinelenen DEĞERLER",
+      true,
+    ],
+    [
+      "an accepted wording with a gloss is not the wording",
+      {
+        kind: "text",
+        value: "duplicateValues",
+        accept: ["Yinelenen değerler"],
+      },
+      "Yinelenen değerler (duplicate values) vurgulaması",
+      false,
+    ],
+    [
       "a qualified total is not the total",
       { kind: "text", value: "Total" },
       "Total (male only)",

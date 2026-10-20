@@ -121,6 +121,36 @@ describe("scenarios read from a run's trace", () => {
     ).toEqual([{ id: "Z3", file: "a.csv", recovered: false }]);
   });
 
+  it("reads a coded ambiguity warning by its code and column", () => {
+    expect(
+      exercisedCases(
+        run([
+          {
+            tool: "aggregate_sheet",
+            response: {
+              truncated: false,
+              warnings: [
+                {
+                  code: "ambiguous_day_order",
+                  message: "A: dates such as '05/01/2015' read either way.",
+                  column: "A",
+                },
+                { code: "unread_numbers", message: "B: 2 cells", column: "B" },
+              ],
+            },
+          },
+          {
+            tool: "aggregate_sheet",
+            args: {
+              columns: [{ column: "A", type: "date", format: "dd/MM/yyyy" }],
+            },
+            response: { truncated: false },
+          },
+        ]),
+      ),
+    ).toEqual([{ id: "R4", file: "a.csv", recovered: true }]);
+  });
+
   it("counts an ambiguity warning as recovered only by naming the warned column, and a truncated answer by its own cursor", () => {
     const warned = {
       truncated: false,

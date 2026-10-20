@@ -296,7 +296,11 @@ function judgeField(expected: Field, got: Scalar | undefined): FieldVerdict {
     case "text":
       return {
         bare: typeof got === "string" && got.trim() !== "",
-        same: typeof got === "string" && sameText(expected.value, got),
+        same:
+          typeof got === "string" &&
+          [expected.value, ...(expected.accept ?? [])].some((wording) =>
+            sameText(wording, got),
+          ),
         detail: JSON.stringify(got),
       };
     case "date":

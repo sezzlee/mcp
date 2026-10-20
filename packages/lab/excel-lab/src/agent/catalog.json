@@ -812,11 +812,20 @@
             "tool": "aggregate_sheet",
             "args": {
               "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx",
-              "headerScan": true,
               "groupBy": ["MAHALLE ADI"],
               "metrics": [
                 {
                   "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "MAHALLE ADI",
+                  "op": "notInColumn",
+                  "source": {
+                    "filePath": "trabzon/hayrat-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx",
+                    "column": "MAHALLE"
+                  }
                 }
               ],
               "maxGroups": 100
@@ -824,9 +833,30 @@
             "role": "answer"
           },
           {
-            "tool": "read_sheet",
+            "tool": "aggregate_sheet",
             "args": {
-              "filePath": "trabzon/hayrat-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+              "filePath": "trabzon/hayrat-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx",
+              "groupBy": ["MAHALLE"],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "SIRA NO",
+                  "op": "isNumber"
+                },
+                {
+                  "column": "MAHALLE",
+                  "op": "notInColumn",
+                  "source": {
+                    "filePath": "trabzon/hayrat-ilcesi-yol-listesi.xlsx",
+                    "column": "MAHALLE ADI"
+                  }
+                }
+              ],
+              "maxGroups": 100
             },
             "role": "answer"
           }
@@ -834,50 +864,10 @@
         "derive": {
           "record": {
             "onlyInRoads": {
-              "fn": "countNotIn",
-              "args": [
-                {
-                  "column": {
-                    "step": 1,
-                    "rows": "/rows",
-                    "value": 0
-                  }
-                },
-                {
-                  "column": {
-                    "step": 2,
-                    "rows": "/values",
-                    "value": 1,
-                    "where": {
-                      "key": 0,
-                      "number": true
-                    }
-                  }
-                }
-              ]
+              "at": [1, "/groupCount"]
             },
             "onlyInBuildings": {
-              "fn": "countNotIn",
-              "args": [
-                {
-                  "column": {
-                    "step": 2,
-                    "rows": "/values",
-                    "value": 1,
-                    "where": {
-                      "key": 0,
-                      "number": true
-                    }
-                  }
-                },
-                {
-                  "column": {
-                    "step": 1,
-                    "rows": "/rows",
-                    "value": 0
-                  }
-                }
-              ]
+              "at": [2, "/groupCount"]
             }
           }
         }
@@ -900,32 +890,51 @@
       "plan": {
         "steps": [
           {
-            "tool": "read_sheet",
+            "tool": "aggregate_sheet",
             "args": {
-              "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx"
+              "filePath": "trabzon/yomra-ilcesi-yapi-ve-bagimsiz-bolum-sayilari.xlsx",
+              "groupBy": ["MAHALLE"],
+              "where": [
+                {
+                  "column": "SIRA NO",
+                  "op": "isNumber"
+                }
+              ],
+              "metrics": [
+                {
+                  "fn": "sum",
+                  "column": "C"
+                },
+                {
+                  "fn": "sum",
+                  "column": "D"
+                }
+              ],
+              "derived": [
+                {
+                  "name": "density",
+                  "numerator": [
+                    {
+                      "metric": 2
+                    }
+                  ],
+                  "denominator": [
+                    {
+                      "metric": 1
+                    }
+                  ]
+                }
+              ],
+              "orderBy": "metric",
+              "orderByDerived": "density",
+              "descending": true,
+              "maxGroups": 1
             },
             "role": "answer"
           }
         ],
         "derive": {
-          "fn": "argmax",
-          "args": [
-            {
-              "pairs": {
-                "step": 0,
-                "rows": "/values",
-                "label": 1,
-                "value": {
-                  "op": "divide",
-                  "columns": [3, 2]
-                },
-                "where": {
-                  "key": 0,
-                  "number": true
-                }
-              }
-            }
-          ]
+          "at": [0, "/rows/0/0"]
         }
       }
     },
@@ -956,7 +965,11 @@
         ],
         "confirm": {
           "value": {
-            "at": [0, "/values/1"]
+            "pluck": {
+              "step": 0,
+              "items": "/columns",
+              "field": "header"
+            }
           },
           "equals": [
             "SIRA NO",
@@ -1404,40 +1417,38 @@
                   "op": "eq",
                   "value": "Esenyurt"
                 }
+              ],
+              "derived": [
+                {
+                  "name": "share",
+                  "numerator": [
+                    {
+                      "metric": 2
+                    },
+                    {
+                      "metric": 3
+                    }
+                  ],
+                  "denominator": [
+                    {
+                      "metric": 1
+                    },
+                    {
+                      "metric": 2
+                    },
+                    {
+                      "metric": 3
+                    }
+                  ],
+                  "scale": 100
+                }
               ]
             },
             "role": "answer"
           }
         ],
         "derive": {
-          "fn": "percent",
-          "args": [
-            {
-              "fn": "sum",
-              "args": [
-                {
-                  "at": [2, "/rows/0/1"]
-                },
-                {
-                  "at": [2, "/rows/0/2"]
-                }
-              ]
-            },
-            {
-              "fn": "sum",
-              "args": [
-                {
-                  "at": [2, "/rows/0/0"]
-                },
-                {
-                  "at": [2, "/rows/0/1"]
-                },
-                {
-                  "at": [2, "/rows/0/2"]
-                }
-              ]
-            }
-          ]
+          "at": [2, "/rows/0/3"]
         }
       }
     },
@@ -1902,7 +1913,6 @@
             "tool": "aggregate_sheet",
             "args": {
               "filePath": "uk-nhs-plymouth/expenditure-over-25000-august-2026.xlsx",
-              "headerScan": true,
               "metrics": [
                 {
                   "fn": "sum",
@@ -1919,29 +1929,27 @@
                     }
                   ]
                 }
+              ],
+              "derived": [
+                {
+                  "name": "raised",
+                  "numerator": [
+                    {
+                      "metric": 1
+                    },
+                    {
+                      "metric": 2,
+                      "factor": 0.1
+                    }
+                  ]
+                }
               ]
             },
             "role": "answer"
           }
         ],
         "derive": {
-          "fn": "sum",
-          "args": [
-            {
-              "at": [1, "/rows/0/0"]
-            },
-            {
-              "fn": "multiply",
-              "args": [
-                {
-                  "at": [1, "/rows/0/1"]
-                },
-                {
-                  "const": 0.1
-                }
-              ]
-            }
-          ]
+          "at": [1, "/rows/0/2"]
         }
       }
     },
@@ -1976,7 +1984,16 @@
       },
       "answer": {
         "kind": "text",
-        "value": "duplicateValues"
+        "value": "duplicateValues",
+        "accept": [
+          "Duplicate values",
+          "Duplicate values highlighting",
+          "Highlight duplicate values",
+          "Yinelenen değerler",
+          "Yinelenen değerler vurgulaması",
+          "Mükerrer değerler",
+          "Mükerrer değerler vurgulaması"
+        ]
       },
       "plan": {
         "steps": [

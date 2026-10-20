@@ -29,8 +29,25 @@ const errorCases: Readonly<Record<string, TraceableCase>> = {
   file_too_large: "Z3",
 };
 
-const ambiguityWarning =
+const ambiguityCodes = new Set(["ambiguous_decimal", "ambiguous_day_order"]);
+
+/**
+ * Guard: runs recorded before excel-mcp coded its warnings carry them as
+ * text, and a report rereads those runs, so the old wording still counts.
+ */
+const ambiguityText =
   /^([A-Z]+): (?:dates such as .* read either day first or month first|values such as .* read differently with a decimal point and with a decimal comma)/;
+
+function ambiguousColumn(warning: unknown): string | undefined {
+  if (typeof warning === "string") return ambiguityText.exec(warning)?.[1];
+  const entry = recordOf(warning);
+  const column = entry["column"];
+  return typeof entry["code"] === "string" &&
+    ambiguityCodes.has(entry["code"]) &&
+    typeof column === "string"
+    ? column
+    : undefined;
+}
 
 function recordOf(value: unknown): Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -116,9 +133,8 @@ export function exercisedCases(run: {
     const warnings = response["warnings"];
     if (Array.isArray(warnings))
       for (const warning of warnings) {
-        const match = ambiguityWarning.exec(String(warning));
-        if (match?.[1] !== undefined) {
-          const letter = match[1];
+        const letter = ambiguousColumn(warning);
+        if (letter !== undefined) {
           mark(
             "R4",
             file,

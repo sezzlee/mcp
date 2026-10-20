@@ -128,7 +128,16 @@ function repeatAgreement(): readonly string[] {
     new Set(group.map(pick)).size === 1;
   const calls = (run: Run): string =>
     JSON.stringify(run.callLog.map((call) => [call.tool, call.args]));
-  const submitted = (run: Run): string => JSON.stringify(run.submission);
+  const submitted = (run: Run): string =>
+    JSON.stringify(
+      typeof run.submission === "object" && run.submission !== null
+        ? Object.fromEntries(
+            Object.entries(run.submission).filter(
+              ([key]) => key !== "explanation",
+            ),
+          )
+        : run.submission,
+    );
   const graded = (run: Run): string => String(run.correct);
   const count = (pick: (run: Run) => string): string =>
     `${repeated.filter((group) => same(group, pick)).length}/${repeated.length}`;
@@ -138,7 +147,7 @@ function repeatAgreement(): readonly string[] {
     "Task and language groups with more than one repetition, and how many agree across all of them.",
     "",
     table(
-      ["same calls", "same submission", "same grade"],
+      ["same calls", "same submitted value", "same grade"],
       [[count(calls), count(submitted), count(graded)]],
     ),
     "",
