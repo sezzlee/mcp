@@ -1,5 +1,9 @@
 import { fold } from "@sezzlee/file-core";
-import { normalizeCell, type NormalizeOptions } from "./cell-value.js";
+import {
+  normalizeCell,
+  type CellScalar,
+  type NormalizeOptions,
+} from "./cell-value.js";
 import type { MergePolicy } from "./cursor.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { limits } from "../platform/limits.js";
@@ -160,10 +164,21 @@ export function readHeaderRow(
       headers.push(null);
       continue;
     }
-    const value = normalizeCell(snapshot, options).value;
-    headers.push(typeof value === "string" ? value : null);
+    headers.push(headerText(normalizeCell(snapshot, options).value));
   }
   return headers;
+}
+
+/**
+ * A header cell's text. A year, a number or a boolean names its column as
+ * well as a word does, so it is kept as the text Excel shows for it instead
+ * of becoming null; a date already arrives as its ISO text.
+ */
+function headerText(value: CellScalar): string | null {
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+  return null;
 }
 
 export function rowFacts(
@@ -264,6 +279,53 @@ export function scanHeaderRow(
     );
   }
   return header.row;
+}
+
+export type DefaultHeaderSource = "declared" | "scanned" | "default";
+
+/**
+ * The header row a call that names none reads by: the row a table or the
+ * autofilter declares, else the first of the top rows of the used range that
+ * names its columns by text alone, else row 1.
+ *
+ * Guard: the scan always covers the whole used range, never the requested
+ * window, so every tool and describe_workbook name the same row whatever rows
+ * or columns a call asks for. A window that starts below the header would
+ * otherwise elect a text-only data row, and a single column would elect a
+ * title sitting above it.
+ */
+export function defaultHeaderRow(
+  sheet: SheetView,
+  requested: GridBounds,
+  mergePolicy: MergePolicy,
+): { readonly row: number; readonly source: DefaultHeaderSource } {
+  const declared = declaredUnlessAmbiguous(sheet, requested, mergePolicy);
+  if (declared !== undefined) return { row: declared.row, source: "declared" };
+  const used = sheet.bounds;
+  if (used === undefined) return { row: 1, source: "default" };
+  const { first, last } = scanWindow(used);
+  for (let row = first; row <= last; row += 1) {
+    if (isHeaderCandidate(rowFacts(sheet, used, row, mergePolicy)))
+      return { row, source: "scanned" };
+  }
+  return { row: 1, source: "default" };
+}
+
+function declaredUnlessAmbiguous(
+  sheet: SheetView,
+  bounds: GridBounds,
+  mergePolicy: MergePolicy,
+): DeclaredHeader | undefined {
+  try {
+    return declaredHeaderRow(sheet, bounds, mergePolicy);
+  } catch (error) {
+    if (
+      error instanceof SezzleeExcelError &&
+      error.code === "ambiguous_header_row"
+    )
+      return undefined;
+    throw error;
+  }
 }
 
 export function headerWarnings(

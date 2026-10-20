@@ -54,6 +54,18 @@ A CSV holds only text, and a workbook may store numbers and dates as text too. `
 
 A digit run with a leading zero or more than 15 digits is an identifier and is never summed unless `columns` declares the column a number. A column whose amounts name more than one currency is summed as written and reported. Every value a call could not read, compare or sum is counted in `warnings` with examples, and `readAs` reports how each column's text was read. A time-only number format (`h:mm`, `hh:mm:ss AM/PM`) is returned as `HH:mm:ss`; elapsed `[h]`, `[m]` and `[s]` formats return `{"durationSeconds": number}` and can be summed in seconds.
 
+## Which row is the header row
+
+A call that names no `headerRow` reads by the row a declared table or the autofilter heads; failing
+those, by the first of the top 20 rows of the used range whose filled cells are all text, at least
+two of them and none merged across columns; failing that, by row 1. The response says which
+(`headerRowSource`: `declared`, `scanned` or `default`). The scan always covers the whole used
+range, so a call reading a few rows or a single column gets the same header row as one reading the
+sheet, and a title band above the columns is skipped without the caller knowing it is there. A CSV
+always reads row 1. `headerScan: true` asks for the same detection strictly: it refuses when two rows
+qualify or none does. A header cell holding a number or a boolean names its column by its text, so
+a year heading is addressable as `"2008"`.
+
 ## Grouped analysis
 
 A date is returned as `yyyy-MM-dd`. A date and time is returned as `yyyy-MM-ddTHH:mm:ss.SSS` with no

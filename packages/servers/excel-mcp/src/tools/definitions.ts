@@ -44,13 +44,13 @@ const profileHeaders = {
     .max(1_048_576)
     .optional()
     .describe(
-      "Header row, default 1. Use 0 for no headers; cannot combine with headerScan=true.",
+      "Header row; 0 for none. When omitted, a table or autofilter header, else the first of the top 20 used rows that names its columns by text alone, else row 1 (CSV: row 1). Cannot combine with headerScan=true.",
     ),
   headerScan: z
     .boolean()
     .optional()
     .describe(
-      "Prove a header row from the sheet, default false. Ambiguous headers are refused.",
+      "Detect the header row strictly: refused when two rows qualify or none does, instead of choosing. Default false.",
     ),
 };
 
@@ -145,13 +145,13 @@ export const toolDefinitions = {
         .min(0)
         .optional()
         .describe(
-          "Explicit header row. New reads default to 1; 0 disables headers. Cursor-bound: omit to inherit. Cannot be combined with headerScan=true.",
+          "Header row; 0 for none. When omitted, a table or autofilter header, else the first of the top 20 used rows that names its columns by text alone, else row 1 (CSV: row 1). Cursor-bound: omit to inherit. Cannot be combined with headerScan=true.",
         ),
       headerScan: z
         .boolean()
         .optional()
         .describe(
-          "Detect a provable header row, default false. Cannot be combined with headerRow on a new read. Cursor-bound: omit to inherit. Ambiguity fails rather than guessing.",
+          "Detect the header row strictly: refused when two rows qualify or none does, instead of choosing. Default false. Cannot be combined with headerRow on a new read. Cursor-bound: omit to inherit.",
         ),
       includeHyperlinks: z
         .boolean()
@@ -347,13 +347,13 @@ export const toolDefinitions = {
         .min(0)
         .optional()
         .describe(
-          "Row treated as headers, never detected. Defaults to 1; 0 disables.",
+          "Header row; 0 for none. When omitted, a table or autofilter header, else the first of the top 20 used rows that names its columns by text alone, else row 1 (CSV: row 1).",
         ),
       headerScan: z
         .boolean()
         .optional()
         .describe(
-          "Prove the header row from the sheet instead of assuming row 1. Cannot be combined with headerRow. Fails rather than guessing.",
+          "Detect the header row strictly: refused when two rows qualify or none does, instead of choosing. Cannot be combined with headerRow.",
         ),
       columnMode: z
         .enum(["auto", "header", "letter"])

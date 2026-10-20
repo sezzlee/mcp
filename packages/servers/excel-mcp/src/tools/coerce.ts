@@ -6,6 +6,7 @@ import {
 import { selectSheetRange } from "../grid/select-sheet.js";
 import {
   declaredHeaderRow,
+  defaultHeaderRow,
   scanHeaderRow,
   type HeaderRowSource,
 } from "../grid/header.js";
@@ -30,11 +31,20 @@ export function resolveHeaderRow(
       headerRowSource: "declared",
     };
   }
+  if (args.headerRow !== undefined)
+    return { headerRow: args.headerRow, headerRowSource: "explicit" };
   if (args.headerScan !== true) {
-    return {
-      headerRow: args.headerRow ?? 1,
-      headerRowSource: args.headerRow === undefined ? "default" : "explicit",
-    };
+    if (loaded.format === "csv")
+      return { headerRow: 1, headerRowSource: "default" };
+    const sheet = documentSheet(loaded, args.sheetName);
+    if (sheet.bounds === undefined)
+      return { headerRow: 1, headerRowSource: "default" };
+    const found = defaultHeaderRow(
+      sheet,
+      resolveRange(sheet.bounds, args.range),
+      args.mergedCells ?? "master",
+    );
+    return { headerRow: found.row, headerRowSource: found.source };
   }
   const sheet = documentSheet(loaded, args.sheetName);
   const bounds = resolveRange(requireSheetBounds(sheet), args.range);

@@ -152,13 +152,69 @@ describe("handlers", () => {
   });
 
   it("says who chose the header row", async () => {
-    const fallback = await handlers.read_sheet({ filePath: "title-band.xlsx" });
-    expect(payload(fallback)["headerRowSource"]).toBe("default");
+    const scanned = payload(
+      await handlers.read_sheet({ filePath: "title-band.xlsx" }),
+    );
+    expect(scanned).toMatchObject({ headerRow: 3, headerRowSource: "scanned" });
+    const fallback = payload(
+      await handlers.read_sheet({
+        filePath: "title-band.xlsx",
+        sheetName: "NoHeader",
+      }),
+    );
+    expect(fallback).toMatchObject({
+      headerRow: 1,
+      headerRowSource: "default",
+    });
     const explicit = await handlers.read_sheet({
       filePath: "title-band.xlsx",
       headerRow: 3,
     });
     expect(payload(explicit)["headerRowSource"]).toBe("explicit");
+  });
+
+  it("finds the same header row whatever window a call reads", async () => {
+    for (const range of ["A6:G8", "D1:D9", "A1:A9"]) {
+      const body = payload(
+        await handlers.read_sheet({
+          filePath: "title-band.xlsx",
+          sheetName: "Faturalar",
+          range,
+        }),
+      );
+      expect(body).toMatchObject({ headerRow: 3, headerRowSource: "scanned" });
+    }
+  });
+
+  it("names a numeric header cell by its text", async () => {
+    const body = payload(
+      await handlers.read_sheet({
+        filePath: "title-band.xlsx",
+        sheetName: "NoHeader",
+      }),
+    );
+    expect(
+      (body["columns"] as { header: string | null }[]).map(
+        (column) => column.header,
+      ),
+    ).toEqual(["1", "2", "3"]);
+  });
+
+  it("returns the header row of a header-only range without leaving it", async () => {
+    const body = payload(
+      await handlers.read_sheet({
+        filePath: "title-band.xlsx",
+        sheetName: "Faturalar",
+        range: "A3:G3",
+      }),
+    );
+    expect(body).toMatchObject({ range: "A3:G3", values: [], returnedRows: 0 });
+    expect((body["columns"] as { header: string | null }[])[3]?.header).toBe(
+      "Tutar",
+    );
+    expect(body["warnings"]).toEqual([
+      expect.stringContaining("only header row 3"),
+    ]);
   });
 
   it("proves the header row on request", async () => {
@@ -172,28 +228,23 @@ describe("handlers", () => {
     expect(body["headerRowSource"]).toBe("scanned");
   });
 
-  it("offers header recovery when a title hides the columns, then answers the corrected call", async () => {
+  it("reads the columns under a title band without being told the header row", async () => {
     const input = {
       filePath: "title-band.xlsx",
       sheetName: "Faturalar",
       metrics: [{ fn: "sum" as const, column: "Tutar" }],
     };
-    const failed = await handlers.aggregate_sheet(input);
-    expect(failed.isError).toBe(true);
-    expect(payload(failed)).toMatchObject({
-      error: "unknown_column",
-      recovery: expect.stringContaining("headerRow"),
-    });
-    const corrected = await handlers.aggregate_sheet({
-      ...input,
-      headerScan: true,
-    });
-    expect(corrected.isError).not.toBe(true);
-    expect(payload(corrected)).toMatchObject({
+    expect(payload(await handlers.aggregate_sheet(input))).toMatchObject({
       headerRow: 3,
       headerRowSource: "scanned",
       rows: [[21000]],
       matchedRows: 6,
+    });
+    const failed = await handlers.aggregate_sheet({ ...input, headerRow: 1 });
+    expect(failed.isError).toBe(true);
+    expect(payload(failed)).toMatchObject({
+      error: "unknown_column",
+      recovery: expect.stringContaining("headerRow"),
     });
   });
 

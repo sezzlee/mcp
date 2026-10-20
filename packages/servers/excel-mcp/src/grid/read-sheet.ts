@@ -514,20 +514,29 @@ export function readSheet(
   const truncated = truncationReason !== undefined;
   const remaining = window.bounds.bottom - nextRow + 1;
 
+  const headerOnly = window.startRow > window.bounds.bottom;
   const warnings: string[] = [];
   if (uncachedFormulas > 0) {
     warnings.push(uncachedFormulaWarning(uncachedFormulas));
   }
+  if (headerOnly)
+    warnings.push(
+      `The requested rows hold only header row ${window.headerRow}; its texts are in columns[].header and no data row was read.`,
+    );
   warnings.push(...headerNotices);
 
   return {
     sheet: window.sheet.name,
-    range: formatRange({
-      top: window.startRow,
-      left: window.bounds.left,
-      bottom: Math.max(window.startRow, nextRow - 1),
-      right: window.bounds.right,
-    }),
+    range: formatRange(
+      headerOnly
+        ? window.bounds
+        : {
+            top: window.startRow,
+            left: window.bounds.left,
+            bottom: Math.max(window.startRow, nextRow - 1),
+            right: window.bounds.right,
+          },
+    ),
     usedRange: formatRange(window.used),
     headerRow: window.headerRow,
     headerRowSource: window.headerRowSource,
