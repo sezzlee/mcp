@@ -78,4 +78,9 @@ describe("serialToDate", () => {
   it("keeps serial 60, Excel's phantom 29 February 1900, as a number", () => {
     expect(serialToDate(60, false)).toBeUndefined();
   });
+
+  it("keeps a serial no date can hold as a number instead of throwing", () => {
+    expect(serialToDate(1e300, false)).toBeUndefined();
+    expect(serialToClock(1e300, false)).toBeUndefined();
+  });
 });

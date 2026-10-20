@@ -16,7 +16,9 @@ const offset1904 = 1462;
 /**
  * Converts an Excel date serial to the instant it names, or `undefined` for
  * serial 60, the 29 February 1900 that Lotus 1-2-3 invented and Excel keeps:
- * it names no real day, so the cell stays a number.
+ * it names no real day, so the cell stays a number. A serial past the range a
+ * `Date` can hold is `undefined` too, so it stays a number instead of throwing
+ * from `toISOString`.
  *
  * Guard: serials below 60 are shifted by one day, which is what keeps every
  * real date before March 1900 on the day Excel shows despite that phantom day.
@@ -32,5 +34,6 @@ export function serialToDate(
   const value = date1904 ? serial + offset1904 : serial;
   if (value >= 60 && value < 61) return undefined;
   const days = value > 60 ? value : value + 1;
-  return new Date(days * 24 * 60 * 60 * 1000 + epoch1900);
+  const instant = new Date(days * 24 * 60 * 60 * 1000 + epoch1900);
+  return Number.isNaN(instant.getTime()) ? undefined : instant;
 }

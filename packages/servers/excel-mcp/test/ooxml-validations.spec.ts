@@ -248,6 +248,7 @@ describe("a validation bound reads like the cells it constrains", () => {
     { type: "date", formula: "45000.5", bound: "2023-03-15T12:00:00.000" },
     { type: "date", formula: "45000+1", bound: "45000+1" },
     { type: "date", formula: "TODAY()", bound: "TODAY()" },
+    { type: "date", formula: "1e300", bound: "1e300" },
     { type: "time", formula: "0.5", bound: "12:00:00" },
     { type: "whole", formula: "10", bound: 10 },
     { type: "whole", formula: "10.5", bound: "10.5" },
