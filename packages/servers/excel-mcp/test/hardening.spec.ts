@@ -833,7 +833,7 @@ describe("cell/header and metadata regressions", () => {
       ).toBe(date1904 ? "1904" : "1900");
       expect(
         body(await handlers.read_sheet({ filePath: name })).values,
-      ).toEqual([["2024-01-01", "2024-01-01T12:00:00.000Z"]]);
+      ).toEqual([["2024-01-01", "2024-01-01T12:00:00.000"]]);
     }
   });
 });

@@ -53,7 +53,9 @@ describe("classify", () => {
   it("separates every kind", () => {
     expect(classify(5)).toBe("number");
     expect(classify("2026-01-15")).toBe("date");
+    expect(classify("2026-01-15T09:30:00.000")).toBe("date");
     expect(classify("2026-01-15T09:30:00.000Z")).toBe("date");
+    expect(classify("2026-01-15T09:30:00.000+03:00")).toBe("date");
     expect(classify("09:30:00")).toBe("time");
     expect(classify("9:30")).toBe("text");
     expect(classify("2026-01")).toBe("text");
@@ -107,22 +109,33 @@ describe("kind is fixed by the operand", () => {
 });
 
 describe("dates", () => {
-  it("compares lexically after expansion", () => {
+  it("compares a day with the midnight of the same wall clock", () => {
     expect(
       hits(
         { column: "a", op: "gt", value: "2026-01-15" },
-        "2026-01-16T09:00:00.000Z",
+        "2026-01-16T09:00:00.000",
       ),
     ).toBe(true);
     expect(
-      compareWithin("date", "2026-01-15", "2026-01-15T00:00:00.000Z", true),
+      compareWithin("date", "2026-01-15", "2026-01-15T00:00:00.000", true),
     ).toBe(0);
     expect(
       hits(
         { column: "a", op: "eq", value: "2026-01-15" },
-        "2026-01-15T00:00:00.000Z",
+        "2026-01-15T00:00:00.000",
       ),
     ).toBe(true);
+  });
+
+  it("orders values written with different offsets by their instant", () => {
+    expect(
+      compareWithin(
+        "date",
+        "2026-01-15T01:00:00.000+03:00",
+        "2026-01-15T00:00:00.000Z",
+        true,
+      ),
+    ).toBe(-1);
   });
 });
 

@@ -172,6 +172,31 @@ describe("handlers", () => {
     expect(body["headerRowSource"]).toBe("scanned");
   });
 
+  it("offers header recovery when a title hides the columns, then answers the corrected call", async () => {
+    const input = {
+      filePath: "title-band.xlsx",
+      sheetName: "Faturalar",
+      metrics: [{ fn: "sum" as const, column: "Tutar" }],
+    };
+    const failed = await handlers.aggregate_sheet(input);
+    expect(failed.isError).toBe(true);
+    expect(payload(failed)).toMatchObject({
+      error: "unknown_column",
+      recovery: expect.stringContaining("headerRow"),
+    });
+    const corrected = await handlers.aggregate_sheet({
+      ...input,
+      headerScan: true,
+    });
+    expect(corrected.isError).not.toBe(true);
+    expect(payload(corrected)).toMatchObject({
+      headerRow: 3,
+      headerRowSource: "scanned",
+      rows: [[21000]],
+      matchedRows: 6,
+    });
+  });
+
   it("reads the header row a table declares", async () => {
     const result = await handlers.read_sheet({
       filePath: "title-band.xlsx",

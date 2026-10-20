@@ -56,6 +56,12 @@ A digit run with a leading zero or more than 15 digits is an identifier and is n
 
 ## Grouped analysis
 
+A date is returned as `yyyy-MM-dd`. A date and time is returned as `yyyy-MM-ddTHH:mm:ss.SSS` with no
+zone when the source stores none, which is every Excel date cell and every CSV value written
+without an offset: it is a local wall clock, and a `Z` would claim UTC. A value written with an
+offset keeps its wall clock and offset (`2019-12-31T23:40:00.000+03:00`) and is ordered by its
+instant.
+
 `groupBy` accepts a column name or a closed transformation. Calendar groups use UTC after applying
 an explicit timestamp offset. Month and quarter keys include their year, weeks use the ISO
 week-year, weekdays run from Monday 1 to Sunday 7, and hours run from 0 to 23. A plain column
@@ -104,6 +110,16 @@ tools. A recommended number column always includes `identifiers: "refuse"`, so l
 or long digit identifiers beyond the sampled prefix are still excluded and counted. An explicit
 number column supplied by the caller keeps the earlier default `identifiers: "read"`.
 
+A recommended date plan is checked against every sampled date using the explicit reader. When
+an order-free plan cannot preserve the sample, a day-first column takes `order: "dmy"`, which
+reads dotted dates day first as well. A month-first column is pinned by a fixed numeric pattern
+instead, because an explicit order would also reorder dotted dates after the sample.
+If one explicit plan cannot represent the observed mixture, the recommendation keeps text and
+adds a warning. A later value outside a fixed pattern remains raw and is counted as unreadable
+in typed output. Date specifications explicitly supplied by the caller retain their format/order.
+For those explicit dates, `readAs` and unreadable diagnostics describe the requested conversion;
+the inferred type, confidence and value distribution still describe the observed sample.
+
 `read_sheet` preserves its raw `values`. With explicit `columns` and `includeTyped: true`, it adds
 a parallel `typedValues` grid. Missing and unreadable cells become null only in this added grid;
 the `typed` diagnostics distinguish them and include bounded examples. Columns left unspecified
@@ -111,6 +127,11 @@ keep their original type. The interpretation, locale and literal lists travel in
 conflicting options are refused. `find_in_sheet` with `columns` searches canonical values in those
 columns, returns raw `value` plus `typedValue`, and counts conversion failures over the scanned
 populated cells. Without `columns`, searches keep their existing raw-text behavior.
+
+The `typedValues` capability in `describe_workbook` describes native stored cell types. CSV reports
+false because its cells are text; explicit typed reading is still available. A known file and
+columns can be read or aggregated directly. Listing, workbook description and profiling are
+discovery steps for information the caller does not yet have.
 
 ### Locales, missing values, booleans and durations
 
@@ -135,13 +156,22 @@ Decimal digit systems, local separators, signs and grouping sizes are compiled f
 Intl data, including Indian 3+2 grouping. Unsupported locales or numbering systems are refused.
 A date column accepts a fixed `format`, an explicit `order`, or unambiguous dates. An explicit
 locale supplies Gregorian month names, including format and standalone forms, but never the
-day/month order: slash and dash dates take it from the column's values, and a dotted date is read
-day first under every locale, since no CLDR locale writes numeric dates month first with dots. A
-locale names the file's language, not the reader's; when its separators read a value as a
-different number than the column's own marks, a warning names the value. Non-Gregorian calendar
+day/month order: inferred slash and dash dates take it from the column's values, while inferred
+dotted dates use a day-first convention under every locale. A dotted value that can only be read
+month first makes the inference ambiguous; slash dates that read both ways leave dotted dates
+day first. An inferred month-first order is left out of `readAs` when the column also holds a
+dotted date it would move, with a warning. An explicit date `order` also applies to dotted dates;
+`format` pins the separators as well. A locale names the file's language, not the reader's; when
+its separators read a value as a different number than the column's own marks, a warning names
+the value. Non-Gregorian calendar
 requests are refused. Omitting the locale retains deterministic existing numeric/date inference;
 it never selects the host locale. Unicode decimal digits are normalized without
 turning circled digits, Roman numerals or arbitrary compatibility characters into quantities.
+
+The closed date grammar accepts literal Chinese/Japanese `年 月 日`, Korean `년 월 일`, and Russian
+`г` markers in an explicit pattern, such as `yyyy년 M월 d일` or `d MMMM yyyy г.` with `ru-RU`.
+These full marker forms are not automatically inferred. Weekday prefixes, eras and arbitrary
+quoted literals are outside the supported grammar.
 
 `missingValues`, `trueValues` and `falseValues` are configurable lists, with per-column overrides.
 Default missing tokens are N/A, NULL, -, — and #N/A. Null and blank strings are always missing;

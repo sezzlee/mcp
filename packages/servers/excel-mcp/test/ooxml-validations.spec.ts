@@ -54,12 +54,18 @@ function excelJsRules(
   return [...groups.values()];
 }
 
+function zonelessDate(value: unknown): unknown {
+  if (!(value instanceof Date)) return value;
+  const iso = value.toISOString();
+  return iso.endsWith("T00:00:00.000Z") ? iso.slice(0, 10) : iso.slice(0, 23);
+}
+
 function comparable(rule: object): string {
   const entries = Object.entries(rule as Record<string, unknown>)
     .filter(([key]) => key !== "ranges" && key !== "rangesTruncated")
     .map(([key, value]): [string, unknown] => [
       key,
-      value instanceof Date ? value.toISOString() : value,
+      Array.isArray(value) ? value.map(zonelessDate) : zonelessDate(value),
     ])
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
   return JSON.stringify(entries);

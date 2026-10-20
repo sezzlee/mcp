@@ -81,10 +81,14 @@ including Alpine, it fails with `unsupported_platform`. On Windows, escape the b
 
 Ask the agent: **Which region sold the most in sales.xlsx?**
 
-Expect three calls: `list_workbooks` to find the file, `describe_workbook` to see its sheets, and
-`aggregate_sheet` to add up `Total` for each `Region` on the server. The agent gets four rows back
-instead of twelve, and the answer is West, at 1,865. On a sheet of fifty thousand rows the answer is
-the same size.
+An agent that knows the file and columns can call `aggregate_sheet` directly to add up `Total`
+for each `Region`. It uses `list_workbooks` when the path is unknown and `describe_workbook` when
+it needs the sheet names or layout. These discovery calls are optional when that information is
+already available.
+
+The aggregate returns four rows, and the answer is West, at 1,865. On a sheet of fifty thousand
+rows the answer is the same size. Use `profile_sheet` when column interpretation needs inspection;
+a known calculation does not require a profile first.
 
 ## See what the agent receives
 
@@ -130,7 +134,8 @@ excel aggregate_sheet --tool-arg filePath=sales.xlsx \
   conditional formatting and embedded pictures.
 - **Charts**, on a worksheet or a chart sheet: type, title, axes, and each series' cell references
   and cached values.
-- **CSV files**, with the delimiter and encoding detected and every value kept as the exact text.
+- **CSV files**, with delimiter detection, BOM-aware UTF decoding and explicit legacy encodings.
+  Raw values keep their exact text; optional typed values report failed conversions separately.
 
 Pivot tables and sparklines cannot be read. The server says so instead of answering with an empty
 list.

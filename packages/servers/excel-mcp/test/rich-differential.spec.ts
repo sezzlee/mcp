@@ -118,19 +118,19 @@ describe("exact modern-value differences from the historical SheetJS adapter", (
         row: 2,
         serial: 1.5,
         seconds: 129600,
-        date: "1900-01-01T12:00:00.000Z",
+        date: "1900-01-01T12:00:00.000",
       },
       {
         row: 3,
         serial: 0.0625,
         seconds: 5400,
-        date: "1899-12-31T01:30:00.000Z",
+        date: "1899-12-31T01:30:00.000",
       },
       {
         row: 4,
         serial: 0.00001157407407407407,
         seconds: 1,
-        date: "1899-12-31T00:00:01.000Z",
+        date: "1899-12-31T00:00:01.000",
       },
     ];
     for (const { row, serial, seconds, date } of cases) {

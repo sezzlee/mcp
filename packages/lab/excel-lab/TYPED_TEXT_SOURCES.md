@@ -1,6 +1,6 @@
 # Global typed-text sources and scope
 
-Research checked on 2026-10-18. These primary sources informed the parser and test design;
+Research checked on 2026-10-19. These primary sources informed the parser and test design;
 they are not a claim that the server implements every feature of each specification.
 The fixture generator creates original data under this repository's MIT license. It does not
 download or redistribute a third-party corpus or copy locale tables into the server.
@@ -21,8 +21,33 @@ download or redistribute a third-party corpus or copy locale tables into the ser
 | [RFC 4180](https://www.rfc-editor.org/rfc/rfc4180.html) and [W3C CSV on the Web](https://www.w3.org/TR/tabular-data-model/)                                                                                                                                           | Separate CSV syntax and tabular interpretation; preserve cell spelling.                                                    | Original generated fixtures quote every field and use CRLF. Existing CSV tokenizer tests cover syntax separately. The old `draft-shafranovich-rfc4180-bis` is an expired Internet-Draft, not a replacement RFC.                                          |
 
 The latest published Unicode report and the installed Unicode database are separate facts.
-The implementation evidence in this change used Node v24.19.0, ICU 78.3, CLDR 48.0 and
+The original v1 implementation evidence used Node v24.19.0, ICU 78.3, CLDR 48.0 and
 Unicode 17.0. Reading a newer living report does not upgrade the runtime's data.
+The [Node.js internationalization documentation](https://nodejs.org/api/intl.html) describes
+official binaries with full ICU data and custom builds with reduced or system-provided data.
+Every generated run and replay records its own runtime versions rather than assuming that
+all installations carry the same locale data.
+
+### Complete Gregorian date patterns
+
+The v2 long-date inputs come from `Intl.DateTimeFormat` with `dateStyle: "long"`,
+`calendar: "gregory"`, explicit locale/numbering system and UTC. This retains punctuation
+and markers that a synthetic `day + standalone month + year` input misses. The following
+primary CLDR 48 source files pin the ordinary marker forms that motivated the closed-pattern
+coverage; they are source evidence, not copied runtime locale tables.
+
+| Pinned source                                                                     | Gregorian long pattern | Git blob SHA                               |
+| --------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------ |
+| [Korean](https://github.com/unicode-org/cldr/blob/release-48/common/main/ko.xml)  | `y년 MMMM d일`         | `6361c68b5d6b40f34ccff1bd65b00860da746ed6` |
+| [Russian](https://github.com/unicode-org/cldr/blob/release-48/common/main/ru.xml) | `d MMMM y 'г'.`        | `adcdb1da29b62a1cb3fd8ae291f6a1663e2475c9` |
+| [Chinese](https://github.com/unicode-org/cldr/blob/release-48/common/main/zh.xml) | `y年M月d日`            | `9202c22bd6e8986c53d3df91a770a4dad4d9a55b` |
+
+The reader's pattern language is a closed subset, not the complete LDML pattern language:
+its explicit equivalents use `yyyy`, numeric `M` where suitable, and fixed literal markers.
+Korean `년`, `월`, `일` and Russian `г` join the existing `年`, `月`, `日` literals. Generic
+quoted text, weekdays and eras are not added. Full Chinese/Japanese/Korean marker dates and
+Russian dates with the year suffix remain outside automatic inference; their four v2
+fixtures require an explicit format and verify that an unconfigured profile keeps them text.
 
 ## Independent known answers
 
@@ -31,7 +56,7 @@ booleans, identifier strings and duration seconds before formatting anything. In
 serializes those chosen values. Expected grouped sums, counts, month buckets and predicate
 results come from the chosen values, not from the production parser or a previous MCP answer.
 
-The generated set contains 19 locale/numbering-system configurations:
+The original 19 locale/numbering-system spelling recipes remain in v2:
 
 | Locales                                                              | Numbering systems                                               |
 | -------------------------------------------------------------------- | --------------------------------------------------------------- |
@@ -39,17 +64,36 @@ The generated set contains 19 locale/numbering-system configurations:
 | hi-IN                                                                | latn and deva                                                   |
 | bn-BD, ar-EG, fa-IR, th-TH, my-MM, ja-JP, zh-CN                      | beng, arab, arabext, thai, mymr, fullwide, hanidec respectively |
 
-Every configuration includes twelve month names, a small explicit custom boolean/missing
+Each original configuration includes twelve month names, a small explicit custom boolean/missing
 vocabulary, signed elapsed durations, leading-zero identifiers and a numeric-looking
 identifier after the profiler's 32-row sample. Profile output is reused in an aggregate call
-and must still refuse that late identifier. Custom words rotate among Spanish, Japanese,
+and must still refuse that late identifier. Its inferred month groups and profile-reused
+civil dates are now checked as well. Custom words rotate among Spanish, Japanese,
 Chinese, Arabic, Russian and Korean; they are explicit fixture vocabularies, not new defaults.
+
+V2 adds 18 fixtures, keeping 37 files with the same six-column layout:
+
+| Additional shape                     | Coverage                                                                                                                                                                             | Independent date choice                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Nine complete long Gregorian outputs | tr-TR; hi-IN with latn and deva; zh-CN; ja-JP; ko-KR; en-GB; en-US; ru-RU                                                                                                            | All twelve months of 2026; a seeded mixture of days 1–12 and 13–28                                         |
+| Nine numeric date shapes             | DMY slash with arab; MDY slash with deva; DMY dash with arabext; MDY dash with fullwide; DMY dots with beng and mymr; year-first slash with thai, dots with latn, and dash with deva | The same independently chosen civil values; explicit order controls serialization, not the user's language |
+
+All fixtures must recover their explicit typed dates. For the 33 automatically readable
+fixtures, inferred month groups and month groups using the profile's emitted plan must
+match the independent civil-date counts; a Date-only read using that plan must recover each
+complete date, not just the month. The other four must remain ungrouped without an explicit
+format, with a reusable text plan that preserves the complete source spelling. Expected
+capability is part of the generated fixture contract, never inferred from the server output.
 
 Input bytes and the independently generated expected-answer file each have a SHA-256 digest.
 Saved runs can be replayed against a newer built server. The report records the generator's
 data versions separately from the verifying runtime, plus the built implementation digest.
+V2 additionally records the generator's source SHA-256 and each date shape in the manifest.
 The generator is deterministic for a seed, row count and Intl data version. A version change
 may change the serialized bytes; replaying saved bytes keeps that comparison controlled.
+The verifier dispatches by the saved `typed-global-v1` or `typed-global-v2` identity. A v1
+run keeps its original paths, bytes, oracle and missing generator digest; new coverage does
+not rewrite old corpus identity or retroactively change historical result counts.
 
 ## Parser fuzz invariants
 
@@ -71,10 +115,11 @@ not exhaustive Unicode or spreadsheet application conformance.
 ## Deliberate limits
 
 Dates use the Gregorian calendar and an explicit closed pattern or conservative unambiguous
-grammar. A dotted date is read day first everywhere, as the automatic reading always did,
-so a column plan that `profile_sheet` emits reads the dates it profiled; an explicit `order`
-still applies to dotted dates, and slash and dash dates with no format/order are not
-guessed when both orders read them. Localized day periods are
+grammar. Dotted dates use the reader's established day-first inference convention; that
+convention is not a promise about every custom export. An explicit `order` still applies to
+dotted dates, and ambiguous slash and dash dates are not guessed without column evidence.
+A sampled date plan must preserve the sampled civil meanings; incompatible mixtures may
+remain text. Localized day periods are
 available in explicit patterns; automatic free-form localized time phrases are not parsed.
 Date and time digit normalization covers Unicode Nd digits. Positional Han digit parsing is
 provided by explicit number readings; Han day/year numerals are not a supported date grammar.

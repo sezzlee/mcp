@@ -82,7 +82,7 @@ describe("intentional native cell parity differences", () => {
   };
   const oldElapsed: CellSnapshot = {
     ...elapsed,
-    value: { value: "1900-01-01T12:00:00.000Z" },
+    value: { value: "1900-01-01T12:00:00.000" },
   };
 
   it("requires independently retained raw serial and format for elapsed differences", () => {

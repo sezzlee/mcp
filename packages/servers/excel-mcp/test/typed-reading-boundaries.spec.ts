@@ -10,6 +10,120 @@ import { createHandlers } from "../src/tools/handlers.js";
 let directory: string;
 let handlers: ToolHandlers;
 
+const inferredDateCases = [
+  {
+    name: "Turkish locale with mixed numeric separators",
+    file: "mixed-tr.csv",
+    locale: "tr-TR",
+    values: ["04/13/2026", "03.04.2026"],
+    rows: [["2026-04", 2]],
+    ungroupedRows: 0,
+  },
+  {
+    name: "British locale with mixed numeric separators",
+    file: "mixed-gb.csv",
+    locale: "en-GB",
+    values: ["04/13/2026", "03.04.2026"],
+    rows: [["2026-04", 2]],
+    ungroupedRows: 0,
+  },
+  {
+    name: "American locale with mixed numeric separators",
+    file: "mixed-us.csv",
+    locale: "en-US",
+    values: ["04/13/2026", "03.04.2026"],
+    rows: [["2026-04", 2]],
+    ungroupedRows: 0,
+  },
+  {
+    name: "Devanagari column order evidence",
+    file: "deva-order.csv",
+    locale: "hi-IN",
+    values: ["१३/०४/२०२६", "०३/०४/२०२६"],
+    rows: [["2026-04", 2]],
+    ungroupedRows: 0,
+  },
+  {
+    name: "Arabic column order evidence",
+    file: "arab-order.csv",
+    locale: "ar-EG",
+    values: ["١٣/٠٤/٢٠٢٦", "٠٣/٠٤/٢٠٢٦"],
+    rows: [["2026-04", 2]],
+    ungroupedRows: 0,
+  },
+  {
+    name: "Arabic token-boundary direction marks",
+    file: "arab-direction.csv",
+    locale: "ar-EG",
+    values: ["١٣\u200f/٠٤\u200f/٢٠٢٦", "٠٣\u200f/٠٤\u200f/٢٠٢٦"],
+    rows: [["2026-04", 2]],
+    ungroupedRows: 0,
+  },
+  {
+    name: "fullwidth column order evidence",
+    file: "wide-order.csv",
+    locale: "zh-CN",
+    values: ["１３/０４/２０２６", "０３/０４/２０２６"],
+    rows: [["2026-04", 2]],
+    ungroupedRows: 0,
+  },
+  {
+    name: "Devanagari evidence with an ASCII ambiguous value",
+    file: "mixed-script-order.csv",
+    locale: "hi-IN",
+    values: ["१३/०४/२०२६", "03/04/2026"],
+    rows: [["2026-04", 2]],
+    ungroupedRows: 0,
+  },
+  {
+    name: "Russian month names alongside unresolved numeric dates",
+    file: "russian-month.csv",
+    locale: "ru-RU",
+    values: ["13 марта 2026", "04/05/2026"],
+    rows: [["2026-03", 1]],
+    ungroupedRows: 1,
+  },
+  {
+    name: "Hindi month names alongside unresolved numeric dates",
+    file: "hindi-month.csv",
+    locale: "hi-IN",
+    values: ["१३ मार्च २०२६", "04/05/2026"],
+    rows: [["2026-03", 1]],
+    ungroupedRows: 1,
+  },
+];
+
+const explicitDateCases = [
+  {
+    name: "Korean year, month and day markers",
+    file: "korean-markers.csv",
+    locale: "ko-KR",
+    value: "2026년 3월 13일",
+    format: "yyyy년 M월 d일",
+  },
+  {
+    name: "Russian year marker",
+    file: "russian-marker.csv",
+    locale: "ru-RU",
+    value: "13 марта 2026 г.",
+    format: "d MMMM yyyy г.",
+  },
+  {
+    name: "Russian non-breaking space before the year marker",
+    file: "russian-marker-space.csv",
+    locale: "ru-RU",
+    value: "13 марта 2026\u00a0г.",
+    format: "d MMMM yyyy г.",
+  },
+  {
+    name: "Chinese year, month and day markers",
+    file: "chinese-markers.csv",
+    locale: "zh-CN",
+    value: "2026年3月13日",
+    format: "yyyy年M月d日",
+  },
+];
+
 function body(result: CallToolResult): Record<string, unknown> {
   const content = result.content[0];
   if (content?.type !== "text") throw new Error("Missing JSON response");
@@ -23,6 +137,19 @@ beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), "excel-typed-boundaries-"));
   handlers = createHandlers(await createWorkbookRoot(directory));
   await Promise.all([
+    ...inferredDateCases.map((entry) =>
+      writeFile(
+        join(directory, entry.file),
+        `Date\n${entry.values.join("\n")}\n`,
+      ),
+    ),
+    ...explicitDateCases.map((entry) =>
+      writeFile(join(directory, entry.file), `Date\n${entry.value}\n`),
+    ),
+    writeFile(
+      join(directory, "russian-marker-suffix.csv"),
+      "Date\n13 марта 2026 г. extra\n",
+    ),
     writeFile(
       join(directory, "dotted.csv"),
       "Date;Amount\n02.01.2023;10\n05.03.2023;20\n11.12.2023;30",
@@ -43,6 +170,26 @@ beforeAll(async () => {
       "Date\n01.15.2026\n02.03.2026",
     ),
     writeFile(join(directory, "points.csv"), 'Amount\n1.234\n"1,234.50"'),
+    writeFile(
+      join(directory, "slash-split-dotted.csv"),
+      "Date\n01/02/2026\n25.03.2026",
+    ),
+    writeFile(
+      join(directory, "us-moved-dotted.csv"),
+      "Date\n04/13/2026\n03/04/2026\n05.03.2026",
+    ),
+    writeFile(
+      join(directory, "us-kept-dotted.csv"),
+      "Date\n04/13/2026\n03.03.2026",
+    ),
+    writeFile(
+      join(directory, "zoneless-times.csv"),
+      "Created;Amount\n30.12.2019 08:15;1\n31.12.2019 23:40;2",
+    ),
+    writeFile(
+      join(directory, "offset-times.csv"),
+      "Created,Amount\n2019-12-31T23:40:00+03:00,1\n2019-12-31T20:10:00Z,2",
+    ),
   ]);
 });
 
@@ -80,6 +227,95 @@ function numericDateForms(): ReadonlyMap<string, string> {
 
 afterAll(async () => {
   await rm(directory, { recursive: true, force: true });
+});
+
+describe("inferred global date boundaries", () => {
+  it.each(inferredDateCases)("preserves $name", async (entry) => {
+    const result = body(
+      await handlers.aggregate_sheet({
+        filePath: entry.file,
+        locale: entry.locale,
+        groupBy: [{ column: "Date", by: "month" }],
+        metrics: [{ fn: "count" }],
+      }),
+    );
+    expect(result["isError"]).toBe(false);
+    expect(result["rows"]).toEqual(entry.rows);
+    expect(result["ungroupedRows"] ?? 0).toBe(entry.ungroupedRows);
+    if (entry.ungroupedRows > 0)
+      expect(result["warnings"]).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("read either day first or month first"),
+        ]),
+      );
+  });
+});
+
+describe("explicit global date markers", () => {
+  it.each(explicitDateCases)("reads $name", async (entry) => {
+    const result = body(
+      await handlers.read_sheet({
+        filePath: entry.file,
+        includeTyped: true,
+        columns: [
+          {
+            column: "Date",
+            type: "date",
+            locale: entry.locale,
+            format: entry.format,
+          },
+        ],
+      }),
+    );
+    expect(result, JSON.stringify(result)).toMatchObject({
+      isError: false,
+      values: [[entry.value]],
+      typedValues: [["2026-03-13"]],
+    });
+  });
+
+  it("reports an unexpected value suffix as unreadable", async () => {
+    const result = body(
+      await handlers.read_sheet({
+        filePath: "russian-marker-suffix.csv",
+        includeTyped: true,
+        columns: [
+          {
+            column: "Date",
+            type: "date",
+            locale: "ru-RU",
+            format: "d MMMM yyyy г.",
+          },
+        ],
+      }),
+    );
+    expect(result, JSON.stringify(result)).toMatchObject({
+      isError: false,
+      values: [["13 марта 2026 г. extra"]],
+      typedValues: [[null]],
+      typed: {
+        columns: [expect.objectContaining({ unreadable: 1, missing: 0 })],
+      },
+    });
+  });
+
+  it("refuses a literal outside the closed marker set", async () => {
+    const result = body(
+      await handlers.read_sheet({
+        filePath: "chinese-markers.csv",
+        includeTyped: true,
+        columns: [
+          {
+            column: "Date",
+            type: "date",
+            locale: "zh-CN",
+            format: "yyyy年M月d日x",
+          },
+        ],
+      }),
+    );
+    expect(result).toMatchObject({ isError: true, error: "invalid_argument" });
+  });
 });
 
 describe("day and month order does not follow the caller's locale", () => {
@@ -170,6 +406,97 @@ describe("day and month order does not follow the caller's locale", () => {
         ),
       ]),
     );
+  });
+});
+
+describe("dotted dates beside inferred slash dates", () => {
+  it.each([undefined, "tr-TR"])(
+    "keeps a day-first dotted date readable beside an unresolved slash date under locale %s",
+    async (locale) => {
+      const result = body(
+        await handlers.aggregate_sheet({
+          filePath: "slash-split-dotted.csv",
+          ...(locale === undefined ? {} : { locale }),
+          groupBy: [{ column: "Date", by: "month" }],
+          metrics: [{ fn: "count" }],
+        }),
+      );
+      expect(result["rows"]).toEqual([["2026-03", 1]]);
+      expect(result["ungroupedRows"]).toBe(1);
+    },
+  );
+
+  it("keeps a month-first order out of readAs when it would move a dotted date", async () => {
+    const result = body(
+      await handlers.aggregate_sheet({
+        filePath: "us-moved-dotted.csv",
+        groupBy: [{ column: "Date", by: "month" }],
+        metrics: [{ fn: "count" }],
+      }),
+    );
+    expect(result["rows"]).toEqual([
+      ["2026-03", 2],
+      ["2026-04", 1],
+    ]);
+    expect(result["readAs"] ?? {}).not.toHaveProperty("A");
+    expect(result["warnings"]).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("dotted dates such as '05.03.2026'"),
+      ]),
+    );
+  });
+
+  it("still reports a month-first order that leaves every dotted date in place", async () => {
+    const result = body(
+      await handlers.aggregate_sheet({
+        filePath: "us-kept-dotted.csv",
+        groupBy: [{ column: "Date", by: "month" }],
+        metrics: [{ fn: "count" }],
+      }),
+    );
+    expect(result["rows"]).toEqual([
+      ["2026-03", 1],
+      ["2026-04", 1],
+    ]);
+    expect(result["readAs"]).toEqual({ A: [{ type: "date", order: "mdy" }] });
+  });
+});
+
+describe("date and time values without a zone", () => {
+  it("returns the wall clock without a UTC designator", async () => {
+    const result = body(
+      await handlers.aggregate_sheet({
+        filePath: "zoneless-times.csv",
+        metrics: [{ fn: "max", column: "Created" }],
+        columns: [{ column: "Created", type: "date" }],
+      }),
+    );
+    expect(result["rows"]).toEqual([["2019-12-31T23:40:00.000"]]);
+  });
+
+  it("groups a value written with an offset by its UTC hour, as documented", async () => {
+    const result = body(
+      await handlers.aggregate_sheet({
+        filePath: "offset-times.csv",
+        groupBy: [{ column: "Created", by: "hour" }],
+        metrics: [{ fn: "sum", column: "Amount" }],
+      }),
+    );
+    expect(result["rows"]).toEqual([[20, 3]]);
+  });
+
+  it("keeps the offset a value was written with", async () => {
+    const result = body(
+      await handlers.read_sheet({
+        filePath: "offset-times.csv",
+        columns: [{ column: "Created", type: "date" }],
+        includeTyped: true,
+      }),
+    );
+    expect(result["typedValues"]).toEqual([
+      ["2019-12-31T23:40:00.000+03:00", "1"],
+      ["2019-12-31T20:10:00.000Z", "2"],
+    ]);
   });
 });
 

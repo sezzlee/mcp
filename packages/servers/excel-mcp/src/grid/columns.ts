@@ -115,6 +115,20 @@ export function resolveColumn(
   throw unknownColumn(index, reference, "auto");
 }
 
+function titleBand(index: ColumnIndex): boolean {
+  const named = index.headers.filter(
+    (header) => header !== null && header !== "",
+  );
+  const [first] = index.headers;
+  return (
+    index.bounds.right > index.bounds.left &&
+    named.length === 1 &&
+    first !== undefined &&
+    first !== null &&
+    first !== ""
+  );
+}
+
 function unknownColumn(
   index: ColumnIndex,
   reference: string,
@@ -129,8 +143,10 @@ function unknownColumn(
           ? 'columnMode is "letter", so only A1 letters resolve here. '
           : "";
   const adjust =
-    index.byHeader.size === 0 && index.headerRow > 0
-      ? " Pass headerRow to name the row that carries the column headers, or headerScan true to prove it."
+    index.headerRow > 0 &&
+    mode !== "letter" &&
+    (index.byHeader.size === 0 || titleBand(index))
+      ? " Pass headerRow to name the row that carries the column headers, or use headerScan true when the format supports it."
       : "";
   return new SezzleeExcelError(
     "unknown_column",

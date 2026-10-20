@@ -2,7 +2,7 @@
 
 > Generated from the exported `limits` object of `@sezzlee/excel-mcp` 0.9.1.
 
-Every limit is fixed at build time; none is configurable. A call that would cross one either answers with `truncated: true` and a way to continue, or fails with `resource_limit`.
+These bounds are exported by the server. Tool arguments can request smaller pages or samples within them. Truncation and continuation are tool-specific: follow a cursor only when the response supplies one. An operation that cannot stay within its resource budget can fail with `resource_limit`.
 
 ## Files
 
@@ -22,40 +22,40 @@ Every limit is fixed at build time; none is configurable. A call that would cros
 
 ## Responses
 
-| Limit                                                                                                                | Value  |
-| -------------------------------------------------------------------------------------------------------------------- | ------ |
-| Largest serialized answer; a longer one is cut short and continues through `nextCursor`                              | 512 KB |
-| Longest text, in characters, returned for one cell or one formula                                                    | 512    |
-| Cells `read_sheet` returns when `maxCells` is omitted                                                                | 2,000  |
-| Largest `maxCells` for `read_sheet`                                                                                  | 10,000 |
-| Rows above which `describe_workbook` and `read_sheet` suggest `aggregate_sheet` or `find_in_sheet` instead of paging | 5,000  |
+| Limit                                                                                                                                        | Value  |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Largest serialized answer; tools either return a bounded result or refuse it. Only a response with `nextCursor` supports cursor continuation | 512 KB |
+| Longest text, in characters, returned for one cell or one formula                                                                            | 512    |
+| Cells `read_sheet` returns when `maxCells` is omitted                                                                                        | 2,000  |
+| Largest `maxCells` for `read_sheet`                                                                                                          | 10,000 |
+| Rows above which `describe_workbook` and `read_sheet` suggest `aggregate_sheet` or `find_in_sheet` instead of paging                         | 5,000  |
 
 ## Search and aggregation
 
-| Limit                                                                                                                                    | Value      |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| Matches `find_in_sheet` returns when `maxResults` is omitted                                                                             | 50         |
-| Largest `maxResults` for `find_in_sheet`                                                                                                 | 200        |
-| Longest `regex` query for `find_in_sheet`, in characters                                                                                 | 256        |
-| Groups `aggregate_sheet` returns when `maxGroups` is omitted                                                                             | 50         |
-| Largest `maxGroups` for `aggregate_sheet`                                                                                                | 500        |
-| Distinct groups one `aggregate_sheet` scan may form before it is refused with `resource_limit`                                           | 100,000    |
-| Metric states retained across primary groups, pivots and grouping sets before `resource_limit`                                           | 200,000    |
-| Exact percentile samples retained across all groups and grouping sets before `resource_limit`                                            | 1,000,000  |
-| Distinct metric values retained across all groups and grouping sets before `resource_limit`                                              | 1,000,000  |
-| Additional grouping sets in one `aggregate_sheet` call                                                                                   | 8          |
-| Explicit numeric boundaries in one grouping specification                                                                                | 128        |
-| Metric cells in the complete dense row-key by pivot-key result before allocation                                                         | 10,000     |
-| Cells one `aggregate_sheet` call may read before it is refused with `resource_limit`                                                     | 20,000,000 |
-| Metrics in one `aggregate_sheet` call                                                                                                    | 8          |
-| Named native-error code buckets in one aggregate result; further codes are counted in other                                              | 32         |
-| Example source addresses retained per native-error bucket                                                                                | 3          |
-| Maximum named native-error code length; longer codes are counted in other                                                                | 128        |
-| Conditions in one `where` filter                                                                                                         | 16         |
-| Shared column specifications accepted by profile_sheet, read_sheet, find_in_sheet and aggregate_sheet                                    | 64         |
-| Characters in a `read_sheet` cursor, which carries the call's column specifications; a page whose next cursor would be longer is refused | 16,384     |
-| Values in one `in` condition                                                                                                             | 64         |
-| Rows at the top of the range that `headerScan` examines                                                                                  | 20         |
+| Limit                                                                                                                                                 | Value      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| Matches `find_in_sheet` returns when `maxResults` is omitted                                                                                          | 50         |
+| Largest `maxResults` for `find_in_sheet`                                                                                                              | 200        |
+| Longest `regex` query for `find_in_sheet`, in characters                                                                                              | 256        |
+| Groups `aggregate_sheet` returns when `maxGroups` is omitted                                                                                          | 50         |
+| Largest `maxGroups` for `aggregate_sheet`                                                                                                             | 500        |
+| Distinct groups one `aggregate_sheet` scan may form before it is refused with `resource_limit`                                                        | 100,000    |
+| Metric states retained across primary groups, pivots and grouping sets before `resource_limit`                                                        | 200,000    |
+| Exact percentile samples retained across all groups and grouping sets before `resource_limit`                                                         | 1,000,000  |
+| Distinct metric values retained across all groups and grouping sets before `resource_limit`                                                           | 1,000,000  |
+| Additional grouping sets in one `aggregate_sheet` call                                                                                                | 8          |
+| Explicit numeric boundaries in one grouping specification                                                                                             | 128        |
+| Metric cells in the complete dense row-key by pivot-key result before allocation                                                                      | 10,000     |
+| Cells one `aggregate_sheet` call may read before it is refused with `resource_limit`                                                                  | 20,000,000 |
+| Metrics in one `aggregate_sheet` call                                                                                                                 | 8          |
+| Named native-error code buckets in one aggregate result; further codes are counted in other                                                           | 32         |
+| Example source addresses retained per native-error bucket                                                                                             | 3          |
+| Maximum named native-error code length; longer codes are counted in other                                                                             | 128        |
+| Conditions in one `where` filter                                                                                                                      | 16         |
+| Shared column specifications accepted by profile_sheet, read_sheet, find_in_sheet and aggregate_sheet                                                 | 64         |
+| Characters in a `read_sheet` continuation cursor, which carries the column specifications; an oversized cursor is refused only when more pages remain | 16,384     |
+| Values in one `in` condition                                                                                                                          | 64         |
+| Rows at the top of the range that `headerScan` examines                                                                                               | 20         |
 
 ## Column profiles
 

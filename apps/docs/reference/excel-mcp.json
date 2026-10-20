@@ -103,7 +103,7 @@
       {
         "title": "Responses",
         "keys": {
-          "maxPayloadBytes": "Largest serialized answer; a longer one is cut short and continues through `nextCursor`",
+          "maxPayloadBytes": "Largest serialized answer; tools either return a bounded result or refuse it. Only a response with `nextCursor` supports cursor continuation",
           "maxStringChars": "Longest text, in characters, returned for one cell or one formula",
           "maxCellsDefault": "Cells `read_sheet` returns when `maxCells` is omitted",
           "maxCellsHard": "Largest `maxCells` for `read_sheet`",
@@ -132,7 +132,7 @@
           "maxErrorCodeChars": "Maximum named native-error code length; longer codes are counted in other",
           "maxConditions": "Conditions in one `where` filter",
           "maxColumnSpecs": "Shared column specifications accepted by profile_sheet, read_sheet, find_in_sheet and aggregate_sheet",
-          "maxCursorChars": "Characters in a `read_sheet` cursor, which carries the call's column specifications; a page whose next cursor would be longer is refused",
+          "maxCursorChars": "Characters in a `read_sheet` continuation cursor, which carries the column specifications; an oversized cursor is refused only when more pages remain",
           "maxInValues": "Values in one `in` condition",
           "headerScanRows": "Rows at the top of the range that `headerScan` examines"
         }

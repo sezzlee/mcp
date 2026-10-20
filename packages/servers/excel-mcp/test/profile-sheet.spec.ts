@@ -450,6 +450,339 @@ describe("bounded column profiling", () => {
     ]);
   });
 
+  it.each([undefined, "tr-TR"])(
+    "reuses unambiguous mixed date separators without imposing an order under locale %s",
+    async (locale) => {
+      const filePath = `date-recipe-unambiguous-${locale ?? "default"}.csv`;
+      await writeFile(
+        join(directory, filePath),
+        "Date,Amount\n04/13/2026,10\n03.04.2026,20",
+      );
+      const language = locale === undefined ? {} : { locale };
+      const profile = body(
+        await handlers.profile_sheet({ filePath, ...language }),
+      );
+      expect(profile["columns"]).toEqual(
+        expect.arrayContaining([{ column: "A", type: "date", ...language }]),
+      );
+      expect(profile["profiles"]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            letter: "A",
+            min: "2026-04-03",
+            max: "2026-04-13",
+            readAs: [{ type: "date", ...language }],
+          }),
+        ]),
+      );
+      const request = toolDefinitions.aggregate_sheet.inputSchema.parse({
+        filePath,
+        columns: profile["columns"],
+        columnMode: profile["columnMode"],
+        groupBy: [{ column: "A", by: "month" }],
+        metrics: [{ fn: "sum", column: "B" }],
+      });
+      expect(body(await handlers.aggregate_sheet(request))["rows"]).toEqual([
+        ["2026-04", 30],
+      ]);
+    },
+  );
+
+  it.each([undefined, "tr-TR"])(
+    "keeps an unrepresentable date mixture as text with a truthful recipe warning under locale %s",
+    async (locale) => {
+      const filePath = `date-recipe-mixed-${locale ?? "default"}.csv`;
+      await writeFile(
+        join(directory, filePath),
+        "Date,Amount\n04/13/2026,10\n03/04/2026,20\n03.04.2026,30",
+      );
+      const profile = body(
+        await handlers.profile_sheet({
+          filePath,
+          ...(locale === undefined ? {} : { locale }),
+        }),
+      );
+      expect(profile["columns"]).toEqual(
+        expect.arrayContaining([{ column: "A", type: "text" }]),
+      );
+      expect(profile["profiles"]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            letter: "A",
+            inferredType: "date",
+            readAs: [],
+            warnings: expect.arrayContaining([
+              expect.stringContaining("reusable date"),
+            ]),
+          }),
+        ]),
+      );
+      const request = toolDefinitions.read_sheet.inputSchema.parse({
+        filePath,
+        columns: profile["columns"],
+        columnMode: profile["columnMode"],
+        includeTyped: true,
+      });
+      const read = body(await handlers.read_sheet(request));
+      expect(read["values"]).toEqual([
+        ["04/13/2026", "10"],
+        ["03/04/2026", "20"],
+        ["03.04.2026", "30"],
+      ]);
+      expect(read["typedValues"]).toEqual([
+        ["04/13/2026", 10],
+        ["03/04/2026", 20],
+        ["03.04.2026", 30],
+      ]);
+    },
+  );
+
+  it.each([
+    { separator: "/", format: "M/d/yyyy", filePath: "date-recipe-slash.csv" },
+    { separator: "-", format: "M-d-yyyy", filePath: "date-recipe-dash.csv" },
+  ])(
+    "reuses a sampled $format recipe without changing a later dotted date",
+    async ({ separator, format, filePath }) => {
+      const first = `4${separator}13${separator}2026`;
+      const second = `03${separator}04${separator}2026`;
+      await writeFile(
+        join(directory, filePath),
+        `Date,Amount\n${first},10\n${second},20\n03.04.2026,30`,
+      );
+      const profile = body(
+        await handlers.profile_sheet({ filePath, maxRows: 2 }),
+      );
+      expect(profile["columns"]).toEqual(
+        expect.arrayContaining([{ column: "A", type: "date", format }]),
+      );
+      expect(profile["profiles"]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            letter: "A",
+            readAs: [{ type: "date", format }],
+          }),
+        ]),
+      );
+      const interpretation = {
+        filePath,
+        columns: profile["columns"],
+        columnMode: profile["columnMode"],
+      };
+      const read = body(
+        await handlers.read_sheet(
+          toolDefinitions.read_sheet.inputSchema.parse({
+            ...interpretation,
+            includeTyped: true,
+          }),
+        ),
+      );
+      expect(read["values"]).toEqual([
+        [first, "10"],
+        [second, "20"],
+        ["03.04.2026", "30"],
+      ]);
+      expect(read["typedValues"]).toEqual([
+        ["2026-04-13", 10],
+        ["2026-03-04", 20],
+        [null, 30],
+      ]);
+      expect(read["typed"]).toMatchObject({
+        columns: expect.arrayContaining([
+          expect.objectContaining({
+            column: "A",
+            converted: 2,
+            unreadable: 1,
+            examples: [
+              { cell: "A4", value: "03.04.2026", reason: "unreadable" },
+            ],
+          }),
+        ]),
+      });
+      const aggregate = body(
+        await handlers.aggregate_sheet(
+          toolDefinitions.aggregate_sheet.inputSchema.parse({
+            ...interpretation,
+            groupBy: [{ column: "A", by: "month" }],
+            metrics: [{ fn: "sum", column: "B" }],
+          }),
+        ),
+      );
+      expect(aggregate["rows"]).toEqual([
+        ["2026-03", 20],
+        ["2026-04", 10],
+      ]);
+      expect(aggregate["ungroupedRows"]).toBe(1);
+    },
+  );
+
+  it("reports requested-date failures while retaining the observed text majority", async () => {
+    const filePath = "date-recipe-explicit-invalid.csv";
+    await writeFile(
+      join(directory, filePath),
+      "Date\n13.03.2026\n29.02.2026\n31.04.2026",
+    );
+    const explicit = {
+      column: "Date",
+      type: "date",
+      format: "dd.MM.yyyy",
+    };
+    const profile = body(
+      await handlers.profile_sheet(
+        toolDefinitions.profile_sheet.inputSchema.parse({
+          filePath,
+          columns: [explicit],
+        }),
+      ),
+    );
+    expect(profile["columns"]).toEqual([{ ...explicit, column: "A" }]);
+    expect(profile["profiles"]).toEqual([
+      expect.objectContaining({
+        inferredType: "text",
+        confidence: 2 / 3,
+        missing: 0,
+        distinct: { count: 3, exact: true },
+        min: "29.02.2026",
+        max: "31.04.2026",
+        topValues: [
+          { value: "2026-03-13", count: 1 },
+          { value: "29.02.2026", count: 1 },
+          { value: "31.04.2026", count: 1 },
+        ],
+        unreadable: {
+          count: 2,
+          examples: [{ value: "29.02.2026" }, { value: "31.04.2026" }],
+        },
+        readAs: [{ type: "date", format: "dd.MM.yyyy" }],
+      }),
+    ]);
+    const read = body(
+      await handlers.read_sheet(
+        toolDefinitions.read_sheet.inputSchema.parse({
+          filePath,
+          columns: profile["columns"],
+          columnMode: profile["columnMode"],
+          includeTyped: true,
+        }),
+      ),
+    );
+    expect(read["values"]).toEqual([
+      ["13.03.2026"],
+      ["29.02.2026"],
+      ["31.04.2026"],
+    ]);
+    expect(read["typedValues"]).toEqual([["2026-03-13"], [null], [null]]);
+    expect(read["typed"]).toMatchObject({
+      columns: [
+        {
+          type: "date",
+          readAs: [{ type: "date", format: "dd.MM.yyyy" }],
+          converted: 1,
+          missing: 0,
+          unreadable: 2,
+        },
+      ],
+    });
+  });
+
+  it.each([
+    { name: "order", interpretation: { order: "mdy" as const } },
+    { name: "format", interpretation: { format: "M.d.yyyy" } },
+  ])(
+    "preserves a caller's explicit date $name on dotted text",
+    async ({ name, interpretation }) => {
+      const filePath = `date-recipe-explicit-${name}.csv`;
+      await writeFile(
+        join(directory, filePath),
+        "Date,Amount\n04.13.2026,10\n03.04.2026,20\nabsent,30",
+      );
+      const explicit = {
+        column: "Date",
+        type: "date",
+        ...interpretation,
+        locale: "tr-TR",
+        missingValues: ["absent"],
+      };
+      const profile = body(
+        await handlers.profile_sheet(
+          toolDefinitions.profile_sheet.inputSchema.parse({
+            filePath,
+            columns: [explicit],
+          }),
+        ),
+      );
+      expect(profile["columns"]).toEqual(
+        expect.arrayContaining([{ ...explicit, column: "A" }]),
+      );
+      const read = body(
+        await handlers.read_sheet(
+          toolDefinitions.read_sheet.inputSchema.parse({
+            filePath,
+            columns: profile["columns"],
+            columnMode: profile["columnMode"],
+            includeTyped: true,
+          }),
+        ),
+      );
+      expect(read["typedValues"]).toEqual([
+        ["2026-04-13", 10],
+        ["2026-03-04", 20],
+        [null, 30],
+      ]);
+    },
+  );
+
+  it.each([
+    {
+      name: "day-first timestamps",
+      filePath: "date-recipe-dmy-clock.csv",
+      rows: ["25/12/2026 10:30,10", "01/02/2026 09:00,20"],
+      months: [
+        ["2026-02", 20],
+        ["2026-12", 10],
+      ],
+    },
+    {
+      name: "day-first slash and dotted dates",
+      filePath: "date-recipe-dmy-dotted.csv",
+      rows: ["25/12/2026,10", "05.03.2026,20", "01/02/2026,30"],
+      months: [
+        ["2026-02", 30],
+        ["2026-03", 20],
+        ["2026-12", 10],
+      ],
+    },
+  ])(
+    "reuses a day-first order for $name with an ambiguous value",
+    async ({ filePath, rows, months }) => {
+      await writeFile(
+        join(directory, filePath),
+        `Date,Amount\n${rows.join("\n")}`,
+      );
+      const profile = body(await handlers.profile_sheet({ filePath }));
+      expect(profile["columns"]).toEqual(
+        expect.arrayContaining([{ column: "A", type: "date", order: "dmy" }]),
+      );
+      expect(profile["profiles"]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            letter: "A",
+            readAs: [{ type: "date", order: "dmy" }],
+          }),
+        ]),
+      );
+      const request = toolDefinitions.aggregate_sheet.inputSchema.parse({
+        filePath,
+        columns: profile["columns"],
+        columnMode: profile["columnMode"],
+        groupBy: [{ column: "A", by: "month" }],
+        metrics: [{ fn: "sum", column: "B" }],
+      });
+      expect(body(await handlers.aggregate_sheet(request))["rows"]).toEqual(
+        months,
+      );
+    },
+  );
+
   it("distinguishes clocks from elapsed duration evidence", async () => {
     const profile = body(
       await handlers.profile_sheet({ filePath: "temporal.csv" }),

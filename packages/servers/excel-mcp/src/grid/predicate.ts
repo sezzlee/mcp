@@ -6,7 +6,7 @@ import {
   type CellError,
   type CellScalar,
 } from "./cell-value.js";
-import { readDateText } from "./date-text.js";
+import { isCanonicalDate, orderOfDate, readDateText } from "./date-text.js";
 import { isCanonicalTime } from "./temporal-text.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 
@@ -41,8 +41,6 @@ export const kindPrecedence: readonly CellKind[] = [
   "empty",
 ];
 
-const isoDate = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}\.\d{3}Z)?$/;
-
 export function classify(value: CellScalar): CellKind {
   if (value === null) {
     return "empty";
@@ -58,7 +56,7 @@ export function classify(value: CellScalar): CellKind {
     if (isCellLinkedValue(value)) return "linkedValue";
     return isCellDuration(value) ? "duration" : "error";
   }
-  if (isoDate.test(value) && readDateText(value, "dmy").kind === "date")
+  if (isCanonicalDate(value) && readDateText(value, "dmy").kind === "date")
     return "date";
   return isCanonicalTime(value) ? "time" : "text";
 }
@@ -105,7 +103,7 @@ function orderKey(
   }
   if (kind === "date") {
     const text = value as string;
-    return text.length === 10 ? `${text}T00:00:00.000Z` : text;
+    return orderOfDate(text) ?? text;
   }
   if (kind === "time") {
     const text = value as string;
