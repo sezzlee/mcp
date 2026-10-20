@@ -287,13 +287,19 @@ export type DefaultHeaderSource = "declared" | "scanned" | "default";
 /**
  * The header row a call that names none reads by: the row a table or the
  * autofilter declares, else the first of the top rows of the used range that
- * names its columns by text alone, else row 1.
+ * names its columns by text alone and has no row of data above it, else row 1.
  *
  * Guard: the scan always covers the whole used range, never the requested
  * window, so every tool and describe_workbook name the same row whatever rows
  * or columns a call asks for. A window that starts below the header would
  * otherwise elect a text-only data row, and a single column would elect a
  * title sitting above it.
+ *
+ * Guard: a header sits above its data, so the scan stops at the first row
+ * holding a number, date or other non-text cell. NAEP's score table, whose
+ * header row holds years, has a data row of only `---` and `‡` placeholders
+ * further down; without the stop that row became the header and every row
+ * above it was dropped from the data.
  */
 export function defaultHeaderRow(
   sheet: SheetView,
@@ -306,8 +312,9 @@ export function defaultHeaderRow(
   if (used === undefined) return { row: 1, source: "default" };
   const { first, last } = scanWindow(used);
   for (let row = first; row <= last; row += 1) {
-    if (isHeaderCandidate(rowFacts(sheet, used, row, mergePolicy)))
-      return { row, source: "scanned" };
+    const facts = rowFacts(sheet, used, row, mergePolicy);
+    if (isHeaderCandidate(facts)) return { row, source: "scanned" };
+    if (facts.disqualifying > 0) break;
   }
   return { row: 1, source: "default" };
 }

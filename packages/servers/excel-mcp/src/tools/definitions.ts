@@ -46,7 +46,7 @@ const profileHeaders = {
     .max(1_048_576)
     .optional()
     .describe(
-      "Header row, 0 for none. Omitted: a table or autofilter header, else the first top row naming its columns in text, else row 1.",
+      "Header row, 0 for none. Omitted: a table or autofilter header, else the first top row naming its columns in text above any data, else row 1.",
     ),
   headerScan: z
     .boolean()
@@ -160,7 +160,7 @@ export const toolDefinitions = {
         .min(0)
         .optional()
         .describe(
-          "Header row, 0 for none. Omitted: a table or autofilter header, else the first top row naming its columns in text, else row 1.",
+          "Header row, 0 for none. Omitted: a table or autofilter header, else the first top row naming its columns in text above any data, else row 1.",
         ),
       headerScan: z
         .boolean()
@@ -354,7 +354,7 @@ export const toolDefinitions = {
         .min(0)
         .optional()
         .describe(
-          "Header row, 0 for none. Omitted: a table or autofilter header, else the first top row naming its columns in text, else row 1.",
+          "Header row, 0 for none. Omitted: a table or autofilter header, else the first top row naming its columns in text above any data, else row 1.",
         ),
       headerScan: z
         .boolean()

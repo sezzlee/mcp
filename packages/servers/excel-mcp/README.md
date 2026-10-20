@@ -58,11 +58,13 @@ A digit run with a leading zero or more than 15 digits is an identifier and is n
 
 A call that names no `headerRow` reads by the row a declared table or the autofilter heads; failing
 those, by the first of the top 20 rows of the used range whose filled cells are all text, at least
-two of them and none merged across columns; failing that, by row 1. The response says which
+two of them and none merged across columns, provided no row above it holds a number, a date or
+another non-text cell; failing that, by row 1. A header sits above its data, so a text-only data
+row lower down, such as a row of `---` placeholders, is never taken for one. The response says which
 (`headerRowSource`: `declared`, `scanned` or `default`). The scan always covers the whole used
 range, so a call reading a few rows or a single column gets the same header row as one reading the
 sheet, and a title band above the columns is skipped without the caller knowing it is there. A CSV
-always reads row 1. `headerScan: true` asks for the same detection strictly: it refuses when two rows
+always reads row 1. `headerScan: true` asks for a strict detection: it refuses when two rows
 qualify or none does. A header cell holding a number or a boolean names its column by its text, so
 a year heading is addressable as `"2008"`.
 

@@ -86,8 +86,9 @@ the candidates. `headerScan` cannot be combined with `headerRow` and is not avai
 :::details[How the server picks the row]
 
 A declared Excel Table or autofilter wins. Otherwise the row is the first of the top 20 rows of the
-used range whose filled cells are all text, at least two of them and none merged across columns, so
-a merged title and a blank row are skipped. If no row qualifies, row 1 is used and
+used range whose filled cells are all text, at least two of them and none merged across columns,
+with no row of numbers or dates above it, so a merged title and a blank row are skipped and a
+placeholder row inside the data is not taken for a header. If no row qualifies, row 1 is used and
 `headerRowSource` says `default`. The scan always covers the whole used range, so a call that reads
 three rows or a single column gets the same header row as one that reads the whole sheet. A CSV
 always reads row 1. Every answer carries `headerRowSource` — `default`, `explicit`, `declared`,

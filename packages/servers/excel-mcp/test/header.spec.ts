@@ -3,6 +3,7 @@ import { documentSheet, loadDocument } from "../src/format/document.js";
 import type { SezzleeExcelError } from "../src/platform/errors.js";
 import {
   declaredHeaderRow,
+  defaultHeaderRow,
   isHeaderCandidate,
   rowFacts,
   scanHeaderRow,
@@ -211,5 +212,73 @@ describe("a table that omits headerRowCount", () => {
     const explicit: DeclaredTable = { ...named, headerRow: true };
     const sheet = sheetWith(explicit, [null, null, null]);
     expect(declaredHeaderRow(sheet, bounds, "master")?.row).toBe(1);
+  });
+});
+
+describe("the header row a call that names none reads by", () => {
+  const sheetOf = (rows: readonly (readonly (string | number | null)[])[]) => {
+    const right = Math.max(...rows.map((row) => row.length));
+    const sheet: SheetView = {
+      name: "S",
+      bounds: { top: 1, left: 1, bottom: rows.length, right },
+      merges: [],
+      tables: [],
+      autoFilter: undefined,
+      hiddenRows: new Set<number>(),
+      rowAt(at) {
+        const row = rows[at - 1];
+        if (row === undefined) return undefined;
+        return {
+          cellAt(column) {
+            const value = row[column - 1];
+            return value === undefined || value === null
+              ? undefined
+              : { merged: false, value: { value } };
+          },
+          populatedColumns: ({ from, to }) => presentIndices(row, from, to),
+        };
+      },
+      populatedRows: ({ from, to }) =>
+        presentIndices(
+          rows.map((row) => (row.some((cell) => cell !== null) ? 1 : null)),
+          from,
+          to,
+        ),
+    };
+    return sheet;
+  };
+  const found = (rows: readonly (readonly (string | number | null)[])[]) => {
+    const sheet = sheetOf(rows);
+    return defaultHeaderRow(sheet, requireSheetBounds(sheet), "master");
+  };
+
+  it("skips a title and a blank row to the first row of text headers", () => {
+    expect(
+      found([
+        ["Sales report", null, null],
+        [null, null, null],
+        ["Region", "Units", "Total"],
+        ["North", 4, 1000],
+      ]),
+    ).toEqual({ row: 3, source: "scanned" });
+  });
+
+  it("never elects a text-only row that sits below data", () => {
+    expect(
+      found([
+        ["Group", 2005, 2013],
+        ["White", 155.4, 159.6],
+        ["Pacific Islander", "---", "‡"],
+      ]),
+    ).toEqual({ row: 1, source: "default" });
+  });
+
+  it("keeps row 1 over a table whose every cell is text", () => {
+    expect(
+      found([
+        ["Name", "City"],
+        ["Ada", "Izmir"],
+      ]),
+    ).toEqual({ row: 1, source: "scanned" });
   });
 });
