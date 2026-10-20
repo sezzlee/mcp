@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import { relative } from "node:path";
 import { accessError, assertSnapshot, knownRoot, pinRoot } from "./access.js";
 import { contentFingerprint, type Fingerprint } from "@sezzlee/mcp-core";
@@ -7,6 +8,26 @@ import type { SandboxedPath } from "./paths.js";
 import type { Vocabulary } from "./vocabulary.js";
 
 const variantSeparator = "\u0000";
+
+/**
+ * Names the size and the limit, so a caller learns that no tool of the server
+ * can read the file instead of trying the next one.
+ *
+ * Guard: the size is read after the secure reader refused the file and only
+ * words the message; nothing is read or decided on it.
+ */
+async function tooLargeMessage(
+  path: string,
+  maxBytes: number,
+): Promise<string> {
+  const size = await stat(path).then(
+    (info) => info.size,
+    () => undefined,
+  );
+  return size === undefined
+    ? `The file exceeds the ${maxBytes} byte limit.`
+    : `The file is ${size} bytes; the limit is ${maxBytes} bytes.`;
+}
 
 export interface OpenedFile {
   readonly stamp: Fingerprint;
@@ -119,7 +140,7 @@ export function createDocumentStore<Loaded, Options>(
         if (mapped.code === "file_too_large")
           throw spec.fail(
             "file_too_large",
-            mapped.message,
+            await tooLargeMessage(path, maxBytes),
             spec.vocabulary.tooLargeRecovery,
           );
         throw mapped;

@@ -196,6 +196,9 @@ describe("the document store", () => {
     } catch (error) {
       const failure = error as FileSourceError;
       expect(failure.code).toBe("file_too_large");
+      expect(failure.message).toBe(
+        "The file is 1 bytes; the limit is 0 bytes.",
+      );
       expect(failure.recovery).toBe("Read a smaller file.");
       expect(probe.parses()).toBe(0);
     }

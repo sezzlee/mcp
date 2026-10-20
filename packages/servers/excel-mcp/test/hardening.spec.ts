@@ -182,8 +182,12 @@ describe("CSV security and limits (#1 #14 #15 #17)", () => {
           filePath: "over.csv",
           delimiter: "comma",
         }),
-      ).error,
-    ).toBe("file_too_large");
+      ),
+    ).toEqual({
+      error: "file_too_large",
+      message: `The file is ${limits.maxCsvBytes + 1} bytes; the limit is ${limits.maxCsvBytes} bytes.`,
+      recovery: expect.stringContaining("no tool on this server can read it"),
+    });
   }, 120_000);
   it("enforces exactly 2,000,000 fields independently of bytes and record width", async () => {
     // 2,000 records x 1,000 fields, including the first/header record.

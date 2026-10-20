@@ -392,7 +392,10 @@ export const toolDefinitions = {
       maxGroups: z
         .int()
         .min(1)
-        .max(limits.maxGroupsHard)
+        .max(
+          limits.maxGroupsHard,
+          `maxGroups is at most ${limits.maxGroupsHard} and groups past it are not paged; use orderBy "metric" with orderByMetric for the top groups, or where conditions or a coarser groupBy for fewer groups`,
+        )
         .optional()
         .describe(
           "Maximum groups returned, default 50. matchedRows covers all groups; metric counted/skipped covers returnedMatchedRows.",

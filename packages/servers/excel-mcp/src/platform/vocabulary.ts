@@ -6,5 +6,6 @@ export const vocabulary = {
   rootLabel: "workbook root",
   readableLabel: "readable spreadsheet",
   listTool: "list_workbooks",
-  tooLargeRecovery: "Split the workbook or read a smaller file.",
+  tooLargeRecovery:
+    "Every tool opens the whole file, so no tool on this server can read it; tell the user it is over the limit, or split it into smaller files.",
 } as const satisfies Vocabulary<string>;
