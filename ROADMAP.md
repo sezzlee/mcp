@@ -63,6 +63,60 @@ spec, a guard comment or the package README.
 
 ## Excel analysis and typed data
 
+### Retained aggregate results: first implementation slice
+
+The first slice separates the scope of a calculation from the data admitted to a
+conversation. The existing `aggregate_sheet` already evaluates the selected range
+under cell-visit, group, metric-state, exact-sample and distinct-value budgets.
+`maxGroups` is applied only after calculation and ordering; the missing operation
+is continuing on the complete calculated result without reading the workbook again.
+The existing `SheetView`, format adapters, typed predicates, document cache, file
+authorization, error redaction and mandatory response guard remain the owners of
+their current responsibilities.
+
+Implementation plan for the draft pull request:
+
+1. Add an explicit retained-result mode to `aggregate_sheet`, leaving the default
+   inline behavior unchanged. Capture complete finalized group values before the
+   display limit and string presentation. Initially accept one non-pivot grouping;
+   unsupported combinations fail explicitly. Do not raise existing limits.
+2. Own a bounded in-memory result store inside each server's handler set. Admit a
+   result only after the full selected calculation succeeds. Bound entries, rows,
+   cells and serialized bytes, apply a fixed lifetime, and document capacity
+   refusal, expiry and cleanup. Opaque identifiers are valid only in that instance
+   and its existing configured-root authority. Results are immutable snapshots of
+   the source version used; subsequent calls do not reopen or merge source data.
+3. Return only a byte-bounded preview, source/scan counts, complete result count,
+   identifier and continuation instructions. Add a closed follow-up tool for exact
+   equality filtering, column projection and deterministic offset paging over all
+   retained rows. Both responses still use `json()` and `guard()`.
+4. Extend the existing Excel lab with synthetic overdue/unpaid payments and a fixed
+   reference date, independent expected totals, actual MCP calls, an external
+   corpus scenario entry point and serialized response measurements. Cover small
+   inline results, an omitted customer retrieved by identifier, full pagination,
+   invalid/expired/foreign identifiers, source changes and budget refusals.
+5. Run the relevant build, lint, typecheck and tests through Turbo. Regenerate tool,
+   limit and error references with their existing generator. Report actual local
+   verification separately from future model-driven agent evaluation.
+
+The design borrows the retain-before-emission principle from
+[context-mode](https://github.com/mksglu/context-mode). Ranked text retrieval is
+not a numerical aggregation oracle; no dependency, general code executor or search
+framework is required. KV-cache reuse does not make new response bytes free.
+
+Limit classification follows enforcement sites: native/file/CSV/OOXML byte caps,
+cache entries and aggregate state/visit caps protect processing resources;
+`maxGroups`, search-result counts and the payload gate mainly protect responses;
+read-page cells, profile sampling and diagnostic caps protect both work and
+presentation. A retained store adds its own resource budget and a preview adds its
+own response budget. Neither substitutes for an existing guard.
+
+After this slice, evaluate retained-result sorting, richer typed filters and
+additional aggregate shapes against the user's external corpus. Reaggregation,
+joins, streaming inputs, persistence, cancellation and worker scheduling need
+separate ownership and resource designs. Workbook editing, export and formula
+evaluation remain future work and must not weaken the reader's read-only boundary.
+
 - **Streaming CSV.** Reading beyond the current 16 MiB byte and two-million-cell limits needs
   a bounded streaming document contract, stable dialect/type decisions, cancellation and
   snapshot validation. The architecture below must be reviewed before implementation.
