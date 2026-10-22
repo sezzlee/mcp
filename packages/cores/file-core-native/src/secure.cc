@@ -19,6 +19,7 @@
 #else
 #include <cerrno>
 #include <dirent.h>
+#include <dlfcn.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -463,6 +464,65 @@ public:
   }
 };
 
+struct HostSha256 {
+  void* (*create)();
+  void (*destroy)(void*);
+  const void* (*sha256)();
+  int (*init)(void*, const void*, void*);
+  int (*update)(void*, const void*, size_t);
+  int (*finish)(void*, unsigned char*, unsigned int*);
+};
+template <typename Function> bool hostSymbol(const char* name, Function& out) {
+#ifdef _WIN32
+  out = reinterpret_cast<Function>(reinterpret_cast<void*>(GetProcAddress(GetModuleHandleW(nullptr), name)));
+#else
+  out = reinterpret_cast<Function>(dlsym(RTLD_DEFAULT, name));
+#endif
+  return out != nullptr;
+}
+/**
+ * Guard: the digest goes through the host Node's own OpenSSL, the code behind
+ * createHash("sha256"), so it is bit-identical by construction and runs on the
+ * CPU's SHA instructions wherever OpenSSL does. The portable Sha256 measured
+ * 4-5x slower on darwin-arm64, which made a digest-checked cache hit slower
+ * than re-reading the file. The symbols are looked up at run time, never
+ * linked: a host that exports none falls back to Sha256 instead of failing to
+ * load or aborting on the first call.
+ */
+const HostSha256* hostSha256() {
+  static const HostSha256* const resolved = []() -> const HostSha256* {
+    static HostSha256 api{};
+    const bool found = hostSymbol("EVP_MD_CTX_new", api.create) && hostSymbol("EVP_MD_CTX_free", api.destroy)
+        && hostSymbol("EVP_sha256", api.sha256) && hostSymbol("EVP_DigestInit_ex", api.init)
+        && hostSymbol("EVP_DigestUpdate", api.update) && hostSymbol("EVP_DigestFinal_ex", api.finish);
+    return found ? &api : nullptr;
+  }();
+  return resolved;
+}
+class Digest {
+  const HostSha256* host = hostSha256();
+  void* context = nullptr;
+  Sha256 portable;
+public:
+  Digest() {
+    if (host == nullptr) return;
+    context = host->create();
+    if (context != nullptr && host->init(context, host->sha256(), nullptr) != 1) { host->destroy(context); context = nullptr; }
+  }
+  Digest(const Digest&) = delete;
+  Digest& operator=(const Digest&) = delete;
+  ~Digest() { if (context != nullptr) host->destroy(context); }
+  void update(const unsigned char* data, size_t amount) {
+    if (context == nullptr) { portable.update(data, amount); return; }
+    if (host->update(context, data, amount) != 1) throw Failure("internal_error");
+  }
+  void finish(unsigned char out[32]) {
+    if (context == nullptr) { portable.finish(out); return; }
+    unsigned int length = 0;
+    if (host->finish(context, out, &length) != 1 || length != 32) throw Failure("internal_error");
+  }
+};
+
 struct Entry { std::string path; Info info; };
 struct Job {
   napi_env env{}; napi_async_work work{}; napi_deferred deferred{};
@@ -542,7 +602,7 @@ void readWindow(Job& job, Raw h) {
 }
 void digestFile(Job& job, Raw h) {
   const auto before = openWindow(job, h);
-  Sha256 hash;
+  Digest hash;
   std::vector<unsigned char> window(65536);
   uint64_t at = 0;
   while (at < before.size) {
@@ -607,9 +667,32 @@ void number(napi_env env, napi_value object, const char* name, double value) { n
 napi_value errorValue(napi_env env, const std::string& code) {
   napi_value error; napi_create_error(env, nullptr, string(env, "Secure filesystem operation failed."), &error); prop(env, error, "code", string(env, code)); return error;
 }
+/**
+ * Hands the snapshot vector to JavaScript without a second file-sized copy.
+ *
+ * Guard: only napi_no_external_buffers_allowed (V8 sandbox builds such as
+ * Electron) is known to return before Node takes the finalizer; there the
+ * vector is still ours and is copied. Node may already have run the finalizer
+ * on any other failure, so the vector is neither copied nor freed there:
+ * touching it could be a use-after-free and deleting it a double free.
+ */
+bool bytesValue(napi_env env, std::vector<unsigned char>& bytes, napi_value* out) {
+  if (bytes.empty()) return napi_create_buffer_copy(env, 0, nullptr, nullptr, out) == napi_ok;
+  auto* owned = new std::vector<unsigned char>(std::move(bytes));
+  const auto status = napi_create_external_buffer(env, owned->size(), owned->data(),
+      [](napi_env, void*, void* hint) { delete static_cast<std::vector<unsigned char>*>(hint); }, owned, out);
+  if (status == napi_ok) return true;
+  if (status != napi_no_external_buffers_allowed) return false;
+  const bool copied = napi_create_buffer_copy(env, owned->size(), owned->data(), nullptr, out) == napi_ok;
+  delete owned;
+  return copied;
+}
 void complete(napi_env env, napi_status status, void* data) {
   std::unique_ptr<Job> job(static_cast<Job*>(data));
   if (status != napi_ok && job->error.empty()) job->error = "internal_error";
+  napi_value bytes = nullptr;
+  if (job->error.empty() && (job->operation == "read" || job->operation == "readRange") && !bytesValue(env, job->bytes, &bytes))
+    job->error = "internal_error";
   if (!job->error.empty()) {
     auto error = errorValue(env, job->error);
     number(env, error, "nativeError", job->nativeError);
@@ -621,9 +704,7 @@ void complete(napi_env env, napi_status status, void* data) {
     else {
       napi_create_object(env, &result);
       if (job->operation == "read" || job->operation == "readRange") {
-        napi_value buffer;
-        napi_create_buffer_copy(env, job->bytes.size(), job->bytes.data(), nullptr, &buffer);
-        prop(env, result, "bytes", buffer); number(env, result, "size", static_cast<double>(job->info.size)); number(env, result, "modifiedMs", job->info.modifiedMs);
+        prop(env, result, "bytes", bytes); number(env, result, "size", static_cast<double>(job->info.size)); number(env, result, "modifiedMs", job->info.modifiedMs);
         if (job->operation == "readRange") number(env, result, "offset", static_cast<double>(job->offset));
       } else if (job->operation == "digest") {
         napi_value buffer;
