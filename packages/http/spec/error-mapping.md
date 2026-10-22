@@ -1,6 +1,6 @@
 # Error Mapping
 
-> Status: **normative** — validated by two independent implementations (ASP.NET `InvokeResultMapper` + TS `mapInvokeResult` pass the same `error-mapping/` corpus).
+> Status: **normative** — TS `mapInvokeResult` passes the `error-mapping/` corpus.
 
 Converts the backend's HTTP errors into an MCP result the agent can act on **by reading the `invoke_tool` result alone** — repairing its arguments and retrying — while internal detail (a stack, a connection string, an internal path, an authentication body) MUST NEVER leak under any circumstances. The machine-readable counterpart is [schemas/invoke-result.schema.json](schemas/invoke-result.schema.json); the corpus is [conformance/error-mapping/](../conformance/error-mapping/).
 
@@ -65,7 +65,7 @@ The distinction between `validation_failed` and `bad_request` looks at **the bod
 
 ## The mapping pipeline
 
-The pure signature is identical in both languages:
+The pure signature:
 
 ```typescript
 mapInvokeResult(response: BackendResponse, options?: { recognizers?: ErrorRecognizer[]; knownFields?: string[] }): InvokeSuccess | MappedError
@@ -92,7 +92,7 @@ The order is **first non-null result wins**:
 
 When Nest's `class-validator` output is a flat message array, the field name is embedded in the message text rather than structured. **When `knownFields` is supplied the name is resolved**: the message's leading token (cut at the first non-alphanumeric character) is matched case-insensitively against `knownFields`; on a match `fields[].name` is written, and without one the field stays unnamed.
 
-This is not a guess: `knownFields` is a **closed** set built from that tool's `inputSchema.properties` names, so the match is a lookup. When `knownFields` is not supplied (raw mapper usage) the old behaviour is preserved — the field stays unnamed. The rule applies in both SDKs; it follows the same path in ASP.NET setups that return a flat message array. Fixture: `nest-message-array-resolves-known-field`.
+This is not a guess: `knownFields` is a **closed** set built from that tool's `inputSchema.properties` names, so the match is a lookup. When `knownFields` is not supplied (raw mapper usage) the old behaviour is preserved — the field stays unnamed. It follows the same path for an ASP.NET backend that returns a flat message array. Fixture: `nest-message-array-resolves-known-field`.
 
 Closed in phase 6: the rule became writable once the NestJS SDK's catalog layer could supply `knownFields`.
 
@@ -142,8 +142,8 @@ The SDK cannot tell a wrong route from a missing resource — because the route 
 
 Exactly two — nothing beyond them is added without demonstrated demand:
 
-- **(a) Replace the mapper entirely.** dotnet: `IInvokeResultMapper { InvokeOutcome Map(BackendResponse, IReadOnlySet<string> knownFields) }`, registered with `TryAddSingleton<IInvokeResultMapper, InvokeResultMapper>`. Nest: `ExtensionPoints.invokeResultMapper`. A host that wants raw output, or an entirely different mapping, uses this.
-- **(b) Add a recognizer at the front.** dotnet: `options.Errors.Recognize(ErrorRecognizer)`. Nest: `options.errors.recognize(fn)`. It runs **before** the built-in recognizers (step 1), and its output still passes through the leak filter (step 5). Same delegate style as the existing `Identity.Project`/`Naming.Prefix`.
+- **(a) Replace the mapper entirely.** Nest: `ExtensionPoints.invokeResultMapper`. A host that wants raw output, or an entirely different mapping, uses this.
+- **(b) Add a recognizer at the front.** Nest: `options.errors.recognize(fn)`. It runs **before** the built-in recognizers (step 1), and its output still passes through the leak filter (step 5). Same delegate style as the existing `identity.projector`/`naming.prefix`.
 
 **Deliberately not added:** a redact/post-process hook (the filter is already mechanical and always on; a host wanting raw output uses (a)), per-status message overrides, i18n, and parsing the HTTP-date form of `Retry-After`.
 

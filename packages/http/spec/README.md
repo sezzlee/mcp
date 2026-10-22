@@ -13,29 +13,28 @@ treat a file as binding without reading it.
 
 | File                         | Subject                                          | Status                                   |
 | ---------------------------- | ------------------------------------------------ | ---------------------------------------- |
-| `metadata-contract.md`       | `EndpointDescriptor`, `Auth`, `ToolDefinition`   | normative, two implementations           |
-| `naming.md`                  | Tool naming, container prefixes, collisions      | normative, two implementations           |
-| `selection-hierarchy.md`     | Selection layers and precedence                  | normative, two implementations           |
-| `visibility.md`              | Visibility decision, three-valued semantics      | normative, two implementations           |
-| `search-semantics.md`        | Search-first contract, tokenization, cards       | normative, two implementations           |
-| `error-mapping.md`           | Error envelope, code dictionary, leak prevention | normative, two implementations           |
-| `invoke-semantics.md`        | Response budget, invoke deadline, cancellation   | normative, two implementations           |
-| `transport.md`               | Streamable HTTP, PRM, the 401 rule               | normative, two implementations           |
-| `fixture-format.md`          | Fixture envelope and kinds                       | normative, two implementations           |
+| `metadata-contract.md`       | `EndpointDescriptor`, `Auth`, `ToolDefinition`   | normative                                |
+| `naming.md`                  | Tool naming, container prefixes, collisions      | normative                                |
+| `selection-hierarchy.md`     | Selection layers and precedence                  | normative                                |
+| `visibility.md`              | Visibility decision, three-valued semantics      | normative                                |
+| `search-semantics.md`        | Search-first contract, tokenization, cards       | normative                                |
+| `error-mapping.md`           | Error envelope, code dictionary, leak prevention | normative                                |
+| `invoke-semantics.md`        | Response budget, invoke deadline, cancellation   | normative                                |
+| `transport.md`               | Streamable HTTP, PRM, the 401 rule               | normative                                |
+| `fixture-format.md`          | Fixture envelope and kinds                       | normative                                |
 | `schema-conversion-rules.md` | TypeShape → JSON Schema                          | **rule layer normative, binding partly** |
-| `rate-limiting.md`           | Per-caller limits on meta-tool calls             | normative, two implementations           |
+| `rate-limiting.md`           | Per-caller limits on meta-tool calls             | normative                                |
 | `caching.md`                 | Cache key, namespace, TTL, invalidation          | **partly normative**                     |
 | `argument-mapping.md`        | Flat arguments → HTTP request                    | **normative candidate**                  |
-| `request-bodies.md`          | Body media types, form and multipart, file parts | normative, two implementations           |
-| `argument-curation.md`       | Renaming, re-describing and hiding arguments     | normative, two implementations           |
-| `tool-families.md`           | One dispatching operation → one tool per method  | normative, two implementations           |
+| `request-bodies.md`          | Body media types, form and multipart, file parts | normative                                |
+| `argument-curation.md`       | Renaming, re-describing and hiding arguments     | normative                                |
+| `tool-families.md`           | One dispatching operation → one tool per method  | normative                                |
 | `openapi-ingestion.md`       | OpenAPI document → descriptors, diagnostics      | normative, one implementation            |
 | `credentials.md`             | Backend credentials for a network invoker        | normative, one implementation            |
 
 The three highlighted rows are the ones that bite. `schema-conversion-rules.md` has an
 "Unpinned areas" section listing behaviour that is deliberately not settled; `caching.md` is
-normative only in part; `argument-mapping.md` is validated by two implementations but not yet
-declared normative. `openapi-ingestion.md` and `credentials.md` have one implementation each and
+normative only in part; `argument-mapping.md` is implemented but not yet declared normative. `openapi-ingestion.md` and `credentials.md` have one implementation each and
 bind only an implementation that reads OpenAPI documents or calls a backend over the network.
 
 The prose is English, like the documentation site that links to it.
@@ -56,9 +55,7 @@ Types are generated from these — never written by hand:
 pnpm turbo run gen
 ```
 
-That writes `packages/http/core/src/generated/` and
-`sdks/dotnet/src/Sezzlee.AspNetCore/Generated/`. Both are committed; both are off-limits to manual
-edits.
+That writes `packages/http/core/src/generated/`. It is committed and off-limits to manual edits.
 
 Two schema constraints, enforced by the generator's limits: `$id` must equal the file name, and
 `prefixItems`, `unevaluatedProperties`, `$dynamicRef` and `dependentSchemas` are unsupported.
@@ -68,8 +65,8 @@ Two schema constraints, enforced by the generator's limits: `$id` must equal the
 RFC 2119 keywords — `MUST`, `SHOULD`, `MAY` — appear **only** in this directory. Nowhere else in
 the repository, and never on the docs site.
 
-To claim `normatif` a rule needs a fixture in [`../conformance`](../conformance) and two
-independent implementations passing it. A rule change that does not move a fixture has not been
+To claim `normative` a rule needs a fixture in [`../conformance`](../conformance) that
+`packages/http/core` and `sdks/nestjs` pass. A rule change that does not move a fixture has not been
 made; if a schema change breaks fixtures, update them in the same commit.
 
 ## Related

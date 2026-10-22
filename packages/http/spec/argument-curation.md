@@ -1,6 +1,6 @@
 # Argument Curation
 
-> Status: **normative, two implementations.** Both SDKs pass the curation corpus. The rules were written before either implementation, which is the order this repository requires: a rule change that does not move a fixture has not been made, and a spec written from one implementation is a description of that implementation.
+> Status: **normative.** `packages/http/core` and the NestJS SDK pass the curation corpus. The rules were written before the implementation, which is the order this repository requires: a rule change that does not move a fixture has not been made, and a spec written from one implementation is a description of that implementation.
 
 Defines how a host reshapes the **agent-facing** surface of an endpoint without touching the backend's own contract. The machine-readable counterpart is `ArgumentCuration`, `ArgumentFill` and `ToolVariant` in [schemas/endpoint-descriptor.schema.json](schemas/endpoint-descriptor.schema.json); the fixture corpus lives in [conformance/metadata-extraction/](../conformance/metadata-extraction/) and [conformance/argument-mapping/](../conformance/argument-mapping/).
 

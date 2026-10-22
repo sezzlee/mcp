@@ -1,6 +1,6 @@
 # Declare visibility for a NestJS guard
 
-On NestJS, search results are filtered per caller only if your guards say what they enforce. This page shows how a guard declares itself and what happens when it does not.
+Search results are filtered per caller only if your guards say what they enforce. This page shows how a guard declares itself and what happens when it does not.
 
 ## Know the trap
 

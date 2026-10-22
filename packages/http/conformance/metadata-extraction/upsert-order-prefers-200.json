@@ -1,6 +1,6 @@
 {
   "kind": "metadata-extraction",
-  "description": "Hem 200 hem 201 var: birincil response sirasi 200'u secer, iki SDK ayni semayi uretsin diye",
+  "description": "Hem 200 hem 201 var: birincil response sirasi 200'u secer, her uygulama ayni semayi uretsin diye",
   "input": {
     "operationId": "UpsertOrder",
     "method": "PUT",

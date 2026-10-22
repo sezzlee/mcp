@@ -2,7 +2,7 @@
 
 > Status: **normative, one implementation** (`packages/http/openapi`). Bound by the `openapi-ingestion` fixture profile ([fixture-format.md](fixture-format.md)), not by the core profile: an SDK that never reads an OpenAPI document is not bound by this file.
 
-An OpenAPI document is a second source of `EndpointDescriptor`s, next to framework discovery. This document defines how a Swagger 2.0 or OpenAPI 3.0–3.2 document becomes descriptors, a server map and a security model, and which diagnostics the conversion reports. Everything after the descriptor — naming, selection, curation, template production, composition, error mapping, search — is the existing catalog and is not restated here. The embedded SDKs reach only ASP.NET Core and NestJS; for any other backend, its document is the only machine-readable account of its operations.
+An OpenAPI document is a second source of `EndpointDescriptor`s, next to framework discovery. This document defines how a Swagger 2.0 or OpenAPI 3.0–3.2 document becomes descriptors, a server map and a security model, and which diagnostics the conversion reports. Everything after the descriptor — naming, selection, curation, template production, composition, error mapping, search — is the existing catalog and is not restated here. The embedded SDK reaches only NestJS; for any other backend, its document is the only machine-readable account of its operations.
 
 ## Principles
 
@@ -111,20 +111,20 @@ A host MAY configure the output schema as omitted for a backend whose responses 
 
 Everything an SDK host declares in code, a document declares in one extension, `x-sezzlee`, and a host that cannot edit the document declares in its configuration. The three are one shape: the value is defined once, in [schemas/openapi-extension.schema.json](schemas/openapi-extension.schema.json), and every field is a field of the endpoint descriptor ([metadata-contract.md](metadata-contract.md)).
 
-| Declaration           | .NET SDK                                        | NestJS SDK                              | `x-sezzlee` field | Descriptor field                 |
-| --------------------- | ----------------------------------------------- | --------------------------------------- | ----------------- | -------------------------------- |
-| Select or exclude     | `[McpTool]` / `[McpIgnore]`                     | `@McpTool()` / `@McpIgnore()`           | `tool`            | (operation selection marker)     |
-| Absolute tool name    | `Name`                                          | `name`                                  | `toolName`        | `toolName`                       |
-| Container prefix      | `Prefix`                                        | `prefix`                                | `containerPrefix` | `containerPrefix`                |
-| Behaviour hints       | `ReadOnly`, `Destructive`, `Idempotent`         | `readOnly`, `destructive`, `idempotent` | `annotations`     | `annotations`                    |
-| Argument curation     | `[McpArgument]`                                 | `arguments`                             | `arguments`       | `arguments`                      |
-| Variants              | `[McpToolVariant]`                              | `@McpVariant()`                         | `variants`        | `variants`                       |
-| Family                | `[McpToolFamily]` and `Families.Provide`        | `@McpToolFamily()` and `families`       | `family`          | `family` and `variants`          |
-| Search vocabulary     | `SearchTerms`                                   | `searchTerms`                           | `searchTerms`     | `searchTerms`                    |
-| Behaviour revision    | `Revision`                                      | `revision`                              | `revision`        | `revision` (three levels, below) |
-| Description           | `Description`, `[Description]`                  | `description`                           | (none)            | `summary` and `description`      |
-| Tags                  | `Tags`                                          | `tags`                                  | (none)            | `tags`                           |
-| Visibility and policy | `[Authorize]`, `[AllowAnonymous]`, auth filters | guards                                  | (none)            | `auth`                           |
+| Declaration           | NestJS SDK                              | `x-sezzlee` field | Descriptor field                 |
+| --------------------- | --------------------------------------- | ----------------- | -------------------------------- |
+| Select or exclude     | `@McpTool()` / `@McpIgnore()`           | `tool`            | (operation selection marker)     |
+| Absolute tool name    | `name`                                  | `toolName`        | `toolName`                       |
+| Container prefix      | `prefix`                                | `containerPrefix` | `containerPrefix`                |
+| Behaviour hints       | `readOnly`, `destructive`, `idempotent` | `annotations`     | `annotations`                    |
+| Argument curation     | `arguments`                             | `arguments`       | `arguments`                      |
+| Variants              | `@McpVariant()`                         | `variants`        | `variants`                       |
+| Family                | `@McpToolFamily()` and `families`       | `family`          | `family` and `variants`          |
+| Search vocabulary     | `searchTerms`                           | `searchTerms`     | `searchTerms`                    |
+| Behaviour revision    | `revision`                              | `revision`        | `revision` (three levels, below) |
+| Description           | `description`                           | (none)            | `summary` and `description`      |
+| Tags                  | `tags`                                  | (none)            | `tags`                           |
+| Visibility and policy | guards                                  | (none)            | `auth`                           |
 
 Description and tags are OpenAPI's own fields and stay there. Visibility has no field by design: a document says which credential a call needs, never which caller may make it (§Security).
 
@@ -162,7 +162,7 @@ An SDK MAY publish its built catalog as `x-sezzlee` extensions, so that a gatewa
 
 An operation the SDK never saw, such as a route its framework documents outside the SDK's discovery, carries no extension; a gateway reading an SDK's document SHOULD keep its selection default at `exclude` so such an operation stays unpublished.
 
-Both SDKs pass the same check, with the gateway including by default so that a missing marker shows as an extra tool: the gateway rebuilds the SDK's tools from the annotated document with the same names, arguments and hints (`packages/servers/openapi-mcp/test/parity.spec.ts` for ASP.NET Core, `sdks/nestjs/test/openapi-extension.spec.ts` for NestJS).
+The NestJS SDK passes this check, with the gateway including by default so that a missing marker shows as an extra tool: the gateway rebuilds the SDK's tools from the annotated document with the same names, arguments and hints (`sdks/nestjs/test/openapi-extension.spec.ts`).
 
 ### Configured overrides
 

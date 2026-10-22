@@ -1,4 +1,4 @@
-import { appendFile, readFile } from "node:fs/promises";
+import { appendFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 
 /**
@@ -27,13 +27,6 @@ const httpPackages = [
   "@sezzlee/openapi",
   "@sezzlee/openapi-mcp",
   "@sezzlee/sdk-nestjs",
-];
-const dotnetPackages = [
-  "@sezzlee/sdk-dotnet",
-  "@sezzlee/conformance",
-  "@sezzlee/spec",
-  "@sezzlee/openapi",
-  "@sezzlee/openapi-mcp",
 ];
 const wholeRepo = [
   /^\.github\//,
@@ -120,27 +113,6 @@ async function unpublished(publicPackages) {
       throw new Error(`npm answered ${response.status} for ${name}@${version}`);
     }
   }
-  for (const nugetPackage of [
-    "Sezzlee.AspNetCore",
-    "Sezzlee.AspNetCore.NewtonsoftJson",
-    "Sezzlee.AspNetCore.Testing",
-  ]) {
-    const project = await readFile(
-      `sdks/dotnet/src/${nugetPackage}/${nugetPackage}.csproj`,
-      "utf8",
-    );
-    const nugetVersion = /<VersionPrefix>([^<]+)<\/VersionPrefix>/.exec(
-      project,
-    )?.[1];
-    const nuget = await fetch(
-      `https://api.nuget.org/v3-flatcontainer/${nugetPackage.toLowerCase()}/index.json`,
-    );
-    const published = nuget.ok ? (await nuget.json()).versions : [];
-    if (nugetVersion === undefined || !published.includes(nugetVersion)) {
-      missing.push("@sezzlee/sdk-dotnet");
-      break;
-    }
-  }
   return missing;
 }
 
@@ -217,7 +189,6 @@ async function plan() {
       node_versions: JSON.stringify(
         native && (full || releasingNative) ? [22, 24] : [24],
       ),
-      dotnet: String(inScope(dotnetPackages)),
       pack: String(!pullRequest),
       pack_build: filtersOf([
         ...httpPackages,
@@ -249,7 +220,7 @@ const summary = [
   ...result.reasons.map((reason) => `- ${reason}`),
   `- releasing: ${result.releasing.join(", ") || "nothing"}`,
   `- packages: ${result.scope.join(", ") || "none"}`,
-  `- native: ${result.outputs.native} (Node ${result.outputs.node_versions}), dotnet: ${result.outputs.dotnet}, pack: ${result.outputs.pack}`,
+  `- native: ${result.outputs.native} (Node ${result.outputs.node_versions}), pack: ${result.outputs.pack}`,
   "",
 ].join("\n");
 if (env.GITHUB_STEP_SUMMARY) {

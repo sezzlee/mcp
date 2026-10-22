@@ -1,6 +1,6 @@
 # Tool Families
 
-> Status: **normative, two implementations.** Both SDKs pass the family corpus in [conformance/metadata-extraction/](../conformance/metadata-extraction/) (`family-*`, `variant-body-*`, `*-annotations-*`), [conformance/naming/](../conformance/naming/) (`variant-name-*`), [conformance/argument-mapping/](../conformance/argument-mapping/) (`family-*`) and [conformance/search/](../conformance/search/) (`family-*`). OpenAPI ingestion lowers `x-sezzlee.family` into the same form ([conformance/openapi-ingestion/](../conformance/openapi-ingestion/) `family-*`).
+> Status: **normative.** `packages/http/core` and the NestJS SDK pass the family corpus in [conformance/metadata-extraction/](../conformance/metadata-extraction/) (`family-*`, `variant-body-*`, `*-annotations-*`), [conformance/naming/](../conformance/naming/) (`variant-name-*`), [conformance/argument-mapping/](../conformance/argument-mapping/) (`family-*`) and [conformance/search/](../conformance/search/) (`family-*`). OpenAPI ingestion lowers `x-sezzlee.family` into the same form ([conformance/openapi-ingestion/](../conformance/openapi-ingestion/) `family-*`).
 
 Defines how one operation that **dispatches on a parameter** becomes one tool per capability it dispatches to. The machine-readable counterpart is `ToolFamily`, `VariantRequestBody` and the `requestBody` and `annotations` fields of `ToolVariant` in [schemas/endpoint-descriptor.schema.json](schemas/endpoint-descriptor.schema.json).
 
@@ -87,7 +87,7 @@ Wire codes, pinned by fixtures in every implementation:
 | `variant_body_without_family` | endpoint dropped | A variant declares `requestBody` on an operation without `family`               |
 | `variant_body_invalid`        | endpoint dropped | A member body references outside its own `$defs` or carries an identity keyword |
 
-SDK codes, pinned by each SDK's host tests because they concern where members come from:
+SDK codes, pinned by the NestJS SDK's host tests because they concern where members come from:
 
 | Code                     | Result           | When                                                                                                                                                      |
 | ------------------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |

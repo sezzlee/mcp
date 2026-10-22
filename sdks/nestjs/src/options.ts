@@ -27,8 +27,7 @@ export interface OuterRequest {
   /**
    * The MCP transport's verified token, when `resourceServer` is configured.
    *
-   * Without it a value provider sees headers only and decodes the token itself; the C# side reads
-   * `HttpContext.User` and always has one. The two platforms are not symmetric here.
+   * Without it a value provider sees headers only and decodes the token itself.
    */
   readonly auth?: VerifiedToken;
 }

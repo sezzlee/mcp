@@ -26,8 +26,8 @@ pnpm add @sezzlee/sdk-nestjs
 
 ## 2. Wiring — three pieces
 
-The .NET SDK is three method calls. This one is three _pieces_, because a Nest controller is your
-code and a module cannot add a route to it.
+Wiring is three _pieces_, because a Nest controller is your code and a module cannot add a route
+to it.
 
 **The module.** `forRoot` takes a callback that **mutates** an options instance — not an options
 literal. Passing `{ visibility: { tier: "probe" } }` configures nothing.
@@ -711,5 +711,5 @@ the RFC 9728 metadata handler for you.
 ## 7. What's next
 
 - The docs site: `pnpm --filter @sezzlee/docs dev` → `http://localhost:5180`
-- [samples/demo-api](samples/demo-api) — the same endpoint matrix as the .NET sample: anonymous,
+- [samples/demo-api](samples/demo-api) — an endpoint matrix: anonymous,
   identity-only, policy, role, imperative ownership, and a POST with path, query and body

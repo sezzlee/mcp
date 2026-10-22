@@ -821,8 +821,6 @@ importers:
 
   packages/toolchain/typescript-config: {}
 
-  sdks/dotnet: {}
-
   sdks/nestjs:
     dependencies:
       '@sezzlee/core':

@@ -1,11 +1,10 @@
 # Caching
 
-> Status: **partly normative.** Key derivation (`DigestInput`), namespacing, absolute TTL plus
-> negative jitter, the LRU bound, the `_disabled` rule and the in-flight rule are validated by two
-> implementations (ASP.NET `MemorySezzleeCache` + `CallerVisibilityProvider`, TS `MemorySezzleeCache` +
-> Nest `CallerVisibilityProvider`). **Still one-sided:** the shared-store guarantees in the
-> "Distributed deployment" section (per-scope grouped storage, tag → scope set, O(1) `ClearAsync`)
-> are implemented in neither SDK — that section is a contract draft for a host writing an adapter,
+> Status: **partly normative.** Key derivation (`digestInput`), namespacing, absolute TTL plus
+> negative jitter, the LRU bound, the `_disabled` rule and the in-flight rule are implemented by TS
+> `MemorySezzleeCache` + Nest `CallerVisibilityProvider`. **Still one-sided:** the shared-store
+> guarantees in the "Distributed deployment" section (per-scope grouped storage, tag → scope set,
+> O(1) `clear`) are not implemented — that section is a contract draft for a host writing an adapter,
 > not a validated rule.
 
 Caches the two values recomputed over and over during `search_tools`/`load_tool` — the caller's identity facts and the T2 probe verdict — per caller. There is no machine-readable counterpart (this is timing and state behaviour, not a data transformation); validation is by unit tests.
@@ -25,7 +24,7 @@ Cached per caller scope:
 
 The cache is keyed by `CallerScope(Key, Tags)`:
 
-- **`Key`** — a 64-character lowercase-hex SHA-256 digest. The digest's input is fixed by this spec and is identical in both SDKs: the declared identity carriers are ordinal sorted by their lowercase names, and each is written as a `lowercase(name)=value\n` line (multi-valued headers are joined with `,`; a carrier absent from the outer request leaves its line empty). This digest input (`DigestInput`) is public and pure in both C# and TS — a host can wrap it and add its own tag.
+- **`Key`** — a 64-character lowercase-hex SHA-256 digest. The digest's input is fixed by this spec: the declared identity carriers are ordinal sorted by their lowercase names, and each is written as a `lowercase(name)=value\n` line (multi-valued headers are joined with `,`; a carrier absent from the outer request leaves its line empty). This digest input (`digestInput`) is public and pure — a host can wrap it and add its own tag.
 - Carrier values are **never stored in plain text anywhere** — only the hashed `Key` is stored and logged.
 - **`Tags`** — the default resolver produces no tags. Targeted invalidation tags such as `user:42` or `tenant:7` are the host's business (see below). The format is `kind:value` with no whitespace; `Key` contains no `:` (Redis segment safety).
 
@@ -38,25 +37,25 @@ Every key is serialized as `sezzlee:v1:{scope}:{kind}[:{subkey}]` (`{scope}` = `
 ## Lifetime
 
 - The lifetime is **absolute from the scope's first write** (not sliding) — this is the upper bound on the accepted staleness.
-- On every `Set` the SDK applies **up to 10% negative jitter** to the lifetime: actual expiry may be slightly earlier than the declared `Lifetime`, never later. The purpose is to break synchronized expiry in a distributed store (multiple instances); the promised upper staleness bound is never exceeded.
-- `Lifetime == 0` → the cache is fully disabled: `Get`/`Set` are never called and every request recomputes.
-- When `MaxCallers` is exceeded, the **least recently used** scope is evicted; eviction is evaluated only **when a new scope is admitted**, not on every write.
+- On every `set` the SDK applies **up to 10% negative jitter** to the lifetime: actual expiry may be slightly earlier than the declared `lifetimeMs`, never later. The purpose is to break synchronized expiry in a distributed store (multiple instances); the promised upper staleness bound is never exceeded.
+- `lifetimeMs == 0` → the cache is fully disabled: `get`/`set` are never called and every request recomputes.
+- When `maxCallers` is exceeded, the **least recently used** scope is evicted; eviction is evaluated only **when a new scope is admitted**, not on every write.
 
 ## Invalidation
 
-Three operations (`ISezzleeCacheInvalidator`):
+Three operations (`SezzleeCacheInvalidator`):
 
-| Operation               | Effect                                                                                                                              |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `InvalidateCallerAsync` | Every entry of one `CallerScope` (`facts` plus all `probe:*`).                                                                      |
-| `InvalidateTagAsync`    | Every scope carrying that tag (the host must produce tags — if the default resolver produces none, this operation affects nothing). |
-| `InvalidateAllAsync`    | The whole cache, every scope.                                                                                                       |
+| Operation          | Effect                                                                                                                              |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `invalidateCaller` | Every entry of one `CallerScope` (`facts` plus all `probe:*`).                                                                      |
+| `invalidateTag`    | Every scope carrying that tag (the host must produce tags — if the default resolver produces none, this operation affects nothing). |
+| `invalidateAll`    | The whole cache, every scope.                                                                                                       |
 
-**The signal is always manual** — sezzlee MUST NOT listen for any backend event (an authorization change, a user update) on its own; the host calls one of these three at its own authorization-change point (a role assignment, a permission revoke). The tag bridge closes the "the backend knows the user id, sezzlee only knows the carrier digest" gap: by writing an `ICallerScopeResolver` that produces its own `user:{id}` tag, the host can call `InvalidateTagAsync("user:42")` with the backend's own user identity.
+**The signal is always manual** — sezzlee MUST NOT listen for any backend event (an authorization change, a user update) on its own; the host calls one of these three at its own authorization-change point (a role assignment, a permission revoke). The tag bridge closes the "the backend knows the user id, sezzlee only knows the carrier digest" gap: by writing an `CallerScopeResolver` that produces its own `user:{id}` tag, the host can call `invalidateTag("user:42")` with the backend's own user identity.
 
 **The in-flight rule:** once an invalidation call has completed, within this process, no entry written **before** the call is ever observed again for the affected scopes. A computation that is **in flight** during the call (the read has started, the write has not happened yet) MAY complete, but the epoch guard MUST NOT write it back (see below — a cache-aside read writes only if the epoch observed at read time is still current).
 
-**A catalog reload clears everything:** the `ISezzleeCatalogChangeSource.ReloadAsync()` order is — load family members, if any source is registered → build the new snapshot → keep the current snapshot and fail the reload if the new one is newly fatal ([tool-families.md](tool-families.md) §Membership) → increment `Generation` → **signal the change token (increment the epoch)** → call `ISezzleeCache.ClearAsync()`. The order is normative: the epoch MUST increment **before** the clear, otherwise a computation that began before the reload could write a stale value back into the cleared cache and the in-flight rule would be violated on the reload path. The mechanism that increments the epoch MUST be independent of the authorization-invalidation path (subscribing to the change token is sufficient). This clears **the whole** cache without regard to the `facts`/`probe` distinction; if the catalog changed, a cached verdict for an old tool is meaningless.
+**A catalog reload clears everything:** the `SezzleeCatalog.reload()` order is — load family members, if any source is registered → build the new snapshot → keep the current snapshot and fail the reload if the new one is newly fatal ([tool-families.md](tool-families.md) §Membership) → increment `generation` → **signal the change token (increment the epoch)** → call `SezzleeCache.clear()`. The order is normative: the epoch MUST increment **before** the clear, otherwise a computation that began before the reload could write a stale value back into the cleared cache and the in-flight rule would be violated on the reload path. The mechanism that increments the epoch MUST be independent of the authorization-invalidation path (subscribing to the change token is sufficient). This clears **the whole** cache without regard to the `facts`/`probe` distinction; if the catalog changed, a cached verdict for an old tool is meaningless.
 
 **The `_disabled` probe set is cleared only on a catalog change**, never by an authorization-invalidation operation. That set holds the endpoints the probe permanently gave up on (when an ambiguous response such as an unmarked `2xx` was seen — [visibility.md](visibility.md), T2 "Verdict"). Why only the catalog: the set records a **structural fact** (the route did not match, or an unmarked success was seen and the handler may have run), not authorization state; reopening it on an authorization event would reintroduce the risk of the handler running, and for that the catalog must genuinely have changed (a new deployment, a new endpoint registration).
 
@@ -70,26 +69,26 @@ Three operations (`ISezzleeCacheInvalidator`):
 
 ## Distributed deployment
 
-The default implementation (`MemorySezzleeCache`) is per-process: in a multi-instance deployment every instance keeps its own cache and they converge independently within `Lifetime` — invalidation calls affect only the process they were called in. A host wanting a shared `ISezzleeCache` adapter (Redis or similar) MUST provide these guarantees:
+The default implementation (`MemorySezzleeCache`) is per-process: in a multi-instance deployment every instance keeps its own cache and they converge independently within `lifetimeMs` — invalidation calls affect only the process they were called in. A host wanting a shared `SezzleeCache` adapter (Redis or similar) MUST provide these guarantees:
 
-- `GetAsync`/`SetAsync` carry a string value; sezzlee's own compact encoding is used (`P|OrdersRead=A;Owner=U` for `facts`, a single character `A`/`D` for `probe`) — the adapter needs no general serializer contract.
-- Per-scope grouped storage is recommended (for example a Redis `HASH` with field names `kind[:subkey]`): dropping one caller in a single operation (`InvalidateCallerAsync`) MUST be O(1).
-- The tag → scope set mapping MUST be kept in a separate structure (for example one Redis `SET` per tag); `InvalidateTagAsync` reads that set and drops the relevant scopes rather than scanning the whole key space.
-- `ClearAsync` SHOULD be as cheap as incrementing a generation/epoch counter; deleting every key one by one is not required (`MemorySezzleeCache` does it by swapping two dictionaries with `Interlocked.Exchange`).
+- `get`/`set` carry a string value; sezzlee's own compact encoding is used (`P|OrdersRead=A;Owner=U` for `facts`, a single character `A`/`D` for `probe`) — the adapter needs no general serializer contract.
+- Per-scope grouped storage is recommended (for example a Redis `HASH` with field names `kind[:subkey]`): dropping one caller in a single operation (`removeScope`) MUST be O(1).
+- The tag → scope set mapping MUST be kept in a separate structure (for example one Redis `SET` per tag); `removeTag` reads that set and drops the relevant scopes rather than scanning the whole key space.
+- `clear` SHOULD be as cheap as incrementing a generation/epoch counter; deleting every key one by one is not required (`MemorySezzleeCache` does it by replacing its two maps).
 
 ## Mechanics / policy table
 
-The table from decision 003 applies here too: anything whose right answer varies by host is a knob under `options.Cache`; anything with one right answer is knob-less mechanics.
+The table from decision 003 applies here too: anything whose right answer varies by host is a knob under `options.cache`; anything with one right answer is knob-less mechanics.
 
-| Topic                                                                   | Kind      | Where                                                                                    |
-| ----------------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------- |
-| Cache lifetime, LRU bound                                               | Policy    | `options.Cache.{Lifetime, MaxCallers}`                                                   |
-| Key derivation (the digest input)                                       | Mechanics | `CarrierHashCallerScopeResolver.DigestInput` — sealed, pure, identical in both languages |
-| Tag production                                                          | Policy    | Override `ICallerScopeResolver` (the default produces none)                              |
-| Negative jitter, absolute TTL, the `_disabled` rule, the in-flight rule | Mechanics | Knob-less; an SDK guarantee                                                              |
-| The store (in-memory / distributed)                                     | Policy    | Override `ISezzleeCache` (TryAdd)                                                        |
-| When the invalidation signal arrives                                    | Policy    | The host's business; the SDK provides only the `ISezzleeCacheInvalidator` surface        |
+| Topic                                                                   | Kind      | Where                                                                               |
+| ----------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------- |
+| Cache lifetime, LRU bound                                               | Policy    | `options.cache.{lifetimeMs, maxCallers}`                                            |
+| Key derivation (the digest input)                                       | Mechanics | `digestInput` (`@sezzlee/core`), which `CarrierHashCallerScopeResolver` uses — pure |
+| Tag production                                                          | Policy    | Override `CallerScopeResolver` (the default produces none)                          |
+| Negative jitter, absolute TTL, the `_disabled` rule, the in-flight rule | Mechanics | Knob-less; an SDK guarantee                                                         |
+| The store (in-memory / distributed)                                     | Policy    | Override the `cache` extension point (`SezzleeCache`)                               |
+| When the invalidation signal arrives                                    | Policy    | The host's business; the SDK provides only the `SezzleeCacheInvalidator` surface    |
 
-## Relationship to `Identity.Project`
+## Relationship to `identity.projector`
 
-What [visibility.md](visibility.md) once described as "disable the cache" is now an invalidation problem: if `Identity.Project` derives a value from something other than the outer request (a clock, a counter, a database), that variable does not appear in the carrier digest and `CallerScope.Key` does not track it. The correct fix is not disabling the cache but writing an `ICallerScopeResolver` that folds that source into the digest too — wrapping `DigestInput` and adding one more line is enough.
+What [visibility.md](visibility.md) once described as "disable the cache" is now an invalidation problem: if `identity.projector` derives a value from something other than the outer request (a clock, a counter, a database), that variable does not appear in the carrier digest and `CallerScope.key` does not track it. The correct fix is not disabling the cache but writing an `CallerScopeResolver` that folds that source into the digest too — wrapping `digestInput` and adding one more line is enough.

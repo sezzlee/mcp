@@ -38,8 +38,6 @@ function loadSettingFailures(
 }
 
 /**
- * Mirrors the ASP.NET `SezzleeOptionsValidator` so the two surfaces can be audited side by side.
- *
  * @param options the configured options
  * @returns one message per invalid setting, empty when the configuration is usable
  */

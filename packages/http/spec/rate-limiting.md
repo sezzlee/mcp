@@ -1,6 +1,6 @@
 # Rate Limiting
 
-> Status: **normative** — two implementations (ASP.NET `System.Threading.RateLimiting`, NestJS built-in limiters); no fixture corpus, the behaviour is pinned by each SDK's tests.
+> Status: **normative** — implemented by the NestJS SDK's built-in limiters; no fixture corpus, the behaviour is pinned by the SDK's tests.
 
 Defines how an embedded SDK limits the meta-tool calls one caller makes. The shape of a refusal is owned by [error-mapping.md](error-mapping.md); the machine-readable counterpart is [schemas/invoke-result.schema.json](schemas/invoke-result.schema.json).
 

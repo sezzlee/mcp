@@ -193,10 +193,9 @@ function syntheticDocuments(seed: number, count: number): SearchDocument[] {
 
 /**
  * Guard: these two rules cannot be expressed as `search` fixtures without the fixture asserting a
- * negative that a runner ignoring `input.tags` would also satisfy, so they are pinned here and by
- * the paired cases in sdks/dotnet/tests/Sezzlee.Tests/TagFilterTests.cs. Folding is what the two
- * SDKs historically diverged on; a trim would diverge again, because JavaScript's
- * `String.prototype.trim` strips U+FEFF and .NET's `string.Trim` does not.
+ * negative that a runner ignoring `input.tags` would also satisfy, so they are pinned here. A trim
+ * would make the filter depend on what a runtime calls whitespace: JavaScript's
+ * `String.prototype.trim` strips U+FEFF and many others do not.
  */
 describe("ToolIndex tag filter", () => {
   const documents: readonly SearchDocument[] = [

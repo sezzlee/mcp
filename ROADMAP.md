@@ -26,12 +26,10 @@ spec, a guard comment or the package README.
   ([openapi-ingestion.md](packages/http/spec/openapi-ingestion.md), pipeline step 3). A defect in a
   part nothing reads produces no diagnostic. Validate against the version's own meta-schema, still
   warning by default and fatal under `strict`.
-- **A wider parity test.** `packages/servers/openapi-mcp/test/parity.spec.ts` compares argument
-  name, location, required-ness and body media type between the SDK catalog and the document
-  catalog of the .NET test controllers, and rebuilds the SDK's tools from the document its
-  `x-sezzlee` extensions annotate, comparing names, argument names and hints; the NestJS SDK runs
-  the same rebuild in `sdks/nestjs/test/openapi-extension.spec.ts`. It does not compare
-  argument schemas, and it does not yet run against a real backend that embeds the SDK.
+- **A wider OpenAPI rebuild test.** `sdks/nestjs/test/openapi-extension.spec.ts` rebuilds the
+  SDK's tools from the document its `x-sezzlee` extensions annotate, comparing names, argument names
+  and hints. It does not compare argument schemas, and it does not yet run against a real backend
+  that embeds the SDK.
 - **Host-supplied descriptions and tags in `x-sezzlee`.** The SDKs publish a selection-source row's
   name and search terms and every selection decision, but not a description or tags that come from
   `options.Description` / `options.description`, the endpoint hooks or a selection-source row: the
@@ -42,7 +40,7 @@ spec, a guard comment or the package README.
   between security alternatives have no tests.
 - **A login credential source.** Listed under "Not specified" in
   [credentials.md](packages/http/spec/credentials.md).
-- **A route-normalisation conformance corpus.** Each SDK pins its own route folding with unit tests
+- **A route-normalisation conformance corpus.** The NestJS SDK pins its route folding with unit tests
   ([selection-hierarchy.md](packages/http/spec/selection-hierarchy.md), Known limits).
 - **Per-caller family membership.** Members are global: a caller who may not run a method still
   sees it. Filtering members per caller needs a caller-dependent published schema, which the catalog
@@ -50,14 +48,6 @@ spec, a guard comment or the package README.
   ([argument-curation.md](packages/http/spec/argument-curation.md), out of scope).
 - **A dispatch key in the body.** A family dispatches on a path, query, header or cookie parameter.
   A JSON-RPC-style `{"method": ..., "params": ...}` body is not covered.
-- **Variant and family selection parity.** `@McpVariant` and `@McpToolFamily` imply selection on
-  NestJS; `[McpToolVariant]` and `[McpToolFamily]` do not on ASP.NET Core, which still needs
-  `[McpTool]`.
-- **Build-time `unknown_fill_source` on ASP.NET Core.** The spec checks a deferred fill's source at
-  tool production ([argument-curation.md](packages/http/spec/argument-curation.md)); the ASP.NET SDK
-  skips a missing provider at invoke time instead.
-- **Member bodies on `[McpToolVariant]`.** A NestJS `@McpVariant` can carry a family member's body,
-  so a fixed family needs no source; on ASP.NET Core a member with its own body comes from a source.
 
 ## Source servers
 

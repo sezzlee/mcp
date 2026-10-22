@@ -1,7 +1,7 @@
 # Meta-tool contract
 
-`tools/list` returns exactly three tools, whatever the catalog contains. The two SDKs publish the
-same argument names, types and defaults. The key order of a published schema, and the dialect
+`tools/list` returns exactly three tools, whatever the catalog contains. Their argument names, types
+and defaults are the contract. The key order of a published schema, and the dialect
 decoration a generator writes around it — a `$schema` keyword, the numeric bounds of an integer —
 are framework detail, not contract.
 
@@ -74,9 +74,7 @@ nothing, and a tag nobody carries returns nothing rather than everything. Unlike
 is not clamped: dropping a tag would widen the answer, so a clamp would return operations the
 caller did not ask for.
 
-Its `default` is `null` rather than `[]` in both SDKs. A C# parameter default has to be a
-compile-time constant and `null` is the only one an array type has, so the NestJS shape publishes
-the same `null` to keep the two schemas identical; both mean "no filter".
+Its `default` is `null` rather than `[]`; both mean "no filter".
 
 The result is a total and a list of compact cards:
 
@@ -263,7 +261,7 @@ There is no `structuredContent` and no multi-block result. `isError` is `true` o
 
 The transport is Streamable HTTP and there are no sessions: protocol revision `2026-07-28` removed
 them along with the `Mcp-Session-Id` header, so every request is served on its own and `GET` and
-`DELETE` are answered with `405`. There is no session-mode option on either SDK.
+`DELETE` are answered with `405`. There is no session-mode option.
 
 A 2025-era client is still served, per request, through the same endpoint. What it does not get is a
 server-to-client channel: catalogue changes reach a `2026-07-28` client that opened a

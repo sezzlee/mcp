@@ -4,17 +4,7 @@ Your DTO was written for HTTP clients, so handed to an agent unchanged it expose
 
 ## Rename and re-describe
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-[HttpGet("orders")]
-[McpTool(Description = "Search orders by keyword.")]
-[McpArgument("q", Name = "keyword", Description = "Free-text search over item names.")]
-[McpArgument("lim", Name = "max_results")]
-public IActionResult List([FromQuery] ListOrdersQuery query) => ...;
-```
-
-```ts title="NestJS"
+```ts
 @Get("orders")
 @McpTool({
   description: "Search orders by keyword.",
@@ -26,11 +16,9 @@ public IActionResult List([FromQuery] ListOrdersQuery query) => ...;
 list(@Query() query: ListOrdersQuery) { ... }
 ```
 
-:::
-
 The agent now sends `keyword` and `max_results`. The request still goes out as `?q=…&lim=…`. Curation changes what the agent sends, never what reaches your backend. Sending the old name is an `unknown_argument` error, so the agent cannot route around the rename.
 
-On NestJS, `curate<T>()` is optional. With it, a name that is not a key of your DTO fails to compile.
+`curate<T>()` is optional. With it, a name that is not a key of your DTO fails to compile.
 
 ## Hide an argument
 
@@ -42,15 +30,7 @@ There are three ways, and the difference matters.
 | A value from the caller's token    | a named provider |
 | The backend's own default to stand | omit it          |
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-[McpArgument("tenantId", Hidden = true, ValueFrom = "tenant")]
-[McpArgument("fq", Hidden = true, Value = "status:active")]
-[McpArgument("includeDeleted", Hidden = true)]
-```
-
-```ts title="NestJS"
+```ts
 arguments: curate<ListOrdersQuery>({
   tenantId: hidden.from("tenant"),
   fq: hidden.value("status:active"),
@@ -58,29 +38,15 @@ arguments: curate<ListOrdersQuery>({
 });
 ```
 
-:::
-
 A constant overrides whatever default your backend would apply. Omitting sends nothing at all. A required argument cannot be omitted, because the backend would reject every call. That is a startup error.
 
 Register a provider once, and every endpoint that names the source uses it:
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-builder.Services.AddSezzlee(options =>
-{
-    options.Arguments.Provide("tenant", (caller, _) =>
-        ValueTask.FromResult<JsonNode?>(JsonValue.Create(caller.Claim("tenant_id"))));
-});
-```
-
-```ts title="NestJS"
+```ts
 SezzleeModule.forRoot((options) => {
   options.arguments.provide("tenant", (caller) => caller.claim("tenant_id"));
 });
 ```
-
-:::
 
 A source with no registered provider is a startup error. This is not a security boundary. Filling `tenantId` from a verified token does not isolate tenants, and your backend's own authorization still decides.
 
@@ -94,17 +60,7 @@ Hiding `tenantId` makes a description that says "filter by tenant and status" a 
 
 When one endpoint serves two jobs, declare a variant per job. Each variant names and describes itself.
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-[McpToolVariant("list_open_orders", "Lists orders that are still open.")]
-[McpArgument("status", Hidden = true, Value = "open", Variant = "list_open_orders")]
-[McpToolVariant("list_archived_orders", "Lists archived orders.")]
-[McpArgument("status", Hidden = true, Value = "archived", Variant = "list_archived_orders")]
-public IActionResult Search([FromQuery] SearchQuery query) => ...;
-```
-
-```ts title="NestJS"
+```ts
 @McpVariant({
   name: "list_open_orders",
   description: "Lists orders that are still open.",
@@ -118,36 +74,23 @@ public IActionResult Search([FromQuery] SearchQuery query) => ...;
 search(@Query() query: SearchQuery) { ... }
 ```
 
-:::
-
 A method that declares variants produces only its variants. Variant names are absolute, so a collision is fatal at startup. Variants share the endpoint's authorization, so a narrow variant is not a narrower permission. Make the first clause of each description different, because the search card truncates at 160 characters. When the variants come from data, declare a family: [Expose a dispatching endpoint as one tool per method](/docs/http-catalog/expose-a-dispatching-endpoint-as-one-tool-per-method).
 
 ## Keep a query DTO grouped
 
-By default a whole-object query binding is flattened, so `ListOrdersQuery { Status, Min }` reaches the agent as two top-level arguments. To keep the DTO as one argument:
+By default a whole-object query binding is flattened, so `ListOrdersQuery { status, min }` reaches the agent as two top-level arguments. To keep the DTO as one argument:
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-builder.Services.AddSezzlee(options =>
-{
-    options.Query.Grouping = QueryObjectGrouping.Group;
-});
-```
-
-```ts title="NestJS"
+```ts
 SezzleeModule.forRoot((options) => {
   options.query.grouping = "group";
 });
 ```
 
-:::
-
 The agent then sends `{"filter": {"status": "open", "min": 3}}`. Three things to know first:
 
-- It rewrites `inputSchema`, so an agent's saved plan breaks. It also renames the namespace curation is keyed by, and an `[McpArgument]` that pointed at a flattened leaf reports `curation_unresolved`.
-- NestJS needs Express's extended query parser. Call `app.set('query parser', 'extended')`, or the first `search_tools` call fails with `query_parser_not_extended`.
-- On NestJS only a named binding groups. `@Query('filter') dto: FilterDto` groups and `@Query() dto: FilterDto` does not.
+- It rewrites `inputSchema`, so an agent's saved plan breaks. It also renames the namespace curation is keyed by, and a curated argument that pointed at a flattened leaf reports `curation_unresolved`.
+- Express needs its extended query parser. Call `app.set('query parser', 'extended')`, or the first `search_tools` call fails with `query_parser_not_extended`.
+- Only a named binding groups. `@Query('filter') dto: FilterDto` groups and `@Query() dto: FilterDto` does not.
 
 :::details[Why a deep DTO is not cut off]
 

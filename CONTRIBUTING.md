@@ -2,7 +2,7 @@
 
 ## Setup
 
-Node.js 24+, pnpm 11 (`corepack enable`), and the .NET 8 or 10 SDK for `sdks/dotnet`.
+Node.js 24+ and pnpm 11 (`corepack enable`).
 
 ```bash
 pnpm install
@@ -23,7 +23,7 @@ pnpm check-types
 | `packages/adapters`  | Pluggable implementations of a server's ports (OCR, rasterizing)         |
 | `packages/toolchain` | Shared oxlint and TypeScript configuration                               |
 | `packages/lab`       | Evidence harnesses; no shipping surface                                  |
-| `sdks/`              | The ASP.NET Core and NestJS SDKs                                         |
+| `sdks/`              | The NestJS SDK                                                           |
 | `apps/docs`          | The documentation site                                                   |
 
 Package names are flat (`@sezzlee/excel-mcp`), so `--filter` never mentions a folder. The boundaries
@@ -36,7 +36,6 @@ Run tests through Turbo, so dependencies are built first:
 
 ```bash
 pnpm turbo run test --filter=@sezzlee/excel-mcp
-pnpm turbo run test --filter=@sezzlee/sdk-dotnet     # net8.0 + net10.0
 ```
 
 `pnpm --filter <pkg> test` skips `dependsOn: ["^build"]` and can test against a stale `dist`.
@@ -47,8 +46,8 @@ Prefer a single file or name filter while iterating — the full suite is large.
 - **Lint is a gate.** Every package runs `oxlint --deny-warnings`. Layering rules — which folder may
   import what, which package may reach the network or the filesystem — are lint rules.
 - **Spec types are generated.** Change a schema in `packages/http/spec/schemas`, then run
-  `pnpm turbo run gen`. `packages/http/core/src/generated/` and
-  `sdks/dotnet/src/Sezzlee.AspNetCore/Generated/` are committed and never edited by hand.
+  `pnpm turbo run gen`. `packages/http/core/src/generated/` is committed and never edited by
+  hand.
 - **A spec change moves a fixture.** If a schema or rule change breaks fixtures, update them in the
   same change; a rule that no fixture pins has not been made.
 - **No silent resolution.** A name collision, an unknown argument or an unrepresentable construct is
@@ -57,8 +56,7 @@ Prefer a single file or name filter while iterating — the full suite is large.
 
 ## Comments
 
-Most code carries no comments. A comment is written only as a JSDoc/TSDoc block (`/** */`, or
-`///` in C#), and only to state **why** where the code is protecting an invariant, a security
+Most code carries no comments. A comment is written only as a JSDoc/TSDoc block (`/** */`), and only to state **why** where the code is protecting an invariant, a security
 property or a measured trap — what the guard is and what breaks without it. No `//` line comments,
 no TODOs, no history. Measurements that justify a limit live in the guard comment next to it.
 

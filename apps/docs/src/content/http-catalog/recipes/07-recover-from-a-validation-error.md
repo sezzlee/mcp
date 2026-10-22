@@ -72,7 +72,8 @@ Branch on `retryable`, which sezzlee sets from the mapped status. Only `408`, `4
 The example client ships this loop as a scenario. It generates invalid arguments from the loaded schema, asserts the envelope, repairs using only `fields` and calls again:
 
 ```sh
-node sdks/nestjs/samples/agent-client/dist/main.js --scenario validation-retry
+SEZZLEE_BASE_URL=http://127.0.0.1:3000 SEZZLEE_AUTH=token SEZZLEE_USER=alice \
+  node sdks/nestjs/samples/agent-client/dist/main.js --scenario validation-retry
 ```
 
 It exits `0` when the repaired call returns a `2xx` and `1` if any assertion fails. That includes its check that no error message leaked a stack frame, a file path or a connection string.

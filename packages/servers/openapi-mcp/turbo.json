@@ -9,8 +9,7 @@
       "dependsOn": ["build"],
       "passThroughEnv": [
         "SEZZLEE_OPENAPI_CONFIG",
-        "SEZZLEE_OPENAPI_ACCEPTANCE_DOC",
-        "SEZZLEE_PARITY_DIR"
+        "SEZZLEE_OPENAPI_ACCEPTANCE_DOC"
       ]
     },
     "dev": {

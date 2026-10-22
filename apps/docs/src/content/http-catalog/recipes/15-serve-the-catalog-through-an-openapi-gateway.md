@@ -1,117 +1,34 @@
 # Serve the catalog through an OpenAPI gateway
 
-Publish the tools your attributes or decorators declare as `x-sezzlee` extensions in your OpenAPI
-document, and `@sezzlee/openapi-mcp` rebuilds the same catalog from it: the same names, hints,
-hidden arguments, variants and family members. A backend whose document you cannot change gets the
-same result from the gateway's configuration.
+Publish the tools your decorators declare as `x-sezzlee` extensions in your OpenAPI document, and
+`@sezzlee/openapi-mcp` rebuilds the same catalog from it: the same names, hints, hidden arguments,
+variants and family members. A backend whose document you cannot change gets the same result from
+the gateway's configuration.
 
 ## Write the extensions into the document
 
-Each SDK describes its current catalog as one `x-sezzlee` value per operation, keyed by
-`METHOD /path`, and you write those values into the document your framework generates:
+`SezzleeCatalog` describes its current catalog as one `x-sezzlee` value per operation, keyed by
+`METHOD /path`, and `annotateOpenApiDocument` writes those values into the document
+`@nestjs/swagger` builds:
 
-:::tabs
+```ts
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import { annotateOpenApiDocument, SezzleeCatalog } from "@sezzlee/sdk-nestjs";
 
-```csharp title="ASP.NET Core (.NET 10 OpenAPI)"
-builder.Services.AddOpenApi("sezzlee", options => options.AddDocumentTransformer((document, context, _) =>
-{
-    SezzleeOpenApiSnapshot sezzlee =
-        context.ApplicationServices.GetRequiredService<SezzleeOpenApiExtensions>().Current;
-    foreach ((string path, IOpenApiPathItem item) in document.Paths)
-    {
-        foreach ((HttpMethod method, OpenApiOperation operation) in item.Operations ?? [])
-        {
-            if (sezzlee.Operations.TryGetValue($"{method.Method} {path}", out JsonObject? extension))
-            {
-                operation.Extensions ??= new Dictionary<string, IOpenApiExtension>();
-                operation.Extensions[SezzleeOpenApiSnapshot.Key] = new JsonNodeExtension(extension.DeepClone());
-            }
-        }
-    }
-    return Task.CompletedTask;
-}));
-```
-
-```csharp title="ASP.NET Core (Swashbuckle 6)"
-builder.Services.AddSwaggerGen(options => options.DocumentFilter<SezzleeDocumentFilter>());
-
-public sealed class SezzleeDocumentFilter(SezzleeOpenApiExtensions sezzlee) : IDocumentFilter
-{
-    public void Apply(OpenApiDocument document, DocumentFilterContext context)
-    {
-        SezzleeOpenApiSnapshot current = sezzlee.Current;
-        foreach ((string path, OpenApiPathItem item) in document.Paths)
-        {
-            foreach ((OperationType type, OpenApiOperation operation) in item.Operations)
-            {
-                if (current.Operations.TryGetValue($"{type.ToString().ToUpperInvariant()} {path}", out JsonObject? extension))
-                {
-                    operation.Extensions[SezzleeOpenApiSnapshot.Key] = SezzleeOpenApiAny.From(extension);
-                }
-            }
-        }
-    }
-}
-
-public static class SezzleeOpenApiAny
-{
-    public static IOpenApiAny From(JsonNode? node) => node switch
-    {
-        JsonObject json => json.Aggregate(new OpenApiObject(), (target, member) =>
-        {
-            target[member.Key] = From(member.Value);
-            return target;
-        }),
-        JsonArray json => json.Aggregate(new OpenApiArray(), (target, item) =>
-        {
-            target.Add(From(item));
-            return target;
-        }),
-        JsonValue value when value.TryGetValue(out bool flag) => new OpenApiBoolean(flag),
-        JsonValue value when value.TryGetValue(out long number) => new OpenApiLong(number),
-        JsonValue value when value.TryGetValue(out double number) => new OpenApiDouble(number),
-        JsonValue value => new OpenApiString(value.GetValue<string>()),
-        null => new OpenApiNull(),
-    };
-}
-```
-
-```ts title="NestJS"
 const document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
 annotateOpenApiDocument(document, app.get(SezzleeCatalog).openApiExtensions());
+SwaggerModule.setup("openapi", app, document);
 ```
 
-:::
-
-Swashbuckle 6 builds on Microsoft.OpenApi 1, whose extension values are `IOpenApiAny` trees rather
-than JSON, so its filter converts each value first.
-
-This action, curated with the attributes from
-[Curate the arguments an agent sees](/docs/http-catalog/curate-the-arguments-an-agent-sees):
-
-```csharp
-[HttpGet("orders/{orderId}")]
-[McpTool(Name = "read_parity_order", ReadOnly = true)]
-[McpArgument("orderId", Name = "id", Description = "The order number.")]
-[McpArgument("tenant", Hidden = true, Value = "acme")]
-public IActionResult Read(int orderId, [FromQuery] string? tenant, [FromQuery] bool? verbose) => Ok();
-```
-
-is published with this extension:
+In the NestJS sample, `GET /orders/:id` is published with this extension:
 
 ```json
-{
-  "tool": true,
-  "toolName": "read_parity_order",
-  "annotations": { "readOnlyHint": true },
-  "arguments": [
-    { "name": "orderId", "as": "id", "description": "The order number." },
-    { "name": "tenant", "hidden": { "kind": "constant", "value": "acme" } }
-  ]
-}
+{"tool": true, "toolName": "get_order"}
 ```
 
-A family is published with its members, each carrying its dispatch key:
+A curated operation also carries its renamed, re-described and hidden arguments, from
+[Curate the arguments an agent sees](/docs/http-catalog/curate-the-arguments-an-agent-sees). A family
+is published with its members, each carrying its dispatch key:
 
 ```json
 {
@@ -119,20 +36,84 @@ A family is published with its members, each carrying its dispatch key:
   "family": {
     "parameter": "methodId",
     "members": [
-      { "key": "alpha", "name": "parity_run_alpha", "description": "Runs the alpha method." },
-      { "key": "beta", "name": "parity_run_beta", "description": "Runs the beta method." }
+      {
+        "key": "3f2c9a1e-8b4d-4c6a-9e21-7d5b0c4a1f10",
+        "name": "list_customer_balances",
+        "description": "Lists customer balances, optionally above a minimum.",
+        "requestBody": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "minBalance": {
+                "type": "number",
+                "description": "Lowest balance to include."
+              }
+            }
+          }
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "key": "b27e5d04-61a3-4f8e-a0c9-2e8d7f13b5a6",
+        "name": "list_delayed_orders",
+        "description": "Lists orders delivered later than promised.",
+        "requestBody": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "days": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "days"
+            ]
+          }
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "key": "e91b3c7f-0d2a-48e5-b6f4-5a1c9d8e2b07",
+        "name": "assign_courier",
+        "description": "Assigns a courier to an order.",
+        "requestBody": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "orderNumber": {
+                "type": "string"
+              },
+              "courierCode": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "orderNumber",
+              "courierCode"
+            ]
+          }
+        },
+        "annotations": {
+          "destructiveHint": true
+        }
+      }
     ]
   }
 }
 ```
 
-The mapping from each attribute to its field is in the
+The mapping from each declaration to its field is in the
 [OpenAPI ingestion spec](https://github.com/sezzlee/mcp/blob/main/packages/http/spec/openapi-ingestion.md#the-x-sezzlee-extension).
 
 :::details[Why every published operation names its tool]
 
-A generator writes no `operationId` for most actions. Left to derive a name, the gateway would read
-the route where the SDK read the action, and `alpha_one` would become `get_host_alpha_one`. The
+A generator writes no `operationId` for most handlers. Left to derive a name, the gateway would read
+the route where the SDK read the handler, and `alpha_one` would become `get_host_alpha_one`. The
 extension therefore carries the name the SDK published, prefix included, and the gateway uses it as
 is.
 
@@ -142,7 +123,7 @@ is.
 
 ```json
 {
-  "source": "http://127.0.0.1:5178/openapi/sezzlee.json",
+  "source": "http://127.0.0.1:3000/openapi-json",
   "reload": { "intervalSeconds": 30 },
   "selection": { "default": "exclude" }
 }
@@ -151,12 +132,12 @@ is.
 Every operation the SDK knows of carries `tool: true` or `tool: false`, so the gateway publishes
 exactly what the SDK publishes, a refused family included. Keep `selection.default` at `exclude`: an
 operation outside the SDK's discovery carries no marker, and the default decides it. Each read of
-the document reflects the latest catalog, so members from `Families.Provide` reach the gateway on
+the document reflects the latest catalog, so members from `families.provide` reach the gateway on
 its next reload.
 
 :::details[What does not travel]
 
-A gateway registers no value providers, so an argument hidden with `ValueFrom` arrives as a
+A gateway registers no value providers, so an argument hidden with `hidden.from(...)` arrives as a
 `deferred` fill that the gateway refuses with `unknown_fill_source`. Only constants and omitted
 values travel. Visibility does not travel either: a document says which credential a call needs,
 never which caller may make it, so the gateway shows every tool with `authUncertain`.
@@ -197,12 +178,9 @@ to hide.
 
 :::details[Where these examples come from]
 
-The .NET 10 transformer and both extensions are the .NET SDK's parity test
-(`sdks/dotnet/tests/Sezzlee.Tests/OpenApiParityDump.cs`), whose output
-`packages/servers/openapi-mcp/test/parity.spec.ts` rebuilds through the gateway. The NestJS lines are
-`sdks/nestjs/test/openapi-extension.spec.ts`, which runs the same rebuild. The Swashbuckle filter was
-run on .NET 8 with Swashbuckle.AspNetCore 6.5.0 against a family and a curated action, and the
-gateway published the same tools from its document; that run is not part of the repository's tests.
-The `operations` block is the conformance fixture `config-operations-overlay-document.json`.
+Both extensions are the NestJS sample's own catalog, printed with `openApiExtensions()`.
+`sdks/nestjs/test/openapi-extension.spec.ts` annotates a `@nestjs/swagger` document the same way and
+checks that the gateway rebuilds every tool from it. The `operations` block is the conformance
+fixture `config-operations-overlay-document.json`.
 
 :::

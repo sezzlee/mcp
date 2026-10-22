@@ -6,15 +6,15 @@ spreadsheets, PDF and XML documents — into tools an AI agent can find and call
 
 It comes in two shapes:
 
-- **The HTTP catalog** embeds in an ASP.NET Core or NestJS backend. It exposes your endpoints as a
+- **The HTTP catalog** embeds in a NestJS backend. It exposes your endpoints as a
   search-first tool catalog and replays every agent call through your backend's **own request
   pipeline**, so your authentication, authorization and validation apply unchanged. For a backend
   on any other stack, an OpenAPI gateway builds the same catalog from its document.
 - **Source servers** are standalone, read-only MCP servers for local files: Excel, XML and PDF,
   plus a server that hands bounded language work to a local model.
 
-> **Status:** early. Every package below is on npm or NuGet; APIs may still change. The spec, the
-> fixture corpus and both SDKs are tested in CI.
+> **Status:** early. Every package below is on npm; APIs may still change. The spec, the fixture
+> corpus and the NestJS SDK are tested in CI.
 
 ## Why
 
@@ -34,18 +34,17 @@ The longer argument is on the docs site:
 
 ## Quick start
 
-Pick what you need. The servers need Node.js 22+; the ASP.NET Core SDK targets .NET 8 and 10.
+Pick what you need. The servers need Node.js 22+.
 
-| I want to…                                  | Install                                 | Start here                                                   |
-| ------------------------------------------- | --------------------------------------- | ------------------------------------------------------------ |
-| Expose an ASP.NET Core API to agents        | `dotnet add package Sezzlee.AspNetCore` | [sdks/dotnet](sdks/dotnet/README.md)                         |
-| Expose a NestJS API to agents               | `npm install @sezzlee/sdk-nestjs`       | [sdks/nestjs](sdks/nestjs/README.md)                         |
-| Expose any backend that has an OpenAPI file | `npx -y @sezzlee/openapi-mcp`           | [packages/servers/openapi-mcp](packages/servers/openapi-mcp) |
-| Let an agent read Excel workbooks           | `npx -y @sezzlee/excel-mcp`             | [packages/servers/excel-mcp](packages/servers/excel-mcp)     |
-| Let an agent read XML documents             | `npx -y @sezzlee/xml-mcp`               | [packages/servers/xml-mcp](packages/servers/xml-mcp)         |
-| Let an agent read PDF documents             | `npx -y @sezzlee/pdf-mcp`               | [packages/servers/pdf-mcp](packages/servers/pdf-mcp)         |
-| Hand bounded text work to a local model     | `npx -y @sezzlee/llm-mcp`               | [packages/servers/llm-mcp](packages/servers/llm-mcp)         |
-| Build my own read-only MCP server           | `npm install @sezzlee/mcp-core`         | [packages/cores/mcp-core](packages/cores/mcp-core)           |
+| I want to…                                  | Install                           | Start here                                                   |
+| ------------------------------------------- | --------------------------------- | ------------------------------------------------------------ |
+| Expose a NestJS API to agents               | `npm install @sezzlee/sdk-nestjs` | [sdks/nestjs](sdks/nestjs/README.md)                         |
+| Expose any backend that has an OpenAPI file | `npx -y @sezzlee/openapi-mcp`     | [packages/servers/openapi-mcp](packages/servers/openapi-mcp) |
+| Let an agent read Excel workbooks           | `npx -y @sezzlee/excel-mcp`       | [packages/servers/excel-mcp](packages/servers/excel-mcp)     |
+| Let an agent read XML documents             | `npx -y @sezzlee/xml-mcp`         | [packages/servers/xml-mcp](packages/servers/xml-mcp)         |
+| Let an agent read PDF documents             | `npx -y @sezzlee/pdf-mcp`         | [packages/servers/pdf-mcp](packages/servers/pdf-mcp)         |
+| Hand bounded text work to a local model     | `npx -y @sezzlee/llm-mcp`         | [packages/servers/llm-mcp](packages/servers/llm-mcp)         |
+| Build my own read-only MCP server           | `npm install @sezzlee/mcp-core`   | [packages/cores/mcp-core](packages/cores/mcp-core)           |
 
 Each package README has its own quick start, configuration and limits. To build from source, see
 [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -54,17 +53,14 @@ Each package README has its own quick start, configuration and limits. To build 
 
 ### HTTP catalog
 
-| Package                                                                                | What it is                                                            | Status    |
-| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------- |
-| [Sezzlee.AspNetCore](sdks/dotnet)                                                      | ASP.NET Core SDK                                                      | stable    |
-| [Sezzlee.AspNetCore.NewtonsoftJson](sdks/dotnet/src/Sezzlee.AspNetCore.NewtonsoftJson) | Newtonsoft.Json adapter for the ASP.NET Core SDK                      | stable    |
-| [Sezzlee.AspNetCore.Testing](sdks/dotnet/src/Sezzlee.AspNetCore.Testing)               | Test helper: audits per-caller visibility against the real pipeline   | stable    |
-| [@sezzlee/sdk-nestjs](sdks/nestjs)                                                     | NestJS SDK                                                            | stable    |
-| [@sezzlee/openapi-mcp](packages/servers/openapi-mcp)                                   | Gateway: an OpenAPI document as a catalog over a remote backend       | stable    |
-| [@sezzlee/openapi](packages/http/openapi)                                              | Swagger 2.0 / OpenAPI 3.0–3.2 ingestion                               | stable    |
-| [@sezzlee/core](packages/http/core)                                                    | TypeScript reference implementation of the spec                       | stable    |
-| [spec](packages/http/spec)                                                             | The normative spec and JSON Schemas — the single source of truth      | normative |
-| [conformance](packages/http/conformance)                                               | 480 JSON fixtures across 11 kinds that every implementation must pass | —         |
+| Package                                              | What it is                                                            | Status    |
+| ---------------------------------------------------- | --------------------------------------------------------------------- | --------- |
+| [@sezzlee/sdk-nestjs](sdks/nestjs)                   | NestJS SDK                                                            | stable    |
+| [@sezzlee/openapi-mcp](packages/servers/openapi-mcp) | Gateway: an OpenAPI document as a catalog over a remote backend       | stable    |
+| [@sezzlee/openapi](packages/http/openapi)            | Swagger 2.0 / OpenAPI 3.0–3.2 ingestion                               | stable    |
+| [@sezzlee/core](packages/http/core)                  | TypeScript reference implementation of the spec                       | stable    |
+| [spec](packages/http/spec)                           | The normative spec and JSON Schemas — the single source of truth      | normative |
+| [conformance](packages/http/conformance)             | 480 JSON fixtures across 11 kinds that every implementation must pass | —         |
 
 ### Source servers and their cores
 
@@ -101,8 +97,8 @@ Every package is published from CI with npm provenance; the tarballs are checked
    operation, its controller or the whole catalog.
 
 The rules for each step are in the [spec](packages/http/spec/README.md), and the
-[conformance corpus](packages/http/conformance) pins them so the TypeScript and C#
-implementations cannot drift apart.
+[conformance corpus](packages/http/conformance) pins them so the reference
+implementation and the NestJS SDK cannot drift apart.
 
 ## Documentation
 

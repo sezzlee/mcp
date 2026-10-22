@@ -21,7 +21,7 @@
     "id": "http-catalog",
     "label": "HTTP Catalog",
     "goal": "Your own API",
-    "tagline": "The ASP.NET Core and NestJS SDKs that turn an existing backend's endpoints into a searchable agent tool catalog."
+    "tagline": "The NestJS SDK that turns an existing backend's endpoints into a searchable agent tool catalog."
   },
   {
     "id": "llm-mcp",

@@ -3,81 +3,9 @@
 Signatures only: what you call, what it returns, and where the options themselves are defined.
 There are no output examples on this page by design — nothing here produces output.
 
-Verified against `Sezzlee.AspNetCore` `1.0.0` and `@sezzlee/sdk-nestjs` `1.0.0`. This surface has no generator, so it is hand-maintained and may lag a release.
+Verified against `@sezzlee/sdk-nestjs` `1.0.0`. This surface has no generator, so it is hand-maintained and may lag a release.
 
-## ASP.NET Core
-
-Three calls, in this order.
-
-```csharp
-IServiceCollection AddSezzlee(this IServiceCollection services, Action<SezzleeOptions>? configure = null)
-IServiceCollection AddSezzlee(this IServiceCollection services, IConfiguration configuration, Action<SezzleeOptions>? configure = null)
-IApplicationBuilder UseSezzleeCapture(this IApplicationBuilder app)
-IEndpointConventionBuilder MapSezzlee(this IEndpointRouteBuilder endpoints, string pattern = "/mcp")
-```
-
-`AddSezzlee` also registers `AddEndpointsApiExplorer()`, decorates the authorization result handler
-so probes can short-circuit, and calls `AddMcpServer().WithHttpTransport()`. Options are validated
-at startup. The `IConfiguration` overload binds `SezzleeOptions` first and runs `configure` after it;
-a key that names no option fails startup. A backend on Newtonsoft.Json adds
-`services.AddSezzleeNewtonsoftJson()` from the `Sezzlee.AspNetCore.NewtonsoftJson` package.
-
-`MapSezzlee` returns `IEndpointConventionBuilder`, which is why endpoint conventions compose:
-
-```csharp
-app.MapSezzlee("/mcp").RequireAuthorization();
-```
-
-It throws at startup if `UseSezzleeCapture()` was never registered.
-
-Selection markers:
-
-```csharp
-[McpTool]      // Name, Prefix, ReadOnly, Destructive, Idempotent, Revision
-[McpIgnore]
-interface IMcpSelectionMetadata { bool Include { get; } }
-```
-
-`IMcpSelectionMetadata` is public, so a host can attach selection through its own metadata type.
-`[McpTool(Revision = n)]` on a controller or an action, `options.Revision` and
-`options.ContainerRevision` declare behaviour revisions; see
-[shipping a behaviour change mid-deploy](/docs/http-catalog/ship-a-behaviour-change-without-breaking-agents-mid-deploy).
-`[McpTool(Consumes = "...")]` names a body media type discovery would not choose.
-
-File resolution is a service, not an option: register an `ISezzleeFileResolver` and file arguments
-offer `ref`. The budgets are `Invoke.MaxInlineFileBytes` and `Invoke.MaxFileBytes`; see
-[how to accept form bodies and file uploads](/docs/http-catalog/accept-form-and-file-uploads).
-
-Response types are read from ApiExplorer — `[ProducesResponseType(typeof(T), 200)]`, `Produces<T>()`
-or an action return type MVC can infer — so there is no `[McpTool]` field for them. NestJS has no
-ApiExplorer equivalent and needs the `responses` option above; see
-[telling the agent what a tool returns](/docs/http-catalog/tell-the-agent-what-a-tool-returns).
-
-Curation markers:
-
-```csharp
-[McpArgument("q", Name = "keyword", Description = "...")]   // rename, re-describe
-[McpArgument("tenantId", Hidden = true, ValueFrom = "...")] // hide: provider, Value, or ValueJson
-[McpToolVariant("name", "description")]                     // one of several tools per operation
-[McpToolFamily("methodId", Source = "...")]                 // one tool per method behind a dispatcher
-```
-
-`options.Families.Provide(name, source)` registers a family's member source;
-`Families.LoadTimeout`, `LoadMode`, `RefreshInterval` and `OnFailure` govern its loads.
-`options.Description` describes an endpoint below `[McpTool(Description = ...)]`; see
-[how to expose a dispatching endpoint as one tool per method](/docs/http-catalog/expose-a-dispatching-endpoint-as-one-tool-per-method).
-
-`McpArgumentAttribute` also targets a parameter or a DTO property, where the member names the
-argument. At most one of `Value`, `ValueJson` and `ValueFrom` may be set, and none without
-`Hidden = true`.
-
-Option groups are thirteen properties on `SezzleeOptions` — `Identity`, `Synthetic`, `Selection`,
-`Query`, `Schema`, `Naming`, `Visibility`, `Cache`, `Errors`, `ResourceServer`, `Diagnostics`, `Arguments`, `Families`. Their fields
-and defaults are in
-[`SezzleeOptions.cs`](https://github.com/sezzlee/mcp/blob/main/sdks/dotnet/src/Sezzlee.AspNetCore/SezzleeOptions.cs);
-this page does not copy them.
-
-## NestJS
+## Module
 
 ```ts
 SezzleeModule.forRoot(
@@ -99,7 +27,7 @@ the most common miswiring in the SDK: passing an object configures nothing.
 The module is `@Global()`. When `resourceServer` is set it also installs the PRM handler and bearer
 verification on the MCP path itself.
 
-Curation on the NestJS side:
+Curation:
 
 ```ts
 McpVariant(options: McpVariantOptions): MethodDecorator
@@ -120,12 +48,11 @@ plain record without it. `options.arguments` carries `provide`, `curate`, `every
 `onFailure`; the member shape is `McpFamilyMember`. `options.description` describes an endpoint
 below `@McpTool({ description })`.
 
-`options.query.grouping` (`"flatten"` by default, `"group"` to opt in) and its ASP.NET twin
-`options.Query.Grouping` decide whether a whole-object query binding stays one argument or is
+`options.query.grouping` (`"flatten"` by default, `"group"` to opt in) decides whether a whole-object query binding stays one argument or is
 flattened into its members; see
 [curating the arguments an agent sees](/docs/http-catalog/curate-the-arguments-an-agent-sees).
 
-There is no `MapSezzlee` equivalent. You write the MCP route:
+The module maps no route. You write the MCP route:
 
 ```ts
 SezzleeStreamableHttp.handle(
@@ -174,9 +101,8 @@ interface VisibilityDeclaration {
 `options.invoke.maxFileBytes` are the budgets.
 
 Option fields and defaults are in
-[`options.ts`](https://github.com/sezzlee/mcp/blob/main/sdks/nestjs/src/options.ts).
-The two option trees are not the same shape — the NestJS tree has a `transport` group the .NET one
-does not — so read each SDK's own file rather than assuming parity.
+[`options.ts`](https://github.com/sezzlee/mcp/blob/main/sdks/nestjs/src/options.ts);
+this page does not copy them.
 
 ## Extension points
 
@@ -189,7 +115,7 @@ cache · callerScopeResolver · invokeResultMapper · visibilityEvaluator · pro
 
 `toolRanker` defaults to none, which keeps BM25. Bound, it replaces the ranking of a non-empty
 `search_tools` query; `options.search.rankerTimeoutMs` and `options.search.onRankerFailure` govern
-it. The ASP.NET Core equivalent is an `IToolRanker` registered in DI, with `options.Search`. See
+it. See
 [replacing the ranking](/docs/http-catalog/help-an-agent-find-the-right-tool#replace-the-ranking).
 
 Cache invalidation is a service, not an option:
@@ -207,14 +133,9 @@ source, next to the token definitions.
 SezzleeCatalog.reload(): Promise<void>
 ```
 
-```csharp
-ISezzleeCatalogChangeSource.ReloadAsync(CancellationToken cancellationToken = default): ValueTask
-```
-
 Rebuilds the catalog, bumps the generation counter, and fires the change listeners that re-stamp
 `_meta` and send `notifications/tools/list_changed`. See
 [meta-tool contract](/docs/http-catalog/meta-tool-contract). With no family source registered the
-NestJS rebuild has happened by the time the call returns. With one, members are loaded first,
+rebuild has happened by the time the call returns. With one, members are loaded first,
 reloads run one at a time, and a rebuild that would turn a valid catalog fatal is refused — the
-promise rejects, or the task throws, with `SezzleeCatalogError` / `SezzleeCatalogException` — and the
-current catalog is kept.
+promise rejects with `SezzleeCatalogError` — and the current catalog is kept.

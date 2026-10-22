@@ -135,7 +135,7 @@ adds a `payload` block and a `fields` list naming the arguments that narrow the 
 This list is deliberately not tabulated with meanings here. Unlike the backend codes it has no
 schema and no spec table yet — it lives in
 [`errors.ts`](https://github.com/sezzlee/mcp/blob/main/packages/http/core/src/errors.ts)
-and the SDKs' argument exceptions, and this page will not become its de facto registry. Pinning it
+and the SDK's argument errors, and this page will not become its de facto registry. Pinning it
 in the spec is open work.
 
 Argument checking happens **before** dispatch: `invoke_tool` composes the request as a dry run

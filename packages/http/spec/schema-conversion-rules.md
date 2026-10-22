@@ -1,13 +1,11 @@
 # Schema Conversion Rules
 
 > Status: **the rule layer is normative, binding is partly so.** The TypeShape → JSON Schema rules
-> are validated by two independent implementations (ASP.NET `SchemaWriter` + TS `simplifySchema`),
-> and the [conformance/schema-simplification/](../conformance/schema-simplification/) corpus pins
-> both byte for byte. The binding layer has **two** implementations (CLR reflection and Nest
-> decorator metadata), but the "source" columns in the tables below list only the C# side; the Nest
-> counterparts were not carried into the tables. Binding cannot, by definition, be tested with a
-> pure JSON fixture; it is tested
-> by each SDK's own host tests.
+> are implemented by TS `simplifySchema`, and the
+> [conformance/schema-simplification/](../conformance/schema-simplification/) corpus pins them byte
+> for byte. The binding layer is the NestJS SDK's decorator metadata reader; the "source" columns
+> in the tables below list its inputs. Binding cannot, by definition, be tested with a pure JSON
+> fixture; it is tested by the SDK's own host tests.
 
 Defines how a body or parameter type in the backend's type system is reduced to JSON Schema. The
 pipeline is: language type → **TypeShape** → `EndpointDescriptor.requestBody.schema` →
@@ -16,14 +14,14 @@ step; this document defines the first two).
 
 Conversion has two layers, and the split is normative:
 
-- **Binding**: language-specific reflection. Its input is a CLR `Type`, a TS decorator record or a
-  host declaration. Its output is a **TypeShape** conforming to
-  [schemas/type-shape.schema.json](schemas/type-shape.schema.json). Tested by each SDK's own host
+- **Binding**: language-specific reflection. Its input is a language type (in Nest, a class's decorator
+  record) or a host declaration. Its output is a **TypeShape** conforming to
+  [schemas/type-shape.schema.json](schemas/type-shape.schema.json). Tested by the SDK's own host
   tests.
 - **Rule**: language-independent. Its input is a TypeShape and its output is JSON Schema. Every SDK
   MUST produce identical output, and the `schema-simplification` fixtures test exactly that.
 
-The boundary was placed here deliberately: you cannot hand a CLR `Type` to a pure JSON fixture, but
+The boundary was placed here deliberately: you cannot hand a language type to a pure JSON fixture, but
 you can hand it a **member list**. That made 22 of the 34 rows in Tables 1-7 fixture-able; the 12
 rows left in binding are the ones whose input genuinely is language-specific.
 
@@ -31,10 +29,10 @@ rows left in binding are the ones whose input genuinely is language-specific.
 
 A named-type table (`types`) and one root node (`root`). Objects have **no inline form**: every
 object type lives in `types` and is reached with `{"kind":"ref","ref":"<key>"}`. The `types` key is
-**stable and unique** (C#: `Type.FullName`; Nest: `<module>.<ClassName>`), while `ObjectType.name`
+**stable and unique** (Nest: `<module>.<ClassName>`), while `ObjectType.name`
 is the **simple display name** that becomes the `$defs` key. That separation makes hoisting
 deterministic and keeps `$defs` keys language-independent — using the fully qualified name would
-produce two different keys in two SDKs for the same conceptual type.
+produce two different keys in two languages for the same conceptual type.
 
 `TypeNode` is a single flat record discriminated by `kind`; which fields each node kind may and may
 not carry is tested by `pnpm validate`'s per-kind shape pass.
@@ -71,16 +69,16 @@ the endpoint silently uncallable.
 
 `ScalarKind` plus an optional `format` → schema. The source columns are binding.
 
-| Schema                                         | `ScalarKind`/`format`  | C# source                                                          |
-| ---------------------------------------------- | ---------------------- | ------------------------------------------------------------------ |
-| `{"type":"string"}`                            | `string`               | `string`, `char`, `TimeOnly`, `TimeSpan`, `Uri`                    |
-| `{"type":"boolean"}`                           | `boolean`              | `bool`                                                             |
-| `{"type":"integer"}`                           | `integer`              | `byte`, `sbyte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong` |
-| `{"type":"number"}`                            | `number`               | `float`, `double`, `decimal`                                       |
-| `{"type":"string","format":"uuid"}`            | `string` + `uuid`      | `Guid`                                                             |
-| `{"type":"string","format":"date-time"}`       | `string` + `date-time` | `DateTime`, `DateTimeOffset`                                       |
-| `{"type":"string","format":"date"}`            | `string` + `date`      | `DateOnly`                                                         |
-| `{"type":"string","contentEncoding":"base64"}` | `kind: binary`         | `byte[]`, `Memory<byte>`, `ReadOnlyMemory<byte>`                   |
+| Schema                                         | `ScalarKind`/`format`  | Nest source                                       |
+| ---------------------------------------------- | ---------------------- | ------------------------------------------------- |
+| `{"type":"string"}`                            | `string`               | `String`, `@IsString()`, `@IsEmail()`, `@IsUrl()` |
+| `{"type":"boolean"}`                           | `boolean`              | `Boolean`, `@IsBoolean()`                         |
+| `{"type":"integer"}`                           | `integer`              | `@IsInt()`                                        |
+| `{"type":"number"}`                            | `number`               | `Number`, `@IsNumber()`                           |
+| `{"type":"string","format":"uuid"}`            | `string` + `uuid`      | `@IsUUID()`                                       |
+| `{"type":"string","format":"date-time"}`       | `string` + `date-time` | `Date`, `@IsDate()`, `@IsDateString()`            |
+| `{"type":"string","format":"date"}`            | `string` + `date`      | —                                                 |
+| `{"type":"string","contentEncoding":"base64"}` | `kind: binary`         | —                                                 |
 
 Types that are absent from the scalar dictionary and are not objects either (`object`, unreadable
 members) become an `unknown` node, not an empty object.
@@ -91,9 +89,9 @@ A `verbatim` node is written by a host declaration, or by the binding layer for 
 serializer does not write the type's members. Reflecting such a type publishes an object the backend
 never accepts, so the binding layer MUST bind it to the schema its serializer actually reads.
 
-**JSON Patch documents.** In C#, `JsonPatchDocument` and `JsonPatchDocument<T>` from
-`Microsoft.AspNetCore.JsonPatch` or `Microsoft.AspNetCore.JsonPatch.SystemTextJson`, and every type
-derived from one of them, bind to a `verbatim` node carrying the RFC 6902 operation array:
+**JSON Patch documents.** A framework type for an RFC 6902 patch document, and every type derived
+from one, binds to a `verbatim` node carrying the operation array. Nest has no such type, so there
+the node comes from a host declaration:
 
 ```json
 {
@@ -134,17 +132,12 @@ derived from one of them, bind to a `verbatim` node carrying the RFC 6902 operat
 }
 ```
 
-- The type is matched by namespace and name, walking the base types, because the SDK references
-  neither package. A type of the same name in another namespace is an ordinary object.
 - A host declaration for the type still wins; the rule applies only where the host said nothing.
-- The schema does not depend on `T`. RFC 6902 paths are strings; a path the model does not have
+- The schema does not depend on the patched type. RFC 6902 paths are strings; a path the model does not have
   fails when the backend applies the patch, not when the arguments are checked.
-- ASP.NET Core's ApiExplorer reports such a body as `Operation[]` once `AddNewtonsoftJson` is
-  registered. That class has no `op` enum and types `value` as an object, so the binding layer MUST
-  read the action parameter's declared type instead.
 - The operation array is a non-object body root, so the tool takes it as the `body` argument
-  (Table 6). The media type is chosen by [request-bodies.md](request-bodies.md); a
-  `[Consumes("application/json-patch+json")]` endpoint is sent that type.
+  (Table 6). The media type is chosen by [request-bodies.md](request-bodies.md); an endpoint that
+  declares `application/json-patch+json` is sent that type.
 
 ## Table 3 — Enum wire form
 
@@ -218,23 +211,22 @@ do not enforce the second one on body fields.
 Constraints are carried in the IR under **neutral names**; the mapping to a JSON Schema keyword is a
 **rule**, because which keyword it lands on depends on the member's produced type.
 
-| IR constraint         | Produced type                               | JSON Schema                                         | C# source                                      |
-| --------------------- | ------------------------------------------- | --------------------------------------------------- | ---------------------------------------------- |
-| `required: true`      | —                                           | a `required` entry                                  | `[Required]`, the `required` modifier          |
-| `minSize` / `maxSize` | `array`                                     | `minItems` / `maxItems`                             | `[MinLength]`/`[MaxLength]` on a collection    |
-| `minSize` / `maxSize` | anything else                               | `minLength` / `maxLength`                           | `[MinLength]`, `[MaxLength]`, `[StringLength]` |
-| `minimum` / `maximum` | `integer`, `number`                         | `minimum` / `maximum`                               | `[Range]`                                      |
-| `minimum` / `maximum` | anything else                               | **not written**                                     | —                                              |
-| `pattern`             | `string`                                    | `pattern`                                           | `[RegularExpression]`                          |
-| `pattern`             | anything else                               | **not written**                                     | —                                              |
-| `format`              | `string`, if the schema carries no `format` | `format`                                            | `[EmailAddress]` → `email`, `[Url]` → `uri`    |
-| `description`         | —                                           | `description`, if the schema carries no description | `[Description]`                                |
+| IR constraint         | Produced type                               | JSON Schema                                         | Nest source                                      |
+| --------------------- | ------------------------------------------- | --------------------------------------------------- | ------------------------------------------------ |
+| `required: true`      | —                                           | a `required` entry                                  | a member without `@IsOptional()`/`@ValidateIf()` |
+| `minSize` / `maxSize` | `array`                                     | `minItems` / `maxItems`                             | `@ArrayMinSize()`/`@ArrayMaxSize()`              |
+| `minSize` / `maxSize` | anything else                               | `minLength` / `maxLength`                           | `@MinLength()`, `@MaxLength()`                   |
+| `minimum` / `maximum` | `integer`, `number`                         | `minimum` / `maximum`                               | `@Min()`, `@Max()`                               |
+| `minimum` / `maximum` | anything else                               | **not written**                                     | —                                                |
+| `pattern`             | `string`                                    | `pattern`                                           | `@Matches()`                                     |
+| `pattern`             | anything else                               | **not written**                                     | —                                                |
+| `format`              | `string`, if the schema carries no `format` | `format`                                            | `@IsEmail()` → `email`, `@IsUrl()` → `uri`       |
+| `description`         | —                                           | `description`, if the schema carries no description | —                                                |
 
 **Attribute reading MUST NOT stop at the member.** If the serializer picked a parameterized
 constructor, the attributes on the name-matched parameter are read too; those on the member win a
-conflict. On positional records, attributes such as `[Required]`/`[Range]` bind **to the constructor
-parameter and not to the member** unless they carry a `property:` target, so an implementation that
-looks only at members sees none of them. This is the highest-value binding rule in this document.
+conflict. A language that can attach a constraint to the constructor parameter rather than to the member
+would otherwise hide it from an implementation that looks only at members.
 
 If constructor selection is ambiguous (several candidates of the same width), correlation is **not**
 performed; ambiguity MUST NOT be resolved silently.
@@ -244,7 +236,7 @@ written even when empty ([metadata-contract.md](metadata-contract.md)). The asym
 deliberate: the root is the agent contract compared byte for byte against a fixture, while nested
 schemas are descriptive payload.
 
-Constraints that cannot be translated (`[Compare]`, `[CreditCard]`, `[Phone]`, custom validators)
+Constraints that cannot be translated (`@IsCreditCard()`, `@IsPhoneNumber()`, custom validators)
 never enter the IR. An invented translation would lead the client to reject valid input before it
 ever reaches the server.
 
@@ -289,12 +281,12 @@ descriptor is shared for the life of a catalog snapshot, so an implementation th
 while reading it produces correct output for the first tool built and dangling `$ref`s for every one
 after.
 
-"Same body" is compared **without regard to key order**. Two SDKs serialize an identical type into
-different key orders routinely, and a comparison that sees those as two schemas drops the endpoint in
-one implementation while the other builds the tool.
+"Same body" is compared **without regard to key order**. Serializers write an identical type in
+different key orders routinely, and a comparison that saw those as two schemas would drop an endpoint
+over a difference that is not one.
 
-**`$defs` key order is ascending ordinal.** Discovery order would depend on walk order and would
-require matching two SDKs' traversals exactly; since `$defs` is a bag, sorting it is semantically
+**`$defs` key order is ascending ordinal.** Discovery order would depend on the binder's walk
+order; since `$defs` is a bag, sorting it is semantically
 free. The order is pinned explicitly in the fixture with `defsOrder`, because neither runner's deep
 equality sees object key order.
 
@@ -304,9 +296,9 @@ sorted; the first keeps the bare name, later ones get `<Name>_2`, `<Name>_3`, an
 and it is not fatal, because a `$defs` key is document-local and cannot misaddress any tool.
 
 `$defs` keys are the simple form of host type names. This is a deliberate trade-off: type names
-already reach the agent surface through `[Description]` text and through tool prefixes derived from
+already reach the agent surface through description text and through tool prefixes derived from
 `container`, and [visibility.md](visibility.md) invariant 3 is about **policy** names, not type
-names. A host that wants to intervene renames with `Schema.TypeName`.
+names.
 
 ## Depth budget (host policy, not a rule)
 
@@ -399,7 +391,7 @@ declared, the template's `hasBody` came out `false`, and the request went out **
 Note that `{"type":"object","properties":{}}` is a different thing and still flattens — it declares
 an object with no fields and sends `{}`.
 
-**Synthetic body root.** A non-object body root (`[FromBody] List<int>`, `[FromBody] string`) does
+**Synthetic body root.** A non-object body root (an array or a string) does
 not drop the endpoint. `inputSchema` carries a single `body` property whose schema is the root
 itself, and it is listed in `required`; `inputSchema.additionalProperties` is `false`. At call time
 the `body` argument's value is sent as **the entire body**; if `body` is absent no body is sent at
@@ -455,7 +447,6 @@ own freedom is carried by the schema of that property.
 | `unsupported_binding`           | a body media type no writer exists for ([request-bodies.md](request-bodies.md))       | the endpoint is dropped        |
 | `unsupported_body_shape`        | a form, multipart or text body whose shape has no wire form                           | the endpoint is dropped        |
 | `content_type_not_accepted`     | the host declared a body media type the backend does not accept                       | the endpoint is dropped        |
-| `form_antiforgery_required`     | a form endpoint requires antiforgery validation (ASP.NET)                             | the endpoint is dropped        |
 | `unresolved_file_field`         | a file binding whose multipart field name cannot be read (Nest)                       | the endpoint is dropped        |
 | `body_parser_missing`           | a body media type the host registered no parser for (Nest)                            | the endpoint is dropped        |
 | `unsupported_method`            | the HTTP method has no counterpart in the neutral model                               | the endpoint is dropped        |
@@ -521,6 +512,6 @@ The following are deliberately undefined or out of scope; an implementation SHOU
   rule cannot be validated by a second implementation.
 - **Host documentation comments.** The binding layer MAY read a member description from the host's
   own documentation source; the rule layer sees only the IR's `description` field. Which source is
-  read belongs to binding and is not normative — C# today reads only `[Description]`, not XML docs.
+  read belongs to binding and is not normative.
 - **The depth budget's default value** (see above). The budget's _behaviour_ is pinned; its existence
   and its value are host policy.

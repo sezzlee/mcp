@@ -94,7 +94,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 }
 
 function readEnv(): Env {
-  const base = process.env["SEZZLEE_BASE_URL"] ?? "http://127.0.0.1:5178";
+  const base = process.env["SEZZLEE_BASE_URL"] ?? "http://127.0.0.1:3000";
   const user = process.env["SEZZLEE_USER"] ?? "alice";
   const rawAuthMode = process.env["SEZZLEE_AUTH"] ?? "oauth";
   if (!isAuthMode(rawAuthMode)) {

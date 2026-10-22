@@ -52,9 +52,9 @@ pnpm turbo run test --filter=@sezzlee/core
 ```
 
 `test/conformance-fixtures.spec.ts` runs the shared corpus in [`../conformance`](../conformance).
-Core is one of three independent runners over those same JSON files, alongside
-`packages/http/conformance/validate.mjs` and the .NET `CatalogFixtureTests`. That is what makes cross-SDK
-parity a test result instead of an assertion.
+Core runs those same JSON files alongside `packages/http/conformance/validate.mjs` and
+`sdks/nestjs/test/conformance-fixtures.spec.ts`. That is what makes parity a test result instead of
+an assertion.
 
 A rule change that does not move a fixture has not been made.
 
@@ -70,14 +70,10 @@ and the production posting index. Each algorithm runs in an isolated Node proces
 GC. Output includes build time, retained heap plus array-buffer memory, query p50/p95, and a JSON
 report. A digest mismatch between algorithms fails the run before results are reported.
 
-## Relationship to the SDKs
+## Relationship to the NestJS SDK
 
 `@sezzlee/sdk-nestjs` depends on this package and re-exports the parts its users need, so NestJS
 consumers never import core directly.
-
-`Sezzlee.AspNetCore` deliberately does **not** depend on it — it is an independent implementation in
-C#, and it earns parity by passing the same fixtures. That independence is the point: a spec
-validated by one implementation is a description of that implementation.
 
 ## Related
 

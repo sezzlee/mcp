@@ -8,60 +8,38 @@ By default `Authorization` is forwarded, unchanged, and nothing else. If your ba
 
 A cookie session, an API-key header or a tenant header your middleware reads has to be named:
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-builder.Services.AddSezzlee(options =>
-{
-    options.Identity.Forward("Cookie");
-    options.Identity.Forward("X-Api-Key");
-});
-```
-
-```ts title="NestJS"
+```ts
 SezzleeModule.forRoot((options) => {
   options.identity.forward("cookie").forward("x-api-key");
 });
 ```
 
-:::
-
-Both are fluent and additive, and names are case-insensitive. `Authorization` stays unless you drop it. To forward nothing, call `Clear()` or `clear()` first, then add what you want. Keep the list short: every forwarded header is one your endpoints see on a request they did not originate.
+`forward` is fluent and additive, and names are case-insensitive. `Authorization` stays unless you drop it. To forward nothing, call `clear()` first, then add what you want. Keep the list short: every forwarded header is one your endpoints see on a request they did not originate.
 
 ## Project a credential that is not a header
 
 Some backends resolve identity in their own middleware from something the synthetic request cannot inherit by name, such as a value already parsed onto the request object. Project it yourself:
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-options.Identity.Project((outer, synthetic) =>
-{
-    synthetic.Headers["X-Tenant"] = outer.HttpContext.Items["tenant"]?.ToString();
-});
-```
-
-```ts title="NestJS"
+```ts
 options.identity.project((outer, syntheticHeaders) => {
   syntheticHeaders["x-tenant"] = resolveTenant(outer);
 });
 ```
 
-:::
-
 The projector runs once per synthetic request, with the outer request in hand. Write the value into a header your middleware already understands, rather than teaching sezzlee about your identity model.
 
 ## Verify the result
 
-Call an endpoint that echoes the caller. The samples have one:
+Call an endpoint that echoes the caller. The NestJS sample has one:
 
 ```sh
-SEZZLEE_USER=alice node sdks/nestjs/samples/agent-client/dist/main.js \
+SEZZLEE_BASE_URL=http://127.0.0.1:3000 SEZZLEE_AUTH=token SEZZLEE_USER=alice \
+  node sdks/nestjs/samples/agent-client/dist/main.js \
   --scenario smoke --query identity --tool orders_me --arguments '{}'
 ```
 
 ```text
-search_tools "identity"  ok    3/8 results
+search_tools "identity"  ok    2/13 results
 load_tool orders_me      ok    {"type":"object","properties":{},"required":[],"additionalProperties":false}
 invoke_tool orders_me    ok    {"status":200,"body":{"name":"alice"}}
 ```

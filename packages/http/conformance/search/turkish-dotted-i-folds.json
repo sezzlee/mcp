@@ -1,6 +1,6 @@
 {
   "kind": "search",
-  "description": "Noktali I dil-bagimsiz katlanir: aciklamadaki 'ISTANBUL' token'i 'istanbul' sorgusuyla eslesir. JS toLowerCase U+0307 uretirdi, C# char.ToLowerInvariant uretmezdi; NFD ayristirmasi ikisini de ayni sonuca getirir",
+  "description": "Noktali I dil-bagimsiz katlanir: aciklamadaki 'ISTANBUL' token'i 'istanbul' sorgusuyla eslesir. JS toLowerCase U+0307 uretirdi; NFD ayristirmasi her kucuk harfe cevirmeyi ayni sonuca getirir",
   "input": {
     "tools": [
       {

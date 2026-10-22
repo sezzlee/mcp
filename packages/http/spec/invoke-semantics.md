@@ -1,6 +1,6 @@
 # Invoke Semantics
 
-> Status: **normative** — validated by two independent implementations (NestJS `emitGuarded` + ASP.NET `SezzleeMetaTools.Respond` produce the same envelopes from the same `error-mapping/` corpus).
+> Status: **normative** — `emitGuarded` produces the envelopes the `error-mapping/` corpus pins.
 
 Defines what happens between argument composition and the result the agent reads: the response budget, the invoke deadline and the cancellation ladder. [argument-mapping.md](argument-mapping.md) owns the step before this one, [error-mapping.md](error-mapping.md) owns the shape of the result. The machine-readable counterpart is [schemas/invoke-result.schema.json](schemas/invoke-result.schema.json); the corpus is [conformance/error-mapping/](../conformance/error-mapping/).
 
@@ -25,8 +25,6 @@ The gate is the **last step before emission on every meta-tool path**, not only 
 ### What is measured
 
 The **serialized text the implementation is about to emit**, in UTF-8 bytes. Not the backend's `Content-Length`, and not the in-memory object: what costs the agent is what enters its context.
-
-Byte counts are **not identical across implementations**. `System.Text.Json` escapes non-ASCII characters to `\uXXXX` by default and `JSON.stringify` does not, so the same body can measure differently in the two SDKs. A payload within a few percent of the limit may therefore be refused by one and admitted by the other. This is a known limit, not a defect; making it exact would require a normative serialization, which is a separate decision.
 
 ### Refuse, never truncate
 
@@ -55,7 +53,7 @@ When no argument narrows the call — `load_tool` is the standing case — `fiel
 
 ### Standard messages
 
-Fixture-pinned, identical in both implementations. Every interpolated number is an integer: a decimal would render differently under a culture such as `tr-TR`.
+Fixture-pinned. Every interpolated number is an integer: a decimal would render differently under a culture such as `tr-TR`.
 
 ```
 The response is {bytes} bytes; the limit is {limit} bytes. It is refused, not truncated: no part of the body was returned. {shape} {advice}
@@ -90,7 +88,7 @@ Three levels, and an implementation MUST NOT promise more than it delivers.
 - **L1 — the signal is always delivered.** The implementation MUST propagate cancellation into the handler it invoked, through whatever channel that platform gives a disconnecting client. Delivery is unconditional; observation is not.
 - **L2 — the handler stops only if it cooperates.** sezzlee MUST NOT promise that backend work stops. A handler that does not observe its signal runs to completion and its result is discarded. Work already committed stays committed; no level of this ladder rolls anything back.
 
-**A timeout frees the agent; it does not cancel a non-cooperating handler.** This is true on both platforms and for the same reason: `CancellationToken` and `AbortSignal` are both cooperative, and neither runtime preempts running code. The platforms differ only in how conventionally the signal is already threaded through library calls — in .NET a token usually is, in Node a signal usually is not.
+**A timeout frees the agent; it does not cancel a non-cooperating handler.** `AbortSignal` is cooperative and the runtime never preempts running code, and in Node a signal is usually not threaded through library calls.
 
 Exactly one result is emitted per call. A result that arrives after the call was abandoned is discarded: never emitted, never cached.
 
@@ -149,13 +147,12 @@ The tool '{name}' changed after it was loaded, so the call was refused before re
 }
 ```
 
-`bytes` is an input fact, because the two implementations measure differently. The **shape derivation** is not: a runner passes the raw `payload` through its own implementation, so `expected.payload.shape` is evidence about that derivation rather than a restatement of an input. An input carrying `sdkError` drives the SDK-side builders; one carrying `status` drives `mapInvokeResult`.
+`bytes` is an input fact, so a fixture does not depend on how a runner serializes. The **shape derivation** is not: a runner passes the raw `payload` through its own implementation, so `expected.payload.shape` is evidence about that derivation rather than a restatement of an input. An input carrying `sdkError` drives the SDK-side builders; one carrying `status` drives `mapInvokeResult`.
 
 ## Known limits
 
-- Byte counts are not identical across implementations (above).
 - Every interpolated number in a standard message is an integer, so culture-sensitive formatting cannot diverge.
-- Both implementations buffer the whole backend body before anything is measured, so an endpoint returning gigabytes exhausts memory before the budget runs. This predates the budget and is not addressed here.
+- Every implementation buffers the whole backend body before anything is measured, so an endpoint returning gigabytes exhausts memory before the budget runs. This predates the budget and is not addressed here.
 - A `retryable: true` timeout can produce a duplicate write. The message says so; the protocol offers nothing better.
 - A replica built before the tool version existed drops `version` as an argument it does not know, so a pinned call answered by such a replica is not checked. The gap closes once every replica carries the check.
 - `SdkErrorCode` and `BackendErrorCode` MUST stay disjoint. A shared member makes an envelope match two branches of the `InvokeResult` union, and the resulting validation error names the top-level fixture union rather than the real cause.
