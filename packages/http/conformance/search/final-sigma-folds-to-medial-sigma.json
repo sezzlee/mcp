@@ -17,6 +17,8 @@
     "query": "οδοσ"
   },
   "expected": {
-    "names": ["list_routes"]
+    "names": [
+      "list_routes"
+    ]
   }
 }

@@ -79,6 +79,8 @@
     "query": "istanbul"
   },
   "expected": {
-    "names": ["assign_courier"]
+    "names": [
+      "assign_courier"
+    ]
   }
 }

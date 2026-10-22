@@ -79,6 +79,10 @@
     "query": "method"
   },
   "expected": {
-    "names": ["list_delayed_orders", "assign_courier", "list_customer_balances"]
+    "names": [
+      "list_delayed_orders",
+      "assign_courier",
+      "list_customer_balances"
+    ]
   }
 }

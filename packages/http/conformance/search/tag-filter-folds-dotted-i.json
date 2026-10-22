@@ -6,20 +6,28 @@
       {
         "name": "list_returns",
         "description": "kayit listeler",
-        "tags": ["İADE"],
+        "tags": [
+          "İADE"
+        ],
         "route": "/Rest/Return/List"
       },
       {
         "name": "list_incidents",
         "description": "kayit listeler",
-        "tags": ["System"],
+        "tags": [
+          "System"
+        ],
         "route": "/Rest/Incident/List"
       }
     ],
     "query": "kayit",
-    "tags": ["iade"]
+    "tags": [
+      "iade"
+    ]
   },
   "expected": {
-    "names": ["list_returns"]
+    "names": [
+      "list_returns"
+    ]
   }
 }

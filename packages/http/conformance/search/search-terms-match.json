@@ -6,7 +6,9 @@
       {
         "name": "create_order",
         "route": "/orders",
-        "searchTerms": ["siparis"]
+        "searchTerms": [
+          "siparis"
+        ]
       },
       {
         "name": "health",
@@ -16,6 +18,8 @@
     "query": "siparis"
   },
   "expected": {
-    "names": ["create_order"]
+    "names": [
+      "create_order"
+    ]
   }
 }

@@ -6,17 +6,24 @@
       {
         "name": "alpha_probe",
         "route": "/a",
-        "tags": ["invoice"]
+        "tags": [
+          "invoice"
+        ]
       },
       {
         "name": "beta_probe",
         "route": "/b",
-        "searchTerms": ["invoice"]
+        "searchTerms": [
+          "invoice"
+        ]
       }
     ],
     "query": "invoice"
   },
   "expected": {
-    "names": ["beta_probe", "alpha_probe"]
+    "names": [
+      "beta_probe",
+      "alpha_probe"
+    ]
   }
 }

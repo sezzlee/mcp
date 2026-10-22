@@ -6,11 +6,15 @@
       {
         "name": "create_invoice",
         "route": "/invoices",
-        "searchTerms": ["billing"]
+        "searchTerms": [
+          "billing"
+        ]
       }
     ],
     "query": "",
-    "tags": ["billing"]
+    "tags": [
+      "billing"
+    ]
   },
   "expected": {
     "names": []

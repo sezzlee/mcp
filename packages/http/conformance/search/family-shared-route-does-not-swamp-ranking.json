@@ -79,6 +79,10 @@
     "query": "dynamic bakiye"
   },
   "expected": {
-    "names": ["list_customer_balances", "list_delayed_orders", "assign_courier"]
+    "names": [
+      "list_customer_balances",
+      "list_delayed_orders",
+      "assign_courier"
+    ]
   }
 }

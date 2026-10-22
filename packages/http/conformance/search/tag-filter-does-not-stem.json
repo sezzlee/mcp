@@ -6,26 +6,36 @@
       {
         "name": "list_orders",
         "description": "kayit listeler",
-        "tags": ["Orders"],
+        "tags": [
+          "Orders"
+        ],
         "route": "/Rest/Order/List"
       },
       {
         "name": "list_order_items",
         "description": "kayit listeler",
-        "tags": ["OrderItems"],
+        "tags": [
+          "OrderItems"
+        ],
         "route": "/Rest/OrderItem/List"
       },
       {
         "name": "create_order",
         "description": "kayit listeler",
-        "tags": ["Order"],
+        "tags": [
+          "Order"
+        ],
         "route": "/Rest/Order/Create"
       }
     ],
     "query": "kayit",
-    "tags": ["order"]
+    "tags": [
+      "order"
+    ]
   },
   "expected": {
-    "names": ["create_order"]
+    "names": [
+      "create_order"
+    ]
   }
 }

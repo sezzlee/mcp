@@ -6,7 +6,9 @@
       {
         "name": "alpha_probe",
         "route": "/a",
-        "searchTerms": ["invoice"]
+        "searchTerms": [
+          "invoice"
+        ]
       },
       {
         "name": "beta_probe",
@@ -17,6 +19,9 @@
     "query": "invoice"
   },
   "expected": {
-    "names": ["alpha_probe", "beta_probe"]
+    "names": [
+      "alpha_probe",
+      "beta_probe"
+    ]
   }
 }

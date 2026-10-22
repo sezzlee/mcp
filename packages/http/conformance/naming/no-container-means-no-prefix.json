@@ -15,6 +15,9 @@
     ]
   },
   "expected": {
-    "names": ["get_health", "health_check"]
+    "names": [
+      "get_health",
+      "health_check"
+    ]
   }
 }

@@ -6,33 +6,46 @@
       {
         "name": "create_incident",
         "description": "olay kaydi acar",
-        "tags": ["System"],
+        "tags": [
+          "System"
+        ],
         "route": "/Rest/Incident/Create"
       },
       {
         "name": "list_orders",
         "description": "siparis listeler",
-        "tags": ["Orders"],
+        "tags": [
+          "Orders"
+        ],
         "route": "/Rest/Order/List"
       },
       {
         "name": "list_returns",
         "description": "iade listeler",
-        "tags": ["Orders"],
+        "tags": [
+          "Orders"
+        ],
         "route": "/Rest/Return/List"
       },
       {
         "name": "update_incident",
         "description": "olay kaydi gunceller",
-        "tags": ["System"],
+        "tags": [
+          "System"
+        ],
         "route": "/Rest/Incident/Update"
       }
     ],
     "query": "",
     "limit": 2,
-    "tags": ["orders"]
+    "tags": [
+      "orders"
+    ]
   },
   "expected": {
-    "names": ["list_orders", "list_returns"]
+    "names": [
+      "list_orders",
+      "list_returns"
+    ]
   }
 }
