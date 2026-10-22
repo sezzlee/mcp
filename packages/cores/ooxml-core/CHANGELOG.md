@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Reading
+
+- An archive entry whose general purpose flag marks it encrypted is refused with `unsupported_zip_feature` naming the entry. It was inflated as plain data and refused as a damaged archive.
+
 ## 0.2.0
 
 ### Compatibility changes
