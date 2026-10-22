@@ -15,6 +15,7 @@ const latin1 = new TextDecoder("latin1");
 export interface DirectoryRecord {
   readonly crc32: number;
   readonly localOffset: number;
+  readonly flags: number;
 }
 
 function u16(bytes: Uint8Array, at: number): number {
@@ -97,7 +98,11 @@ export function readDirectory(
     const name = latin1.decode(bytes.subarray(at + 46, at + 46 + nameLength));
     const localOffset = localOffsetOf(bytes, at);
     if (localOffset === undefined) return undefined;
-    records.set(name, { crc32: u32(bytes, at + 16), localOffset });
+    records.set(name, {
+      crc32: u32(bytes, at + 16),
+      localOffset,
+      flags: u16(bytes, at + 8),
+    });
     at += 46 + nameLength + extraLength + commentLength;
   }
   return records;

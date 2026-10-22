@@ -84,7 +84,19 @@ export function roundTo(value: number, digits: number): number {
   const text = Math.abs(value).toString();
   if (text.includes("e")) return Number(value.toFixed(digits));
   const shifted = Math.round(Number(`${text}e${digits}`));
-  return Math.sign(value) * Number(`${shifted}e-${digits}`);
+  const restored = String(shifted);
+  /**
+   * Guard: from 1e21 the shifted value prints in exponent form, and
+   * `"1e+22e-2"` reads as NaN, so a large total asked for with round came back
+   * null. Dividing by the exact power of ten is used only there, so every
+   * value that printed as plain digits keeps the result it had.
+   */
+  return (
+    Math.sign(value) *
+    (restored.includes("e")
+      ? shifted / 10 ** digits
+      : Number(`${restored}e-${digits}`))
+  );
 }
 
 export function computeDerived(

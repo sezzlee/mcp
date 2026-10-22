@@ -16,6 +16,7 @@ interface Refusal {
 
 const stored = 0;
 const deflated = 8;
+const encryptedFlag = 0x0001;
 /**
  * Guard: `fflate`'s inflater cannot cap its output, and the declared size is
  * checked as each push returns, so one push may inflate past it before the
@@ -168,6 +169,20 @@ export function createZipSource(
       "corrupt_package",
       "The archive's central directory could not be walked.",
     );
+  }
+  /**
+   * Guard: bit 0 of the general purpose flag marks an encrypted entry (APPNOTE
+   * 4.4.4). `fflate` ignores it, so the entry would be inflated as if it were
+   * plain and refused as a damaged archive, which names the wrong defect and
+   * sends the caller to re-save a file that is intact.
+   */
+  for (const entry of entries) {
+    if (((directory.get(entry.path)?.flags ?? 0) & encryptedFlag) !== 0) {
+      throw fail(
+        "unsupported_zip_feature",
+        `'${entry.path}' is encrypted, which is not read.`,
+      );
+    }
   }
 
   /**

@@ -45,6 +45,15 @@ function integer(raw: string | undefined): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+const numericLiteral = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
+
+function numberLiteral(raw: string): number | undefined {
+  const trimmed = raw.trim();
+  if (!numericLiteral.test(trimmed)) return undefined;
+  const value = Number(trimmed);
+  return Number.isFinite(value) ? value : undefined;
+}
+
 function boolean(raw: string | undefined): boolean | undefined {
   if (raw === undefined) return undefined;
   return raw === "1" || raw === "true";
@@ -108,22 +117,23 @@ export function conditionalFormatScan(): PartScan<
           if (rule === undefined) break;
           const type = node.attr("type") ?? "num";
           const raw = node.attr("val");
-          const parsed =
-            raw === undefined ? Number.NaN : Number.parseFloat(raw);
+          const parsed = raw === undefined ? undefined : numberLiteral(raw);
           /**
            * A `formula` threshold carries expression text in `val`, which no
            * numeric parse can represent. Keeping the text is what lets the
            * predicate be reported instead of marked unreadable.
+           *
+           * Guard: so does any other type whose `val` is not one number
+           * literal. Excel writes a cell reference such as `$B$1` there, and
+           * `parseFloat` read `10*2` as 10 and dropped `$B$1` without a trace.
            */
           rule.cfvo.push({
             type,
-            ...(type === "formula"
-              ? raw === undefined
-                ? {}
-                : { formula: raw }
-              : Number.isFinite(parsed)
+            ...(raw === undefined
+              ? {}
+              : type !== "formula" && parsed !== undefined
                 ? { value: parsed }
-                : {}),
+                : { formula: raw }),
           });
           break;
         }

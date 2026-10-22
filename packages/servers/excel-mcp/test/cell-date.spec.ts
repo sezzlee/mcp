@@ -83,4 +83,16 @@ describe("serialToDate", () => {
     expect(serialToDate(1e300, false)).toBeUndefined();
     expect(serialToClock(1e300, false)).toBeUndefined();
   });
+
+  it("places serials up to 31 December 9999 and none past it", () => {
+    expect(serialToDate(2958465.9999999995, false)?.toISOString()).toBe(
+      "9999-12-31T23:59:59.999Z",
+    );
+    expect(serialToDate(2958466, false)).toBeUndefined();
+    expect(serialToClock(2958466, false)).toBeUndefined();
+    expect(serialToDate(-693594, false)?.toISOString()).toBe(
+      "0001-01-01T00:00:00.000Z",
+    );
+    expect(serialToDate(-693595, false)).toBeUndefined();
+  });
 });

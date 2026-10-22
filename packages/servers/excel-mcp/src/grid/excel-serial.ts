@@ -26,6 +26,11 @@ const offset1904 = 1462;
  * Guard: the day is scaled to milliseconds as `× 24 × 60 × 60 × 1000`, in that
  * order, as SheetJS does. `Date` truncates the fraction, and `× 86 400 000`
  * rounds differently: serial 46037.395833… (09:30) then lands on 09:29:59.999.
+ *
+ * Guard: only years 1 to 9999 are placed. `toISOString` writes any other year
+ * as `+010000-…` or `-000001-…`, and the readers that slice it returned
+ * `+010000-01` for a date and `01T00:00` for a time; Excel itself shows no
+ * date past 31 December 9999.
  */
 export function serialToDate(
   serial: number,
@@ -35,5 +40,6 @@ export function serialToDate(
   if (value >= 60 && value < 61) return undefined;
   const days = value > 60 ? value : value + 1;
   const instant = new Date(days * 24 * 60 * 60 * 1000 + epoch1900);
-  return Number.isNaN(instant.getTime()) ? undefined : instant;
+  const year = instant.getUTCFullYear();
+  return Number.isNaN(year) || year < 1 || year > 9999 ? undefined : instant;
 }

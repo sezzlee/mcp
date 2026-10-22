@@ -828,12 +828,16 @@ export function aggregateSheet(
   const finishGrouping = (set: Grouping): GroupingResult => {
     const numeric = (value: CellScalar): number | null =>
       typeof value === "number" ? value : null;
+    /**
+     * Guard: a sum over a group with no number in it finishes as null, and
+     * that group adds nothing to the total. Letting it null the total turned
+     * every group's share null as soon as one group had no amounts.
+     */
     const totals = options.metrics.map((metric, slot) => {
-      let total = 0;
+      let total: number | null = set.groups.size === 0 ? 0 : null;
       for (const group of set.groups.values()) {
         const value = numeric(finishMetric(metric, group.metrics[slot]));
-        if (value === null) return null;
-        total += value;
+        if (value !== null) total = (total ?? 0) + value;
       }
       return total;
     });

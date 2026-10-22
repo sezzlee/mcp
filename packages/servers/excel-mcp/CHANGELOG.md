@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Reading fixes
+
+- A text cell is read as a date only when it is ISO 8601 with a real calendar day and clock. `2026-02-30Z` no longer rolls into 1 March, `0001-01-01` no longer reads as 2001, and `1/15/2026` stays the text the cell holds.
+- A date serial whose year falls outside 1 to 9999 stays a number instead of reading as `+010000-01` or `01T00:00`.
+- A grouped sum whose group holds no number no longer turns the total, and with it every group's share, into `null`; that group adds nothing to the total.
+- A derived metric rounded at 1e21 or above comes back as a number instead of `null`.
+- A data validation rule on a whole column (`A:A`) or whole rows (`1:1`), as openpyxl writes it, no longer fails every cell read of its sheet with `invalid_range`.
+- A conditional format threshold whose `val` is not one number literal, such as `$B$1` or `10*2`, is reported as formula text instead of being dropped or read as `10`.
+- `get_charts` reports `truncated` with `maxPointsPerResponse` when the shared point budget runs out with less than a point left for each level of a series; the answer was cut without saying so.
+- An unnumbered cell outside any row, past column `XFD`, or an unnumbered row past row 1,048,576 is refused with `corrupt_workbook` instead of being placed outside the grid, such as a used range of `A0:…`.
+- A workbook with an encrypted zip entry is refused with a message naming the encrypted part instead of one describing damage.
+
 ## 0.10.0
 
 ### Analysis tools

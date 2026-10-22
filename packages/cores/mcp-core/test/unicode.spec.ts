@@ -106,6 +106,11 @@ describe("truncateWellFormed", () => {
   it("cuts plain text at the limit", () => {
     expect(truncateWellFormed("x".repeat(600), 512)).toHaveLength(512);
   });
+
+  it("returns nothing for a degenerate limit", () => {
+    expect(truncateWellFormed("abcdef", 0)).toBe("");
+    expect(truncateWellFormed("abcdef", -2)).toBe("");
+  });
 });
 
 describe("truncateUtf8", () => {

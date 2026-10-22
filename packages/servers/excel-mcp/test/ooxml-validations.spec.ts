@@ -169,6 +169,23 @@ describe("the OOXML data validation reader agrees with ExcelJS", () => {
     expect(report.rules[0]?.ranges).toEqual(["A1:A1048576"]);
     expect(report.coveredCellCount).toBe(1_048_576);
   });
+
+  it("reads the cells of a sheet whose rule names whole columns, rows or no cells", async () => {
+    const bytes = await rawWorkbook({
+      sheetData: '<row r="1"><c r="A1"><v>1</v></c></row>',
+      afterSheetData:
+        '<dataValidations count="1"><dataValidation type="list" sqref="A:B 3:3 Z1:? C2"><formula1>"x"</formula1></dataValidation></dataValidations>',
+    });
+    const { parseOoxml, ooxmlSheetView } =
+      await import("../src/format/ooxml-workbook.js");
+    const loaded = parseOoxml(Buffer.from(bytes), "columns.xlsx");
+    const report = collectValidations("S", loaded.facts("S").validations);
+    expect(report.rules[0]?.ranges).toEqual(["A:B", "3:3", "Z1:?", "C2"]);
+    expect(report.coveredCellCount).toBe(2 * 1_048_576 + 16_384 + 1);
+    expect(ooxmlSheetView(loaded, "S").rowAt(1)?.cellAt(1)?.value).toEqual({
+      value: 1,
+    });
+  });
 });
 
 describe("validations no longer need the ExcelJS metadata reader", () => {

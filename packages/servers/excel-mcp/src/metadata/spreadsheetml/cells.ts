@@ -86,12 +86,40 @@ export function positionOf(
   return { row, column };
 }
 
+/**
+ * Guard: an unnumbered row or cell follows the one before it, and that count
+ * was not bounded the way a written reference is: a cell outside any row took
+ * row 0 and was reported in a used range of `A0:…`, and the cell after `XFD`
+ * or the row after 1,048,576 landed outside the grid. Each is refused as a
+ * written reference outside the grid is.
+ */
+export function nextPosition(
+  row: number,
+  column: number,
+  part: string,
+): { readonly row: number; readonly column: number } {
+  if (row < 1 || row > maxRow || column + 1 > maxColumn) {
+    throw corrupt(
+      part,
+      `holds an unnumbered cell after row ${row}, column ${column}, outside the sheet grid`,
+    );
+  }
+  return { row, column: column + 1 };
+}
+
 export function rowOf(
   attribute: string | undefined,
   previous: number,
   part: string,
 ): number {
-  if (attribute === undefined) return previous + 1;
+  if (attribute === undefined) {
+    if (previous + 1 > maxRow)
+      throw corrupt(
+        part,
+        `holds an unnumbered row after row ${previous}, outside the sheet grid`,
+      );
+    return previous + 1;
+  }
   const row = Number(attribute);
   if (!Number.isInteger(row) || row < 1 || row > maxRow) {
     throw corrupt(part, `holds a row numbered '${attribute}'`);
@@ -239,7 +267,7 @@ export function cellScan(
         const reference = node.attr("r");
         const position =
           reference === undefined
-            ? { row, column: column + 1 }
+            ? nextPosition(row, column, sheetPart)
             : positionOf(reference, sheetPart);
         column = position.column;
         const style = Number(node.attr("s") ?? "0");

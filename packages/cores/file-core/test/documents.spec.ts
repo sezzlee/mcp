@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -109,6 +109,38 @@ describe("the document store", () => {
     const second = await probe.store.load(path, {});
     expect(probe.parses()).toBe(2);
     expect(second.text).toContain("one-two-three");
+  });
+
+  it("re-parses a same-size content swap under a restored mtime", async () => {
+    const probe = createProbe(4);
+    const path = join(dir, "swapped.probe") as SandboxedPath;
+    await writeFile(path, "aaaa");
+    const before = await stat(path);
+    await probe.store.load(path, {});
+    await writeFile(path, "bbbb");
+    await utimes(path, before.atime, before.mtime);
+    const second = await probe.store.load(path, {});
+    expect(probe.parses()).toBe(2);
+    expect(second.text).toBe("plain:bbbb");
+  });
+
+  it("refuses a cached file that grew past maxBytes the way a first read does", async () => {
+    const probe = createProbe(4, 8);
+    const path = join(dir, "outgrown.probe") as SandboxedPath;
+    await writeFile(path, "small");
+    await probe.store.load(path, {});
+    await writeFile(path, "now too large");
+    try {
+      await probe.store.load(path, {});
+      expect.unreachable();
+    } catch (error) {
+      const failure = error as FileSourceError;
+      expect(failure.code).toBe("file_too_large");
+      expect(failure.message).toBe(
+        "The file is 13 bytes; the limit is 8 bytes.",
+      );
+      expect(failure.recovery).toBe("Read a smaller file.");
+    }
   });
 
   it("evicts the least recently used entry at maxEntries", async () => {

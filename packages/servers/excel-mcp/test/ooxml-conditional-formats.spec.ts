@@ -5,6 +5,7 @@ import { collectConditionalFormats } from "../src/metadata/conditional-formats.j
 import { createWorkbookRoot } from "../src/platform/paths.js";
 import { parseOoxml } from "../src/format/ooxml-workbook.js";
 import { createHandlers } from "../src/tools/handlers.js";
+import { rawWorkbook } from "./fixtures/raw-workbook.js";
 
 function payload(result: CallToolResult): Record<string, unknown> {
   const first = result.content[0];
@@ -211,6 +212,30 @@ describe("a formula threshold keeps its expression", () => {
       formula: "AVERAGE($B$1:$B$3)",
     });
     expect(body["limitations"]).toEqual([]);
+  });
+});
+
+describe("a threshold value that is not a number literal", () => {
+  it("keeps the expression instead of the number it starts with", async () => {
+    const bytes = await rawWorkbook({
+      sheetData: '<row r="1"><c r="A1"><v>1</v></c></row>',
+      afterSheetData:
+        '<conditionalFormatting sqref="A1:A9"><cfRule type="colorScale" priority="1"><colorScale>' +
+        '<cfvo type="num" val="$B$1"/><cfvo type="num" val="10*2"/><cfvo type="percent" val=" 25 "/>' +
+        '<cfvo type="num" val="-1.5e1"/><cfvo type="max"/></colorScale></cfRule></conditionalFormatting>',
+    });
+    const loaded = parseOoxml(Buffer.from(bytes), "thresholds.xlsx");
+    const report = collectConditionalFormats(
+      "S",
+      loaded.facts("S").conditionalFormats,
+    );
+    expect(report.rules[0]?.thresholds).toEqual([
+      { type: "num", formula: "$B$1" },
+      { type: "num", formula: "10*2" },
+      { type: "percent", value: 25 },
+      { type: "num", value: -15 },
+      { type: "max" },
+    ]);
   });
 });
 

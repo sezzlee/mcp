@@ -77,6 +77,82 @@ test("traversal budgets count unsupported entries and bound depth/time", async (
   }
 });
 
+test("a whole read peaks at one file-sized buffer, not two", async () => {
+  const path = await realpath(await mkdtemp(join(tmpdir(), "native-peak-")));
+  try {
+    const size = 40 * 1024 * 1024;
+    await writeFile(join(path, "warm"), "x");
+    await writeFile(join(path, "large"), randomBytes(size));
+    const probe = `
+      const { openRoot } = await import(${JSON.stringify(new URL("../index.js", import.meta.url).href)});
+      const root = openRoot(${JSON.stringify(path)});
+      await root.read("warm", 1);
+      const before = process.resourceUsage().maxRSS;
+      const snapshot = await root.read("large", ${size});
+      const after = process.resourceUsage().maxRSS;
+      console.log(JSON.stringify({ grownKiB: after - before, length: snapshot.bytes.length }));
+    `;
+    const result = spawnSync(
+      process.execPath,
+      ["--input-type=module", "-e", probe],
+      { encoding: "utf8", timeout: 20000 },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout.trim());
+    assert.equal(report.length, size);
+    /**
+     * A copy into a fresh JS Buffer while the native vector is still alive
+     * peaks at twice the file (measured 96 MiB for a 48 MiB read on darwin-arm64);
+     * 1.5x separates one buffer from two with room for allocator slack.
+     */
+    assert.ok(
+      report.grownKiB < (1.5 * size) / 1024,
+      `peak grew ${report.grownKiB} KiB for a ${size / 1024} KiB file`,
+    );
+  } finally {
+    await rm(path, { recursive: true, force: true });
+  }
+});
+
+test("a digest keeps pace with a whole read hashed by createHash", async () => {
+  const path = await realpath(await mkdtemp(join(tmpdir(), "native-pace-")));
+  try {
+    const size = 16 * 1024 * 1024;
+    await writeFile(join(path, "large"), randomBytes(size));
+    const root = openRoot(path);
+    const elapsed = async (operation) => {
+      const start = process.hrtime.bigint();
+      await operation();
+      return Number(process.hrtime.bigint() - start);
+    };
+    const digests = [];
+    const reads = [];
+    for (let round = 0; round < 9; round += 1) {
+      digests.push(await elapsed(() => root.digest("large", size)));
+      reads.push(
+        await elapsed(async () =>
+          createHash("sha256")
+            .update((await root.read("large", size)).bytes)
+            .digest(),
+        ),
+      );
+    }
+    const median = (samples) => samples.sort((a, b) => a - b)[4];
+    /**
+     * A digest-checked cache hit replaces a whole read plus createHash, so it
+     * must not be slower than that. The portable fallback measured 4-5x the
+     * reference on darwin-arm64 and the host's OpenSSL about 1x; 2.5x fails
+     * the first with room for scheduler noise.
+     */
+    assert.ok(
+      median(digests) < 2.5 * median(reads),
+      `digest ${median(digests)} ns, read and hash ${median(reads)} ns`,
+    );
+  } finally {
+    await rm(path, { recursive: true, force: true });
+  }
+});
+
 test("ranged reads and digests agree with the whole-file reference", async () => {
   const path = await realpath(await mkdtemp(join(tmpdir(), "native-range-")));
   try {

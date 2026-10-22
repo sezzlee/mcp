@@ -39,6 +39,9 @@ export function truncateWellFormed(text: string, limit: number): string {
   if (text.length <= limit) {
     return text;
   }
+  if (limit <= 0) {
+    return "";
+  }
   const code = text.charCodeAt(limit - 1);
   const cut = code >= 0xd800 && code <= 0xdbff ? limit - 1 : limit;
   return text.slice(0, cut);

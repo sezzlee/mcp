@@ -8,6 +8,8 @@ import {
   type ChartContent,
   type ChartPlot,
   type ChartTitle,
+  type PointBudget,
+  type ReadChartOptions,
 } from "./spreadsheetml/chart.js";
 import type { OoxmlChartFrame } from "./spreadsheetml/drawing.js";
 import type { OpcPackage } from "./spreadsheetml/package.js";
@@ -43,10 +45,7 @@ function readFrame(
   opc: OpcPackage,
   frame: OoxmlChartFrame,
   chartId: number,
-  options: {
-    readonly maxPoints: number;
-    readonly pointBudget: { remaining: number };
-  },
+  options: ReadChartOptions,
 ): SheetChart {
   const base = {
     chartId,
@@ -109,8 +108,9 @@ export function collectCharts(
   const kept = truncated
     ? selected.slice(0, limits.maxChartsPerSheet)
     : selected;
-  const pointBudget: { remaining: number } = {
+  const pointBudget: PointBudget = {
     remaining: limits.maxChartPointsPerResponse,
+    exhausted: false,
   };
   const charts = kept.map((frame, index) =>
     readFrame(opc, frame, chartId ?? index + 1, {
@@ -118,20 +118,7 @@ export function collectCharts(
       pointBudget,
     }),
   );
-  const pointsExhausted =
-    pointBudget.remaining === 0 &&
-    charts.some((chart) =>
-      chart.plots.some((plot) =>
-        plot.series.some(
-          (series) =>
-            series.values?.truncated === true ||
-            series.categories?.truncated === true ||
-            series.x?.truncated === true ||
-            series.y?.truncated === true ||
-            series.size?.truncated === true,
-        ),
-      ),
-    );
+  const pointsExhausted = pointBudget.exhausted;
   const seriesOmitted = charts.some((chart) =>
     chart.plots.some((plot) => plot.omittedSeries !== undefined),
   );

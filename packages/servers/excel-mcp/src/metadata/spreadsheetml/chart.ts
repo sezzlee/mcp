@@ -200,9 +200,15 @@ interface Opened {
   readonly local: string;
 }
 
+export interface PointBudget {
+  remaining: number;
+  /** Set once the budget, not `maxPoints`, cut a series short. */
+  exhausted: boolean;
+}
+
 export interface ReadChartOptions {
   readonly maxPoints: number;
-  readonly pointBudget: { remaining: number };
+  readonly pointBudget: PointBudget;
 }
 
 /** Guard: a local `Sheet1!$A$1` always contains `!`; only `[n]…` / `'[file]Sheet'!…` are external. */
@@ -247,11 +253,15 @@ function finishData(draft: DataDraft, options: ReadChartOptions): SeriesData {
     last + 1,
     Math.min(Math.max(0, draft.declaredCount), maxDeclaredPoints),
   );
-  const capped = Math.min(
-    count,
-    options.maxPoints,
-    Math.floor(options.pointBudget.remaining / levels.length),
-  );
+  const affordable = Math.floor(options.pointBudget.remaining / levels.length);
+  const capped = Math.min(count, options.maxPoints, affordable);
+  /**
+   * Guard: the budget is shared by every level of a series, so it can run out
+   * with points still left over, fewer than a point a level; the answer was
+   * then cut without saying so, because only a budget of exactly 0 counted.
+   */
+  if (affordable < Math.min(count, options.maxPoints))
+    options.pointBudget.exhausted = true;
   options.pointBudget.remaining -= capped * levels.length;
   const pointsOf = (level: readonly PointDraft[]): SeriesPoints => {
     const byIndex = new Map<number, string>();
