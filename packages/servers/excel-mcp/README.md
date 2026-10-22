@@ -263,6 +263,10 @@ The repeatable MCP payment scenario, independent expectations, external corpus e
 commands live in [the Excel lab README](../../lab/excel-lab/README.md). It measures exact counts
 and serialized responses without a model; it does not claim agent success or token savings.
 Future result operations and write capabilities are tracked in the root [roadmap](../../../ROADMAP.md).
+The [architecture recommendations](ARCHITECTURE_RECOMMENDATIONS.md) map the current layers to
+Excel's package, dataset and analytical schemas, identify a reproduced derived-total overflow
+defect, and prioritize existing-tool improvements and possible new operations. They distinguish
+review findings from proposed behavior; the recommendations are not an implemented contract.
 
 ## Profile and reuse a column interpretation
 
@@ -317,7 +321,7 @@ syntax faults still report physical file lines, and `csv.lineBreak` includes the
 line ending. With no explicit delimiter, `csv.delimiterSource` is `"sep"`. An explicit
 `delimiter` wins and keeps source `"explicit"`; a conflicting declaration adds a warning but
 is still removed. BOM and strict decoding checks run first. See the
-[CSV profile recipe](../../../../apps/docs/src/content/excel-mcp/recipes/07-profile-and-read-global-data.md).
+[CSV profile recipe](../../../apps/docs/src/content/excel-mcp/recipes/07-profile-and-read-global-data.md).
 
 An explicit number column may provide `locale` and `numberingSystem` instead of decimal/group
 marks, for example `{"column":"Amount","type":"number","locale":"ar-EG","numberingSystem":"arab"}`.
@@ -360,7 +364,7 @@ hours or fixed ISO day/time durations, for example `25:30` or `P1DT2H`, into
 are refused. Numeric duration metrics use seconds and report the unit. Automatic duration
 reading requires a duration cue in the column; pure clocks are not summed as durations.
 Percent and per-mille quantities are fractions, with unit metadata; currency labels are retained
-without exchange-rate conversion. See the [CSV profile recipe](../../../../apps/docs/src/content/excel-mcp/recipes/07-profile-and-read-global-data.md)
+without exchange-rate conversion. See the [CSV profile recipe](../../../apps/docs/src/content/excel-mcp/recipes/07-profile-and-read-global-data.md)
 and the reproducible generator/fuzz instructions in the repository's lab.
 
 ## Named tables and saved row visibility
@@ -429,7 +433,7 @@ Images and supported linked values are not classified as errors.
 
 Every tool reads the OOXML parts directly through `@sezzlee/ooxml-core`: cells, number formats, formulas, hyperlinks, merges and defined names as much as data validation, Excel Tables, conditional formatting, images and frozen panes. No spreadsheet library is present at runtime. SheetJS and exceljs are dev dependencies: exceljs writes the test fixtures, and SheetJS is the reference the cell reader is compared against.
 
-The OOXML parts are read namespace-aware by `@sezzlee/ooxml-core`'s own XML tokenizer. Matching is done on `(namespace uri, local name)` — the prefix the file happens to write is never consulted — so `<x:dataValidation>` and `<dataValidation>` are indistinguishable at the call site. These tools therefore work with any OPC layout, including prefixed .NET output and a worksheet part named `sheet.xml`.
+The OOXML parts are read namespace-aware by `@sezzlee/ooxml-core`'s own XML tokenizer. Matching is done on `(namespace uri, local name)` — the prefix the file happens to write is never consulted — so `<x:dataValidation>` and `<dataValidation>` are indistinguishable at the call site. Relationships resolve supported worksheet, style and shared-string parts, including prefixed .NET output and a worksheet part named `sheet.xml`. The workbook root is currently required at `xl/workbook.xml`; arbitrary OPC workbook-root layouts are not supported.
 
 | tool                      | source                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

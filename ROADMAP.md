@@ -63,6 +63,15 @@ spec, a guard comment or the package README.
 
 ## Excel analysis and typed data
 
+- **Numerical integrity and retained-result evaluation.** The
+  [architecture review](packages/servers/excel-mcp/ARCHITECTURE_RECOMMENDATIONS.md)
+  reproduces a derived-share defect: finite group sums can overflow their total and return
+  misleading zero shares. Repair checked total/derived finalization before expanding the
+  analytical surface. Extend the agent lab's plan bindings, replay and completeness checks
+  for retained handles before claiming model evaluation of that workflow. The review also
+  prioritizes expected source versions, focused discovery, declared table-body facts and
+  full-result sorting on existing tools; row-preserving queries and early result release
+  need separate narrow contracts. These recommendations are not implemented by the review.
 - **Retained-result follow-ups.** The first bounded snapshot/query slice is implemented in
   [excel-mcp](packages/servers/excel-mcp/README.md#continue-on-a-complete-aggregate-result)
   with a [repeatable MCP scenario](packages/lab/excel-lab/README.md#retained-result-scenario).
