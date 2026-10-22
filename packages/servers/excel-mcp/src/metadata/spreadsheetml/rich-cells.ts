@@ -5,7 +5,7 @@ import {
   type GridBounds,
 } from "../../grid/range.js";
 import { SezzleeExcelError } from "../../platform/errors.js";
-import { positionOf, rowOf } from "./cells.js";
+import { nextPosition, positionOf, rowOf } from "./cells.js";
 import type { OoxmlImage } from "./drawing.js";
 import { corruptRich, metadataIndex, type RichData } from "./rich-data.js";
 import { rangeOf } from "./sheet-layout.js";
@@ -52,7 +52,7 @@ export function richCellScan(
           const reference = node.attr("r");
           const position =
             reference === undefined
-              ? { row, column: column + 1 }
+              ? nextPosition(row, column, part)
               : positionOf(reference, part);
           column = position.column;
           cell = {

@@ -25,6 +25,10 @@ beforeAll(async () => {
     "Mahalle,Yapi,Bagimsiz\nA,10,25\nB,20,30\nC,4,12\nD,0,5\n",
   );
   await writeFile(
+    join(directory, "partial.csv"),
+    "Mahalle,Yapi\nA,10\nB,\nB,\nC,30\n",
+  );
+  await writeFile(
     join(directory, "roads.csv"),
     "Mahalle,Yol\nA,x\nB,y\nE,z\na,w\n",
   );
@@ -98,6 +102,29 @@ describe("derived metrics", () => {
     ]);
   });
 
+  it("keeps the shares when one group has no amounts to add", async () => {
+    const result = body(
+      await handlers.aggregate_sheet({
+        filePath: "partial.csv",
+        groupBy: ["Mahalle"],
+        metrics: [{ fn: "sum", column: "Yapi" }],
+        derived: [
+          {
+            name: "share",
+            numerator: [{ metric: 1 }],
+            denominator: [{ metric: 1, scope: "total" }],
+            scale: 100,
+          },
+        ],
+      }),
+    );
+    expect(result["rows"]).toEqual([
+      ["A", 10, 25],
+      ["B", null, null],
+      ["C", 30, 75],
+    ]);
+  });
+
   it("adjusts a whole-range total with a weighted second metric", async () => {
     const result = body(
       await handlers.aggregate_sheet({
@@ -148,6 +175,8 @@ describe("derived metrics", () => {
     [2.5, 0, 3],
     [-2.5, 0, -3],
     [0.125, 2, 0.13],
+    [1e20, 2, 1e20],
+    [-123456789012345680, 4, -123456789012345680],
   ])(
     "rounds %d to %d places as Excel ROUND does: %d",
     (value, digits, expected) => {

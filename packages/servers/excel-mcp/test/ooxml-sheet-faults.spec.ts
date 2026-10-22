@@ -95,3 +95,49 @@ describe("where a worksheet's faults surface", () => {
     });
   });
 });
+
+describe("cells placed by order instead of a reference", () => {
+  it("refuses a cell written outside any row", async () => {
+    await expect(
+      sheetOf({
+        sheetData: '<c><v>1</v></c><row r="1"><c r="A1"><v>2</v></c></row>',
+      }),
+    ).rejects.toMatchObject({
+      code: "corrupt_workbook",
+      message: expect.stringContaining("outside the sheet grid"),
+    });
+  });
+
+  it("refuses an unnumbered cell past the last column", async () => {
+    await expect(
+      sheetOf({
+        sheetData: '<row r="1"><c r="XFD1"><v>1</v></c><c><v>2</v></c></row>',
+      }),
+    ).rejects.toMatchObject({
+      code: "corrupt_workbook",
+      message: expect.stringContaining("outside the sheet grid"),
+    });
+  });
+
+  it("refuses an unnumbered row past the last row", async () => {
+    await expect(
+      sheetOf({
+        sheetData:
+          '<row r="1048576"><c r="A1048576"><v>1</v></c></row><row><c><v>2</v></c></row>',
+      }),
+    ).rejects.toMatchObject({
+      code: "corrupt_workbook",
+      message: expect.stringContaining("outside the sheet grid"),
+    });
+  });
+
+  it("still places unnumbered rows and cells after the ones before them", async () => {
+    const sheet = await sheetOf({
+      sheetData:
+        '<row r="2"><c r="B2"><v>1</v></c><c><v>2</v></c></row><row><c><v>3</v></c></row>',
+    });
+    expect(sheet.bounds).toEqual({ top: 2, left: 1, bottom: 3, right: 3 });
+    expect(sheet.rowAt(2)?.cellAt(3)?.value).toEqual({ value: 2 });
+    expect(sheet.rowAt(3)?.cellAt(1)?.value).toEqual({ value: 3 });
+  });
+});

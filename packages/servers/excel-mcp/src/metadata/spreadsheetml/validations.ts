@@ -1,7 +1,12 @@
 import { asciiUpper } from "@sezzlee/file-core";
 import { limits } from "../../platform/limits.js";
 import { serialToClock, serialToDate } from "../../grid/excel-serial.js";
-import { parseCellRef } from "../../grid/range.js";
+import {
+  lettersToColumn,
+  maxColumn,
+  maxRow,
+  parseCellRef,
+} from "../../grid/range.js";
 import { namespaces, type PartScan, type XmlVisitor } from "./xml.js";
 
 export type ValidationFormula = string | number;
@@ -107,14 +112,41 @@ function cleanRange(raw: string): string {
   return asciiUpper(raw.replaceAll("$", ""));
 }
 
+const wholeColumns = /^([A-Z]{1,3}):([A-Z]{1,3})$/;
+const wholeRows = /^([1-9][0-9]*):([1-9][0-9]*)$/;
+
+/**
+ * Guard: a range the count cannot place adds nothing to it. The count read
+ * every range as two A1 cells, so a rule on `A:A`, as openpyxl writes a whole
+ * column, threw `invalid_range` — the error for the caller's own argument —
+ * and with it every read of that sheet's cells, which never needed the count.
+ */
 function areaOf(range: string): number {
-  const [start, end] = range.split(":");
-  if (start === undefined) return 0;
-  const from = parseCellRef(start);
-  const to = end === undefined ? from : parseCellRef(end);
-  return (
-    (Math.abs(to.row - from.row) + 1) * (Math.abs(to.column - from.column) + 1)
-  );
+  try {
+    const columns = wholeColumns.exec(range);
+    if (columns !== null) {
+      const first = lettersToColumn(columns[1] ?? "");
+      const last = lettersToColumn(columns[2] ?? "");
+      return (Math.abs(last - first) + 1) * maxRow;
+    }
+    const rows = wholeRows.exec(range);
+    if (rows !== null) {
+      const first = Number(rows[1]);
+      const last = Number(rows[2]);
+      if (first > maxRow || last > maxRow) return 0;
+      return (Math.abs(last - first) + 1) * maxColumn;
+    }
+    const [start, end] = range.split(":");
+    if (start === undefined) return 0;
+    const from = parseCellRef(start);
+    const to = end === undefined ? from : parseCellRef(end);
+    return (
+      (Math.abs(to.row - from.row) + 1) *
+      (Math.abs(to.column - from.column) + 1)
+    );
+  } catch {
+    return 0;
+  }
 }
 
 /**

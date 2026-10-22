@@ -157,6 +157,36 @@ describe("an ISO date cell without a zone", () => {
       "2026-01-15T09:30:00.000+03:00",
     );
   });
+
+  it.each([
+    ["2026-01-15", "2026-01-15"],
+    ["2026-01-15T09:30", "2026-01-15T09:30:00.000"],
+    ["2026-01-15 09:30:15.1239", "2026-01-15T09:30:15.123"],
+    ["2026-01-15T09:30:00-0530", "2026-01-15T09:30:00.000-05:30"],
+    ["2026-01-15T09:30:00z", "2026-01-15T09:30:00.000Z"],
+    ["0001-01-01", "0001-01-01"],
+    ["2024-02-29", "2024-02-29"],
+  ])("reads the ISO 8601 date cell %s", (written, read) => {
+    const cell = snapshot({ value: { kind: "date", value: written } });
+    expect(normalizeCell(cell, values).value).toBe(read);
+  });
+
+  it.each([
+    "2023-02-29",
+    "2026-02-30",
+    "2026-13-01",
+    "0000-01-01",
+    "2026-01-15T24:00:00",
+    "2026-01-15T09:30:00+24:00",
+    "Jan 15 2026",
+    "1/15/2026",
+    "2026/01/15",
+    "2026-1-5",
+    " 2026-01-15",
+  ])("keeps %s as text instead of moving it to another day", (written) => {
+    const cell = snapshot({ value: { kind: "date", value: written } });
+    expect(normalizeCell(cell, values).value).toBe(written);
+  });
 });
 
 describe("merged cells", () => {

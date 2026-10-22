@@ -385,7 +385,7 @@ const chartSpace = (plotArea: string, chart = ""): string =>
 
 async function chartsOf(
   part: string | undefined,
-  args: { readonly chartId?: number } = {},
+  args: { readonly chartId?: number; readonly maxPoints?: number } = {},
   anchor = twoCellChart("Chart 1", "rId1"),
 ): Promise<CallToolResult> {
   const bytes = await rawWorkbook({
@@ -526,6 +526,38 @@ describe("get_charts reads cached values and names as Excel writes them", () => 
     expect(body).toMatchObject({
       truncated: true,
       truncationReason: "maxSeriesPerChart",
+    });
+  });
+});
+
+describe("the response's point budget", () => {
+  it("marks the answer truncated when a multi-level series gets less than a point a level", async () => {
+    const values = (count: number): string =>
+      numCache(Array.from({ length: count }, (_, index) => String(index)));
+    const series = [2000, 2000, 999]
+      .map(
+        (count, index) =>
+          `<c:ser><c:idx val="${index}"/><c:order val="${index}"/><c:val><c:numRef><c:f>S!$A$1:$A$${count}</c:f>${values(count)}</c:numRef></c:val></c:ser>`,
+      )
+      .join("");
+    const levels = `<c:ser><c:idx val="3"/><c:order val="3"/><c:cat><c:multiLvlStrRef><c:f>S!$B$1:$C$2</c:f><c:multiLvlStrCache><c:ptCount val="2"/><c:lvl><c:pt idx="0"><c:v>a</c:v></c:pt><c:pt idx="1"><c:v>b</c:v></c:pt></c:lvl><c:lvl><c:pt idx="0"><c:v>x</c:v></c:pt></c:lvl></c:multiLvlStrCache></c:multiLvlStrRef></c:cat></c:ser>`;
+    const body = payload(
+      await chartsOf(
+        chartSpace(
+          `<c:lineChart>${series}${levels}<c:axId val="1"/><c:axId val="2"/></c:lineChart>`,
+        ),
+        { maxPoints: 2000 },
+      ),
+    );
+    const plot = (body["charts"] as ReadChart[])[0]!.plots[0]!;
+    expect(plot.series[3]!["categories"]).toMatchObject({
+      count: 2,
+      points: [],
+      truncated: true,
+    });
+    expect(body).toMatchObject({
+      truncated: true,
+      truncationReason: "maxPointsPerResponse",
     });
   });
 });

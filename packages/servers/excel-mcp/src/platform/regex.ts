@@ -83,6 +83,13 @@ export async function closeRegexWorkers(): Promise<void> {
   );
 }
 
+/**
+ * Guard: the worker compiles the pattern without the `u` flag, so `\p{L}` is
+ * not a Unicode property there: it is an identity escape that matches the
+ * literal text "p{L}" and never a letter. Refusing it turns a search that would
+ * silently find nothing into `invalid_pattern`. The `u` flag is not the fix: it
+ * makes `\-`, `\_` and `[\w-.]`, which agents write, syntax errors.
+ */
 export async function withRegex<T>(
   query: string,
   caseSensitive: boolean,
