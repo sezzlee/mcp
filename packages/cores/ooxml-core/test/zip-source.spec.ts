@@ -78,6 +78,15 @@ describe("the reject list", () => {
     }
   });
 
+  it("refuses an encrypted entry instead of reading it as damage", () => {
+    const forged = patchHeaders(zipOf(ok), { flags: 0x01 }, { flags: 0x01 });
+    const error = expectRefusal(
+      () => reader().zipSource(forged),
+      "unsupported_zip_feature",
+    );
+    expect(error.message).toBe("'a.xml' is encrypted, which is not read.");
+  });
+
   it("refuses an archive carrying the same name twice", () => {
     const built = zipOf({ "a.xml": "<a/>", "b.xml": "<b/>" });
     const collided = renamePart(built, "b.xml", bytes("a.xml"));
