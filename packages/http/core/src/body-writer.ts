@@ -30,7 +30,7 @@ function quoted(value: string): string {
 
 /**
  * Guard: multer decodes a bare `filename` as latin1 and mangles UTF-8 (form-body-probe N3), while
- * both multer and ASP.NET decode RFC 5987 `filename*` correctly (N3b, FormBindingProbeTests.P8).
+ * both multer and ASP.NET decode RFC 5987 `filename*` correctly (N3b).
  * A non-ASCII name therefore travels as an ASCII fallback plus `filename*`.
  */
 function dispositionOf(name: string, filename?: string): string {

@@ -6,29 +6,7 @@ Nothing is limited until you configure it.
 
 ## Declare the limits
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-builder.Services.AddSezzlee(options =>
-{
-    options.RateLimiting.Default = new RateLimitSettings
-    {
-        Kind = RateLimitKind.TokenBucket,
-        TokenLimit = 120,
-        TokensPerPeriod = 2,
-        Period = TimeSpan.FromSeconds(1),
-    };
-    options.RateLimiting.Invoke = new RateLimitSettings
-    {
-        Kind = RateLimitKind.FixedWindow,
-        PermitLimit = 30,
-        Window = TimeSpan.FromMinutes(1),
-    };
-    options.RateLimiting.InvokeConcurrency = 4;
-});
-```
-
-```ts title="NestJS"
+```ts
 SezzleeModule.forRoot((options) => {
   options.rateLimiting = {
     default: {
@@ -43,21 +21,9 @@ SezzleeModule.forRoot((options) => {
 });
 ```
 
-:::
-
 `default` covers every call. `search`, `load` and `invoke` each replace it for one meta-tool, with a bucket of their own. `invokeConcurrency` caps how many `invoke_tool` calls one caller has running at once. Its slot is held until the backend has answered, however the call ends.
 
-The four kinds are a token bucket, a fixed window, a sliding window and a concurrency limit. On ASP.NET Core they are the limiters of `System.Threading.RateLimiting`, and the same settings bind from `appsettings.json`:
-
-```json
-"Sezzlee": {
-  "RateLimiting": {
-    "Default": { "Kind": "TokenBucket", "TokenLimit": 120, "TokensPerPeriod": 2, "Period": "00:00:01" },
-    "Invoke": { "Kind": "FixedWindow", "PermitLimit": 30, "Window": "00:01:00" },
-    "InvokeConcurrency": 4
-  }
-}
-```
+The four kinds are a token bucket, a fixed window, a sliding window and a concurrency limit.
 
 Limits are counted per process. Behind a load balancer each replica counts on its own.
 
@@ -82,51 +48,18 @@ Declared limits are counted per caller scope key, the one the visibility cache u
 
 The caller scope key is also derived from the identity headers, by default `Authorization`. It is safe only when your MCP endpoint rejects a request it has not authenticated. If the endpoint lets anonymous calls through, a caller can send a different header on every call, and each call starts with a full bucket. In both cases, give the limiter a key the caller cannot change at will:
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-options.RateLimiting.Key(call =>
-    call.HttpContext?.User.FindFirst("sub")?.Value ?? call.CallerScope);
-```
-
-```ts title="NestJS"
+```ts
 options.rateLimiting = {
   default: { kind: "tokenBucket", tokenLimit: 120, tokensPerPeriod: 2, periodMs: 1_000 },
   key: (call) => call.request?.auth?.clientId ?? call.callerScope,
 };
 ```
 
-:::
-
 ## Write your own rule
 
 When one limit per meta-tool is not enough, return the partitions yourself. The function runs once per call. It receives the request, the meta-tool, and for `load_tool` and `invoke_tool` the catalog tool the call names. Here writes get a tighter budget than reads, and every user also has an overall ceiling:
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-options.RateLimiting.Partitions(call =>
-{
-    string user = call.HttpContext?.User.FindFirst("sub")?.Value ?? call.CallerScope;
-    bool write = call.MetaTool == McpMetaTool.Invoke && call.Target?.Method != "GET";
-    return
-    [
-        RateLimitPartition.GetTokenBucketLimiter(
-            $"{(write ? "write" : "read")}:{user}",
-            _ => new TokenBucketRateLimiterOptions
-            {
-                TokenLimit = write ? 10 : 60,
-                TokensPerPeriod = write ? 1 : 2,
-                ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-            }),
-        RateLimitPartition.GetFixedWindowLimiter(
-            $"ceiling:{user}",
-            _ => new FixedWindowRateLimiterOptions { PermitLimit = 1_000, Window = TimeSpan.FromHours(1) }),
-    ];
-});
-```
-
-```ts title="NestJS"
+```ts
 options.rateLimiting = {
   partition: (call) => {
     const user = call.request?.auth?.clientId ?? call.callerScope;
@@ -150,9 +83,7 @@ options.rateLimiting = {
 };
 ```
 
-:::
-
-A call needs a permit from every partition. If one refuses, the permits already taken are given back, and the refusal carries that partition's retry time. Partitions with the same key share one limiter. The partition function replaces the declared limits, and setting both fails at startup. To share limits across replicas, back a partition with a distributed limiter. On ASP.NET Core that is any `RateLimiter`. On NestJS it is anything that implements `RateLimiter`.
+A call needs a permit from every partition. If one refuses, the permits already taken are given back, and the refusal carries that partition's retry time. Partitions with the same key share one limiter. The partition function replaces the declared limits, and setting both fails at startup. To share limits across replicas, back a partition with a distributed limiter: anything that implements `RateLimiter`.
 
 ## What is counted
 

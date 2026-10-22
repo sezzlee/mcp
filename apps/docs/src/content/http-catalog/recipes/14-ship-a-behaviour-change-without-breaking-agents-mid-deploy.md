@@ -12,15 +12,7 @@ The version already changes when anything the agent reads changes: the descripti
 
 Raise the revision on the operation whose behaviour changed:
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-[HttpGet("cancel")]
-[McpTool(Name = "cancel_revised", Revision = 2)]
-public IActionResult Cancel() => Ok();
-```
-
-```ts title="NestJS"
+```ts
 @Get("cancel")
 @McpTool({
   name: "cancel_order",
@@ -30,16 +22,7 @@ public IActionResult Cancel() => Ok();
 cancel(): void {}
 ```
 
-:::
-
-A minimal API takes the same attribute as metadata:
-
-```csharp
-app.MapGet("/orders/{id}", (int id) => new { id })
-    .WithMetadata(new McpToolAttribute { Name = "get_order", Revision = 2 });
-```
-
-A call pinned to the version loaded before the change is now refused, and nothing is dispatched:
+A call pinned to a version loaded before such a change is now refused, and nothing is dispatched:
 
 ```json
 {
@@ -55,26 +38,15 @@ Only that operation's version changes. Calls to every other tool in the same dep
 
 A change in a shared service can reach every operation of a controller, or the whole backend. Declare the revision at that level instead of on each method:
 
-| Level     | ASP.NET Core                                | NestJS                                 | Covers                        |
-| --------- | ------------------------------------------- | -------------------------------------- | ----------------------------- |
-| Catalog   | `options.Revision`                          | `options.revision`                     | Every tool                    |
-| Container | `[McpTool(Revision = n)]` on the controller | `@McpTool({ revision })` on the class  | Every operation in that class |
-| Operation | `[McpTool(Revision = n)]` on the action     | `@McpTool({ revision })` on the method | That operation                |
+| Level     | Declaration                            | Covers                        |
+| --------- | -------------------------------------- | ----------------------------- |
+| Catalog   | `options.revision`                     | Every tool                    |
+| Container | `@McpTool({ revision })` on the class  | Every operation in that class |
+| Operation | `@McpTool({ revision })` on the method | That operation                |
 
 For a controller you cannot decorate, declare a container rule centrally. Returning null or `undefined` means no rule here:
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-builder.Services.AddSezzlee(options =>
-{
-    options.Revision = 7;
-    options.ContainerRevision = container =>
-        container.EndsWith(nameof(TagsUndeclaredController), StringComparison.Ordinal) ? 9 : null;
-});
-```
-
-```ts title="NestJS"
+```ts
 SezzleeModule.forRoot((options) => {
   options.revision = 7;
   options.containerRevision = (container) =>
@@ -82,9 +54,7 @@ SezzleeModule.forRoot((options) => {
 });
 ```
 
-:::
-
-The levels add up instead of replacing one another. A controller declared with `Revision = 4`, holding a method declared with `Revision = 2`, in a catalog at `7`, gives that method's tool all three:
+The levels add up instead of replacing one another. A controller declared with `revision: 4`, holding a method declared with `revision: 2`, in a catalog at `7`, gives that method's tool all three:
 
 ```json
 { "catalog": 7, "container": 4, "operation": 2 }
@@ -92,7 +62,7 @@ The levels add up instead of replacing one another. A controller declared with `
 
 Raising the controller to `5` therefore changes that method's version too, even though the method declares its own.
 
-When a controller declaration and a central rule both name a container, the declaration wins and the SDK reports `revision_overridden`, because raising the rule would change nothing. A value below `1` is reported as `invalid_revision` and ignored. On ASP.NET Core, `Revision = 0` declares nothing, because an attribute property cannot be nullable.
+When a controller declaration and a central rule both name a container, the declaration wins and the SDK reports `revision_overridden`, because raising the rule would change nothing. A value below `1` is reported as `invalid_revision` and ignored.
 
 ## Declare it on an OpenAPI gateway
 

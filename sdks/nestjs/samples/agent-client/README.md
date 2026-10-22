@@ -2,7 +2,7 @@
 
 A small CLI that drives the `search_tools` → `load_tool` → `invoke_tool` flow with a real MCP
 client (`@modelcontextprotocol/sdk`) and automates the "done" criteria for each flow. It runs
-against `sdks/dotnet/samples/DemoApi` and the Nest demo; with `SEZZLEE_AUTH=bearer` it can run
+against the Nest demo (`sdks/nestjs/samples/demo-api`); with `SEZZLEE_AUTH=bearer` it can run
 against any sezzlee backend.
 
 ## Setup and build
@@ -18,7 +18,7 @@ pnpm turbo run build --filter=@sezzlee/agent-client
 
 | Variable           | Default                 | Description                                                          |
 | ------------------ | ----------------------- | -------------------------------------------------------------------- |
-| `SEZZLEE_BASE_URL` | `http://127.0.0.1:5178` | The backend's root URL; the MCP endpoint is called at `{base}/mcp`.  |
+| `SEZZLEE_BASE_URL` | `http://127.0.0.1:3000` | The backend's root URL; the MCP endpoint is called at `{base}/mcp`.  |
 | `SEZZLEE_USER`     | `alice`                 | The demo username (used as `login_hint` in `token`/`oauth` modes).   |
 | `SEZZLEE_AUTH`     | `oauth`                 | `oauth` \| `token` \| `bearer`.                                      |
 | `SEZZLEE_TOKEN`    | —                       | Required only when `SEZZLEE_AUTH=bearer`, a ready-made access token. |
@@ -34,7 +34,7 @@ pnpm turbo run build --filter=@sezzlee/agent-client
   and the session reconnects through it. Because the demo authorization server auto-consents, the
   whole flow is headless.
 - **`token`**: `POST {base}/auth/token {"user": SEZZLEE_USER}` → `{ access_token }`; the token is
-  then sent on every request as a static `Authorization: Bearer` header. This is today's DemoApi
+  then sent on every request as a static `Authorization: Bearer` header. This is the demo's
   shortcut.
 - **`bearer`**: uses `SEZZLEE_TOKEN` as-is, as a static bearer token — for running against a real
   backend with your own token.
@@ -75,7 +75,7 @@ scenario.
   an SDK-side `file_unresolved` error, and the malformed argument as an SDK-side
   `invalid_file_argument` error — never as a backend error built from an empty part. Success is
   **exit 0**.
-- **`family`**: drives the demos' dispatching endpoint (`POST /Rest/InvokeDynamicMethod/{methodId}`),
+- **`family`**: drives the demo's dispatching endpoint (`POST /Rest/InvokeDynamicMethod/{methodId}`),
   published as one tool per method ([tool-families.md](../../../../packages/http/spec/tool-families.md)).
   It verifies that `search_tools "courier"` (or `--query`) ranks `assign_courier` first, that its
   loaded schema has `orderNumber` and `courierCode` but no `methodId` and is marked destructive,
@@ -95,10 +95,11 @@ scenario.
 
 ## Example runs
 
-Against DemoApi (default OAuth flow):
+Against the Nest demo (default OAuth flow):
 
 ```sh
-cd sdks/dotnet/samples/DemoApi && dotnet run &
+pnpm turbo run build --filter=@sezzlee/demo-nestjs
+node sdks/nestjs/samples/demo-api/dist/main.js &
 SEZZLEE_AUTH=oauth SEZZLEE_USER=alice node sdks/nestjs/samples/agent-client/dist/main.js --scenario smoke
 ```
 

@@ -69,7 +69,7 @@ A page covers one product line; its path says which. What the products share is 
 product, and shared narrative belongs in `packages/http/spec/`.
 
 A product folder is named after the product's package or directory (`excel-mcp`, `xml-mcp`).
-`http-catalog` is the deliberate exception: it names a capability spread over two SDKs rather than a
+`http-catalog` is the deliberate exception: it names a capability spread over an SDK and a gateway rather than a
 package.
 
 ### 2. Reference is generated, not written
@@ -109,8 +109,8 @@ page. A measured JSON block in `reference/02-schema-conversion.md` once carried 
 ### 5. Policy names do not leak
 
 `packages/http/spec/visibility.md` invariant 3: policy names never reach the agent. The same holds
-for the docs — examples use no real customer policy name, tenant name or endpoint path. DemoApi's
-cast of `OrdersRead`, `BusinessHours` and `alice`/`bob`/`carol` exists for this.
+for the docs — examples use no real customer policy name, tenant name or endpoint path. The NestJS
+sample's cast of `OrdersRead`, `BusinessHours` and `alice`/`bob`/`carol` exists for this.
 
 ### 6. Rationale lives next to what it constrains
 

@@ -342,12 +342,9 @@ export function registerSezzleeTools(
           .default("card")
           .describe(searchDetailDescription),
         /**
-         * Guard: `meta` publishes the `default: null` that the ASP.NET SDK emits for this argument
-         * and cannot omit, because a C# array parameter's default has to be a compile-time
-         * constant and `null` is the only one. Without it the two SDKs publish different schemas
-         * for the same argument, which search-semantics.md makes contract. It decorates the
-         * schema only; `parse` still yields `undefined` for an absent value. Pinned by T16 and by
-         * test/meta-tools.spec.ts.
+         * Guard: `meta` publishes `default: null` in the meta-tool schema clients already read. It
+         * decorates the schema only; `parse` still yields `undefined` for an absent value. Pinned
+         * by test/meta-tools.spec.ts.
          */
         tags: z
           .array(z.string())
@@ -469,10 +466,9 @@ export function registerSezzleeTools(
             description: invokeArgumentsDescription,
           }),
           /**
-           * Guard: `meta` publishes the `default: null` the ASP.NET SDK emits for this optional
-           * string and cannot omit, the same trap `tags` has. It binds as `unknown` so a value that
-           * is not a string reaches checkPinnedVersion and leaves as an envelope. Pinned by T18 and
-           * by test/meta-tools.spec.ts.
+           * Guard: it binds as `unknown` so a value that is not a string reaches
+           * checkPinnedVersion and leaves as an envelope, while `meta` keeps the published type a
+           * string with `default: null`. Pinned by test/meta-tools.spec.ts.
            */
           version: z.unknown().optional().meta({
             type: "string",

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "protocol-revision.schema.json",
   "title": "ProtocolRevision",
-  "description": "An MCP protocol revision sezzlee advertises. Both SDKs speak exactly this set: the .NET SDK (ModelContextProtocol 2.2.0) ships no earlier revision, so a revision listed here that it cannot negotiate would be a claim neither side can honour. The enum is ordered oldest first; `default` names the revision an sezzlee server advertises when the caller states no preference.",
+  "description": "An MCP protocol revision sezzlee advertises. Every SDK speaks exactly this set, so a revision listed here that an SDK cannot negotiate would be a claim it cannot honour. The enum is ordered oldest first; `default` names the revision an sezzlee server advertises when the caller states no preference.",
   "type": "string",
   "enum": ["2025-11-25", "2026-07-28"],
   "default": "2026-07-28"

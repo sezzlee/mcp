@@ -4,7 +4,7 @@ export const dynamicMethodsSource = "dynamic-methods";
 
 /**
  * Stands in for a backend's own table of dispatchable methods. The agent-client `family` scenario
- * asserts these names, keys and bodies, and the ASP.NET Core demo carries the same three.
+ * asserts these names, keys and bodies.
  */
 export const dynamicMethods: readonly McpFamilyMember[] = [
   {

@@ -1,6 +1,6 @@
 # Tool Naming
 
-> Status: **normative** — validated by two independent implementations (ASP.NET Core `ToolNameFactory` + TS `createToolNames`; both frameworks' discovery layers feed the same `naming/` corpus).
+> Status: **normative** — TS `createToolNames` passes the `naming/` corpus, which the NestJS discovery layer feeds.
 
 Every SDK MUST produce the same names from the same set of endpoints; the `naming/` fixtures in [conformance](../conformance) test this document.
 
@@ -18,7 +18,7 @@ Every SDK MUST produce the same names from the same set of endpoints; the `namin
 Tool names live in a **flat** namespace while HTTP routes are hierarchical. Moving a hierarchical set into a flat space means either part of the hierarchy enters the name or you collide. `container` is part of the operation's identity ([one operation, one tool](#one-operation-one-tool)), and is therefore part of the produced name too: dropping a field that determines identity from the name would build collisions into the design.
 
 1. Every endpoint that has a container is named `{prefix}_{body}`. The default mode is `Always`.
-2. An endpoint with no container (a minimal API, a route handler) gets **no** prefix: there is no source for one, and a body generated from the route already carries the hierarchy.
+2. An endpoint with no container (a route handler outside any controller) gets **no** prefix: there is no source for one, and a body generated from the route already carries the hierarchy.
 3. Prefix resolution — **most specific wins** (the same pattern as the [selection hierarchy](selection-hierarchy.md)):
    1. If the operation declared an explicit full name, that name is used and no prefix is applied.
    2. If the container declared an explicit prefix, that is used.

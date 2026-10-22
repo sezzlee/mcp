@@ -35,17 +35,9 @@ The response is refused, not truncated. No prefix, no preview:
 }
 ```
 
-A timeout frees the agent. It does not cancel your handler. sezzlee delivers a cancellation signal, but neither runtime preempts running code. A handler that ignores its signal runs to completion and its result is discarded, and a write it already committed stays committed. To make a timeout stop work, the handler has to cooperate:
+A timeout frees the agent. It does not cancel your handler. sezzlee delivers a cancellation signal, but Node does not preempt running code. A handler that ignores its signal runs to completion and its result is discarded, and a write it already committed stays committed. To make a timeout stop work, the handler has to cooperate:
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-[HttpGet("/reports/heavy")]
-public async Task<IActionResult> Heavy(CancellationToken cancellationToken) =>
-    Ok(await _db.Reports.ToListAsync(cancellationToken));
-```
-
-```ts title="NestJS"
+```ts
 @Get("reports/heavy")
 heavy(@Req() request: Request) {
   const controller = new AbortController();
@@ -54,48 +46,25 @@ heavy(@Req() request: Request) {
 }
 ```
 
-:::
-
-On ASP.NET this is usually free, because `CancellationToken` is already threaded through EF Core and `HttpClient`. On Node it usually is not, because `AbortSignal` is not conventional in Nest handler signatures.
+This rarely comes for free, because `AbortSignal` is not conventional in Nest handler signatures.
 
 ## Change the numbers
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-builder.Services.AddSezzlee(options =>
-{
-    options.Invoke.MaxResponseBytes = 512 * 1024;
-    options.Invoke.Timeout = TimeSpan.FromSeconds(10);
-});
-```
-
-```ts title="NestJS"
+```ts
 SezzleeModule.forRoot((options) => {
   options.invoke.maxResponseBytes = 512 * 1024;
   options.invoke.timeoutMs = 10_000;
 });
 ```
 
-:::
-
-The defaults are 262 144 bytes and 30 000 ms in both SDKs. Do not raise the timeout above one minute. A stock MCP client cancels at 60 seconds first, so a larger number is unreachable.
+The defaults are 262 144 bytes and 30 000 ms. Do not raise the timeout above one minute. A stock MCP client cancels at 60 seconds first, so a larger number is unreachable.
 
 A report endpoint that legitimately returns megabytes should not raise the budget for everything else. Override it per endpoint with a delegate. Returning `null` or `undefined` falls back to the global value:
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-options.Invoke.MaxResponseBytesFor = target =>
-    target.Route.StartsWith("/reports/", StringComparison.Ordinal) ? 4 * 1024 * 1024 : null;
-```
-
-```ts title="NestJS"
+```ts
 options.invoke.maxResponseBytesFor = (target) =>
   target.route.startsWith("/reports/") ? 4 * 1024 * 1024 : undefined;
 ```
-
-:::
 
 Every meta-tool answer passes the budget, not just `invoke_tool`. A DTO deep enough has an input schema large enough to flood the agent on its own, and `load_tool` is guarded too. If you hit that, the fix is the schema depth budget, not a larger response budget. The normative rules are in [invoke-semantics.md](https://github.com/sezzlee/mcp/blob/main/packages/http/spec/invoke-semantics.md).
 

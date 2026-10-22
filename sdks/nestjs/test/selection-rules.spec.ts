@@ -56,8 +56,7 @@ describe("selection rules", () => {
   });
 
   /**
-   * Guard: the twin of S2 in sdks/dotnet/tests/Sezzlee.Tests/SelectionRuleHostTests.cs. An operation
-   * marker is the only place a carve-out can be written, because equally specific rules that
+   * Guard: an operation marker is the only place a carve-out can be written, because equally specific rules that
    * disagree are a build error rather than a silent winner.
    */
   it("loses to an operation marker inside the excluded subtree", () => {
@@ -104,8 +103,7 @@ describe("selection rules that disagree", () => {
 
 describe("a blank rule field", () => {
   /**
-   * Guard: the twin of S6 in sdks/dotnet/tests/Sezzlee.Tests/SelectionRuleHostTests.cs. Omitting a
-   * field is the catch-all; a blank one matches nothing, so it would decide nothing and say so
+   * Guard: omitting a field is the catch-all; a blank one matches nothing, so it would decide nothing and say so
    * nowhere.
    */
   it("is a configuration failure, not a catch-all", () => {

@@ -249,12 +249,6 @@ describe("nest meta-tools", () => {
     expect(typeof detail?.["description"]).toBe("string");
   });
 
-  /**
-   * The twin of this test is T17 in sdks/dotnet/tests/Sezzlee.Tests/TransportTests.cs, and the
-   * description is asserted verbatim in both because nothing else can compare two SDKs running in
-   * two processes. The `default` is null rather than an empty array because a C# array parameter's
-   * default must be a compile-time constant; zod's `meta` publishes the same null here.
-   */
   it("search_tools publishes tags as an optional string array", async () => {
     const listed = await (await clientFor("alice")).listTools();
     const search = listed.tools.find((tool) => tool.name === "search_tools");
@@ -271,8 +265,7 @@ describe("nest meta-tools", () => {
   });
 
   /**
-   * The twin of T18 in sdks/dotnet/tests/Sezzlee.Tests/TransportTests.cs. `arguments` publishes a
-   * description and no `type` on purpose: the argument accepts raw JSON so a non-object value
+   * `arguments` publishes a description and no `type` on purpose: the argument accepts raw JSON so a non-object value
    * reaches the handler and leaves as an sezzlee envelope rather than a raw MCP validation error.
    */
   it("invoke_tool publishes name and arguments as required and version as an optional string", async () => {
@@ -301,8 +294,7 @@ describe("nest meta-tools", () => {
   });
 
   /**
-   * The twin of T19 in sdks/dotnet/tests/Sezzlee.Tests/TransportTests.cs. The permissive runtime type
-   * must not show up in what the agent reads.
+   * The permissive runtime type must not show up in what the agent reads.
    */
   it("load_tool still publishes name as a required string", async () => {
     const listed = await (await clientFor("alice")).listTools();

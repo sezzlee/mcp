@@ -101,11 +101,6 @@ describe("tag declaration", () => {
     expect(tagsOf("declares_tags")).toEqual(["billing", "orders"]);
   });
 
-  /**
-   * Guard: the twin of G3 in sdks/dotnet/tests/Sezzlee.Tests/CatalogHostTests.cs. The ASP.NET reader
-   * has to consult the class explicitly, because its selection-attribute lookup returns the method
-   * attribute alone whenever one exists; Nest merges marker options key by key and gets this free.
-   */
   it("keeps a container's tags when the operation marker declares none", () => {
     expect(tagsOf("inherits_tags")).toEqual(["billing"]);
   });

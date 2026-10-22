@@ -1,7 +1,6 @@
 import { createHighlighterCoreSync, type ThemedToken } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import bash from "shiki/langs/bash.mjs";
-import csharp from "shiki/langs/csharp.mjs";
 import javascript from "shiki/langs/javascript.mjs";
 import json from "shiki/langs/json.mjs";
 import sql from "shiki/langs/sql.mjs";
@@ -20,8 +19,6 @@ const LANGUAGES: Readonly<Record<string, string>> = {
   typescript: "typescript",
   js: "javascript",
   javascript: "javascript",
-  csharp: "csharp",
-  cs: "csharp",
   toml: "toml",
   sql: "sql",
   xml: "xml",
@@ -33,7 +30,7 @@ const LANGUAGES: Readonly<Record<string, string>> = {
  */
 const highlighter = createHighlighterCoreSync({
   engine: createJavaScriptRegexEngine(),
-  langs: [bash, csharp, javascript, json, sql, toml, typescript, xml],
+  langs: [bash, javascript, json, sql, toml, typescript, xml],
   themes: [
     {
       name: THEME,

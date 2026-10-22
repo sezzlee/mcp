@@ -7,9 +7,9 @@ backend, calling it with `fetch`.
 > Status: `1.0.0`, stable. Install with `npm install -g @sezzlee/openapi-mcp` or run it with
 > `npx -y @sezzlee/openapi-mcp`; the binary is `sezzlee-openapi`.
 
-## How this differs from the embedded SDKs
+## How this differs from the embedded SDK
 
-`Sezzlee.AspNetCore` and the NestJS SDK sit **inside** your backend process: they discover
+The NestJS SDK sits **inside** your backend process: it discovers
 endpoints from your own controllers/routes and replay each MCP call through your existing
 pipeline, so your authentication and authorization run exactly as they do today.
 
@@ -156,16 +156,11 @@ pnpm turbo run test --filter=@sezzlee/openapi-mcp
 Run these through Turbo, not `pnpm --filter @sezzlee/openapi-mcp <task>` — the bare filter skips
 `dependsOn: ["build"]` and the test task would run against a stale `dist`.
 
-`test/` holds four suites:
+`test/` holds unit suites that need no environment variables, plus one gated suite:
 
-- `gateway.spec.ts`, `http.spec.ts` — unit tests, no environment variables needed.
 - `acceptance.spec.ts` — skipped unless `SEZZLEE_OPENAPI_ACCEPTANCE_DOC` names a path to a real
   backend's OpenAPI document. The document itself never enters the repository; the suite ingests
   it, builds a catalog, asserts there is no fatal diagnostic, and prints the diagnostic summary
   instead of pinning a snapshot that would copy that backend's surface into the tree.
-- `parity.spec.ts` — skipped unless `SEZZLEE_PARITY_DIR` names a directory of fixtures written by
-  `sdks/dotnet/tests/Sezzlee.Tests/OpenApiParityDump.cs`, comparing this ingestion's output against
-  the .NET SDK's.
-
-Both `SEZZLEE_OPENAPI_ACCEPTANCE_DOC` and `SEZZLEE_PARITY_DIR` are declared in `turbo.json`'s `test`
-task so Turbo passes them through.
+  `SEZZLEE_OPENAPI_ACCEPTANCE_DOC` is declared in this package's `turbo.json` `test` task so Turbo
+  passes it through.

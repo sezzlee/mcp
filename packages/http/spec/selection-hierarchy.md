@@ -1,6 +1,6 @@
 # Selection Hierarchy
 
-> Status: **normative** — validated by two independent implementations (ASP.NET `SelectionResolver` + TS `isSelected`; `[McpTool]`/`[McpIgnore]` and `@McpTool()`/`@McpIgnore()` pass the same `selection/` corpus, as do `SelectionOptions.Rules` and `selection.rules` through `ResolveRules`/`resolveRules`).
+> Status: **normative** — TS `isSelected` passes the `selection/` corpus for `@McpTool()`/`@McpIgnore()`, as does `selection.rules` through `resolveRules`.
 
 Defines which endpoints are exposed on the MCP surface. The machine-readable counterpart is the `selection` fixture kind in [schemas/fixture.schema.json](schemas/fixture.schema.json); the corpus is [conformance/selection/](../conformance/selection/).
 
@@ -16,19 +16,19 @@ Selection is caller-independent and fixed at application startup; visibility is 
 
 ## Five levels, most specific wins
 
-| Level       | Scope                                                                            |
-| ----------- | -------------------------------------------------------------------------------- |
-| `global`    | Every endpoint in the application                                                |
-| `rules`     | Every endpoint whose route and method a config-level rule matches                |
-| `provided`  | The one endpoint a row from the host's selection source names                    |
-| `container` | Every endpoint in a group (C#: the controller class; Nest: the controller class) |
-| `operation` | A single endpoint (C#: the action method; Nest: the handler method)              |
+| Level       | Scope                                                             |
+| ----------- | ----------------------------------------------------------------- |
+| `global`    | Every endpoint in the application                                 |
+| `rules`     | Every endpoint whose route and method a config-level rule matches |
+| `provided`  | The one endpoint a row from the host's selection source names     |
+| `container` | Every endpoint in a group (Nest: the controller class)            |
+| `operation` | A single endpoint (Nest: the handler method)                      |
 
 An endpoint's effective decision is the decision of **the most specific level carrying a marker**: `operation` > `container` > `provided` > `rules` > `global`. More general levels apply only when no more specific marker exists.
 
-The three attribute-free levels follow directly from the frameworks' own metadata models; no new mechanism is invented. (The C# counterpart: endpoint metadata arrives ordered from most general to most specific, and the last writer wins. The Nest counterpart: `Reflector`'s resolution, which puts method metadata ahead of class metadata.)
+The three attribute-free levels follow directly from the frameworks' own metadata models; no new mechanism is invented. (In Nest: `Reflector`'s resolution, which puts method metadata ahead of class metadata.)
 
-An attribute MUST outrank a rule. A rule is written where the host configures the SDK and an attribute is written on the endpoint itself, so the more local declaration is the more specific one; the same ordering is what every OpenAPI generator in this space already does, and reversing it would let a line in `Program.cs` silently overrule an `[McpIgnore]` sitting on the action.
+An attribute MUST outrank a rule. A rule is written where the host configures the SDK and an attribute is written on the endpoint itself, so the more local declaration is the more specific one; the same ordering is what every OpenAPI generator in this space already does, and reversing it would let a line in the module configuration silently overrule an `@McpIgnore()` sitting on the handler.
 
 ## Markers
 
@@ -53,7 +53,7 @@ Nothing undeclared is exposed. This is the selection form of the default-deny in
 
 ## The selection source
 
-Some hosts keep the list of exposed endpoints in data, such as a table an administrator edits. They register one source (C#: `options.Selection.Provide`; NestJS: `selection.provide`) that returns rows of `{ method, route, decision }`, each optionally carrying a name, a description, tags and search terms. The source loads exactly like a family source ([tool-families.md](tool-families.md) §Membership): at startup or in the background, again on a refresh interval, a refresh whose rows are unchanged rebuilds nothing, a reload that would turn the catalog newly fatal is refused, and a failure keeps the rows it last returned.
+Some hosts keep the list of exposed endpoints in data, such as a table an administrator edits. They register one source (NestJS: `selection.provide`) that returns rows of `{ method, route, decision }`, each optionally carrying a name, a description, tags and search terms. The source loads exactly like a family source ([tool-families.md](tool-families.md) §Membership): at startup or in the background, again on a refresh interval, a refresh whose rows are unchanged rebuilds nothing, a reload that would turn the catalog newly fatal is refused, and a failure keeps the rows it last returned.
 
 A row names one endpoint: its method compared case-insensitively and its route compared exactly with the composed route template, with no wildcards — patterns are what config-level rules are for. That is why `provided` ranks above `rules` and below the attributes: a row names a single endpoint, which makes it more specific than a pattern, but it is written far from the endpoint, so an attribute on the endpoint itself still wins.
 
@@ -91,7 +91,7 @@ Selection answers only "is it exposed." The tool name is produced per [naming.md
 
 ## Known limits
 
-- **A rule matches the route template, and the two SDKs derive that template from different frameworks.** Empty segments, a trailing separator and surrounding whitespace fold away identically on both sides. Parameter syntax does not: ASP.NET's constraints and defaults (`{id:int}`, `{id=1}`) are reduced to `{id}`, while a Nest path-to-regexp constraint (`:id(\d+)`) survives as `{id(\d+)}`. A pattern that reaches into a parameter's constraint is therefore not portable; one that matches `{id}` or a wildcard segment is. Route normalisation has no conformance corpus: each SDK pins its own with unit tests, so the agreement above is tested per SDK rather than against shared fixtures.
+- **A rule matches the route template as the framework writes it.** Empty segments, a trailing separator and surrounding whitespace fold away. Parameter syntax does not: a Nest path-to-regexp constraint (`:id(\d+)`) survives as `{id(\d+)}`. A pattern that reaches into a parameter's constraint is therefore not portable; one that matches `{id}` or a wildcard segment is. Route normalisation has no conformance corpus: the SDK pins its own with unit tests.
 - **Selection runs before route folding.** An operation mounted at several routes is selected per route, so a rule that excludes one of them changes which route the surviving tool invokes rather than dropping the operation. The `route_folded` diagnostic still names the routes that were folded away.
-- **There is no tag dimension.** A rule cannot match on `tags`, because tags are resolved while the descriptor is built and selection decides before that on one of the two SDKs. Moving tag resolution ahead of selection would make every excluded endpoint pay for a tag lookup it never uses.
+- **There is no tag dimension.** A rule cannot match on `tags`, because tags are resolved while the descriptor is built and selection can decide before that. Moving tag resolution ahead of selection would make every excluded endpoint pay for a tag lookup it never uses.
 - **There is no container dimension.** A rule names a route and a method, not a controller type: a host that can reference the type can also decorate it, and the level for that is `container`.

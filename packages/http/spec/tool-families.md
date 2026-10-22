@@ -1,6 +1,6 @@
 # Tool Families
 
-> Status: **normative, two implementations.** Both SDKs pass the family corpus in [conformance/metadata-extraction/](../conformance/metadata-extraction/) (`family-*`, `variant-body-*`, `*-annotations-*`), [conformance/naming/](../conformance/naming/) (`variant-name-*`), [conformance/argument-mapping/](../conformance/argument-mapping/) (`family-*`) and [conformance/search/](../conformance/search/) (`family-*`). OpenAPI ingestion lowers `x-sezzlee.family` into the same form ([conformance/openapi-ingestion/](../conformance/openapi-ingestion/) `family-*`).
+> Status: **normative.** `packages/http/core` and the NestJS SDK pass the family corpus in [conformance/metadata-extraction/](../conformance/metadata-extraction/) (`family-*`, `variant-body-*`, `*-annotations-*`), [conformance/naming/](../conformance/naming/) (`variant-name-*`), [conformance/argument-mapping/](../conformance/argument-mapping/) (`family-*`) and [conformance/search/](../conformance/search/) (`family-*`). OpenAPI ingestion lowers `x-sezzlee.family` into the same form ([conformance/openapi-ingestion/](../conformance/openapi-ingestion/) `family-*`).
 
 Defines how one operation that **dispatches on a parameter** becomes one tool per capability it dispatches to. The machine-readable counterpart is `ToolFamily`, `VariantRequestBody` and the `requestBody` and `annotations` fields of `ToolVariant` in [schemas/endpoint-descriptor.schema.json](schemas/endpoint-descriptor.schema.json).
 

@@ -41,7 +41,6 @@ jobs:
       filters: ${{ steps.plan.outputs.filters }}
       native: ${{ steps.plan.outputs.native }}
       node_versions: ${{ steps.plan.outputs.node_versions }}
-      dotnet: ${{ steps.plan.outputs.dotnet }}
       pack: ${{ steps.plan.outputs.pack }}
       pack_build: ${{ steps.plan.outputs.pack_build }}
       pack_filters: ${{ steps.plan.outputs.pack_filters }}
@@ -128,11 +127,6 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: |
-            8.0.x
-            10.0.x
       - run: pnpm install --frozen-lockfile
       - if: ${{ needs.plan.outputs.filters != '' }}
         run: |
@@ -142,50 +136,18 @@ jobs:
       - if: ${{ needs.plan.outputs.filters != '' }}
         run: |
           read -ra filters <<< "$FILTERS"
-          pnpm turbo run test "${filters[@]}" --filter='!@sezzlee/sdk-dotnet'
+          pnpm turbo run test "${filters[@]}"
 
-  dotnet:
-    name: dotnet test (net8.0 + net10.0)
-    needs: plan
-    if: ${{ needs.plan.outputs.dotnet == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: 12.6.0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: |
-            8.0.x
-            10.0.x
-      - run: pnpm install --frozen-lockfile
-      - run: node packages/http/conformance/validate.mjs
-      - run: pnpm turbo run test --filter=@sezzlee/sdk-dotnet
-      # The SDK writes its catalog and its x-sezzlee-annotated OpenAPI document, and the gateway
-      # must rebuild the same tools from that document; parity.spec.ts fails when they drift.
-      - run: dotnet test sdks/dotnet/tests/Sezzlee.Tests -f net10.0 --filter "FullyQualifiedName~OpenApiParityDump"
-        env:
-          SEZZLEE_PARITY_DIR: ${{ runner.temp }}/parity
-      - run: pnpm turbo run test --filter=@sezzlee/openapi-mcp -- test/parity.spec.ts
-        env:
-          SEZZLEE_PARITY_DIR: ${{ runner.temp }}/parity
-
-  # Packs what a publish can release: the HTTP catalog packages and the NuGet
-  # package always, the file packages only when the native matrix built their
-  # prebuilds. Publish skips any version already on its registry, so a package
-  # left out here is one whose version is already published.
+  # Packs what a publish can release: the HTTP catalog packages always, the
+  # file packages only when the native matrix built their prebuilds. Publish
+  # skips any version already on its registry, so a package left out here is
+  # one whose version is already published.
   pack:
-    name: pack Sezzlee.AspNetCore
+    name: pack
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [plan, node, dotnet, native]
-    if: ${{ !cancelled() && needs.plan.outputs.pack == 'true' && needs.node.result == 'success' && contains(fromJSON('["success","skipped"]'), needs.dotnet.result) && contains(fromJSON('["success","skipped"]'), needs.native.result) }}
+    needs: [plan, node, native]
+    if: ${{ !cancelled() && needs.plan.outputs.pack == 'true' && needs.node.result == 'success' && contains(fromJSON('["success","skipped"]'), needs.native.result) }}
     env:
       PACK_BUILD: ${{ needs.plan.outputs.pack_build }}
       PACK_FILTERS: ${{ needs.plan.outputs.pack_filters }}
@@ -200,17 +162,7 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: |
-            8.0.x
-            10.0.x
       - run: pnpm install --frozen-lockfile
-      - run: pnpm turbo run pack --filter=@sezzlee/sdk-dotnet
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: Sezzlee.AspNetCore-nupkg
-          path: sdks/dotnet/local/nupkg-feed/*
       - run: |
           read -ra filters <<< "$PACK_BUILD"
           pnpm turbo run build "${filters[@]}"

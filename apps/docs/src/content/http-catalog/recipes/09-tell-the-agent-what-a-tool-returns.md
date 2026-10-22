@@ -2,23 +2,11 @@
 
 `load_tool` publishes an `outputSchema` when the endpoint declares a success body. With it, an agent can plan "fetch the order, take its `customerId`, fetch the customer" before it makes the first call.
 
-Where the declaration comes from differs between the SDKs, and the difference is not a design choice.
-
 ## Declare the response type
 
-On ASP.NET Core the response type is read from ApiExplorer, so an endpoint that documents itself for Swagger is already done. On NestJS, TypeScript erases generics before the type reaches runtime, so the response type has to be declared.
+TypeScript erases generics before the type reaches runtime, so the response type has to be declared.
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-[HttpGet("/orders/{id:int}")]
-[ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
-[ProducesResponseType(StatusCodes.Status404NotFound)]
-[Authorize(Policy = "OrdersRead")]
-public IActionResult GetOrder(int id) => ...;
-```
-
-```ts title="NestJS"
+```ts
 @Get("orders/:id")
 @McpTool({
   description: "Fetches one order by id.",
@@ -27,11 +15,7 @@ public IActionResult GetOrder(int id) => ...;
 getOrder(@Param("id", ParseIntPipe) id: number): OrderResponse { ... }
 ```
 
-:::
-
-`Produces<T>()` on a minimal API works the same way, and nothing on `[McpTool]` controls this.
-
-On NestJS, four forms are accepted per status code:
+Four forms are accepted per status code:
 
 | Form                | Meaning                                                       |
 | ------------------- | ------------------------------------------------------------- |

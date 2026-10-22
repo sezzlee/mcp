@@ -1,6 +1,6 @@
 {
   "kind": "naming",
-  "description": "container yoksa prefix uygulanmaz: minimal API route'tan uretilen govde hiyerarsiyi zaten tasir",
+  "description": "container yoksa prefix uygulanmaz: route'tan uretilen govde hiyerarsiyi zaten tasir",
   "input": {
     "endpoints": [
       {
@@ -15,9 +15,6 @@
     ]
   },
   "expected": {
-    "names": [
-      "get_health",
-      "health_check"
-    ]
+    "names": ["get_health", "health_check"]
   }
 }

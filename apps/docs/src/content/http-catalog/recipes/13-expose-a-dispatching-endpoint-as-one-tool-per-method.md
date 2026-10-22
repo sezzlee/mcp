@@ -8,20 +8,7 @@ Use a family when the id selects a capability: a different id means a different 
 
 Mark the dispatch parameter and name the source the members come from. The endpoint still needs its selection marker.
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-[HttpPost("/Rest/InvokeDynamicMethod/{methodId}")]
-[Authorize]
-[McpTool(Description = "Invokes a server method by its id.")]
-[McpToolFamily("methodId", Source = DemoDynamicMethods.Source)]
-public IActionResult Invoke(string methodId, [FromBody] JsonElement body) =>
-    DemoDynamicMethods.Find(methodId) is { } method
-        ? Ok(new { methodId, method = method.Name, received = body })
-        : NotFound();
-```
-
-```ts title="NestJS"
+```ts
 @Post("InvokeDynamicMethod/:methodId")
 @HttpCode(200)
 @McpTool({ description: "Invokes a server method by its id." })
@@ -33,56 +20,21 @@ invoke(
 ): unknown { ... }
 ```
 
-:::
-
 The endpoint's own body can stay opaque. Each member declares its own.
 
 ## Provide the members
 
 A source returns one entry per method: the key the route expects, a tool name, a description, the body as JSON Schema, and optionally whether the method only reads or destroys data.
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-builder.Services.AddSezzlee(options =>
-{
-    options.Families.Provide(DemoDynamicMethods.Source, DemoDynamicMethods.LoadAsync);
-});
-```
-
-```ts title="NestJS"
+```ts
 SezzleeModule.forRoot((options) => {
   options.families.provide(dynamicMethodsSource, () => dynamicMethods);
 });
 ```
 
-:::
-
 One member looks like this:
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-new McpFamilyMember(
-    Guid.Parse("e91b3c7f-0d2a-48e5-b6f4-5a1c9d8e2b07"),
-    "assign_courier",
-    "Assigns a courier to an order.",
-    new JsonObject
-    {
-        ["type"] = "object",
-        ["properties"] = new JsonObject
-        {
-            ["orderNumber"] = new JsonObject { ["type"] = "string" },
-            ["courierCode"] = new JsonObject { ["type"] = "string" },
-        },
-        ["required"] = new JsonArray("orderNumber", "courierCode"),
-    })
-{
-    Destructive = true,
-},
-```
-
-```ts title="NestJS"
+```ts
 {
   key: "e91b3c7f-0d2a-48e5-b6f4-5a1c9d8e2b07",
   name: "assign_courier",
@@ -99,31 +51,21 @@ new McpFamilyMember(
 },
 ```
 
-:::
+A source is usually a query against the table your backend already dispatches from. It runs once at startup and again on every reload, never per request, and every caller sees the same members. It runs in `onApplicationBootstrap` and receives an `AbortSignal` that fires at `options.families.loadTimeoutMs`. Write the description for the agent, because search ranks the member by it.
 
-A source is usually a query against the table your backend already dispatches from. It runs once at startup and again on every reload, never per request, and every caller sees the same members. On ASP.NET Core the delegate gets an `IServiceProvider` from its own scope, so it can resolve a `DbContext`, and there is no `HttpContext`. On NestJS it runs in `onApplicationBootstrap` and receives an `AbortSignal` that fires at `options.families.loadTimeoutMs`. Write the description for the agent, because search ranks the member by it.
-
-A member's body does not have to be written as JSON Schema. Give a type (`typeof(AssignCourier)`, or `bodyType: AssignCourierDto` on NestJS) and the SDK maps it the way it maps an endpoint's body, through the same schema options. On ASP.NET Core a method's parameters work too (`method.GetParameters()`): each becomes a property named as declared, required unless it has a default value or a nullable type (`int?`, `string?`). In code compiled without nullable annotations a `string` is optional and any other object or collection is required.
+A member's body does not have to be written as JSON Schema. Give a type (`bodyType: AssignCourierDto`) and the SDK maps it the way it maps an endpoint's body, through the same schema options.
 
 :::details[A source that is slow, or changes while the backend runs]
 
-Startup waits for the first load by default, and a source that runs past `LoadTimeout` (`loadTimeoutMs`) fails with a message naming that setting; its family is dropped and the rest of the catalog is published. Set `LoadMode = Background` (`loadMode: "background"`) to start without waiting: family tools join when the source returns. Set `RefreshInterval` (`refreshIntervalMs`) to load again on a schedule; a load whose members are unchanged rebuilds nothing. Set `OnFailure = Fatal` (`onFailure: "fatal"`) to stop startup instead when a source never returns.
+Startup waits for the first load by default, and a source that runs past `loadTimeoutMs` fails with a message naming that setting; its family is dropped and the rest of the catalog is published. Set `loadMode: "background"` to start without waiting: family tools join when the source returns. Set `refreshIntervalMs` to load again on a schedule; a load whose members are unchanged rebuilds nothing. Set `onFailure: "fatal"` to stop startup instead when a source never returns.
 
 :::
 
 ## Reload when the methods change
 
-:::tabs
-
-```csharp title="ASP.NET Core"
-await app.Services.GetRequiredService<ISezzleeCatalogChangeSource>().ReloadAsync();
-```
-
-```ts title="NestJS"
+```ts
 await app.get(SezzleeCatalog).reload();
 ```
-
-:::
 
 A reload advances the catalog generation and sends `tools/list_changed`. It is refused, and the current catalog kept, when the new members would make the catalog fatal. If the source fails, the members it last returned stay published and `family_source_stale` is reported.
 
@@ -133,10 +75,11 @@ The family travels in the operation's `x-sezzlee` extension, members and dispatc
 
 ## See it work
 
-Both demos carry the same three members. Drive one with the [agent-client](https://github.com/sezzlee/mcp/tree/main/sdks/nestjs/samples/agent-client):
+The NestJS sample carries three members. Drive it with the [agent-client](https://github.com/sezzlee/mcp/tree/main/sdks/nestjs/samples/agent-client):
 
 ```sh
-SEZZLEE_AUTH=token SEZZLEE_USER=alice node sdks/nestjs/samples/agent-client/dist/main.js --scenario family
+SEZZLEE_BASE_URL=http://127.0.0.1:3000 SEZZLEE_AUTH=token SEZZLEE_USER=alice \
+  node sdks/nestjs/samples/agent-client/dist/main.js --scenario family
 ```
 
 ```text
