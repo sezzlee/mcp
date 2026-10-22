@@ -37,10 +37,9 @@ export function truncateDescription(text: string): string {
 /**
  * Guard: the schema may be a host-supplied verbatim schema that no validator has
  * seen, so `properties`, `required`, a member schema and a member `type` can each
- * be any JSON value. Each unusable shape contributes nothing rather than throwing,
- * and the same four decisions are made by `Summarize` in the .NET SDK. Without the
- * narrowing a malformed member threw here, which took down the whole `search_tools`
- * call rather than one card, while the .NET side returned a degraded card.
+ * be any JSON value. Each unusable shape contributes nothing rather than throwing.
+ * Without the narrowing a malformed member threw here, which took down the whole
+ * `search_tools` call rather than one card.
  */
 export function summarizeParameters(inputSchema: JsonSchemaObject): string {
   const properties: unknown = inputSchema.properties;
@@ -76,8 +75,7 @@ export function summarizeParameters(inputSchema: JsonSchemaObject): string {
  * Guard: `inputSchema` may be a host-supplied verbatim schema that no validator
  * has seen, so `properties`, a member schema and a `description` can each be any
  * JSON value. Narrowing each one keeps a malformed schema from throwing during
- * catalog construction, and keeps this projection identical to
- * `SearchParameters.From` in the .NET SDK.
+ * catalog construction.
  */
 export function searchParameters(
   inputSchema: JsonSchemaObject,
@@ -157,7 +155,7 @@ export type ToolDetail = Pick<
  * Guard: `auth` is picked away rather than spread past, because a policy name
  * MUST NOT reach the agent ([visibility.md](../../spec/visibility.md) invariant
  * 3). `Pick` makes `{ ...tool }` a type error here, and
- * `detail/auth-is-never-emitted.json` fails on either SDK that emits the member
+ * `detail/auth-is-never-emitted.json` fails on any implementation that emits the member
  * anyway.
  */
 export function createDetail(

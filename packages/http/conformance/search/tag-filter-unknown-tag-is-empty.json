@@ -6,24 +6,18 @@
       {
         "name": "list_orders",
         "description": "kayit listeler",
-        "tags": [
-          "Orders"
-        ],
+        "tags": ["Orders"],
         "route": "/Rest/Order/List"
       },
       {
         "name": "list_incidents",
         "description": "kayit listeler",
-        "tags": [
-          "System"
-        ],
+        "tags": ["System"],
         "route": "/Rest/Incident/List"
       }
     ],
     "query": "kayit",
-    "tags": [
-      "billing"
-    ]
+    "tags": ["billing"]
   },
   "expected": {
     "names": []

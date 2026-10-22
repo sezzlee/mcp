@@ -52,9 +52,9 @@ pnpm turbo run test --filter=@sezzlee/core
 ```
 
 `test/conformance-fixtures.spec.ts` runs the shared corpus in [`../conformance`](../conformance).
-Core is one of three independent runners over those same JSON files, alongside
-`packages/http/conformance/validate.mjs` and the .NET `CatalogFixtureTests`. That is what makes cross-SDK
-parity a test result instead of an assertion.
+Core runs those same JSON files alongside `packages/http/conformance/validate.mjs` and
+`sdks/nestjs/test/conformance-fixtures.spec.ts`. That is what makes parity a test result instead of
+an assertion.
 
 A rule change that does not move a fixture has not been made.
 

@@ -26,12 +26,10 @@ spec, a guard comment or the package README.
   ([openapi-ingestion.md](packages/http/spec/openapi-ingestion.md), pipeline step 3). A defect in a
   part nothing reads produces no diagnostic. Validate against the version's own meta-schema, still
   warning by default and fatal under `strict`.
-- **A wider parity test.** `packages/servers/openapi-mcp/test/parity.spec.ts` compares argument
-  name, location, required-ness and body media type between the SDK catalog and the document
-  catalog of the .NET test controllers, and rebuilds the SDK's tools from the document its
-  `x-sezzlee` extensions annotate, comparing names, argument names and hints; the NestJS SDK runs
-  the same rebuild in `sdks/nestjs/test/openapi-extension.spec.ts`. It does not compare
-  argument schemas, and it does not yet run against a real backend that embeds the SDK.
+- **A wider OpenAPI rebuild test.** `sdks/nestjs/test/openapi-extension.spec.ts` rebuilds the
+  SDK's tools from the document its `x-sezzlee` extensions annotate, comparing names, argument names
+  and hints. It does not compare argument schemas, and it does not yet run against a real backend
+  that embeds the SDK.
 - **Host-supplied descriptions and tags in `x-sezzlee`.** The SDKs publish a selection-source row's
   name and search terms and every selection decision, but not a description or tags that come from
   `options.Description` / `options.description`, the endpoint hooks or a selection-source row: the

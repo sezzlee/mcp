@@ -112,7 +112,7 @@ describe("tag declaration", () => {
 
   /**
    * Guard: only a tag that folds to the empty string is dropped. Whitespace survives folding on
-   * purpose — recognising a blank tag would need a whitespace class the two SDKs do not share,
+   * purpose — recognising a blank tag would need a whitespace class the spec does not define,
    * the same reason a tag is never trimmed ([search-semantics.md]).
    */
   it("drops a tag that folds to nothing and says so", () => {

@@ -87,7 +87,7 @@ Wire codes, pinned by fixtures in every implementation:
 | `variant_body_without_family` | endpoint dropped | A variant declares `requestBody` on an operation without `family`               |
 | `variant_body_invalid`        | endpoint dropped | A member body references outside its own `$defs` or carries an identity keyword |
 
-SDK codes, pinned by each SDK's host tests because they concern where members come from:
+SDK codes, pinned by the NestJS SDK's host tests because they concern where members come from:
 
 | Code                     | Result           | When                                                                                                                                                      |
 | ------------------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |

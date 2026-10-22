@@ -6,28 +6,20 @@
       {
         "name": "list_order_items",
         "description": "kayit listeler",
-        "tags": [
-          "Order Items"
-        ],
+        "tags": ["Order Items"],
         "route": "/Rest/OrderItem/List"
       },
       {
         "name": "list_orders",
         "description": "kayit listeler",
-        "tags": [
-          "OrderItems"
-        ],
+        "tags": ["OrderItems"],
         "route": "/Rest/Order/List"
       }
     ],
     "query": "kayit",
-    "tags": [
-      "order items"
-    ]
+    "tags": ["order items"]
   },
   "expected": {
-    "names": [
-      "list_order_items"
-    ]
+    "names": ["list_order_items"]
   }
 }

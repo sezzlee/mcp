@@ -5,38 +5,27 @@
     "tools": [
       {
         "name": "list_routes",
-        "tags": [
-          "ΟΔΟΣ"
-        ],
+        "tags": ["ΟΔΟΣ"],
         "description": "kayit listeler",
         "route": "/Rest/Route/List"
       },
       {
         "name": "list_paths",
-        "tags": [
-          "οδος"
-        ],
+        "tags": ["οδος"],
         "description": "kayit listeler",
         "route": "/Rest/Path/List"
       },
       {
         "name": "list_records",
-        "tags": [
-          "Kayit"
-        ],
+        "tags": ["Kayit"],
         "description": "kayit listeler",
         "route": "/Rest/Record/List"
       }
     ],
     "query": "kayit",
-    "tags": [
-      "οδοσ"
-    ]
+    "tags": ["οδοσ"]
   },
   "expected": {
-    "names": [
-      "list_paths",
-      "list_routes"
-    ]
+    "names": ["list_paths", "list_routes"]
   }
 }

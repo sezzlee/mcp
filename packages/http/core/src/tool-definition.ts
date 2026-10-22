@@ -442,9 +442,8 @@ function liftDefs(
     if (existing !== undefined) {
       /**
        * Guard: the conflict check MUST NOT see two spellings of one schema as two schemas. Plain
-       * `JSON.stringify` is key-order sensitive while the .NET side compares with
-       * `JsonNode.DeepEquals`, which is not — so a parameter bag and a body bag carrying the same
-       * type in a different key order would drop the endpoint here and build the tool there.
+       * `JSON.stringify` is key-order sensitive, so a parameter bag and a body bag carrying the
+       * same type in a different key order would be read as a conflict and drop the endpoint.
        */
       if (canonicalJson(existing) !== canonicalJson(body)) {
         throw new SezzleeTemplateError(

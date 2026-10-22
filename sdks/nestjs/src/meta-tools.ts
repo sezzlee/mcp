@@ -331,10 +331,9 @@ export function registerSezzleeTools(
           .describe(searchLimitDescription),
         /**
          * Guard: `.catch` is what makes an unrecognised `detail` fall back to `card`
-         * instead of failing validation. Without it zod rejects the call while the .NET
-         * SDK, whose `[AllowedValues]` only decorates the published schema, answers with
-         * cards — two SDKs disagreeing on one argument. It does not change the published
-         * schema, which still carries `enum` and `default`.
+         * instead of failing validation; without it a mistyped value rejects the whole
+         * `search_tools` call. It does not change the published schema, which still
+         * carries `enum` and `default`.
          */
         detail: z
           .enum(["card", "schema"])

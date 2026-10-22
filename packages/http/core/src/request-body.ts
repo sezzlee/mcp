@@ -89,9 +89,8 @@ const fileArgumentKeys = [
 ] as const;
 
 /**
- * Guard: RFC 4648 §4 exactly. `Convert.FromBase64String` skips whitespace and `Buffer.from` accepts
- * almost anything, so without one strict gate the two SDKs would accept different arguments and
- * decode different bytes from the same one.
+ * Guard: RFC 4648 §4 exactly. `Buffer.from` accepts almost anything, so without one strict gate an
+ * argument with stray characters would decode to bytes the agent never sent.
  */
 const strictBase64 =
   /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;

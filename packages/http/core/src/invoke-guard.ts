@@ -8,7 +8,7 @@ import type {
 import type { JsonSchemaObject } from "./generated/tool-definition.js";
 import { tokenize } from "./search.js";
 
-/** The defaults both SDKs start from; a host may lower either. */
+/** The defaults a host starts from; it may lower either. */
 export const invokeLimits = {
   maxResponseBytes: 262_144,
   invokeTimeoutMs: 30_000,

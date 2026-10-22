@@ -6,37 +6,26 @@
       {
         "name": "export_invoice",
         "description": "invoice kaydini disari aktarir",
-        "tags": [
-          "Billing"
-        ],
+        "tags": ["Billing"],
         "route": "/Rest/Invoice/Export"
       },
       {
         "name": "render_document",
         "description": "pdf ciktisi uretir",
-        "tags": [
-          "Billing"
-        ],
+        "tags": ["Billing"],
         "route": "/Rest/Document/Render"
       },
       {
         "name": "sync_invoice_feed",
         "description": "invoice akisini esitler",
-        "tags": [
-          "Integration"
-        ],
+        "tags": ["Integration"],
         "route": "/Rest/Invoice/Sync"
       }
     ],
     "query": "invoice pdf",
-    "tags": [
-      "billing"
-    ]
+    "tags": ["billing"]
   },
   "expected": {
-    "names": [
-      "render_document",
-      "export_invoice"
-    ]
+    "names": ["render_document", "export_invoice"]
   }
 }

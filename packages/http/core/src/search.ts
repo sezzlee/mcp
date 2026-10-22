@@ -24,8 +24,8 @@ const nonSpacingMark = /\p{Mn}/gu;
 /**
  * Guard: Greek writes one uppercase sigma and two lowercase ones, medial `σ` and final `ς`, so
  * lowercasing `Σ` is a context-dependent choice. JavaScript's `toLowerCase` applies Unicode's
- * conditional Final_Sigma rule and .NET's `ToLowerInvariant` does not, which indexed `ΟΔΟΣ` as
- * `οδος` on one side and `οδοσ` on the other. NFD cannot reconcile them the way it reconciles the
+ * conditional Final_Sigma rule, so `ΟΔΟΣ` is indexed as `οδος` while a query typed with a medial
+ * sigma reads `οδοσ`. NFD cannot reconcile them the way it reconciles the
  * dotted `İ`: neither sigma decomposes. Unicode's own case folding settles the direction
  * (CaseFolding.txt `03C2; C; 03C3`).
  */

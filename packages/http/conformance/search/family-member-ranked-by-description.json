@@ -79,10 +79,6 @@
     "query": "gecikmiş sipariş"
   },
   "expected": {
-    "names": [
-      "list_delayed_orders",
-      "list_orders",
-      "assign_courier"
-    ]
+    "names": ["list_delayed_orders", "list_orders", "assign_courier"]
   }
 }

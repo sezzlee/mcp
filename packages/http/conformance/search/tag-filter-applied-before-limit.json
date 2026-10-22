@@ -6,37 +6,27 @@
       {
         "name": "get_invoice",
         "description": "invoice kaydini dondurur",
-        "tags": [
-          "Integration"
-        ],
+        "tags": ["Integration"],
         "route": "/Rest/Invoice"
       },
       {
         "name": "render_report",
         "description": "invoice ciktisi uretir",
-        "tags": [
-          "Billing"
-        ],
+        "tags": ["Billing"],
         "route": "/Rest/Report/Render"
       },
       {
         "name": "sync_feed",
         "description": "invoice akisini esitler",
-        "tags": [
-          "Billing"
-        ],
+        "tags": ["Billing"],
         "route": "/Rest/Feed/Sync"
       }
     ],
     "query": "invoice",
     "limit": 1,
-    "tags": [
-      "billing"
-    ]
+    "tags": ["billing"]
   },
   "expected": {
-    "names": [
-      "render_report"
-    ]
+    "names": ["render_report"]
   }
 }

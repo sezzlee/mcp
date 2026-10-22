@@ -151,9 +151,8 @@ The tool '{name}' changed after it was loaded, so the call was refused before re
 
 ## Known limits
 
-- Byte counts are not identical across implementations (above).
 - Every interpolated number in a standard message is an integer, so culture-sensitive formatting cannot diverge.
-- Both implementations buffer the whole backend body before anything is measured, so an endpoint returning gigabytes exhausts memory before the budget runs. This predates the budget and is not addressed here.
+- Every implementation buffers the whole backend body before anything is measured, so an endpoint returning gigabytes exhausts memory before the budget runs. This predates the budget and is not addressed here.
 - A `retryable: true` timeout can produce a duplicate write. The message says so; the protocol offers nothing better.
 - A replica built before the tool version existed drops `version` as an argument it does not know, so a pinned call answered by such a replica is not checked. The gap closes once every replica carries the check.
 - `SdkErrorCode` and `BackendErrorCode` MUST stay disjoint. A shared member makes an envelope match two branches of the `InvokeResult` union, and the resulting validation error names the top-level fixture union rather than the real cause.

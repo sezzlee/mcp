@@ -3,10 +3,10 @@ import type { ObjectNotation, ParameterKind } from "./request-template.js";
 
 /**
  * Renders a delimiter for the query string. The caller appends the result raw,
- * never through {@link percentEncode}: the two languages' encoders disagree on
- * `,` (`encodeURIComponent` leaves it, `Uri.EscapeDataString` escapes it to
- * `%2C`), so encoding the delimiter would make the two SDKs emit different byte
- * strings for the same input. A literal space is illegal in a URL, hence `%20`.
+ * never through {@link percentEncode}: encoders disagree on `,`
+ * (`encodeURIComponent` leaves it, others escape it to `%2C`), so encoding the
+ * delimiter would make the byte string depend on the encoder rather than the
+ * spec. A literal space is illegal in a URL, hence `%20`.
  */
 export function separatorFor(delimiter: string): string {
   return delimiter === " " ? "%20" : delimiter;

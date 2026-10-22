@@ -6,38 +6,26 @@
       {
         "name": "list_orders",
         "description": "siparis ozeti",
-        "tags": [
-          "Orders",
-          "Report"
-        ],
+        "tags": ["Orders", "Report"],
         "route": "/Rest/Order/List"
       },
       {
         "name": "list_invoices",
         "description": "fatura ozeti",
-        "tags": [
-          "Report"
-        ],
+        "tags": ["Report"],
         "route": "/Rest/Invoice/List"
       },
       {
         "name": "create_order",
         "description": "siparis ozeti olusturur",
-        "tags": [
-          "Orders"
-        ],
+        "tags": ["Orders"],
         "route": "/Rest/Order/Create"
       }
     ],
     "query": "ozeti",
-    "tags": [
-      "orders",
-      "report"
-    ]
+    "tags": ["orders", "report"]
   },
   "expected": {
-    "names": [
-      "list_orders"
-    ]
+    "names": ["list_orders"]
   }
 }

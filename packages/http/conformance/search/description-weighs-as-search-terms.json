@@ -11,17 +11,12 @@
       {
         "name": "beta_probe",
         "route": "/b",
-        "searchTerms": [
-          "invoice"
-        ]
+        "searchTerms": ["invoice"]
       }
     ],
     "query": "invoice"
   },
   "expected": {
-    "names": [
-      "alpha_probe",
-      "beta_probe"
-    ]
+    "names": ["alpha_probe", "beta_probe"]
   }
 }

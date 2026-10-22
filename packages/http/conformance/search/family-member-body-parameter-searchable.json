@@ -79,8 +79,6 @@
     "query": "vehicle"
   },
   "expected": {
-    "names": [
-      "assign_courier"
-    ]
+    "names": ["assign_courier"]
   }
 }
