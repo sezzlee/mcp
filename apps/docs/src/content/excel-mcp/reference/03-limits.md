@@ -22,14 +22,14 @@ These bounds are exported by the server. Tool arguments can request smaller page
 
 ## Responses
 
-| Limit                                                                                                                                        | Value  |
-| -------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| Largest serialized answer; tools either return a bounded result or refuse it. Only a response with `nextCursor` supports cursor continuation | 512 KB |
-| Longest text, in characters, returned for one cell or one formula                                                                            | 512    |
-| Cells `read_sheet` returns when `maxCells` is omitted                                                                                        | 2,000  |
-| Largest `maxCells` for `read_sheet`                                                                                                          | 10,000 |
-| Rows above which `describe_workbook` and `read_sheet` suggest `aggregate_sheet` or `find_in_sheet` instead of paging                         | 5,000  |
-| Named columns `describe_workbook` lists in each sheet's header preview; the rest are counted in `moreColumns`                                | 12     |
+| Limit                                                                                                                                                                                                                   | Value  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Largest total UTF-8 text payload in a tool result; every tool passes the mandatory response guard. read_sheet continues with nextCursor; retained aggregate results continue with resultId and query_result nextOffset. | 512 KB |
+| Longest text, in characters, returned for one cell or one formula                                                                                                                                                       | 512    |
+| Cells `read_sheet` returns when `maxCells` is omitted                                                                                                                                                                   | 2,000  |
+| Largest `maxCells` for `read_sheet`                                                                                                                                                                                     | 10,000 |
+| Rows above which `describe_workbook` and `read_sheet` suggest `aggregate_sheet` or `find_in_sheet` instead of paging                                                                                                    | 5,000  |
+| Named columns `describe_workbook` lists in each sheet's header preview; the rest are counted in `moreColumns`                                                                                                           | 12     |
 
 ## Search and aggregation
 
@@ -59,6 +59,19 @@ These bounds are exported by the server. Tool arguments can request smaller page
 | Rows at the top of the used range examined to find the header row a call names none for, and the rows `headerScan` examines                           | 20         |
 | Derived metrics in one `aggregate_sheet` call                                                                                                         | 4          |
 | Distinct values the `source` column of an `inColumn` or `notInColumn` condition may hold before `resource_limit`                                      | 100,000    |
+
+## Retained results
+
+| Limit                                                                                                                                    | Value     |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| Serialized UTF-8 row values, source-row counts and metadata admitted for one complete retained result; not an exact heap measurement     | 8 MB      |
+| Total accounted serialized bytes across retained results in one handler instance; excess refuses admission without evicting live results | 16 MB     |
+| Live retained results per handler instance; expired entries are removed before access or admission                                       | 4         |
+| Absolute result lifetime in milliseconds; reads do not extend it and closing the server clears all results                               | 900 s     |
+| Rows retained for one complete result; excess refuses the calculation without a partial handle                                           | 100,000   |
+| Cells retained for one complete result, independently of the byte and row budgets                                                        | 1,000,000 |
+| Maximum serialized CallToolResult bytes for a retained preview or query page, including metadata and JSON text escaping                  | 16 KB     |
+| Characters allowed in one exact query_result equality string; matching uses complete values before display truncation                    | 4,096     |
 
 ## Column profiles
 

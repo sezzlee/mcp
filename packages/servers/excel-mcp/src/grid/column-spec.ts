@@ -8,7 +8,7 @@ import { limits } from "../platform/limits.js";
  * metric and condition of four tools; none is left bare, because the docs
  * reference refuses an argument an agent would see as a name alone.
  */
-export const columnRef = z.string().describe("Header text or A1 letter.");
+export const columnRef = z.string().describe("Column.");
 
 const tokens = z.array(z.string().min(1).max(128)).max(64);
 const locale = z.string().min(2).max(64);
@@ -18,7 +18,7 @@ export const readingHintsSchema = {
   locale: locale
     .optional()
     .describe(
-      "BCP 47 locale the file was written in, for separators and month names, never day/month order. Omit when unknown.",
+      "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
     ),
   numberingSystem: numberingSystem
     .optional()

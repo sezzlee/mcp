@@ -7,14 +7,8 @@
       }
     },
     "sources": [
-      [
-        "packages/cores/mcp-core/src/errors.ts",
-        "SourceErrorCode"
-      ],
-      [
-        "packages/cores/file-core/src/errors.ts",
-        "CoreErrorCode"
-      ],
+      ["packages/cores/mcp-core/src/errors.ts", "SourceErrorCode"],
+      ["packages/cores/file-core/src/errors.ts", "CoreErrorCode"],
       [
         "packages/servers/excel-mcp/src/platform/errors.ts",
         "SezzleeExcelErrorCode"
@@ -30,7 +24,8 @@
           "invalid_cursor": "`cursor` is not a token that a previous `read_sheet` answer returned, for example because it was cut short or edited. Read again without a cursor.",
           "stale_cursor": "The file changed between two pages of the same read. Start again without a cursor.",
           "invalid_pattern": "`find_in_sheet` refused a `regex` query: it is longer than 256 characters, uses a Unicode property escape (`\\p{…}`), or is not a valid JavaScript regular expression.",
-          "resource_limit": "The request would exceed a fixed budget: too many groups or cells for `aggregate_sheet`, or a regex search that timed out or found the queue full. See [Limits](/docs/excel-mcp/limits)."
+          "resource_limit": "The request would exceed a fixed processing, response or retained-result budget, or a regex search timed out or found the queue full. No partial aggregate is published. A full result store refuses admission until entries expire or the server restarts. See [Limits](/docs/excel-mcp/limits).",
+          "result_unavailable": "The result identifier is unknown, expired, or belongs to another server instance. Retained results are snapshots in one instance, not durable identifiers. Repeat aggregate_sheet with resultMode retained to create a new result."
         }
       },
       {
@@ -103,7 +98,7 @@
       {
         "title": "Responses",
         "keys": {
-          "maxPayloadBytes": "Largest serialized answer; tools either return a bounded result or refuse it. Only a response with `nextCursor` supports cursor continuation",
+          "maxPayloadBytes": "Largest total UTF-8 text payload in a tool result; every tool passes the mandatory response guard. read_sheet continues with nextCursor; retained aggregate results continue with resultId and query_result nextOffset.",
           "maxStringChars": "Longest text, in characters, returned for one cell or one formula",
           "maxCellsDefault": "Cells `read_sheet` returns when `maxCells` is omitted",
           "maxCellsHard": "Largest `maxCells` for `read_sheet`",
@@ -138,6 +133,19 @@
           "headerScanRows": "Rows at the top of the used range examined to find the header row a call names none for, and the rows `headerScan` examines",
           "maxDerivedMetrics": "Derived metrics in one `aggregate_sheet` call",
           "maxSourceValues": "Distinct values the `source` column of an `inColumn` or `notInColumn` condition may hold before `resource_limit`"
+        }
+      },
+      {
+        "title": "Retained results",
+        "keys": {
+          "maxResultBytes": "Serialized UTF-8 row values, source-row counts and metadata admitted for one complete retained result; not an exact heap measurement",
+          "maxResultStoreBytes": "Total accounted serialized bytes across retained results in one handler instance; excess refuses admission without evicting live results",
+          "maxResults": "Live retained results per handler instance; expired entries are removed before access or admission",
+          "resultTtlMs": "Absolute result lifetime in milliseconds; reads do not extend it and closing the server clears all results",
+          "maxResultRows": "Rows retained for one complete result; excess refuses the calculation without a partial handle",
+          "maxResultCells": "Cells retained for one complete result, independently of the byte and row budgets",
+          "maxResultPageBytes": "Maximum serialized CallToolResult bytes for a retained preview or query page, including metadata and JSON text escaping",
+          "maxResultFilterChars": "Characters allowed in one exact query_result equality string; matching uses complete values before display truncation"
         }
       },
       {
