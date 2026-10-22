@@ -1,7 +1,17 @@
 import { stat } from "node:fs/promises";
 import { relative } from "node:path";
-import { accessError, assertSnapshot, knownRoot, pinRoot } from "./access.js";
-import { contentFingerprint, type Fingerprint } from "@sezzlee/mcp-core";
+import {
+  accessError,
+  assertDigest,
+  assertSnapshot,
+  knownRoot,
+  pinRoot,
+} from "./access.js";
+import {
+  contentFingerprint,
+  fingerprintFromDigest,
+  type Fingerprint,
+} from "@sezzlee/mcp-core";
 import { type CoreErrorCode, type ErrorFactory } from "./errors.js";
 import { modeFor, type ModePolicy, type SourceMode } from "./mode.js";
 import type { SandboxedPath } from "./paths.js";
@@ -119,7 +129,8 @@ export function createDocumentStore<Loaded, Options>(
       cache.clear();
     },
     async load(path, options) {
-      const key = [path, spec.variantKey(options)].join(variantSeparator);
+      const variant = spec.variantKey(options);
+      const key = [path, variant].join(variantSeparator);
       const root = configured ?? knownRoot(path);
       if (root === undefined)
         throw spec.fail(
@@ -131,34 +142,52 @@ export function createDocumentStore<Loaded, Options>(
         spec.maxBytes,
         spec.maxBytesFor?.(path, options) ?? spec.maxBytes,
       );
-      let snapshot;
-      try {
-        snapshot = await root.access.read(displayPath, maxBytes);
-        assertSnapshot(snapshot, maxBytes);
-      } catch (error) {
-        const mapped = accessError(error, spec.fail);
-        if (mapped.code === "file_too_large")
-          throw spec.fail(
-            "file_too_large",
-            await tooLargeMessage(path, maxBytes),
-            spec.vocabulary.tooLargeRecovery,
-          );
-        throw mapped;
+      async function secure<T>(operation: () => Promise<T>): Promise<T> {
+        try {
+          return await operation();
+        } catch (error) {
+          const mapped = accessError(error, spec.fail);
+          if (mapped.code === "file_too_large")
+            throw spec.fail(
+              "file_too_large",
+              await tooLargeMessage(path, maxBytes),
+              spec.vocabulary.tooLargeRecovery,
+            );
+          throw mapped;
+        }
       }
-      const stamp = contentFingerprint(
-        path,
-        snapshot.bytes,
-        spec.variantKey(options),
-      );
       const cached = cache.get(key);
-      const modifiedAt = new Date(snapshot.modifiedMs).toISOString();
-      if (
-        cached !== undefined &&
-        cached.stamp === stamp &&
-        cached.modifiedAt === modifiedAt
-      ) {
-        return remember(key, cached);
+      const unchanged = (stamp: Fingerprint, modifiedMs: number) =>
+        cached?.stamp === stamp &&
+        cached.modifiedAt === new Date(modifiedMs).toISOString();
+      /**
+       * Guard: a cache hit is confirmed by a streamed digest, so it never holds
+       * the file in memory. The digest runs only when an entry could be served;
+       * for a file with no entry it would be a second full pass before the read.
+       */
+      if (cached !== undefined) {
+        const current = await secure(async () => {
+          const digest = await root.access.digest(displayPath, maxBytes);
+          assertDigest(digest, maxBytes);
+          return digest;
+        });
+        if (
+          unchanged(
+            fingerprintFromDigest(path, current.digest, variant),
+            current.modifiedMs,
+          )
+        )
+          return remember(key, cached);
       }
+      const snapshot = await secure(async () => {
+        const read = await root.access.read(displayPath, maxBytes);
+        assertSnapshot(read, maxBytes);
+        return read;
+      });
+      const stamp = contentFingerprint(path, snapshot.bytes, variant);
+      if (cached !== undefined && unchanged(stamp, snapshot.modifiedMs))
+        return remember(key, cached);
+      const modifiedAt = new Date(snapshot.modifiedMs).toISOString();
       const opened: OpenedFile = {
         stamp,
         sizeBytes: snapshot.size,

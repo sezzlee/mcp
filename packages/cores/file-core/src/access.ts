@@ -1,5 +1,6 @@
 import {
   openRoot,
+  type NativeDigest,
   type NativeRoot,
   type NativeSnapshot,
 } from "@sezzlee/file-core-native";
@@ -120,6 +121,31 @@ export function assertSnapshot(
     throw new FileSourceError(
       "internal_error",
       "The secure reader returned an invalid snapshot.",
+    );
+  }
+}
+
+export function assertDigest(
+  value: unknown,
+  maxBytes: number,
+): asserts value is NativeDigest {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("digest" in value) ||
+    !Buffer.isBuffer(value.digest) ||
+    value.digest.length !== 32 ||
+    !("size" in value) ||
+    typeof value.size !== "number" ||
+    !Number.isSafeInteger(value.size) ||
+    value.size > maxBytes ||
+    !("modifiedMs" in value) ||
+    typeof value.modifiedMs !== "number" ||
+    !Number.isFinite(value.modifiedMs)
+  ) {
+    throw new FileSourceError(
+      "internal_error",
+      "The secure reader returned an invalid digest.",
     );
   }
 }
