@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   createTool,
   createToolDefinition,
+  invokeResponse,
   SezzleeTemplateError,
 } from "../src/index.js";
-import type { EndpointDescriptor } from "../src/index.js";
+import type { EndpointDescriptor, InvokeResult } from "../src/index.js";
 
 const auth = { anonymous: "no", policies: [], imperative: false } as const;
 
@@ -348,5 +349,96 @@ describe("an object-valued query parameter", () => {
     expect(binding?.kind === "object" && binding.members).toEqual([
       { name: "tags", kind: "string", isArray: true },
     ]);
+  });
+});
+
+describe("invokeResponse", () => {
+  const listOrders = endpoint({
+    method: "GET",
+    route: "/orders",
+    responses: {
+      "200": { schema: { type: "array", items: { type: "object" } } },
+    },
+  });
+  const getOrder = endpoint({
+    method: "GET",
+    route: "/orders/{id}",
+    responses: {
+      "200": {
+        schema: { type: "object", properties: { id: { type: "integer" } } },
+      },
+    },
+  });
+  const ping = endpoint({ method: "GET", route: "/ping" });
+
+  it.each<[string, EndpointDescriptor, InvokeResult, unknown, boolean]>([
+    [
+      "an array root comes back under result",
+      listOrders,
+      { status: 200, body: [{ id: 1 }, { id: 2 }] },
+      { status: 200, body: { result: [{ id: 1 }, { id: 2 }] } },
+      false,
+    ],
+    [
+      "a JSON null under an array schema is wrapped too",
+      listOrders,
+      { status: 200, body: null },
+      { status: 200, body: { result: null } },
+      false,
+    ],
+    [
+      "an object root comes back as it is",
+      getOrder,
+      { status: 200, body: { id: 1 } },
+      { status: 200, body: { id: 1 } },
+      false,
+    ],
+    [
+      "an endpoint with no declared response is never wrapped",
+      ping,
+      { status: 200, body: ["pong"] },
+      { status: 200, body: ["pong"] },
+      false,
+    ],
+    [
+      "a raw-string body the schema does not describe is never wrapped",
+      listOrders,
+      { status: 200, body: "<html/>", contentType: "text/html" },
+      { status: 200, body: "<html/>", contentType: "text/html" },
+      false,
+    ],
+    [
+      "an absent body stays absent",
+      listOrders,
+      { status: 204 },
+      { status: 204 },
+      false,
+    ],
+    [
+      "a mapped backend error is never wrapped",
+      listOrders,
+      {
+        error: "not_found",
+        message: "No such order.",
+        status: 404,
+        retryable: false,
+      },
+      {
+        error: "not_found",
+        message: "No such order.",
+        status: 404,
+        retryable: false,
+      },
+      true,
+    ],
+  ])("%s", (_case, descriptor, outcome, payload, isError) => {
+    const entry = {
+      tool: createToolDefinition(descriptor),
+      descriptor,
+      owner: "test",
+    };
+    const response = invokeResponse(entry, outcome, undefined);
+    expect(response.payload).toEqual(payload);
+    expect(response.isError).toBe(isError);
   });
 });

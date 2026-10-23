@@ -183,6 +183,11 @@ export interface FoldedOperation<T> {
   readonly folded: readonly T[];
 }
 
+/**
+ * Guard: a declared full name is part of an operation's identity. A generator that writes the
+ * handler's method name as `operationId` gives two controllers' `list` the same one, and folding
+ * them would leave one of the two tools unpublished, invoking the other's route.
+ */
 export function deduplicateOperations<T>(
   items: readonly T[],
   selector: (item: T) => EndpointDescriptor,
@@ -204,6 +209,7 @@ export function deduplicateOperations<T>(
       endpoint.container ?? "",
       endpoint.operationId,
       endpoint.method.toUpperCase(),
+      endpoint.toolName ?? "",
     ]);
     const members = grouped.get(key);
     if (members === undefined) {

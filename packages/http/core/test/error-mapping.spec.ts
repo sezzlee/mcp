@@ -216,7 +216,7 @@ describe("401 and 5xx ignore the body except for a correlation reference", () =>
     );
 
     expect(isMappedError(result) && result.message).toBe(
-      "The backend did not accept the caller's identity (401). The MCP session's credentials were forwarded unchanged; retrying with the same session will not help.",
+      "The backend did not accept the credentials the call carried (401); retrying with the same session will not help.",
     );
     expect(isMappedError(result) && result.fields).toBeUndefined();
   });

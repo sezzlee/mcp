@@ -11,6 +11,7 @@ import { tokenize } from "./search.js";
 /** The defaults a host starts from; it may lower either. */
 export const invokeLimits = {
   maxResponseBytes: 262_144,
+  maxBufferedBytes: 16_777_216,
   invokeTimeoutMs: 30_000,
   maxInlineFileBytes: 1_048_576,
   maxFileBytes: 16_777_216,
@@ -107,11 +108,45 @@ export function sdkError(code: SdkErrorCode, message: string): SdkError {
   return { error: code, message, retryable: false };
 }
 
-export interface OversizeResponse {
+interface RefusalAdvice {
+  readonly narrowing?: readonly FieldError[];
+  readonly applied?: boolean;
+}
+
+export interface OversizeResponse extends RefusalAdvice {
   readonly bytes: number;
   readonly limit: number;
   readonly shape: PayloadShape;
-  readonly narrowing?: readonly FieldError[];
+}
+
+export interface UnreadResponse extends RefusalAdvice {
+  readonly limit: number;
+}
+
+/**
+ * Guard: a refused answer of an operation the backend already applied names no narrowing argument
+ * and tells the agent not to call again. "Narrow it and call again" on a write is an instruction to
+ * apply it twice.
+ */
+function adviceOf(advice: RefusalAdvice): {
+  readonly sentence: string;
+  readonly fields: readonly FieldError[];
+} {
+  if (advice.applied === true) {
+    return {
+      sentence:
+        "The backend already applied the operation; calling it again applies it again.",
+      fields: [],
+    };
+  }
+  const fields = advice.narrowing ?? [];
+  return {
+    sentence:
+      fields.length === 0
+        ? "No argument of this call narrows the response."
+        : `Narrow it and call again: ${fields.map((field) => field.name).join(", ")}.`,
+    fields,
+  };
 }
 
 /**
@@ -120,7 +155,7 @@ export interface OversizeResponse {
  * @param refusal the measured size and a summary of the discarded value
  */
 export function refuseOversizeResponse(refusal: OversizeResponse): SdkError {
-  const fields = refusal.narrowing ?? [];
+  const { sentence, fields } = adviceOf(refusal);
   const payload: PayloadFacts = {
     bytes: refusal.bytes,
     limit: refusal.limit,
@@ -130,9 +165,7 @@ export function refuseOversizeResponse(refusal: OversizeResponse): SdkError {
     `The response is ${refusal.bytes} bytes; the limit is ${refusal.limit} bytes.`,
     "It is refused, not truncated: no part of the body was returned.",
     shapeSentence(refusal.shape),
-    fields.length === 0
-      ? "No argument of this call narrows the response."
-      : `Narrow it and call again: ${fields.map((field) => field.name).join(", ")}.`,
+    sentence,
   ].join(" ");
   return {
     error: "response_too_large",
@@ -144,10 +177,26 @@ export function refuseOversizeResponse(refusal: OversizeResponse): SdkError {
 }
 
 /**
- * Refuses an invocation that outlived its deadline.
+ * Refuses a response whose body was cut off at a byte cap while it was read, so neither its size
+ * nor its shape is known.
  *
- * @param limitMs the deadline in whole milliseconds
+ * @param refusal the cap the body crossed
  */
+export function refuseUnreadResponse(refusal: UnreadResponse): SdkError {
+  const { sentence, fields } = adviceOf(refusal);
+  const message = [
+    `The response exceeded ${refusal.limit} bytes and was not read to the end.`,
+    "It is refused, not truncated: no part of the body was returned.",
+    sentence,
+  ].join(" ");
+  return {
+    error: "response_too_large",
+    message,
+    retryable: false,
+    ...(fields.length === 0 ? {} : { fields: [...fields] }),
+  };
+}
+
 export type FileRefusalReason =
   "not_found" | "forbidden" | "unavailable" | "too_large";
 
@@ -187,11 +236,31 @@ export function refuseUnresolvedFile(
   }
 }
 
+/**
+ * Refuses an invocation that outlived its deadline.
+ *
+ * @param limitMs the deadline in whole milliseconds
+ */
 export function refuseTimedOutInvoke(limitMs: number): SdkError {
   return {
     error: "invoke_timeout",
     message:
       `The backend did not answer within ${limitMs} ms and the call was abandoned. ` +
+      "The operation may already have been applied; re-read before retrying.",
+    retryable: true,
+  };
+}
+
+/**
+ * Refuses an invocation whose connection to the backend failed before an answer arrived. The
+ * connection may have dropped after the request was delivered, so the message carries the
+ * deadline's warning.
+ */
+export function refuseUnreachableBackend(): SdkError {
+  return {
+    error: "backend_unreachable",
+    message:
+      "The backend could not be reached, or dropped the connection before answering. " +
       "The operation may already have been applied; re-read before retrying.",
     retryable: true,
   };

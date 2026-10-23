@@ -73,3 +73,27 @@ export function flattenableBody(
   const required = schema?.required;
   return { properties, required: Array.isArray(required) ? required : [] };
 }
+
+/**
+ * Widens a schema to admit `null`: into its `type` list, and into its `enum` too, since an enum that
+ * omits `null` still rejects it; a schema with no `type`, such as a `$ref`, is put beside a `null`
+ * branch instead.
+ */
+export function admittingNull(schema: JsonSchemaObject): JsonSchemaObject {
+  const type = schema.type;
+  if (typeof type === "string") {
+    return {
+      ...schema,
+      type: [type, "null"],
+      ...(Array.isArray(schema.enum) && !schema.enum.includes(null)
+        ? { enum: [...schema.enum, null] }
+        : {}),
+    } as JsonSchemaObject;
+  }
+  if (Array.isArray(type)) {
+    return type.includes("null")
+      ? schema
+      : ({ ...schema, type: [...type, "null"] } as JsonSchemaObject);
+  }
+  return { anyOf: [schema, { type: "null" }] } as JsonSchemaObject;
+}
