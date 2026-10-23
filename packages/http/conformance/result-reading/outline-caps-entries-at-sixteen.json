@@ -1,0 +1,149 @@
+{
+  "kind": "result-reading",
+  "description": "The outline holds at most sixteen entries, the root included; members past the cap are still named in the root's fields.",
+  "input": {
+    "stored": {
+      "status": 200,
+      "body": {
+        "m01": [],
+        "m02": [],
+        "m03": [],
+        "m04": [],
+        "m05": [],
+        "m06": [],
+        "m07": [],
+        "m08": [],
+        "m09": [],
+        "m10": [],
+        "m11": [],
+        "m12": [],
+        "m13": [],
+        "m14": [],
+        "m15": [],
+        "m16": [],
+        "m17": [],
+        "m18": [],
+        "m19": [],
+        "m20": []
+      }
+    },
+    "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+    "bytes": 812345,
+    "limit": 262144,
+    "expiresInSeconds": 600
+  },
+  "expected": {
+    "status": 200,
+    "stored": {
+      "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+      "bytes": 812345,
+      "limit": 262144,
+      "expiresInSeconds": 600,
+      "outline": [
+        {
+          "path": "",
+          "kind": "object",
+          "count": 20,
+          "fields": [
+            "m01",
+            "m02",
+            "m03",
+            "m04",
+            "m05",
+            "m06",
+            "m07",
+            "m08",
+            "m09",
+            "m10",
+            "m11",
+            "m12",
+            "m13",
+            "m14",
+            "m15",
+            "m16",
+            "m17",
+            "m18",
+            "m19",
+            "m20"
+          ]
+        },
+        {
+          "path": "/m01",
+          "kind": "array",
+          "count": 0
+        },
+        {
+          "path": "/m02",
+          "kind": "array",
+          "count": 0
+        },
+        {
+          "path": "/m03",
+          "kind": "array",
+          "count": 0
+        },
+        {
+          "path": "/m04",
+          "kind": "array",
+          "count": 0
+        },
+        {
+          "path": "/m05",
+          "kind": "array",
+          "count": 0
+        },
+        {
+          "path": "/m06",
+          "kind": "array",
+          "count": 0
+        },
+        {
+          "path": "/m07",
+          "kind": "array",
+          "count": 0
+        },
+        {
+          "path": "/m08",
+          "kind": "array",
+          "count": 0
+        },
+        {
+          "path": "/m09",
+          "kind": "array",
+          "count": 0
+        },
+        {
+          "path": "/m10",
+          "kind": "array",
+          "count": 0
+        },
+        {
+          "path": "/m11",
+          "kind": "array",
+          "count": 0
+        },
+        {
+          "path": "/m12",
+          "kind": "array",
+          "count": 0
+        },
+        {
+          "path": "/m13",
+          "kind": "array",
+          "count": 0
+        },
+        {
+          "path": "/m14",
+          "kind": "array",
+          "count": 0
+        },
+        {
+          "path": "/m15",
+          "kind": "array",
+          "count": 0
+        }
+      ]
+    },
+    "message": "The response is 812345 bytes; the limit is 262144 bytes. It was stored, not returned: read it with read_result and the handle, choosing a path from the outline, the properties to select and a window with offset and limit. The stored result expires in 600 seconds."
+  }
+}

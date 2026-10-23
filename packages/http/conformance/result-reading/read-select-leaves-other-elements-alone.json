@@ -1,0 +1,27 @@
+{
+  "kind": "result-reading",
+  "description": "An object element keeps only the selected members it has; an element that is not an object is returned as it is. The last window carries no next offset.",
+  "input": {
+    "body": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "b": 3
+      },
+      5
+    ],
+    "read": {
+      "select": ["a"],
+      "offset": 1
+    }
+  },
+  "expected": {
+    "path": "",
+    "kind": "array",
+    "total": 3,
+    "offset": 1,
+    "value": [{}, 5]
+  }
+}

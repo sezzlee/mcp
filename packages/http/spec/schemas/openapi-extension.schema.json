@@ -21,14 +21,48 @@
           "type": "boolean",
           "description": "Operation-level selection marker: true includes the operation, false excludes it. It outranks every config selection rule."
         },
+        "foldedInto": {
+          "type": "string",
+          "pattern": "^[A-Z]+ /",
+          "description": "Another route of an operation published from a different one, named as METHOD /path the way the document writes it. The route is indexed as that operation's alternate route; it is never invoked."
+        },
         "toolName": {
           "$ref": "endpoint-descriptor.schema.json#/properties/toolName"
         },
         "containerPrefix": {
           "$ref": "endpoint-descriptor.schema.json#/properties/containerPrefix"
         },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Replaces the description the operation's summary and description would give its tool."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Replaces the operation's tags as the tool's search tags; its naming container still comes from the operation's first tag."
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParameterSchema"
+          },
+          "description": "Replaces the schema, requiredness and description of the operation's parameters, matched by name and location. The wire form stays the document's; when the two do not name the same parameters, the document's are kept and extension_schema_mismatch is reported."
+        },
+        "requestBody": {
+          "$ref": "endpoint-descriptor.schema.json#/$defs/VariantRequestBody"
+        },
+        "responses": {
+          "$ref": "endpoint-descriptor.schema.json#/properties/responses"
+        },
         "annotations": {
           "$ref": "tool-definition.schema.json#/$defs/ToolAnnotations"
+        },
+        "anonymous": {
+          "const": true,
+          "description": "Any caller may make the call, with or without credentials, and no policy narrows it. The only visibility a document carries; it changes no credential the call is sent with."
         },
         "arguments": {
           "$ref": "endpoint-descriptor.schema.json#/properties/arguments"
@@ -55,6 +89,29 @@
       "properties": {
         "revision": {
           "$ref": "endpoint-descriptor.schema.json#/$defs/Revision/properties/operation"
+        }
+      }
+    },
+    "ParameterSchema": {
+      "title": "ParameterSchema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "in", "required", "schema"],
+      "properties": {
+        "name": {
+          "$ref": "endpoint-descriptor.schema.json#/$defs/Parameter/properties/name"
+        },
+        "in": {
+          "$ref": "endpoint-descriptor.schema.json#/$defs/Parameter/properties/in"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "schema": {
+          "$ref": "endpoint-descriptor.schema.json#/$defs/JsonSchemaObject"
+        },
+        "description": {
+          "type": "string"
         }
       }
     },

@@ -1,0 +1,47 @@
+{
+  "kind": "result-reading",
+  "description": "Outline paths are RFC 6901 pointers: '~' is written '~0' and '/' is written '~1'.",
+  "input": {
+    "stored": {
+      "status": 200,
+      "body": {
+        "a/b": {
+          "~x": []
+        }
+      }
+    },
+    "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+    "bytes": 812345,
+    "limit": 262144,
+    "expiresInSeconds": 600
+  },
+  "expected": {
+    "status": 200,
+    "stored": {
+      "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+      "bytes": 812345,
+      "limit": 262144,
+      "expiresInSeconds": 600,
+      "outline": [
+        {
+          "path": "",
+          "kind": "object",
+          "count": 1,
+          "fields": ["a/b"]
+        },
+        {
+          "path": "/a~1b",
+          "kind": "object",
+          "count": 1,
+          "fields": ["~x"]
+        },
+        {
+          "path": "/a~1b/~0x",
+          "kind": "array",
+          "count": 0
+        }
+      ]
+    },
+    "message": "The response is 812345 bytes; the limit is 262144 bytes. It was stored, not returned: read it with read_result and the handle, choosing a path from the outline, the properties to select and a window with offset and limit. The stored result expires in 600 seconds."
+  }
+}

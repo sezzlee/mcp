@@ -1,0 +1,12 @@
+{
+  "kind": "error-mapping",
+  "description": "backend'e baglanti cevap gelmeden koptu: status yok, tekrar denenebilir ama islem uygulanmis olabilir",
+  "input": {
+    "sdkError": "backend_unreachable"
+  },
+  "expected": {
+    "error": "backend_unreachable",
+    "message": "The backend could not be reached, or dropped the connection before answering. The operation may already have been applied; re-read before retrying.",
+    "retryable": true
+  }
+}

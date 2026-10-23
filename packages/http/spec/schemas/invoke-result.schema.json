@@ -98,6 +98,11 @@
           "type": "string",
           "minLength": 1
         },
+        "bodyEncoding": {
+          "type": "string",
+          "enum": ["base64"],
+          "description": "Present when the backend's bytes are not text in the charset its content type names (UTF-8 by default): body is then those bytes in standard base64."
+        },
         "location": {
           "type": "string",
           "minLength": 1
@@ -125,10 +130,13 @@
         "file_unresolved",
         "response_too_large",
         "invoke_timeout",
+        "backend_unreachable",
         "search_ranker_unavailable",
         "internal_error",
         "tool_changed",
-        "rate_limit_exceeded"
+        "rate_limit_exceeded",
+        "result_unavailable",
+        "invalid_selection"
       ]
     },
     "PayloadShapeKind": {

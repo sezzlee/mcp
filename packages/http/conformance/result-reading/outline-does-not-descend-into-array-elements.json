@@ -1,0 +1,37 @@
+{
+  "kind": "result-reading",
+  "description": "The outline reaches containers through object members only; arrays inside array elements are not listed.",
+  "input": {
+    "stored": {
+      "status": 200,
+      "body": [
+        {
+          "items": [1, 2]
+        },
+        "x"
+      ]
+    },
+    "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+    "bytes": 812345,
+    "limit": 262144,
+    "expiresInSeconds": 600
+  },
+  "expected": {
+    "status": 200,
+    "stored": {
+      "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+      "bytes": 812345,
+      "limit": 262144,
+      "expiresInSeconds": 600,
+      "outline": [
+        {
+          "path": "",
+          "kind": "array",
+          "count": 2,
+          "fields": ["items"]
+        }
+      ]
+    },
+    "message": "The response is 812345 bytes; the limit is 262144 bytes. It was stored, not returned: read it with read_result and the handle, choosing a path from the outline, the properties to select and a window with offset and limit. The stored result expires in 600 seconds."
+  }
+}

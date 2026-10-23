@@ -1,0 +1,18 @@
+{
+  "kind": "result-reading",
+  "description": "select applies only to an array or an object.",
+  "input": {
+    "body": {
+      "text": "abc"
+    },
+    "read": {
+      "path": "/text",
+      "select": ["a"]
+    }
+  },
+  "expected": {
+    "error": "invalid_selection",
+    "message": "select applies to an array or an object; path '/text' holds a string.",
+    "retryable": false
+  }
+}

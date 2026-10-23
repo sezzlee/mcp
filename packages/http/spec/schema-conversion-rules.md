@@ -21,6 +21,14 @@ Conversion has two layers, and the split is normative:
 - **Rule**: language-independent. Its input is a TypeShape and its output is JSON Schema. Every SDK
   MUST produce identical output, and the `schema-simplification` fixtures test exactly that.
 
+In Nest, binding reads two decorator registries: class-validator's, which the validation pipe
+enforces, and `@nestjs/swagger`'s `@ApiProperty`, together with the metadata its CLI plugin
+generates. A member either one names is bound. Where both speak, class-validator decides the type and
+`required`, because a member documented as optional but validated without `@IsOptional()` fails when
+it is omitted; `@ApiProperty` supplies the description and fills a type or constraint the validators
+leave unsaid. A member declared as an array (`Item[]`) binds to an array even when its validators
+omit `each`, since `@ValidateNested()` validates every element either way.
+
 The boundary was placed here deliberately: you cannot hand a language type to a pure JSON fixture, but
 you can hand it a **member list**. That made 22 of the 34 rows in Tables 1-7 fixture-able; the 12
 rows left in binding are the ones whose input genuinely is language-specific.
@@ -73,7 +81,7 @@ the endpoint silently uncallable.
 | ---------------------------------------------- | ---------------------- | ------------------------------------------------- |
 | `{"type":"string"}`                            | `string`               | `String`, `@IsString()`, `@IsEmail()`, `@IsUrl()` |
 | `{"type":"boolean"}`                           | `boolean`              | `Boolean`, `@IsBoolean()`                         |
-| `{"type":"integer"}`                           | `integer`              | `@IsInt()`                                        |
+| `{"type":"integer"}`                           | `integer`              | `@IsInt()`, `@ApiProperty({ type: "integer" })`   |
 | `{"type":"number"}`                            | `number`               | `Number`, `@IsNumber()`                           |
 | `{"type":"string","format":"uuid"}`            | `string` + `uuid`      | `@IsUUID()`                                       |
 | `{"type":"string","format":"date-time"}`       | `string` + `date-time` | `Date`, `@IsDate()`, `@IsDateString()`            |
@@ -211,17 +219,17 @@ do not enforce the second one on body fields.
 Constraints are carried in the IR under **neutral names**; the mapping to a JSON Schema keyword is a
 **rule**, because which keyword it lands on depends on the member's produced type.
 
-| IR constraint         | Produced type                               | JSON Schema                                         | Nest source                                      |
-| --------------------- | ------------------------------------------- | --------------------------------------------------- | ------------------------------------------------ |
-| `required: true`      | —                                           | a `required` entry                                  | a member without `@IsOptional()`/`@ValidateIf()` |
-| `minSize` / `maxSize` | `array`                                     | `minItems` / `maxItems`                             | `@ArrayMinSize()`/`@ArrayMaxSize()`              |
-| `minSize` / `maxSize` | anything else                               | `minLength` / `maxLength`                           | `@MinLength()`, `@MaxLength()`                   |
-| `minimum` / `maximum` | `integer`, `number`                         | `minimum` / `maximum`                               | `@Min()`, `@Max()`                               |
-| `minimum` / `maximum` | anything else                               | **not written**                                     | —                                                |
-| `pattern`             | `string`                                    | `pattern`                                           | `@Matches()`                                     |
-| `pattern`             | anything else                               | **not written**                                     | —                                                |
-| `format`              | `string`, if the schema carries no `format` | `format`                                            | `@IsEmail()` → `email`, `@IsUrl()` → `uri`       |
-| `description`         | —                                           | `description`, if the schema carries no description | —                                                |
+| IR constraint         | Produced type                               | JSON Schema                                         | Nest source                                                                                                            |
+| --------------------- | ------------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `required: true`      | —                                           | a `required` entry                                  | a member without `@IsOptional()`/`@ValidateIf()`; a member only `@ApiProperty` names, unless it says `required: false` |
+| `minSize` / `maxSize` | `array`                                     | `minItems` / `maxItems`                             | `@ArrayMinSize()`/`@ArrayMaxSize()`, `@ApiProperty({ minItems, maxItems })`                                            |
+| `minSize` / `maxSize` | anything else                               | `minLength` / `maxLength`                           | `@MinLength()`, `@MaxLength()`, `@ApiProperty({ minLength, maxLength })`                                               |
+| `minimum` / `maximum` | `integer`, `number`                         | `minimum` / `maximum`                               | `@Min()`, `@Max()`, `@ApiProperty({ minimum, maximum })`                                                               |
+| `minimum` / `maximum` | anything else                               | **not written**                                     | —                                                                                                                      |
+| `pattern`             | `string`                                    | `pattern`                                           | `@Matches()`, `@ApiProperty({ pattern })`                                                                              |
+| `pattern`             | anything else                               | **not written**                                     | —                                                                                                                      |
+| `format`              | `string`, if the schema carries no `format` | `format`                                            | `@IsEmail()` → `email`, `@IsUrl()` → `uri`                                                                             |
+| `description`         | —                                           | `description`, if the schema carries no description | `@ApiProperty({ description })`                                                                                        |
 
 **Attribute reading MUST NOT stop at the member.** If the serializer picked a parameterized
 constructor, the attributes on the name-matched parameter are read too; those on the member win a
@@ -230,6 +238,16 @@ would otherwise hide it from an implementation that looks only at members.
 
 If constructor selection is ambiguous (several candidates of the same width), correlation is **not**
 performed; ambiguity MUST NOT be resolved silently.
+
+**Nullability is read only from an explicit declaration** (Nest: `@ApiProperty({ nullable: true })`).
+Reference-type nullability is not read, and a value-type wrapper is unwrapped without a `null`: in
+TypeScript there is no nullability at runtime, so only a declaration can be validated by a second
+implementation. A member declared nullable admits `null`: `null` is added to its `type` list and,
+when it has one, to its `enum`, since an enum that omits `null` still rejects it; a schema without a
+`type`, such as a `$ref`, is written as `anyOf` with a `{"type":"null"}` branch. This is the rule an
+OpenAPI document's `nullable: true` is lowered with ([openapi-ingestion.md](openapi-ingestion.md)),
+so both sources publish the same schema. It does not touch `required`: "may be null" and "must be
+sent" are different questions.
 
 `required` is written in nested schemas only when non-empty, while in the root `inputSchema` it is
 written even when empty ([metadata-contract.md](metadata-contract.md)). The asymmetry is
@@ -452,6 +470,7 @@ own freedom is carried by the schema of that property.
 | `unsupported_method`            | the HTTP method has no counterpart in the neutral model                               | the endpoint is dropped        |
 | `schema_def_conflict`           | the same `$defs` key is defined twice with different bodies                           | the endpoint is dropped        |
 | `unresolved_query_shape`        | a whole-object query binding whose members cannot be read at all                      | the endpoint is dropped        |
+| `version_not_carried`           | a handler bound to a version a replayed request cannot carry (Nest, non-URI)          | the endpoint is dropped        |
 | `synthetic_body_argument`       | a non-object body root was wrapped into a `body` argument                             | warning                        |
 | `unflattenable_body_root`       | a body root carried a keyword flattening would discard, or offered nothing to flatten | warning, the body is wrapped   |
 | `optional_body_argument`        | a body declared `required: false` was wrapped into an optional `body` argument        | warning                        |
@@ -505,11 +524,6 @@ a dictionary or a nested object — falls back to the binding it already produce
 
 The following are deliberately undefined or out of scope; an implementation SHOULD NOT rely on them.
 
-- **Nullable representation.** Reference-type nullability is not read; a value-type wrapper is
-  unwrapped and `null` does not surface in the schema. The IR has no nullable node. Since `required`
-  is not fed from it, there is no correctness dependency either. The second reason for leaving it out
-  of scope is structural: in TypeScript there is no such thing as nullability at runtime, so this
-  rule cannot be validated by a second implementation.
 - **Host documentation comments.** The binding layer MAY read a member description from the host's
   own documentation source; the rule layer sees only the IR's `description` field. Which source is
   read belongs to binding and is not normative.

@@ -1,0 +1,135 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "x-sezzlee foldedInto ile isaretli route, adini verdigi ayni metotlu operasyonun alternatif route'u olur; kendisi yayinlanmaz",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/orders/{id}": {
+          "get": {
+            "operationId": "read[0]",
+            "parameters": [
+              {
+                "name": "id",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "tool": true,
+              "toolName": "read_order"
+            }
+          }
+        },
+        "/orders/by-id/{id}": {
+          "get": {
+            "operationId": "read[1]",
+            "parameters": [
+              {
+                "name": "id",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "tool": false,
+              "foldedInto": "GET /orders/{id}"
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "GET /orders/{id}",
+        "baseUrl": "https://api.test",
+        "selection": "include",
+        "descriptor": {
+          "operationId": "read[0]",
+          "method": "GET",
+          "route": "/orders/{id}",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          },
+          "toolName": "read_order"
+        },
+        "alternateRoutes": ["/orders/by-id/{id}"]
+      },
+      {
+        "key": "GET /orders/by-id/{id}",
+        "baseUrl": "https://api.test",
+        "selection": "exclude",
+        "descriptor": {
+          "operationId": "read[1]",
+          "method": "GET",
+          "route": "/orders/by-id/{id}",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      }
+    ],
+    "diagnostics": []
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "kind": "error-mapping",
+  "description": "okunurken byte tavanini asan govde: boyutu ve sekli bilinmez, payload yazilmaz, daraltici argumanlar yine sayilir",
+  "input": {
+    "sdkError": "response_too_large",
+    "limit": 262144,
+    "narrowing": [
+      {
+        "name": "limit",
+        "message": "Maximum number of rows to return."
+      }
+    ],
+    "unread": true
+  },
+  "expected": {
+    "error": "response_too_large",
+    "message": "The response exceeded 262144 bytes and was not read to the end. It is refused, not truncated: no part of the body was returned. Narrow it and call again: limit.",
+    "retryable": false,
+    "fields": [
+      {
+        "name": "limit",
+        "message": "Maximum number of rows to return."
+      }
+    ]
+  }
+}

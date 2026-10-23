@@ -1,0 +1,123 @@
+{
+  "kind": "schema-simplification",
+  "description": "A member the host declares nullable admits null: added to its type and to its enum, or beside a reference as an anyOf branch.",
+  "input": {
+    "shape": {
+      "root": {
+        "kind": "ref",
+        "ref": "Order"
+      },
+      "types": {
+        "Order": {
+          "name": "Order",
+          "members": [
+            {
+              "name": "dueAt",
+              "type": {
+                "kind": "scalar",
+                "scalar": "string",
+                "format": "date-time"
+              },
+              "required": true,
+              "readOnly": false,
+              "constructorBound": false,
+              "nullable": true
+            },
+            {
+              "name": "status",
+              "type": {
+                "kind": "enum",
+                "enumFacts": {
+                  "wireForm": "string",
+                  "names": ["open", "closed"],
+                  "numbers": []
+                }
+              },
+              "required": false,
+              "readOnly": false,
+              "constructorBound": false,
+              "nullable": true
+            },
+            {
+              "name": "shipTo",
+              "type": {
+                "kind": "ref",
+                "ref": "Address"
+              },
+              "required": false,
+              "readOnly": false,
+              "constructorBound": false,
+              "nullable": true
+            },
+            {
+              "name": "billTo",
+              "type": {
+                "kind": "ref",
+                "ref": "Address"
+              },
+              "required": false,
+              "readOnly": false,
+              "constructorBound": false
+            }
+          ]
+        },
+        "Address": {
+          "name": "Address",
+          "members": [
+            {
+              "name": "city",
+              "type": {
+                "kind": "scalar",
+                "scalar": "string"
+              },
+              "required": true,
+              "readOnly": false,
+              "constructorBound": false
+            }
+          ]
+        }
+      }
+    }
+  },
+  "expected": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "dueAt": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "status": {
+          "type": ["string", "null"],
+          "enum": ["open", "closed", null]
+        },
+        "shipTo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Address"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "billTo": {
+          "$ref": "#/$defs/Address"
+        }
+      },
+      "required": ["dueAt"],
+      "$defs": {
+        "Address": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    },
+    "defsOrder": ["Address"]
+  }
+}

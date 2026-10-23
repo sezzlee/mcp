@@ -1,0 +1,73 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "bos x-sezzlee description ve string dizisi olmayan tags uyarilir ve tasinmaz; operasyon dokumanin kendi aciklamasi ve etiketleriyle kalir",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/orders": {
+          "get": {
+            "operationId": "listOrders",
+            "summary": "List orders",
+            "description": "Lists orders, newest first.",
+            "tags": ["sales", "reports"],
+            "x-sezzlee": {
+              "description": " ",
+              "tags": ["Orders", 3]
+            },
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "GET /orders",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "listOrders",
+          "container": "sales",
+          "method": "GET",
+          "route": "/orders",
+          "description": "List orders\n\nLists orders, newest first.",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          },
+          "tags": ["sales", "reports"]
+        }
+      }
+    ],
+    "diagnostics": [
+      {
+        "code": "description_invalid",
+        "at": "/paths/~1orders/get/x-sezzlee/description"
+      },
+      {
+        "code": "tags_invalid",
+        "at": "/paths/~1orders/get/x-sezzlee/tags"
+      }
+    ]
+  }
+}

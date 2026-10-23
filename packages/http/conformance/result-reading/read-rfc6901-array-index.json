@@ -1,0 +1,19 @@
+{
+  "kind": "result-reading",
+  "description": "RFC 6901 section 5: '/foo/0' names the first element of foo.",
+  "input": {
+    "body": {
+      "foo": ["bar", "baz"]
+    },
+    "read": {
+      "path": "/foo/0"
+    }
+  },
+  "expected": {
+    "path": "/foo/0",
+    "kind": "string",
+    "total": 3,
+    "offset": 0,
+    "value": "bar"
+  }
+}

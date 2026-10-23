@@ -1,0 +1,36 @@
+{
+  "kind": "result-reading",
+  "description": "An array index with a leading zero names nothing, by RFC 6901.",
+  "input": {
+    "body": {
+      "total": 3,
+      "items": [
+        {
+          "id": 1,
+          "status": "open"
+        },
+        {
+          "id": 2,
+          "status": "paid",
+          "note": "gift"
+        },
+        {
+          "id": 3
+        }
+      ],
+      "meta": {
+        "page": {
+          "size": 3
+        }
+      }
+    },
+    "read": {
+      "path": "/items/01"
+    }
+  },
+  "expected": {
+    "error": "invalid_selection",
+    "message": "Path '/items/01' names nothing in the stored result. The longest part of it that exists is '/items'.",
+    "retryable": false
+  }
+}

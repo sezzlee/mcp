@@ -175,6 +175,10 @@
         "constructorBound": {
           "type": "boolean"
         },
+        "nullable": {
+          "type": "boolean",
+          "description": "The member admits null, as the host explicitly declared."
+        },
         "description": {
           "type": "string"
         },

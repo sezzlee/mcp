@@ -1,0 +1,25 @@
+{
+  "kind": "result-reading",
+  "description": "An object is windowed over its members in order.",
+  "input": {
+    "body": {
+      "a": 1,
+      "b": 2,
+      "c": 3
+    },
+    "read": {
+      "offset": 1,
+      "limit": 1
+    }
+  },
+  "expected": {
+    "path": "",
+    "kind": "object",
+    "total": 3,
+    "offset": 1,
+    "nextOffset": 2,
+    "value": {
+      "b": 2
+    }
+  }
+}

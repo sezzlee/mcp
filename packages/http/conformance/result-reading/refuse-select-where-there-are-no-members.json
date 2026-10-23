@@ -1,0 +1,15 @@
+{
+  "kind": "result-reading",
+  "description": "An array with no object element has no members to select.",
+  "input": {
+    "body": [1, 2],
+    "read": {
+      "select": ["a"]
+    }
+  },
+  "expected": {
+    "error": "invalid_selection",
+    "message": "Path '' has no property named 'a'. It has no properties.",
+    "retryable": false
+  }
+}

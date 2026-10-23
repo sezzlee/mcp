@@ -7,6 +7,7 @@ export type Fixture =
   | SearchFixture
   | RankedSearchFixture
   | ErrorMappingFixture
+  | ResultReadingFixture
   | SchemaSimplificationFixture
   | CardFixture
   | DetailFixture
@@ -138,10 +139,13 @@ export type SdkErrorCode =
   | "file_unresolved"
   | "response_too_large"
   | "invoke_timeout"
+  | "backend_unreachable"
   | "search_ranker_unavailable"
   | "internal_error"
   | "tool_changed"
-  | "rate_limit_exceeded";
+  | "rate_limit_exceeded"
+  | "result_unavailable"
+  | "invalid_selection";
 export type InvokeResult = InvokeSuccess | MappedError | SdkError;
 export type BackendErrorCode =
   | "validation_failed"
@@ -154,6 +158,7 @@ export type BackendErrorCode =
   | "backend_error"
   | "backend_unavailable";
 export type PayloadShapeKind = "array" | "object" | "text";
+export type StoredValueKind = "array" | "object" | "string" | "scalar";
 export type TypeKind =
   | "scalar"
   | "binary"
@@ -597,6 +602,7 @@ export interface BackendResponseSpec {
     [k: string]: string;
   };
   body?: string | {} | unknown[];
+  bodyEncoding?: "base64";
   knownFields?: string[];
   fieldAliases?: {
     [k: string]: string;
@@ -611,6 +617,8 @@ export interface SdkErrorSpec {
   payload?: unknown;
   limitMs?: number;
   narrowing?: FieldError[];
+  applied?: boolean;
+  unread?: boolean;
   field?: string;
   tool?: string;
   reason?: "not_found" | "forbidden" | "unavailable" | "too_large";
@@ -623,6 +631,7 @@ export interface InvokeSuccess {
   status: number;
   body?: unknown;
   contentType?: string;
+  bodyEncoding?: "base64";
   location?: string;
 }
 export interface MappedError {
@@ -650,6 +659,57 @@ export interface PayloadFacts {
 export interface PayloadShape {
   kind: PayloadShapeKind;
   count?: number;
+}
+export interface ResultReadingFixture {
+  kind: "result-reading";
+  description: string;
+  input: StoreSpec | ReadSpec;
+  expected: InvokeStored | ReadResult | SdkError;
+}
+export interface StoreSpec {
+  stored: InvokeSuccess;
+  handle: string;
+  bytes: number;
+  limit: number;
+  expiresInSeconds: number;
+  applied?: boolean;
+}
+export interface ReadSpec {
+  body: unknown;
+  read: {
+    path?: unknown;
+    select?: unknown;
+    offset?: unknown;
+    limit?: unknown;
+  };
+}
+export interface InvokeStored {
+  status: number;
+  contentType?: string;
+  location?: string;
+  stored: StoredResult;
+  message: string;
+}
+export interface StoredResult {
+  handle: string;
+  bytes: number;
+  limit: number;
+  expiresInSeconds: number;
+  outline: [OutlineEntry, ...OutlineEntry[]];
+}
+export interface OutlineEntry {
+  path: string;
+  kind: StoredValueKind;
+  count?: number;
+  fields?: [string, ...string[]];
+}
+export interface ReadResult {
+  path: string;
+  kind: StoredValueKind;
+  total?: number;
+  offset?: number;
+  nextOffset?: number;
+  value: unknown;
 }
 export interface SchemaSimplificationFixture {
   kind: "schema-simplification";
@@ -701,6 +761,7 @@ export interface Member {
   required: boolean;
   readOnly: boolean;
   constructorBound: boolean;
+  nullable?: boolean;
   description?: string;
   constraints?: Constraints;
 }
@@ -778,6 +839,7 @@ export interface OpenApiIngestionFixture {
       baseUrl?: string;
       selection?: "include" | "exclude";
       descriptor: EndpointDescriptor;
+      alternateRoutes?: string[];
     }[];
     diagnostics: {
       code: string;

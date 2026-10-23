@@ -1,0 +1,20 @@
+{
+  "kind": "result-reading",
+  "description": "A scalar is returned whole, without a total or an offset; a window does not apply to it.",
+  "input": {
+    "body": {
+      "n": 5,
+      "flag": false
+    },
+    "read": {
+      "path": "/n",
+      "offset": 3,
+      "limit": 1
+    }
+  },
+  "expected": {
+    "path": "/n",
+    "kind": "scalar",
+    "value": 5
+  }
+}

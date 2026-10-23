@@ -1,0 +1,36 @@
+{
+  "kind": "result-reading",
+  "description": "select must be an array of strings.",
+  "input": {
+    "body": {
+      "total": 3,
+      "items": [
+        {
+          "id": 1,
+          "status": "open"
+        },
+        {
+          "id": 2,
+          "status": "paid",
+          "note": "gift"
+        },
+        {
+          "id": 3
+        }
+      ],
+      "meta": {
+        "page": {
+          "size": 3
+        }
+      }
+    },
+    "read": {
+      "select": "id"
+    }
+  },
+  "expected": {
+    "error": "invalid_selection",
+    "message": "Tool 'read_result' takes 'select' as an array of strings.",
+    "retryable": false
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "kind": "result-reading",
+  "description": "An index past the array names nothing; the message names the longest part of the path that exists.",
+  "input": {
+    "body": {
+      "total": 3,
+      "items": [
+        {
+          "id": 1,
+          "status": "open"
+        },
+        {
+          "id": 2,
+          "status": "paid",
+          "note": "gift"
+        },
+        {
+          "id": 3
+        }
+      ],
+      "meta": {
+        "page": {
+          "size": 3
+        }
+      }
+    },
+    "read": {
+      "path": "/items/5/id"
+    }
+  },
+  "expected": {
+    "error": "invalid_selection",
+    "message": "Path '/items/5/id' names nothing in the stored result. The longest part of it that exists is '/items'.",
+    "retryable": false
+  }
+}

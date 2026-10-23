@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "result-reading.schema.json",
+  "title": "ResultReading",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/InvokeStored"
+    },
+    {
+      "$ref": "#/$defs/ReadResult"
+    }
+  ],
+  "$defs": {
+    "StoredValueKind": {
+      "title": "StoredValueKind",
+      "type": "string",
+      "enum": ["array", "object", "string", "scalar"]
+    },
+    "OutlineEntry": {
+      "title": "OutlineEntry",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "kind"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "An RFC 6901 JSON Pointer into the stored body; empty for the root."
+        },
+        "kind": {
+          "$ref": "#/$defs/StoredValueKind"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "StoredResult": {
+      "title": "StoredResult",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "bytes", "limit", "expiresInSeconds", "outline"],
+      "properties": {
+        "handle": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{22}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expiresInSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outline": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/OutlineEntry"
+          }
+        }
+      }
+    },
+    "InvokeStored": {
+      "title": "InvokeStored",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "stored", "message"],
+      "properties": {
+        "status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 399
+        },
+        "contentType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "location": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stored": {
+          "$ref": "#/$defs/StoredResult"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ReadResult": {
+      "title": "ReadResult",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "kind", "value"],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/StoredValueKind"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "nextOffset": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "value": {}
+      }
+    }
+  }
+}

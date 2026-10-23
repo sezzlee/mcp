@@ -1,0 +1,17 @@
+{
+  "kind": "result-reading",
+  "description": "An offset at or past the total yields an empty window and no next offset.",
+  "input": {
+    "body": [1, 2],
+    "read": {
+      "offset": 5
+    }
+  },
+  "expected": {
+    "path": "",
+    "kind": "array",
+    "total": 2,
+    "offset": 5,
+    "value": []
+  }
+}

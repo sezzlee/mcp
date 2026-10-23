@@ -1,0 +1,51 @@
+{
+  "kind": "result-reading",
+  "description": "select keeps the named members of each element in select order, and the window reports the total and the next offset.",
+  "input": {
+    "body": {
+      "total": 3,
+      "items": [
+        {
+          "id": 1,
+          "status": "open"
+        },
+        {
+          "id": 2,
+          "status": "paid",
+          "note": "gift"
+        },
+        {
+          "id": 3
+        }
+      ],
+      "meta": {
+        "page": {
+          "size": 3
+        }
+      }
+    },
+    "read": {
+      "path": "/items",
+      "select": ["status", "id"],
+      "offset": 0,
+      "limit": 2
+    }
+  },
+  "expected": {
+    "path": "/items",
+    "kind": "array",
+    "total": 3,
+    "offset": 0,
+    "nextOffset": 2,
+    "value": [
+      {
+        "status": "open",
+        "id": 1
+      },
+      {
+        "status": "paid",
+        "id": 2
+      }
+    ]
+  }
+}

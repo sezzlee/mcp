@@ -15,7 +15,8 @@ Converts the backend's HTTP errors into an MCP result the agent can act on **by 
 
 An `invoke_tool` result stays JSON inside a single text content block. Success and failure share the same `CallToolResult` carrier and are distinguished by the `isError` flag:
 
-- **Success** (when the backend returned `< 400`) → [`InvokeSuccess`](schemas/invoke-result.schema.json): `status`; `body` (the parsed value when the content type is JSON, otherwise the raw string together with `contentType`; when there is no body the field is absent entirely); `location` (when the response is a 3xx redirect).
+- **Success** (when the backend returned `< 400`) → [`InvokeSuccess`](schemas/invoke-result.schema.json): `status`; `body` (the parsed value when the content type is JSON, otherwise the raw string together with `contentType`; bytes that are not text are carried as base64 with `bodyEncoding: "base64"`, see [Decoding the body](#decoding-the-body); when there is no body the field is absent entirely); `location` (when the response is a 3xx redirect). A parsed body is placed under `result` when the tool's `outputSchema` wraps a non-object root ([metadata-contract.md](metadata-contract.md)); the mapping of a backend response itself never wraps.
+- **A stored success** (the answer was over the payload budget and a result store kept it) → [`InvokeStored`](schemas/result-reading.schema.json) with `isError: false`: the success's `status`, `contentType` and `location`, a `stored` block with the handle and an outline of the body, and a `message` ([result-reading.md](result-reading.md)).
 - **A backend error** (4xx/5xx) → `CallToolResult.isError = true` plus a [`MappedError`](schemas/invoke-result.schema.json) envelope: `error` (a `BackendErrorCode`), `message`, `status`, `retryable`, `fields?`, `retryAfterSeconds?`, `reference?`.
 - **An SDK-side error** — argument composition, `unknown_tool`, `not_invocable`, and the invoke guards of [invoke-semantics.md](invoke-semantics.md) — → `CallToolResult.isError = true` plus an [`SdkError`](schemas/invoke-result.schema.json) envelope: `error` (an `SdkErrorCode`), `message`, `retryable`, `fields?`, `payload?`. `status` MUST NOT be present: the backend was never reached, or its answer was discarded.
 
@@ -38,28 +39,31 @@ Independent of any backend status code, fixture-pinned, and carried by `SdkError
 | `not_invocable`                                                                                                           | false                           | The operation has no request template                                                                                                   |
 | `tool_changed`                                                                                                            | false                           | The call pinned a tool version the answering process does not hold ([invoke-semantics.md](invoke-semantics.md))                         |
 | `response_too_large`                                                                                                      | false                           | The answer exceeded the payload budget ([invoke-semantics.md](invoke-semantics.md))                                                     |
+| `result_unavailable`                                                                                                      | false                           | `read_result` named a handle with no stored result for this caller ([result-reading.md](result-reading.md))                             |
+| `invalid_selection`                                                                                                       | false                           | `read_result` arguments that cannot be read against the stored result ([result-reading.md](result-reading.md))                          |
 | `invoke_timeout`                                                                                                          | **true**                        | The invoke deadline expired ([invoke-semantics.md](invoke-semantics.md))                                                                |
+| `backend_unreachable`                                                                                                     | **true**                        | The connection to the backend failed before an answer arrived ([invoke-semantics.md](invoke-semantics.md))                              |
 | `search_ranker_unavailable`                                                                                               | **true**                        | A host-bound search ranker failed and the host chose `error` over fallback ([search-semantics.md](search-semantics.md))                 |
 | `rate_limit_exceeded`                                                                                                     | **true**                        | The SDK's own rate limit refused the call before it ran ([rate-limiting.md](rate-limiting.md))                                          |
 | `internal_error`                                                                                                          | false                           | The layer itself threw; the message passes the leak filter first                                                                        |
 
-The first four families carry a message the SDK writes from the argument or tool name. `response_too_large` and `invoke_timeout` have standard messages pinned in [invoke-semantics.md](invoke-semantics.md), `search_ranker_unavailable` has the one pinned in [search-semantics.md](search-semantics.md), `rate_limit_exceeded` has the ones pinned in [rate-limiting.md](rate-limiting.md) and also carries `retryAfterSeconds`, and a refused `ref` has the ones pinned in [request-bodies.md](request-bodies.md); `response_too_large` also carries `fields` and `payload`.
+The first four families carry a message the SDK writes from the argument or tool name. `response_too_large`, `invoke_timeout` and `backend_unreachable` have standard messages pinned in [invoke-semantics.md](invoke-semantics.md), `search_ranker_unavailable` has the one pinned in [search-semantics.md](search-semantics.md), `rate_limit_exceeded` has the ones pinned in [rate-limiting.md](rate-limiting.md) and also carries `retryAfterSeconds`, a refused `ref` has the ones pinned in [request-bodies.md](request-bodies.md), and `result_unavailable` and `invalid_selection` have the ones pinned in [result-reading.md](result-reading.md); `response_too_large` also carries `fields` and `payload`.
 
 ## Code dictionary
 
 The backend's HTTP status is reduced to one of the following nine codes. `retryable` means "the same call may succeed later"; it does not indicate that the arguments were wrong — for argument errors it is always `false`.
 
-| code                  | status                                         | retryable | standard message (when there is nothing forwardable)                                                                                                            |
-| --------------------- | ---------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `validation_failed`   | 400/422 with field errors, or a message array  | false     | "The backend rejected one or more arguments. Fix the listed fields and call the operation again."                                                               |
-| `bad_request`         | 400, 405, 406, 415, 422 (no fields), other 4xx | false     | "The backend rejected the request ({status}) without usable details. Check the arguments against the input schema."                                             |
-| `unauthenticated`     | 401                                            | false     | "The backend did not accept the caller's identity (401). The MCP session's credentials were forwarded unchanged; retrying with the same session will not help." |
-| `forbidden`           | 403                                            | false     | "The caller is authenticated but not permitted to perform this operation (403)."                                                                                |
-| `not_found`           | 404, 410                                       | false     | "No resource matched these arguments (404). The operation exists; check identifier arguments."                                                                  |
-| `conflict`            | 409, 412, 428                                  | false     | "The request conflicts with the current state of the resource ({status}). Re-read the resource before retrying."                                                |
-| `rate_limited`        | 429                                            | true      | "The backend is rate-limiting this caller (429). Retry after {retryAfterSeconds} seconds."                                                                      |
-| `backend_error`       | 500, 501, other 5xx                            | false     | "The backend failed while handling the call ({status}). Details were withheld. Reference: {reference}."                                                         |
-| `backend_unavailable` | 502, 503, 504, 408                             | true      | "The backend is temporarily unavailable ({status}). Retry later."                                                                                               |
+| code                  | status                                         | retryable | standard message (when there is nothing forwardable)                                                                |
+| --------------------- | ---------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------- |
+| `validation_failed`   | 400/422 with field errors, or a message array  | false     | "The backend rejected one or more arguments. Fix the listed fields and call the operation again."                   |
+| `bad_request`         | 400, 405, 406, 415, 422 (no fields), other 4xx | false     | "The backend rejected the request ({status}) without usable details. Check the arguments against the input schema." |
+| `unauthenticated`     | 401                                            | false     | "The backend did not accept the credentials the call carried (401); retrying with the same session will not help."  |
+| `forbidden`           | 403                                            | false     | "The caller is authenticated but not permitted to perform this operation (403)."                                    |
+| `not_found`           | 404, 410                                       | false     | "No resource matched these arguments (404). The operation exists; check identifier arguments."                      |
+| `conflict`            | 409, 412, 428                                  | false     | "The request conflicts with the current state of the resource ({status}). Re-read the resource before retrying."    |
+| `rate_limited`        | 429                                            | true      | "The backend is rate-limiting this caller (429). Retry after {retryAfterSeconds} seconds."                          |
+| `backend_error`       | 500, 501, other 5xx                            | false     | "The backend failed while handling the call ({status}). Details were withheld. Reference: {reference}."             |
+| `backend_unavailable` | 502, 503, 504, 408                             | true      | "The backend is temporarily unavailable ({status}). Retry later."                                                   |
 
 The distinction between `validation_failed` and `bad_request` looks at **the body's structure**, not at the status code: if a 400/422 carries a field dictionary (`recognizeFieldErrors`) or Nest's message array arrives (`recognizeNestException`), the result is `validation_failed`; if the same statuses carry a single unstructured message it is `bad_request`. `408` should not be mistaken for appearing in two families: here it is only in `backend_unavailable` (it is read as the backend declaring itself temporarily unable, not as a client timeout).
 
@@ -71,7 +75,7 @@ The pure signature:
 mapInvokeResult(response: BackendResponse, options?: { recognizers?: ErrorRecognizer[]; knownFields?: string[] }): InvokeSuccess | MappedError
 ```
 
-`BackendResponse = { status, contentType?, headers, body }`. The body is parsed **once**: `ParsedBody = empty | json | html | text` — parsing is attempted when the content type is `application/json`/`text/json`/`*+json`, or when there is no content type at all; `text/*` MUST NEVER be parsed as JSON; HTML always takes its own branch.
+`BackendResponse = { status, contentType?, headers, body, bodyEncoding? }`. The body is parsed **once**: `ParsedBody = empty | json | html | text` — parsing is attempted when the content type is `application/json`/`text/json`/`*+json`, or when there is no content type at all; `text/*` MUST NEVER be parsed as JSON; HTML always takes its own branch.
 
 The order is **first non-null result wins**:
 
@@ -85,6 +89,17 @@ The order is **first non-null result wins**:
    - `recognizePlainText` — `text/*` or an unknown content type, and not HTML.
 4. **Status-only fallback** — when nothing matched, the standard message from the code dictionary.
 5. **The leak filter**, applied to **every forwarded string** including host-recognizer output (see below); the `Retry-After` header is converted to `retryAfterSeconds` only when it is an integer number of seconds; field names are normalized.
+
+## Decoding the body
+
+An SDK and a gateway turn the response bytes into `body` the same way (`decodeResponseBody`). The
+bytes are decoded **strictly** in the charset the content type names, UTF-8 when it names none or
+one the runtime does not know. When decoding succeeds, `body` is that text. When it fails, `body` is
+the bytes in standard base64 and `bodyEncoding` is `base64`; such a body is never parsed, so a
+binary error response maps on its status alone, and a binary success carries `body`, `contentType`
+and `bodyEncoding` and is never wrapped under `result`. A lenient decoder MUST NOT be used: it
+replaces every byte it cannot read with U+FFFD, and an image or a PDF would reach the agent as a
+string that no longer holds its bytes.
 
 ## Field errors
 
@@ -149,7 +164,7 @@ Exactly two — nothing beyond them is added without demonstrated demand:
 
 ## Fixture pattern
 
-An `error-mapping` fixture's `input` is a [`BackendResponseSpec`](schemas/fixture.schema.json): `status` (required), `contentType?`, `headers?` (lowercase keys), `body?` (a string is raw text; an object or array is serialized by the harness with `JSON.stringify` and handed to the parser that way), `knownFields?` (the set of field names to pass to `mapInvokeResult`). `expected` conforms directly to [`invoke-result.schema.json`](schemas/invoke-result.schema.json) (either `InvokeSuccess` or `MappedError`). For envelope and directory rules see [fixture-format.md](fixture-format.md).
+An `error-mapping` fixture's `input` is a [`BackendResponseSpec`](schemas/fixture.schema.json): `status` (required), `contentType?`, `headers?` (lowercase keys), `body?` (a string is raw text; an object or array is serialized by the harness with `JSON.stringify` and handed to the parser that way), `bodyEncoding?` (`base64`: `body` is the base64 of the response bytes; the harness passes the bytes, or the UTF-8 bytes of any other body, through the decoding step below before mapping), `knownFields?` (the set of field names to pass to `mapInvokeResult`). `expected` conforms directly to [`invoke-result.schema.json`](schemas/invoke-result.schema.json) (either `InvokeSuccess` or `MappedError`). For envelope and directory rules see [fixture-format.md](fixture-format.md).
 
 ## Known limits
 
