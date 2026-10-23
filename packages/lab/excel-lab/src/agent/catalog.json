@@ -1891,8 +1891,8 @@
       "cases": ["X3", "Q3", "S1"],
       "files": ["uk-spend-2026-08"],
       "question": {
-        "tr": "100 bin sterlinin üstündeki ödemeler %10 daha fazla olsaydı toplam ne olurdu?",
-        "en": "If the payments over £100k had been 10% higher, what would the total be?"
+        "tr": "100 bin sterlinin üstündeki ödemeler %10 daha fazla olsaydı tüm ödemelerin toplamı ne olurdu?",
+        "en": "If the payments over £100k had been 10% higher, what would the total of all payments be?"
       },
       "answer": {
         "kind": "decimal",
