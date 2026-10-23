@@ -8,6 +8,7 @@ import {
   HostRequestError,
   type ChatMessage,
   type ChatResult,
+  type HostTiming,
   type ModelHost,
   type ThinkingPolicy,
   type ToolSpec,
@@ -42,6 +43,8 @@ export interface CallMetric {
 
 export interface RunRecord {
   readonly trialId: string;
+  readonly attempt: number;
+  readonly endpoint: string;
   readonly manifestHash: string;
   readonly taskRevision: string;
   readonly repetition: number;
@@ -75,6 +78,7 @@ export interface RunRecord {
   readonly cachedInputTokens: number | null;
   readonly outputTokens: number | null;
   readonly requestsWithoutUsage: number;
+  readonly hostTiming: HostTiming | null;
   readonly windowUse: number | null;
   readonly ms: number;
   readonly trace: readonly ChatMessage[];
@@ -89,12 +93,19 @@ export interface TrialKey {
 }
 
 type EventBody =
-  | { readonly kind: "trialStarted"; readonly key: TrialKey }
+  | {
+      readonly kind: "trialStarted";
+      readonly key: TrialKey;
+      readonly attempt: number;
+      readonly endpoint: string;
+    }
   | {
       readonly kind: "requestFinished";
       readonly request: number;
       readonly estimatedTokens: number;
       readonly usage: Usage | null;
+      readonly timing: HostTiming | null;
+      readonly doneReason: string | null;
       readonly toolCalls: number;
       readonly thinkingChars: number;
       readonly ms: number;
@@ -217,6 +228,8 @@ export async function runTask(input: {
   readonly task: Task;
   readonly key: TrialKey;
   readonly trialId: string;
+  /** 1 for a trial's first start; a resume that runs an unfinished trial again counts up. */
+  readonly attempt: number;
   readonly manifestHash: string;
   readonly language: Language;
   readonly catalog: Catalog;
@@ -253,6 +266,7 @@ export async function runTask(input: {
   const callLog: CallMetric[] = [];
   const toolErrors: Record<string, number> = {};
   const usages: (Usage | null)[] = [];
+  const timings: (HostTiming | null)[] = [];
   let invalidArgs = 0;
   let failedRequests = 0;
   let reminded = false;
@@ -263,7 +277,12 @@ export async function runTask(input: {
   let submission: unknown = null;
   let outcome: RunOutcome = "noAnswer";
   let failure: string | null = null;
-  await emit({ kind: "trialStarted", key: input.key });
+  await emit({
+    kind: "trialStarted",
+    key: input.key,
+    attempt: input.attempt,
+    endpoint: host.endpoint,
+  });
 
   /**
    * Guard: the monotonic clock stops while the machine sleeps and the wall
@@ -341,12 +360,15 @@ export async function runTask(input: {
       break;
     }
     usages.push(reply.usage);
+    timings.push(reply.timing);
     if (usages.length === 1) loadedWindow = await host.loadedWindow();
     await emit({
       kind: "requestFinished",
       request: usages.length,
       estimatedTokens: reply.estimatedTokens,
       usage: reply.usage,
+      timing: reply.timing,
+      doneReason: reply.doneReason,
       toolCalls: reply.toolCalls.length,
       thinkingChars: reply.thinking.length,
       ms: reply.ms,
@@ -449,8 +471,15 @@ export async function runTask(input: {
     known.length === 0 ? null : Math.max(...known.map((usage) => usage.input));
   const total = (pick: (usage: Usage) => number): number | null =>
     complete ? known.reduce((sum, usage) => sum + pick(usage), 0) : null;
+  const timed = timings.filter(
+    (timing): timing is HostTiming => timing !== null,
+  );
+  const timedTotal = (pick: (timing: HostTiming) => number): number =>
+    timed.reduce((sum, timing) => sum + pick(timing), 0);
   return {
     trialId: input.trialId,
+    attempt: input.attempt,
+    endpoint: host.endpoint,
     manifestHash: input.manifestHash,
     taskRevision: input.key.taskRevision,
     repetition: input.key.repetition,
@@ -490,6 +519,14 @@ export async function runTask(input: {
     cachedInputTokens: total((usage) => usage.cachedInput),
     outputTokens: total((usage) => usage.output),
     requestsWithoutUsage: usages.length - known.length,
+    hostTiming:
+      timed.length === timings.length && timings.length > 0
+        ? {
+            loadMs: timedTotal((timing) => timing.loadMs),
+            promptEvalMs: timedTotal((timing) => timing.promptEvalMs),
+            evalMs: timedTotal((timing) => timing.evalMs),
+          }
+        : null,
     windowUse: peakInputTokens === null ? null : peakInputTokens / window,
     ms: performance.now() - started,
     trace,

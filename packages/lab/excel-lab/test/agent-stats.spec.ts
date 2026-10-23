@@ -39,6 +39,8 @@ function runOf(input: {
 }): Run {
   return {
     trialId: null,
+    attempt: 1,
+    endpoint: null,
     taskRevision: input.taskRevision ?? "r1",
     repetition: input.repetition ?? 0,
     task: input.task,
@@ -53,6 +55,7 @@ function runOf(input: {
     excessCalls: 0,
     responseBytes: 0,
     inputTokens: null,
+    outputTokens: null,
     peakInputTokens: null,
     failedRequests: 0,
     ms: 0,

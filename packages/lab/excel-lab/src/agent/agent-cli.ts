@@ -156,6 +156,22 @@ if (options.resume)
   }
 
 /**
+ * Guard: a resume runs an unfinished trial again under the same id, so the
+ * events file holds one segment per start. Numbering the starts keeps each
+ * segment's cost apart from the one that was cut off.
+ */
+const attempts = new Map<string, number>();
+if (options.resume)
+  for (const line of (await readFile(eventsPath, "utf8").catch(() => "")).split(
+    "\n",
+  )) {
+    if (!line.includes('"trialStarted"')) continue;
+    const event: { kind: string; trialId: string } = JSON.parse(line);
+    if (event.kind === "trialStarted")
+      attempts.set(event.trialId, (attempts.get(event.trialId) ?? 0) + 1);
+  }
+
+/**
  * Guard: a trial started while the host is unreachable spends its retries in
  * seconds and ends as a host error. Waiting before each trial keeps it for
  * when the host answers again, which is what a resume script did by hand.
@@ -191,6 +207,7 @@ for (const task of tasks)
         task,
         key,
         trialId,
+        attempt: (attempts.get(trialId) ?? 0) + 1,
         manifestHash,
         language,
         catalog: full,

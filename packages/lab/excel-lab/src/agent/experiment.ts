@@ -4,6 +4,7 @@ import { z } from "zod";
 export const costMetrics = [
   "calls",
   "inputTokens",
+  "outputTokens",
   "responseBytes",
   "seconds",
 ] as const;

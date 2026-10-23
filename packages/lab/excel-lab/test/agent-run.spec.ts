@@ -14,6 +14,7 @@ import {
   type ChatRequest,
   type ChatResult,
   type HostIdentity,
+  type HostTiming,
   type ModelHost,
   type ThinkingPolicy,
   type ToolSpec,
@@ -60,6 +61,7 @@ type Step = (request: ChatRequest) => ChatResult;
 
 class ScriptedHost implements ModelHost {
   readonly model = "scripted";
+  readonly endpoint = "http://scripted:11434";
   readonly requests: ChatRequest[] = [];
   readonly #steps: Step[];
 
@@ -93,6 +95,7 @@ function reply(input: {
   readonly content?: string;
   readonly thinking?: string;
   readonly calls?: readonly (readonly [string, Record<string, unknown>])[];
+  readonly timing?: HostTiming | null;
 }): Step {
   return () => ({
     kind: "reply",
@@ -103,6 +106,11 @@ function reply(input: {
     })),
     estimatedTokens: 100,
     usage: { input: 100, cachedInput: 0, output: 10 },
+    timing:
+      input.timing === undefined
+        ? { loadMs: 0, promptEvalMs: 2, evalMs: 3 }
+        : input.timing,
+    doneReason: "stop",
     ms: 1,
   });
 }
@@ -141,12 +149,14 @@ async function run(input: {
   readonly host: ScriptedHost;
   readonly callBudget?: number;
   readonly thinking?: ThinkingPolicy;
+  readonly attempt?: number;
 }) {
   const events: TrialEvent[] = [];
   const record = await runTask({
     task,
     key: { task: task.id, taskRevision: "r", language: "en", repetition: 0 },
     trialId: "t",
+    attempt: input.attempt ?? 1,
     manifestHash: "m",
     language: "en",
     catalog,
@@ -249,6 +259,40 @@ describe("running one task against a model host", () => {
     } finally {
       vi.restoreAllMocks();
     }
+  });
+
+  it("records the attempt, the host that served it and where the host spent its time", async () => {
+    const host = new ScriptedHost([
+      reply({
+        calls: [read],
+        timing: { loadMs: 900, promptEvalMs: 40, evalMs: 60 },
+      }),
+      reply({ calls: [["submit_answer", { value: 3 }]] }),
+    ]);
+    const { record, events } = await run({ host, attempt: 2 });
+    expect(record.attempt).toBe(2);
+    expect(record.endpoint).toBe("http://scripted:11434");
+    expect(record.hostTiming).toEqual({
+      loadMs: 900,
+      promptEvalMs: 42,
+      evalMs: 63,
+    });
+    expect(events[0]).toEqual(
+      expect.objectContaining({
+        kind: "trialStarted",
+        attempt: 2,
+        endpoint: "http://scripted:11434",
+      }),
+    );
+  });
+
+  it("leaves host time unknown when a request did not report it", async () => {
+    const host = new ScriptedHost([
+      reply({ calls: [read], timing: null }),
+      reply({ calls: [["submit_answer", { value: 3 }]] }),
+    ]);
+    const { record } = await run({ host });
+    expect(record.hostTiming).toBeNull();
   });
 
   it("does not retry a request the host refused for its context window", async () => {

@@ -146,28 +146,31 @@ Context is measured the same way on every request, before and after it is sent:
 
 Metrics per run:
 
-| Metric                 | Definition                                                                                      |
-| ---------------------- | ----------------------------------------------------------------------------------------------- |
-| `correct`              | The submitted value means `answer` and comes in the form the tool asks for                      |
-| `grade`                | The two axes apart: `protocol` (form) and `semantic` (meaning)                                  |
-| `outcome`              | `answered`, `noAnswer`, `callBudget`, `preflightRefused`, `providerContextError` or `hostError` |
-| `budgetReached`        | The run spent its call budget and was offered `submit_answer` alone                             |
-| `calls`                | Tool calls made; `tools/list`, initialization and `submit_answer` are excluded                  |
-| `excessCalls`          | `calls` minus the plan's calls, discovery included                                              |
-| `responseBytes`        | UTF-8 bytes of tool responses that entered the model's context                                  |
-| `toolErrors`           | Calls that returned an error envelope, by error code                                            |
-| `invalidArgs`          | Calls the schema refused                                                                        |
-| `recoveryCalls`        | Calls between the first error and the next successful call                                      |
-| `requests`             | Model requests in the run                                                                       |
-| `failedRequests`       | Request attempts the host failed, retried or not                                                |
-| `toolSchemaTokens`     | Estimated tokens of the tool list alone, paid on every request                                  |
-| `peakInputTokens`      | Largest `prompt_eval_count` of the run: how full the window got                                 |
-| `peakEstimatedTokens`  | Largest pre-send estimate, to compare the estimate with the count                               |
-| `inputTokens`          | Sum of `prompt_eval_count` over the run                                                         |
-| `cachedInputTokens`    | Sum of `prompt_eval_cached_count`: the share the host did not recompute                         |
-| `requestsWithoutUsage` | Requests whose reply carried no token counts                                                    |
-| `outputTokens`         | Sum of `eval_count`                                                                             |
-| `windowUse`            | `peakInputTokens / window`                                                                      |
+| Metric                 | Definition                                                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `correct`              | The submitted value means `answer` and comes in the form the tool asks for                                                     |
+| `grade`                | The two axes apart: `protocol` (form) and `semantic` (meaning)                                                                 |
+| `outcome`              | `answered`, `noAnswer`, `callBudget`, `preflightRefused`, `providerContextError` or `hostError`                                |
+| `budgetReached`        | The run spent its call budget and was offered `submit_answer` alone                                                            |
+| `calls`                | Tool calls made; `tools/list`, initialization and `submit_answer` are excluded                                                 |
+| `excessCalls`          | `calls` minus the plan's calls, discovery included                                                                             |
+| `responseBytes`        | UTF-8 bytes of tool responses that entered the model's context                                                                 |
+| `toolErrors`           | Calls that returned an error envelope, by error code                                                                           |
+| `invalidArgs`          | Calls the schema refused                                                                                                       |
+| `recoveryCalls`        | Calls between the first error and the next successful call                                                                     |
+| `requests`             | Model requests in the run                                                                                                      |
+| `failedRequests`       | Request attempts the host failed, retried or not                                                                               |
+| `toolSchemaTokens`     | Estimated tokens of the tool list alone, paid on every request                                                                 |
+| `peakInputTokens`      | Largest `prompt_eval_count` of the run: how full the window got                                                                |
+| `peakEstimatedTokens`  | Largest pre-send estimate, to compare the estimate with the count                                                              |
+| `inputTokens`          | Sum of `prompt_eval_count` over the run                                                                                        |
+| `cachedInputTokens`    | Sum of `prompt_eval_cached_count`: the share the host did not recompute                                                        |
+| `requestsWithoutUsage` | Requests whose reply carried no token counts                                                                                   |
+| `outputTokens`         | Sum of `eval_count`                                                                                                            |
+| `hostTiming`           | Sums of Ollama's `load_duration`, `prompt_eval_duration` and `eval_duration`, in ms; `null` unless every request reported them |
+| `endpoint`             | The host that served the trial; kept out of the manifest, so one condition can be split across hosts                           |
+| `attempt`              | 1 for a trial's first start; a resume that runs an unfinished trial again counts up                                            |
+| `windowUse`            | `peakInputTokens / window`                                                                                                     |
 
 #### Scenarios a run went through
 
@@ -379,7 +382,11 @@ build, the server's tool list, the system prompt, the grader version, the host's
 Ollama version, and the generation settings. A directory holds one manifest; `--resume`
 continues it only while every field matches, and names the fields that changed otherwise. Each
 trial is a task revision, a language and a repetition; `runs.jsonl` gets one record per trial and
-`events.jsonl` every request, failed attempt, tool result and submission as it happens. Before each
+`events.jsonl` every request, failed attempt, tool result and submission as it happens. Each
+`requestFinished` event carries the host's timing and `done_reason`. A trial that was cut off and
+run again leaves one `trialStarted` segment per attempt in `events.jsonl`, numbered by `attempt`;
+sum a trial's cost over the segment of its recorded attempt, or over every segment for what the
+run consumed. Before each
 trial the runner waits until the host answers. A failed request is retried on its own, up to three
 times for a dropped connection and once for a timeout, because at temperature 0 a timed-out
 request repeats the same long generation; a request the host refuses for its window ends the trial
@@ -419,8 +426,8 @@ a run either side cannot count. Every metric is computed on the same pairs. Accu
 with the runs only one side got right, an exact McNemar test and a 90% interval from resampling
 whole file families. With `--spec`, the comparison follows a pre-registered experiment
 (`src/agent/experiment.ts`): it refuses a manifest difference the experiment does not declare as
-its treatment, and applies its rule, superiority, or not worse within a margin while cheaper,
-and its expected mechanism. An experiment is committed under `experiments/` before its runs.
+its treatment, and applies its rule, superiority, or not worse within a margin while cheaper
+in calls, input or output tokens, response bytes or seconds, and its expected mechanism. An experiment is committed under `experiments/` before its runs.
 
 ```bash
 node packages/lab/excel-lab/src/agent/replay-cli.ts <run directory> --out /path/outside/repo --corpus "$SEZZLEE_CORPUS"
