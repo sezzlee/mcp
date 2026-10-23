@@ -1,7 +1,8 @@
 # Invoke result envelope
 
-`invoke_tool` returns one of three things: a success, an error your backend produced, or an error
-sezzlee produced before your backend was reached. Telling the last two apart is what this page is
+`invoke_tool` returns one of four things: a success, a success kept for later reading because it
+was over the response budget, an error your backend produced, or an error sezzlee produced before
+your backend was reached. Telling the last two apart is what this page is
 for.
 
 > **Source of truth.** The success and backend-error shapes are
@@ -15,7 +16,7 @@ for.
 | Layer          | Produced                              | Has `status` | Codes                                         |
 | -------------- | ------------------------------------- | ------------ | --------------------------------------------- |
 | Backend-mapped | After your pipeline ran and responded | Yes          | Nine `BackendErrorCode` values, in the schema |
-| SDK-side       | Without a usable backend response     | **No**       | Sixteen `SdkErrorCode` values, in the schema  |
+| SDK-side       | Without a usable backend response     | **No**       | The `SdkErrorCode` values, in the schema      |
 
 The presence or absence of `status` is the discriminator. It is the one thing to branch on: an
 envelope with a `status` describes what your backend did; an envelope without one describes what
@@ -36,6 +37,38 @@ sezzlee refused to send.
 ```
 
 `status` and optionally `body`, `contentType` and `location`. `isError` is absent, not `false`.
+
+## Stored success
+
+A success over the response budget is kept whole by the result store, and the agent gets a handle
+and an outline of the body instead of the body:
+
+```json
+{
+  "status": 200,
+  "stored": {
+    "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+    "bytes": 1843200,
+    "limit": 262144,
+    "expiresInSeconds": 600,
+    "outline": [
+      { "path": "", "kind": "object", "count": 1, "fields": ["result"] },
+      {
+        "path": "/result",
+        "kind": "array",
+        "count": 8412,
+        "fields": ["id", "status", "total"]
+      }
+    ]
+  },
+  "message": "The response is 1843200 bytes; the limit is 262144 bytes. It was stored, not returned: read it with read_result and the handle, choosing a path from the outline, the properties to select and a window with offset and limit. The stored result expires in 600 seconds."
+}
+```
+
+It carries `status` and has no `body`, and `isError` is absent: the call succeeded. The agent reads
+the parts it needs with [`read_result`](/docs/http-catalog/meta-tool-contract#read-result). The
+shape is
+[`result-reading.schema.json`](https://github.com/sezzlee/mcp/blob/main/packages/http/spec/schemas/result-reading.schema.json).
 
 ## Backend-mapped errors
 
@@ -94,12 +127,14 @@ These either never reached your backend, or reached it and got an answer sezzlee
 }
 ```
 
-The twenty codes are `unknown_argument`, `invalid_path_type`, `missing_path_parameter`,
+The twenty-four codes are `unknown_argument`, `invalid_path_type`, `missing_path_parameter`,
 `header_injection`, `null_not_allowed`, `invalid_type`, `deferred_value_missing`,
 `deferred_value_invalid`, `invalid_cookie_value`, `cookie_carrier_collision`,
 `invalid_file_argument`, `file_too_large`, `file_unresolved`, `unknown_tool`, `not_invocable`,
-`tool_changed`, `response_too_large`, `invoke_timeout`, `search_ranker_unavailable` and
-`internal_error`.
+`tool_changed`, `response_too_large`, `invoke_timeout`, `backend_unreachable`,
+`search_ranker_unavailable`, `internal_error`, `rate_limit_exceeded`, `result_unavailable` and
+`invalid_selection`. The last two are `read_result` answers, described on
+[the meta-tool contract](/docs/http-catalog/meta-tool-contract#read-result).
 
 `tool_changed` answers a call that pinned a tool `version` the answering server does not hold. The
 backend was never reached; the agent loads the tool again and retries with the new version:

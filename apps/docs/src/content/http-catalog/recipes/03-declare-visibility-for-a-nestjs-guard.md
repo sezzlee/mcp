@@ -28,6 +28,17 @@ Both fields are optional. `anonymous` is `"yes"`, `"no"` or `"unknown"`, and `"n
 
 The method must not throw and must not depend on request state. It runs once at catalog build time, with no request in scope. A throw is swallowed and the guard counts as undeclared. Across several guards, `anonymous: "no"` from any guard wins and `policies` are unioned.
 
+A global guard you did not write, such as a rate limiter registered as `APP_GUARD`, sits on every endpoint and marks all of them imperative. When it decides nothing about who may call, register a subclass that says so with an empty declaration:
+
+```ts
+@Injectable()
+export class DeclaredThrottlerGuard extends ThrottlerGuard {
+  describeVisibility(): Record<string, never> {
+    return {};
+  }
+}
+```
+
 Declaring a guard does not change what it does. `describeVisibility()` is read by the catalog and never by `canActivate`, so a wrong declaration makes search results wrong, not your authorization.
 
 ## Probe when you cannot declare

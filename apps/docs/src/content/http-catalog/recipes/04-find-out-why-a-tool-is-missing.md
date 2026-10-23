@@ -35,7 +35,7 @@ Three codes are fatal by default: `name_collision`, `ambiguous_selection` and `i
 Two codes drop a single endpoint most often:
 
 - `argument_collision`: a path or query parameter and a body property share a name, so the flat argument object cannot hold both.
-- `unsupported_binding`: a body media type with no writer, a raw-body binding or a wildcard route. For forms and uploads, see [Accept form bodies and file uploads](/docs/http-catalog/accept-form-and-file-uploads).
+- `unsupported_binding`: a body media type with no writer, a raw-body binding, a wildcard route, a controller routed on a host pattern, or an `@Sse()` handler. For forms and uploads, see [Accept form bodies and file uploads](/docs/http-catalog/accept-form-and-file-uploads).
 
 Family sources add their own codes: [Expose a dispatching endpoint as one tool per method](/docs/http-catalog/expose-a-dispatching-endpoint-as-one-tool-per-method).
 
