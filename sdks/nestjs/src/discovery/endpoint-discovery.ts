@@ -1,4 +1,5 @@
 import {
+  ClassSerializerInterceptor,
   ParseArrayPipe,
   ParseBoolPipe,
   ParseEnumPipe,
@@ -6,6 +7,9 @@ import {
   ParseIntPipe,
   ParseUUIDPipe,
   RequestMethod,
+  VERSION_NEUTRAL,
+  VersioningType,
+  type VersioningOptions,
 } from "@nestjs/common";
 import { createRequire } from "node:module";
 import type {
@@ -15,6 +19,7 @@ import type {
 } from "@sezzlee/core";
 import {
   allowsAdditional,
+  declaredSchemaProblem,
   flattenableBody,
   simplifySchema,
   typeOf,
@@ -28,8 +33,18 @@ import {
 } from "../decorators.js";
 import { bodyEncodingOf, type FileBinding } from "./body-encoding.js";
 import { atLeast, severityOf, type CatalogSeverity } from "./diagnostics.js";
+import { readStandardSchema } from "./standard-schema.js";
+import {
+  asRecord,
+  documentedBody,
+  documentedParameter,
+  documentedTags,
+  documentedType,
+  type DocumentedParameter,
+} from "./swagger-metadata.js";
 import {
   NestTypeShapeBinder,
+  type SerializationView,
   type TypeShapeBinderOptions,
 } from "./type-shape.js";
 
@@ -37,21 +52,31 @@ const load = createRequire(import.meta.url);
 
 const {
   GUARDS_METADATA,
+  HOST_METADATA,
   HTTP_CODE_METADATA,
+  INTERCEPTORS_METADATA,
   METHOD_METADATA,
   MODULE_PATH,
   PATH_METADATA,
   ROUTE_ARGS_METADATA,
+  SSE_METADATA,
   VERSION_METADATA,
 } = load("@nestjs/common/constants") as {
   GUARDS_METADATA: string;
+  HOST_METADATA: string;
+  INTERCEPTORS_METADATA: string;
   HTTP_CODE_METADATA: string;
   METHOD_METADATA: string;
   MODULE_PATH: string;
   PATH_METADATA: string;
   ROUTE_ARGS_METADATA: string;
+  SSE_METADATA: string;
   VERSION_METADATA: string;
 };
+
+const { CLASS_SERIALIZER_OPTIONS } = load(
+  "@nestjs/common/serializer/class-serializer.constants",
+) as { CLASS_SERIALIZER_OPTIONS: string };
 
 const { RouteParamtypes } = load(
   "@nestjs/common/enums/route-paramtypes.enum",
@@ -102,6 +127,15 @@ export interface ControllerCandidate {
   readonly modulePath?: string;
 }
 
+/**
+ * Implemented by an interceptor that changes the shape of a successful response, such as one that
+ * wraps every body in `{ data }`. It receives the JSON Schema of what the handler returns and
+ * answers the schema of what the interceptor sends, or `undefined` when that shape is not known.
+ */
+export interface McpResponseDescriber {
+  describeResponse(schema: JsonSchemaObject): JsonSchemaObject | undefined;
+}
+
 export interface VisibilityDeclaration {
   readonly anonymous?: "yes" | "no" | "unknown";
   readonly policies?: readonly string[];
@@ -124,10 +158,11 @@ export interface McpEndpointInfo {
 
 export interface DiscoveryOptions {
   readonly globalPrefix?: string;
-  readonly versioningOptions?: unknown;
+  readonly versioningOptions?: VersioningOptions;
   readonly routePaths?: RoutePaths;
   readonly schema?: TypeShapeBinderOptions;
   readonly globalGuards?: readonly unknown[];
+  readonly globalInterceptors?: readonly unknown[];
   readonly severity?: (code: string) => CatalogSeverity;
   readonly report?: (diagnostic: DiscoveryDiagnostic) => void;
   readonly queryGrouping?: "flatten" | "group";
@@ -173,6 +208,12 @@ interface ArgumentEntry {
   readonly index: number;
   readonly data?: unknown;
   readonly pipes?: readonly unknown[];
+  readonly schema?: unknown;
+}
+
+interface ValidatedArgument {
+  readonly schema: JsonSchemaObject;
+  readonly rejectsMissing: boolean | undefined;
 }
 
 export function discoverEndpoints(
@@ -184,6 +225,33 @@ export function discoverEndpoints(
     found.push(...fromController(candidate, options));
   }
   return found;
+}
+
+/**
+ * The version a handler answers that a replayed request cannot reach, or nothing. Only URI
+ * versioning writes the version into the path; under the other types a request without a version
+ * reaches the neutral or default version alone.
+ */
+function unreachableVersion(
+  versioning: VersioningOptions | undefined,
+  version: unknown,
+): string | undefined {
+  if (
+    versioning === undefined ||
+    versioning.type === VersioningType.URI ||
+    version === undefined
+  ) {
+    return undefined;
+  }
+  const declared: unknown[] = Array.isArray(version) ? version : [version];
+  const fallback: unknown = versioning.defaultVersion;
+  const reachable: unknown[] = [
+    VERSION_NEUTRAL,
+    ...(Array.isArray(fallback) ? fallback : [fallback]),
+  ];
+  return declared.some((candidate) => reachable.includes(candidate))
+    ? undefined
+    : declared.map(String).join(", ");
 }
 
 /** `RouterModule` writes the module path under a key scoped to the application instance, falling back to the bare key. */
@@ -211,12 +279,24 @@ function fromController(
   const controller = candidate.metatype;
   const prototype = controller.prototype as Record<string, unknown>;
   const classPaths = pathsOf(controller);
-  const controllerVersion = Reflect.getMetadata(
-    VERSION_METADATA,
-    controller,
-  ) as unknown;
+  const controllerVersion =
+    (Reflect.getMetadata(VERSION_METADATA, controller) as unknown) ??
+    options.versioningOptions?.defaultVersion;
   const containerMarkers = markersOf(controller);
   const results: DiscoveredEndpoint[] = [];
+  if (routesOnHostPattern(controller)) {
+    for (const handlerName of handlerNames(prototype)) {
+      const handler = prototype[handlerName] as object;
+      if (Reflect.getMetadata(METHOD_METADATA, handler) === undefined) {
+        continue;
+      }
+      options.report?.({
+        code: "unsupported_binding",
+        message: `${controller.name}.${handlerName} is routed on a host pattern; the replayed request cannot choose the host, so a call would reach another host's handler or none. Endpoint skipped.`,
+      });
+    }
+    return results;
+  }
 
   for (const handlerName of handlerNames(prototype)) {
     const handler = prototype[handlerName] as (...args: never[]) => unknown;
@@ -229,6 +309,14 @@ function fromController(
     const operationMarkers = markersOf(handler);
     const hints = mergeHints(containerMarkers, operationMarkers);
 
+    if (Reflect.getMetadata(SSE_METADATA, handler) === true) {
+      options.report?.({
+        code: "unsupported_binding",
+        message: `${controller.name}.${handlerName} streams server-sent events, which never end, so a tool call could only time out; endpoint skipped.`,
+      });
+      continue;
+    }
+
     if (method === undefined) {
       options.report?.({
         code: "unsupported_method",
@@ -237,12 +325,35 @@ function fromController(
       continue;
     }
 
+    const methodVersion = Reflect.getMetadata(
+      VERSION_METADATA,
+      handler,
+    ) as unknown;
+    const unreachable = unreachableVersion(
+      options.versioningOptions,
+      methodVersion ?? controllerVersion,
+    );
+    if (unreachable !== undefined) {
+      options.report?.({
+        code: "version_not_carried",
+        message: `${controller.name}.${handlerName} answers version ${unreachable} under ${VersioningType[options.versioningOptions?.type ?? VersioningType.URI]} versioning; the replayed request carries no version, so a call would reach another version's handler.`,
+      });
+      if (
+        atLeast(
+          (options.severity ?? severityOf)("version_not_carried"),
+          "endpointDropped",
+        )
+      ) {
+        continue;
+      }
+    }
+
     for (const route of routesOf(
       candidate,
       classPaths,
       pathsOf(handler),
       controllerVersion,
-      Reflect.getMetadata(VERSION_METADATA, handler) as unknown,
+      methodVersion,
       verb,
       options,
     )) {
@@ -281,6 +392,21 @@ function fromController(
     }
   }
   return results;
+}
+
+/**
+ * The Express router matches a controller's `host` against the replayed request's `Host` header,
+ * which is the MCP request's own: a pattern there (`:account.example.com`, a RegExp) is a value the
+ * agent cannot choose.
+ */
+function routesOnHostPattern(controller: NewableFunction): boolean {
+  const declared: unknown = Reflect.getMetadata(HOST_METADATA, controller);
+  const hosts: unknown[] = Array.isArray(declared) ? declared : [declared];
+  return hosts.some(
+    (host) =>
+      host instanceof RegExp ||
+      (typeof host === "string" && /(^|\.):/.test(host)),
+  );
 }
 
 function routesOf(
@@ -355,10 +481,34 @@ function describe(
   let unresolvedQuery = false;
   const files: FileBinding[] = [];
 
+  const validations = new Map<ArgumentEntry, ValidatedArgument | undefined>();
+  const validatedOf = (entry: ArgumentEntry): ValidatedArgument | undefined => {
+    if (validations.has(entry)) {
+      return validations.get(entry);
+    }
+    const reading = readStandardSchema(entry.schema, "input");
+    if (reading?.kind === "unreadable") {
+      tracked.report?.({
+        code: "unreadable_shape",
+        message: `${controller.name}.${handlerName} validates argument ${String(entry.index)} against a schema, but ${reading.reason}; its declared type is read instead.`,
+      });
+    }
+    const validated =
+      reading?.kind === "read"
+        ? {
+            schema: reading.schema,
+            rejectsMissing: rejectsMissing(entry.schema),
+          }
+        : undefined;
+    validations.set(entry, validated);
+    return validated;
+  };
+
   for (const [key, entry] of Object.entries(args)) {
     const kind = Number(key.split(":")[0]);
     const name = typeof entry.data === "string" ? entry.data : undefined;
     const declaredType = paramTypes[entry.index];
+    const validated = validatedOf(entry);
 
     switch (kind) {
       case QUERY: {
@@ -371,15 +521,19 @@ function describe(
                   name,
                   declaredType,
                   tracked,
+                  validated?.schema,
                 )
               : undefined;
           declared.push(
-            grouped ?? {
-              name,
-              in: "query",
-              required: false,
-              schema: scalarFor(entry, declaredType),
-            },
+            grouped ??
+              namedParameter(
+                entry,
+                declaredType,
+                name,
+                "query",
+                documentedParameter(handler, "query", name),
+                validated,
+              ),
           );
           break;
         }
@@ -388,6 +542,7 @@ function describe(
           handlerName,
           declaredType,
           tracked,
+          validated?.schema,
         );
         if (members === undefined) {
           unresolvedQuery = true;
@@ -404,19 +559,25 @@ function describe(
           });
           break;
         }
-        declared.push({
-          name,
-          in: "header",
-          required: false,
-          schema: scalarFor(entry, declaredType),
-        });
+        declared.push(
+          namedParameter(
+            entry,
+            declaredType,
+            name,
+            "header",
+            documentedParameter(handler, "header", name),
+            validated,
+          ),
+        );
         break;
       case BODY:
         if (name === undefined) {
-          bodySchema = bodyFor(declaredType, tracked);
+          bodySchema =
+            validated?.schema ?? wholeBodyFor(handler, declaredType, tracked);
         } else {
           bodyFields ??= {};
-          bodyFields[name] = bodyFor(declaredType, tracked);
+          bodyFields[name] =
+            validated?.schema ?? bodyFor(declaredType, tracked);
         }
         break;
       case FILE:
@@ -473,14 +634,25 @@ function describe(
   }
   bodySchema = encoding.schema;
 
-  const pathParameters = placeholdersOf(route).map((placeholder) => ({
-    name: placeholder,
-    in: "path" as const,
-    required: true,
-    schema:
-      pathSchema(args, paramTypes, placeholder) ??
-      ({ type: "string" } as JsonSchemaObject),
-  }));
+  const pathParameters = placeholdersOf(route).map((placeholder) => {
+    const documented = documentedParameter(handler, "path", placeholder);
+    return {
+      name: placeholder,
+      in: "path" as const,
+      required: true,
+      schema: pathSchema(
+        args,
+        paramTypes,
+        placeholder,
+        documented,
+        validatedOf,
+      ) ??
+        documented?.schema ?? { type: "string" },
+      ...(documented?.description === undefined
+        ? {}
+        : { description: documented.description }),
+    };
+  });
 
   const claimed = new Set([
     ...pathParameters.map((parameter) => parameter.name),
@@ -516,7 +688,7 @@ function describe(
     method,
     route,
     auth: authOf(controller, handler, options.globalGuards ?? []),
-    tags: [controller.name.replace(/Controller$/, "")],
+    tags: documentedTags(controller, handler),
     ...(parameters.length === 0 ? {} : { parameters }),
     ...(bodySchema === undefined
       ? {}
@@ -677,10 +849,15 @@ function responseSchemaOf(
   isArray: boolean,
   options: DiscoveryOptions,
   reported: Set<string>,
+  serializedAs?: NewableFunction,
 ): JsonSchemaObject {
-  const { schema, diagnostics } = shapeOf(declaredType, options, {
-    dropReadOnlyProperties: false,
-  });
+  const { schema, diagnostics } = shapeOf(
+    serializedAs ?? declaredType,
+    options,
+    {
+      dropReadOnlyProperties: false,
+    },
+  );
   for (const diagnostic of diagnostics) {
     const key = `${diagnostic.code}\u0000${diagnostic.message}`;
     if (reported.has(key)) {
@@ -696,7 +873,19 @@ function bodyOfDeclaration(
   declaration: McpResponseDeclaration,
   options: DiscoveryOptions,
   reported: Set<string>,
+  where: string,
 ): { schema?: JsonSchemaObject } {
+  const reading = readStandardSchema(declaration, "output");
+  if (reading !== undefined) {
+    if (reading.kind === "read") {
+      return { schema: reading.schema };
+    }
+    options.report?.({
+      code: "unreadable_shape",
+      message: `${where} declares a response schema, but ${reading.reason}; the status is published without a body schema.`,
+    });
+    return {};
+  }
   if (typeof declaration === "function") {
     return { schema: responseSchemaOf(declaration, false, options, reported) };
   }
@@ -717,6 +906,7 @@ function declaredResponses(
   hints: McpToolOptions,
   options: DiscoveryOptions,
   reported: Set<string>,
+  where: string,
 ): EndpointDescriptor["responses"] | undefined {
   const entries = Object.entries(hints.responses ?? {});
   if (entries.length === 0) {
@@ -725,7 +915,7 @@ function declaredResponses(
   return Object.fromEntries(
     entries.map(([status, declaration]) => [
       status,
-      bodyOfDeclaration(declaration, options, reported),
+      bodyOfDeclaration(declaration, options, reported, where),
     ]),
   );
 }
@@ -734,6 +924,7 @@ function swaggerResponses(
   handler: (...args: never[]) => unknown,
   options: DiscoveryOptions,
   reported: Set<string>,
+  serializedAs: NewableFunction | undefined,
 ): EndpointDescriptor["responses"] | undefined {
   const metadata = Reflect.getMetadata("swagger/apiResponse", handler) as
     | Record<string, { type?: unknown; isArray?: boolean } | undefined>
@@ -745,19 +936,23 @@ function swaggerResponses(
     return undefined;
   }
   return Object.fromEntries(
-    entries.map(([status, entry]) => [
-      status,
-      readableReturnType(entry?.type)
-        ? {
-            schema: responseSchemaOf(
-              entry?.type,
-              entry?.isArray === true,
-              options,
-              reported,
-            ),
-          }
-        : {},
-    ]),
+    entries.map(([status, entry]) => {
+      const { type, isArray } = documentedType(entry?.type, entry?.isArray);
+      return [
+        status,
+        readableReturnType(type)
+          ? {
+              schema: responseSchemaOf(
+                type,
+                isArray,
+                options,
+                reported,
+                serializedAs,
+              ),
+            }
+          : {},
+      ];
+    }),
   );
 }
 
@@ -768,6 +963,7 @@ function inferredResponses(
   method: EndpointDescriptor["method"],
   options: DiscoveryOptions,
   reported: Set<string>,
+  serializedAs: NewableFunction | undefined,
 ): EndpointDescriptor["responses"] | undefined {
   const returnType = Reflect.getMetadata(
     "design:returntype",
@@ -779,7 +975,13 @@ function inferredResponses(
   }
   return {
     [defaultStatusOf(handler, method)]: {
-      schema: responseSchemaOf(returnType, false, options, reported),
+      schema: responseSchemaOf(
+        returnType,
+        false,
+        options,
+        reported,
+        serializedAs,
+      ),
     },
   };
 }
@@ -793,18 +995,155 @@ function responsesOf(
   options: DiscoveryOptions,
   reported: Set<string>,
 ): EndpointDescriptor["responses"] | undefined {
-  return (
-    declaredResponses(hints, options, reported) ??
-    swaggerResponses(handler, options, reported) ??
+  const where = `${controller.name}.${handlerName}`;
+  const declared = declaredResponses(hints, options, reported, where);
+  if (declared !== undefined) {
+    return declared;
+  }
+  const chain = [
+    ...(options.globalInterceptors ?? []),
+    ...interceptorsOn(controller),
+    ...interceptorsOn(handler),
+  ];
+  const serializer = serializationOf(chain, controller, handler);
+  const read: DiscoveryOptions =
+    serializer === undefined
+      ? options
+      : {
+          ...options,
+          schema: { ...options.schema, serialization: serializer.view },
+        };
+  const found =
+    swaggerResponses(handler, read, reported, serializer?.type) ??
     inferredResponses(
       controller,
       handlerName,
       handler,
       method,
-      options,
+      read,
       reported,
-    )
+      serializer?.type,
+    );
+  return found === undefined
+    ? undefined
+    : describedResponses(found, chain, where, options);
+}
+
+function interceptorsOn(target: object): unknown[] {
+  const declared: unknown = Reflect.getMetadata(INTERCEPTORS_METADATA, target);
+  return Array.isArray(declared) ? declared : [];
+}
+
+function isClassSerializer(interceptor: unknown): boolean {
+  return typeof interceptor === "function"
+    ? interceptor === ClassSerializerInterceptor ||
+        interceptor.prototype instanceof ClassSerializerInterceptor
+    : interceptor instanceof ClassSerializerInterceptor;
+}
+
+/**
+ * The `classToPlain` options a `ClassSerializerInterceptor` in the chain writes the response with:
+ * its own defaults under the handler's or else the controller's `@SerializeOptions()`, as the
+ * interceptor merges them.
+ */
+function serializationOf(
+  chain: readonly unknown[],
+  controller: NewableFunction,
+  handler: object,
+): { view: SerializationView; type?: NewableFunction } | undefined {
+  const serializer = chain.find(isClassSerializer);
+  if (serializer === undefined) {
+    return undefined;
+  }
+  const defaults: unknown =
+    typeof serializer === "object" && serializer !== null
+      ? (serializer as { defaultOptions?: unknown }).defaultOptions
+      : undefined;
+  const context: unknown =
+    Reflect.getMetadata(CLASS_SERIALIZER_OPTIONS, handler) ??
+    Reflect.getMetadata(CLASS_SERIALIZER_OPTIONS, controller);
+  const merged = { ...asRecord(defaults), ...asRecord(context) };
+  const strategy = merged["strategy"];
+  const type = merged["type"];
+  return {
+    view: {
+      ...(typeof strategy === "string" ? { strategy } : {}),
+      ...(merged["excludeExtraneousValues"] === true
+        ? { excludeExtraneousValues: true }
+        : {}),
+    },
+    ...(typeof type === "function" ? { type: type as NewableFunction } : {}),
+  };
+}
+
+/**
+ * Passes each success body through the chain's `describeResponse` hooks, innermost first, because a
+ * response leaves the handler through the method's interceptors before the controller's and the
+ * global ones. The root `$defs` is held aside while a hook wraps the body, since every reference
+ * into it is written from the root.
+ */
+function describedResponses(
+  responses: NonNullable<EndpointDescriptor["responses"]>,
+  chain: readonly unknown[],
+  where: string,
+  options: DiscoveryOptions,
+): NonNullable<EndpointDescriptor["responses"]> {
+  const describers = chain.flatMap((interceptor) => {
+    const target: unknown =
+      typeof interceptor === "function" ? interceptor.prototype : interceptor;
+    const describe = (target as Partial<McpResponseDescriber> | null)
+      ?.describeResponse;
+    return typeof describe === "function"
+      ? [{ target, describe, name: nameOfInterceptor(interceptor) }]
+      : [];
+  });
+  if (describers.length === 0) {
+    return responses;
+  }
+  return Object.fromEntries(
+    Object.entries(responses).map(([status, response]) => {
+      if (!/^2/.test(status) || response.schema === undefined) {
+        return [status, response];
+      }
+      const { $defs, ...body } = response.schema;
+      let schema: JsonSchemaObject | undefined = body;
+      for (const { target, describe, name } of [...describers].reverse()) {
+        if (schema === undefined) {
+          break;
+        }
+        try {
+          schema = describe.call(target, structuredClone(schema));
+        } catch (error) {
+          options.report?.({
+            code: "unreadable_shape",
+            message: `${where}: ${name}.describeResponse threw (${error instanceof Error ? error.message : String(error)}); the status is published without a body schema.`,
+          });
+          return [status, {}];
+        }
+      }
+      if (schema === undefined) {
+        return [status, {}];
+      }
+      const described: JsonSchemaObject =
+        $defs === undefined ? schema : { ...schema, $defs };
+      const problem = declaredSchemaProblem(described);
+      if (problem !== undefined) {
+        options.report?.({
+          code: "unreadable_shape",
+          message: `${where}: the response an interceptor describes ${problem}; the status is published without a body schema.`,
+        });
+        return [status, {}];
+      }
+      return [status, { schema: described }];
+    }),
   );
+}
+
+function nameOfInterceptor(interceptor: unknown): string {
+  return typeof interceptor === "function"
+    ? interceptor.name
+    : ((interceptor as { constructor?: { name?: string } } | null)?.constructor
+        ?.name ?? "an interceptor");
 }
 
 function shapeOf(
@@ -823,6 +1162,25 @@ function shapeOf(
   );
   collected.push(...diagnostics);
   return { schema, diagnostics: collected };
+}
+
+/**
+ * `@ApiBody({ type })` stands in only for a parameter whose own type is erased: the pipe validates
+ * against the declared parameter type, so where one is readable it is what a call must satisfy.
+ */
+function wholeBodyFor(
+  handler: object,
+  declaredType: unknown,
+  options: DiscoveryOptions,
+): JsonSchemaObject {
+  const documented = readableReturnType(declaredType)
+    ? undefined
+    : documentedBody(handler);
+  if (documented === undefined) {
+    return bodyFor(declaredType, options);
+  }
+  const schema = bodyFor(documented.type, options);
+  return documented.isArray ? { type: "array", items: schema } : schema;
 }
 
 export function bodyFor(
@@ -850,14 +1208,18 @@ function queryFor(
   handlerName: string,
   declaredType: unknown,
   options: DiscoveryOptions,
+  validated?: JsonSchemaObject,
 ): EndpointDescriptor["parameters"] | undefined {
-  const { schema, diagnostics } = shapeOf(declaredType, options);
+  const { schema, diagnostics } =
+    validated === undefined
+      ? shapeOf(declaredType, options)
+      : { schema: validated, diagnostics: [] };
   const flattenable = flattenableBody(schema);
   const properties = flattenable?.properties ?? {};
   const unresolved = (): undefined => {
     options.report?.({
       code: "unresolved_query_shape",
-      message: `${controller.name}.${handlerName} binds the whole query object but no member of '${nameOf(declaredType)}' can be read, so the tool would carry no filters. Decorate its properties with class-validator, or declare options.schema.typeShape.`,
+      message: `${controller.name}.${handlerName} binds the whole query object but no member of '${nameOf(declaredType)}' can be read, so the tool would carry no filters. Decorate its properties with class-validator or @ApiProperty, or declare options.schema.typeShape.`,
     });
     return undefined;
   };
@@ -915,8 +1277,12 @@ function groupedQueryFor(
   groupAs: string,
   declaredType: unknown,
   options: DiscoveryOptions,
+  validated?: JsonSchemaObject,
 ): DescriptorParameter | undefined {
-  const { schema } = shapeOf(declaredType, options);
+  const { schema } =
+    validated === undefined
+      ? shapeOf(declaredType, options)
+      : { schema: validated };
   const flattenable = flattenableBody(schema);
   const required = new Set(flattenable?.required ?? []);
   const members: Record<string, JsonSchemaObject> = {};
@@ -933,7 +1299,7 @@ function groupedQueryFor(
   const decline = (why: string): undefined => {
     options.report?.({
       code: "unbound_query_object",
-      message: `${controller.name}.${handlerName} binds the query object '${groupAs}', but ${why}, so it is not grouped. Decorate its properties with class-validator, or declare options.schema.typeShape.`,
+      message: `${controller.name}.${handlerName} binds the query object '${groupAs}', but ${why}, so it is not grouped. Decorate its properties with class-validator or @ApiProperty, or declare options.schema.typeShape.`,
     });
     return undefined;
   };
@@ -990,19 +1356,76 @@ function applyParameterHints(
   };
 }
 
+/**
+ * Asks a Standard Schema whether it rejects a missing value. Validation that only resolves
+ * asynchronously, or throws, gives no answer.
+ */
+function rejectsMissing(declared: unknown): boolean | undefined {
+  const validate = (
+    declared as { "~standard"?: { validate?: unknown } } | undefined
+  )?.["~standard"]?.validate;
+  if (typeof validate !== "function") {
+    return undefined;
+  }
+  try {
+    const result: unknown = (validate as (value: unknown) => unknown)(
+      undefined,
+    );
+    if (result instanceof Promise) {
+      result.catch(() => undefined);
+      return undefined;
+    }
+    return (result as { issues?: unknown } | undefined)?.issues !== undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function nameOf(declaredType: unknown): string {
   return typeof declaredType === "function"
     ? declaredType.name
     : "the query type";
 }
 
+/**
+ * A schema the pipe validates against is what a call must satisfy, so it outranks the documented and
+ * the declared type. A named query or header that is absent reaches it as `undefined`, which is why
+ * whether it is required is asked of the schema itself rather than read from its JSON form.
+ */
+function namedParameter(
+  entry: ArgumentEntry,
+  declaredType: unknown,
+  name: string,
+  location: "query" | "header",
+  documented: DocumentedParameter | undefined,
+  validated: ValidatedArgument | undefined,
+): DescriptorParameter {
+  const schema =
+    validated !== undefined && isQueryable(validated.schema)
+      ? validated
+      : undefined;
+  return {
+    name,
+    in: location,
+    required: schema?.rejectsMissing ?? documented?.required ?? false,
+    schema: schema?.schema ?? scalarFor(entry, declaredType, documented),
+    ...(documented?.description === undefined
+      ? {}
+      : { description: documented.description }),
+  };
+}
+
 function scalarFor(
   entry: ArgumentEntry,
   declaredType: unknown,
+  documented?: DocumentedParameter,
 ): JsonSchemaObject {
   const piped = pipeSchema(entry.pipes);
   if (piped !== undefined) {
     return piped;
+  }
+  if (documented?.schema !== undefined) {
+    return documented.schema;
   }
   if (declaredType === Number) {
     return { type: "number" };
@@ -1037,13 +1460,28 @@ function pathSchema(
   args: Record<string, ArgumentEntry>,
   paramTypes: readonly unknown[],
   placeholder: string,
+  documented: DocumentedParameter | undefined,
+  validatedOf: (entry: ArgumentEntry) => ValidatedArgument | undefined,
 ): JsonSchemaObject | undefined {
   for (const [key, entry] of Object.entries(args)) {
     const kind = Number(key.split(":")[0]);
-    if (kind !== PARAM || entry.data !== placeholder) {
+    if (kind !== PARAM) {
       continue;
     }
-    return scalarFor(entry, paramTypes[entry.index]);
+    const validated = validatedOf(entry)?.schema;
+    if (entry.data === undefined) {
+      const member = validated?.properties?.[placeholder];
+      if (member !== undefined && isQueryable(member)) {
+        return member;
+      }
+      continue;
+    }
+    if (entry.data !== placeholder) {
+      continue;
+    }
+    return validated !== undefined && isQueryable(validated)
+      ? validated
+      : scalarFor(entry, paramTypes[entry.index], documented);
   }
   return undefined;
 }
@@ -1134,9 +1572,14 @@ function pathsOf(target: object | NewableFunction): string[] {
   return paths.length === 0 ? [""] : paths;
 }
 
+/**
+ * Writes a Nest route as a template. An optional part — an Express 5 group (`files{/:name}`) or an
+ * Express 4 `:name?` — is written present: the catalog would otherwise fold its spellings into the
+ * shortest, the one without the parameter, and the agent could never send it.
+ */
 export function normalizeRoute(route: string): string {
   const segments: string[] = [];
-  for (const segment of route.split("/")) {
+  for (const segment of route.replace(/[{}]/g, "").split("/")) {
     const trimmed = segment.trim();
     if (trimmed.length > 0 && trimmed !== "/") {
       segments.push(normalizeSegment(trimmed));
@@ -1145,12 +1588,13 @@ export function normalizeRoute(route: string): string {
   return `/${segments.join("/")}`;
 }
 
+/**
+ * Writes every `:name` in a segment as `{name}`, wherever it sits: `:id.json` and `:from-:to` are
+ * one parameter followed by literal text, and Express 4's `:id(\\d+)` constraint and `?` marker
+ * belong to the parameter, not to its name.
+ */
 function normalizeSegment(segment: string): string {
-  if (!segment.startsWith(":")) {
-    return segment;
-  }
-  const name = segment.slice(1).replace(/[?]$/, "");
-  return `{${name}}`;
+  return segment.replace(/:(\w+)(?:\([^)]*\))?\??/g, "{$1}");
 }
 
 function placeholdersOf(route: string): string[] {

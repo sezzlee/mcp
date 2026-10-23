@@ -12,7 +12,11 @@ import {
 } from "@nestjs/common";
 import { APP_INTERCEPTOR, DiscoveryModule } from "@nestjs/core";
 import { requireBearerAuth } from "@modelcontextprotocol/express";
-import { MemorySezzleeCache, type SezzleeCache } from "@sezzlee/core";
+import {
+  MemoryResultStore,
+  MemorySezzleeCache,
+  type SezzleeCache,
+} from "@sezzlee/core";
 import { SezzleeCatalog } from "./catalog.js";
 
 const SEZZLEE_PROBE_RESET = Symbol("SEZZLEE_PROBE_RESET");
@@ -46,6 +50,7 @@ import {
   protectedResourceMetadataPath,
   protectedResourceMetadataUrl,
 } from "./transport/protected-resource-metadata.js";
+import { SezzleeMcpEndpoint } from "./transport/mcp-endpoint.js";
 import { SezzleeStreamableHttp } from "./transport/streamable-http.js";
 
 export interface SezzleeModuleAsyncOptions {
@@ -80,6 +85,16 @@ function defaultProviders(): Provider[] {
     },
     { provide: extensionTokens.toolRanker, useValue: null },
     { provide: extensionTokens.toolAuthorizer, useValue: null },
+    {
+      provide: extensionTokens.resultStore,
+      useFactory: (options: SezzleeOptions) =>
+        new MemoryResultStore({
+          lifetimeMs: options.results.lifetimeMs,
+          maxCallerBytes: options.results.maxCallerBytes,
+          maxBytes: options.results.maxBytes,
+        }),
+      inject: [SEZZLEE_OPTIONS],
+    },
     {
       provide: extensionTokens.probeEvaluator,
       useFactory: (dispatcher: SezzleeDispatcher, options: SezzleeOptions) =>
@@ -138,6 +153,7 @@ function defaultProviders(): Provider[] {
     SezzleeCatalog,
     SezzleeDispatcher,
     SezzleeStreamableHttp,
+    SezzleeMcpEndpoint,
     SezzleeCacheInvalidator,
     {
       provide: SEZZLEE_CACHE_INVALIDATOR,
@@ -153,6 +169,7 @@ function moduleExports(): Array<Type<unknown> | InjectionToken> {
     SezzleeCatalog,
     SezzleeDispatcher,
     SezzleeStreamableHttp,
+    SezzleeMcpEndpoint,
     SezzleeCacheInvalidator,
     SEZZLEE_CACHE_INVALIDATOR,
     SEZZLEE_OPTIONS,

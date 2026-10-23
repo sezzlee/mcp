@@ -72,6 +72,23 @@ export function collectConfigurationFailures(
   if (options.invoke.maxResponseBytes < 1) {
     failures.push("invoke.maxResponseBytes must be at least 1.");
   }
+  if (options.invoke.maxBufferedBytes < 1) {
+    failures.push("invoke.maxBufferedBytes must be at least 1.");
+  }
+  if (
+    !Number.isInteger(options.results.lifetimeMs) ||
+    options.results.lifetimeMs < 1000
+  ) {
+    failures.push(
+      "results.lifetimeMs must be a whole number of milliseconds, at least 1000; a stored result is promised in whole seconds.",
+    );
+  }
+  if (options.results.maxCallerBytes < 1) {
+    failures.push("results.maxCallerBytes must be at least 1.");
+  }
+  if (options.results.maxBytes < options.results.maxCallerBytes) {
+    failures.push("results.maxBytes must be at least results.maxCallerBytes.");
+  }
   if (options.invoke.timeoutMs < 0) {
     failures.push("invoke.timeoutMs must be zero or positive.");
   }

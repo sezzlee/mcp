@@ -8,8 +8,8 @@ import {
   errorResult,
   invokeArgumentsDescription,
   invokeDescription,
+  invokeResponse,
   invokeVersionDescription,
-  isInvokeError,
   knownFields,
   loadDescription,
   missingArgument,
@@ -17,8 +17,16 @@ import {
   normalizeInvokeArguments,
   notInvocable,
   operationNameDescription,
+  readHandleDescription,
+  readLimitDescription,
+  readOffsetDescription,
+  readPathDescription,
+  readResultDescription,
+  readSelectDescription,
+  readStoredResult,
   refuseRateLimited,
   refuseTimedOutInvoke,
+  refuseUnreadResponse,
   refuseUnresolvedFile,
   resolveDeferred as resolveDeferredWith,
   searchDescription,
@@ -37,6 +45,8 @@ import {
   describeRankerEvent,
   type CallerScope,
   type MetaResponse,
+  type ResultShelf,
+  type ResultStore,
   type SdkError,
   type SearchRankerOptions,
   type VisibilityDecision,
@@ -61,6 +71,7 @@ import type {
   VerifiedToken,
 } from "./options.js";
 import { currentOuterConnection } from "./outer-connection.js";
+import { SezzleeResponseTooLarge } from "./synthetic-context.js";
 import {
   createRateLimitGate,
   type RateLimitGate,
@@ -76,6 +87,8 @@ export interface MetaToolDependencies {
   readonly visibility: CallerVisibilityProvider;
   readonly scopes: CallerScopeResolver;
   readonly options: SezzleeOptions;
+  /** Where an over-budget `invoke_tool` success is kept; absent or `null` refuses it instead. */
+  readonly results?: ResultStore | null;
 }
 
 interface ToolContext {
@@ -186,14 +199,36 @@ function outerFrom(ctx: unknown): OuterRequest | undefined {
 function emitGuarded(
   deps: MetaToolDependencies,
   produce: () => Promise<MetaResponse<InvokeTarget>>,
+  shelf?: ResultShelf,
 ): Promise<WireResult> {
-  return emitWithin((target) => budgetFor(deps, target), produce);
+  return emitWithin((target) => budgetFor(deps, target), produce, shelf);
+}
+
+function shelfFor(
+  deps: MetaToolDependencies,
+  ctx: unknown,
+): ResultShelf | undefined {
+  const store = deps.results;
+  if (store === undefined || store === null) {
+    return undefined;
+  }
+  return {
+    store,
+    partition: scopeFor(deps, outerFrom(ctx)).key,
+    report: (error) => {
+      logger.warn(
+        "The result store failed to keep an over-budget answer; the call was answered with response_too_large instead.",
+        error,
+      );
+    },
+  };
 }
 
 const metaToolNames = {
   search: "search_tools",
   load: "load_tool",
   invoke: "invoke_tool",
+  read: "read_result",
 } as const;
 
 interface LimitedCall {
@@ -274,14 +309,17 @@ function limited(
   name: unknown,
   produce: () => Promise<MetaResponse<InvokeTarget>>,
 ): Promise<WireResult> {
-  return emitGuarded(deps, () =>
-    throttled(
-      deps,
-      ctx,
-      { metaTool, toolName: metaToolNames[metaTool], name },
-      produce,
-      (error) => ({ payload: error, isError: true }),
-    ),
+  return emitGuarded(
+    deps,
+    () =>
+      throttled(
+        deps,
+        ctx,
+        { metaTool, toolName: metaToolNames[metaTool], name },
+        produce,
+        (error) => ({ payload: error, isError: true }),
+      ),
+    metaTool === "invoke" ? shelfFor(deps, ctx) : undefined,
   );
 }
 
@@ -421,21 +459,7 @@ export function registerSezzleeTools(
         if (entry === undefined) {
           return unknownTool(name);
         }
-        const outer = outerFrom(ctx);
-        const decide = await decider(deps, outer, deadlineFrom(ctx)?.signal);
-        let decision = decide(entry);
-        if (
-          decision === "unknown" &&
-          deps.options.visibility.tier === "probe" &&
-          deps.visibility.canProbe(entry)
-        ) {
-          decision = await deps.visibility.probe(
-            scopeFor(deps, outer),
-            entry,
-            outer,
-            deadlineFrom(ctx)?.signal,
-          );
-        }
+        const decision = await decisionFor(deps, ctx, entry);
         const visible = deps.visibility.visible(decision);
         logger.debug(
           `load_tool answered in ${elapsedSince(started)} ms: ${visible ? "loaded" : "not visible"}`,
@@ -555,6 +579,18 @@ export function registerSezzleeTools(
           if (error instanceof SezzleeArgumentError) {
             return errorResult(error.code, error.message);
           }
+          if (error instanceof SezzleeResponseTooLarge) {
+            return {
+              payload: refuseUnreadResponse({
+                limit: error.limit,
+                narrowing: narrowingArguments(entry.tool.inputSchema),
+                applied:
+                  error.status < 400 &&
+                  entry.tool.annotations.readOnlyHint !== true,
+              }),
+              isError: true,
+            };
+          }
           if (error instanceof SezzleeFileRefused) {
             return {
               payload: refuseUnresolvedFile(
@@ -572,13 +608,98 @@ export function registerSezzleeTools(
           knownFields(entry.tool),
           vocabularyOf(entry.template),
         );
-        return textResult(outcome, isInvokeError(outcome), {
-          summaryOf: isInvokeError(outcome) ? outcome : outcome.body,
-          narrowing: narrowingArguments(entry.tool.inputSchema),
-          target,
-        });
+        return invokeResponse(entry, outcome, target);
       }),
   );
+
+  const store = deps.results;
+  if (store === undefined || store === null) {
+    return;
+  }
+  server.registerTool(
+    "read_result",
+    {
+      description: readResultDescription,
+      _meta: generationMeta(),
+      annotations: { readOnlyHint: true },
+      /**
+       * Guard: every argument binds as `unknown` for the reason `namedArgument` states; the core
+       * checks each one and answers a wrong type with an envelope. `meta` publishes the types.
+       */
+      inputSchema: z
+        .object({
+          handle: namedArgument(readHandleDescription),
+          path: z.unknown().optional().meta({
+            type: "string",
+            description: readPathDescription,
+            default: "",
+          }),
+          select: z
+            .unknown()
+            .optional()
+            .meta({
+              type: "array",
+              items: { type: "string" },
+              description: readSelectDescription,
+              default: null,
+            }),
+          offset: z.unknown().optional().meta({
+            type: "integer",
+            minimum: 0,
+            description: readOffsetDescription,
+            default: 0,
+          }),
+          limit: z.unknown().optional().meta({
+            type: "integer",
+            minimum: 1,
+            description: readLimitDescription,
+            default: null,
+          }),
+        })
+        .meta({ required: ["handle"] }),
+    },
+    async ({ handle, path, select, offset, limit }, ctx) =>
+      limited(deps, ctx, "read", undefined, () =>
+        readStoredResult(
+          { handle, path, select, offset, limit },
+          {
+            store,
+            partition: scopeFor(deps, outerFrom(ctx)).key,
+          },
+          async (tool) => {
+            deps.catalog.ensureValid();
+            const entry = deps.catalog.find(tool);
+            return (
+              entry !== undefined &&
+              deps.visibility.visible(await decisionFor(deps, ctx, entry))
+            );
+          },
+        ),
+      ),
+  );
+}
+
+/**
+ * The decision `load_tool` makes for one tool and one caller: the cheaper tiers, then a probe when
+ * the probe tier is on and they left the tool `unknown`.
+ */
+async function decisionFor(
+  deps: MetaToolDependencies,
+  ctx: unknown,
+  entry: CatalogEntry,
+): Promise<VisibilityDecision> {
+  const outer = outerFrom(ctx);
+  const signal = deadlineFrom(ctx)?.signal;
+  const decide = await decider(deps, outer, signal);
+  const decision = decide(entry);
+  if (
+    decision === "unknown" &&
+    deps.options.visibility.tier === "probe" &&
+    deps.visibility.canProbe(entry)
+  ) {
+    return deps.visibility.probe(scopeFor(deps, outer), entry, outer, signal);
+  }
+  return decision;
 }
 
 /**

@@ -51,7 +51,12 @@ export type {
   VerifiedToken,
 } from "./options.js";
 export { annotateOpenApiDocument, openApiExtensionKey } from "@sezzlee/core";
-export type { OpenApiExtensions } from "@sezzlee/core";
+export type {
+  AnnotationReport,
+  JsonSchemaObject,
+  OpenApiExtensions,
+} from "@sezzlee/core";
+export type { StandardJsonSchema } from "./discovery/standard-schema.js";
 export type {
   RankCatalog,
   RankDocument,
@@ -102,12 +107,16 @@ export type {
   DiscoveredEndpoint,
   DiscoveryOptions,
   McpEndpointInfo,
+  McpResponseDescriber,
   RoutePathMetadata,
   RoutePaths,
   VisibilityDeclaration,
 } from "./discovery/endpoint-discovery.js";
 export { NestTypeShapeBinder } from "./discovery/type-shape.js";
-export type { TypeShapeBinderOptions } from "./discovery/type-shape.js";
+export type {
+  SerializationView,
+  TypeShapeBinderOptions,
+} from "./discovery/type-shape.js";
 export { severityOf } from "./discovery/diagnostics.js";
 export type {
   CatalogDiagnostic,
@@ -178,6 +187,8 @@ export type { CallerScopeResolver } from "./cache.js";
 export { DefaultInvokeResultMapper } from "./invoke-result-mapper.js";
 export type { InvokeResultMapper } from "./invoke-result-mapper.js";
 export { SezzleeStreamableHttp } from "./transport/streamable-http.js";
+export { SezzleeMcpEndpoint } from "./transport/mcp-endpoint.js";
+export type { SezzleeEndpointOptions } from "./transport/mcp-endpoint.js";
 export type {
   SezzleeRequestHandler,
   SezzleeServerFactory,

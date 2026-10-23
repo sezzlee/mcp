@@ -39,6 +39,7 @@ const defaults: SeverityTable = {
   unsupported_object_style: "endpointDropped",
   unsupported_object_nesting: "endpointDropped",
   unresolved_query_shape: "endpointDropped",
+  version_not_carried: "endpointDropped",
   curation_unresolved: "endpointDropped",
   invalid_fill_constant: "endpointDropped",
   hidden_required_omitted: "endpointDropped",

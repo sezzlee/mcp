@@ -12,9 +12,10 @@ pipes and interceptors keep running unchanged. Not a gateway, not duplicated bus
 - NestJS 10 or later (`@nestjs/common`, `@nestjs/core`), dev-tested against 11.x
 - `@modelcontextprotocol/server`, `@modelcontextprotocol/node` and `@modelcontextprotocol/express`
   2.0 or later, `rxjs` 7 and `zod` 4
-- `class-validator` and `class-transformer` are optional; when installed, their decorators shape
-  the argument schemas
-- Node 22 or later, Express as the HTTP adapter
+- `class-validator`, `class-transformer` and `@nestjs/swagger` are optional; their decorators shape
+  the argument and output schemas, and `@nestjs/swagger` is read without being loaded
+- Node 22 or later, Express as the HTTP adapter; on any other adapter the module refuses to start
+  with `unsupported_http_adapter`
 
 Peers are peers on purpose: sezzlee uses your Nest and your MCP SDK, not its own copies.
 
@@ -47,43 +48,31 @@ export class AppModule {}
 `forRootAsync({ imports, inject, useFactory })` is the async form. The module is `@Global()`, so
 its providers are available without importing it again.
 
-**The MCP controller.** Copy this; the seven injections are not guessable.
+**The MCP controller.** It stays yours, so the path, guards, interceptors and global prefix are
+decided the way they are for every other route. `SezzleeMcpEndpoint` builds the handler:
 
 ```ts
 @Controller()
 export class McpController {
-  constructor(
-    private readonly streamableHttp: SezzleeStreamableHttp,
-    private readonly catalog: SezzleeCatalog,
-    private readonly dispatcher: SezzleeDispatcher,
-    private readonly visibility: CallerVisibilityProvider,
-    @Inject(extensionTokens.invokeResultMapper)
-    private readonly mapper: InvokeResultMapper,
-    @Inject(extensionTokens.callerScopeResolver)
-    private readonly scopes: CallerScopeResolver,
-    @Inject(SEZZLEE_OPTIONS) private readonly options: SezzleeOptions,
-  ) {}
+  private readonly serve: SezzleeRequestHandler;
+
+  constructor(endpoint: SezzleeMcpEndpoint) {
+    this.serve = endpoint.serve({ name: "your-api", version: "1.0.0" });
+  }
 
   @All("mcp")
   async handle(@Req() req: Request, @Res() res: Response): Promise<void> {
-    await this.streamableHttp.handle(req, res, () => {
-      const server = new McpServer({ name: "your-api", version: "0.0.0" });
-      registerSezzleeTools(server, {
-        catalog: this.catalog,
-        dispatcher: this.dispatcher,
-        mapper: this.mapper,
-        visibility: this.visibility,
-        scopes: this.scopes,
-        options: this.options,
-      });
-      return server;
-    });
+    await this.serve(req, res);
   }
 }
 ```
 
-`@All` rather than `@Post`: the default session mode is `stateless`, and the transport wants to
-answer `GET`/`DELETE` with `405` itself instead of letting Nest return `404`.
+Call `serve` once, in the constructor, and keep the handler it returns. That handler owns the bus
+`listChanged` notifications travel on; a handler built per request is one nobody publishes to, so
+a catalog change never reaches a connected client.
+
+`@All` rather than `@Post`: the transport answers a 2025-era `GET`/`DELETE` with `405` itself
+instead of letting Nest return `404`.
 
 **The bootstrap.**
 
@@ -91,11 +80,16 @@ answer `GET`/`DELETE` with `405` itself instead of letting Nest return `404`.
 import "reflect-metadata"; // must be the first import in the process
 
 const app = await NestFactory.create(AppModule);
+app.getHttpAdapter().getInstance().set("query parser", "extended");
 app.useGlobalPipes(new ValidationPipe({ transform: true }));
 
 await app.init(); // before any app.get(...) / app.use(...)
 await app.listen(3000);
 ```
+
+Express 5 parses queries with `simple` by default, which delivers `?filter[owner]=x` as one literal
+key. A tool that writes a bracketed query object needs the `extended` parser, and the catalog
+refuses to start with `query_parser_not_extended` without it.
 
 > **Order is critical.** `reflect-metadata` must be imported first, or the decorators in §3 store
 > nothing and your catalog comes up empty. And `await app.init()` must precede `app.use(...)` that
@@ -119,8 +113,23 @@ export class OrdersController {
 one falls back to its `@ApiOperation` description or summary. `options.description` supplies the
 text for an endpoint the host documents elsewhere. It receives `{ method, route, container, handler,
 declared }`, sits below `@McpTool({ description })` and above `declared`, and returning `undefined`
-or a blank keeps `declared`. Input schemas come from your `class-validator` DTOs and your pipes:
-`ParseIntPipe` yields an integer, `@Min`/`@Max` become `minimum`/`maximum`.
+or a blank keeps `declared`. Input schemas come from your DTOs and your pipes: `ParseIntPipe` yields
+an integer, `@Min`/`@Max` become `minimum`/`maximum`.
+
+A DTO is read from `class-validator` and from `@nestjs/swagger`'s `@ApiProperty`, including the
+metadata the Swagger CLI plugin generates and the mapped types (`PartialType`, `PickType`, …) it
+builds, so a DTO only `@ApiProperty` describes works as it is. Where both describe a member,
+`class-validator` decides its type and whether it is required, because that is what the validation
+pipe enforces, and `@ApiProperty` adds the description. `@ApiQuery`, `@ApiParam` and `@ApiHeader`
+type, require and describe the parameter they name; a pipe and an `@McpTool({ parameters })` hint
+still win. `@ApiBody({ type })` is used only when the `@Body()` parameter's own type is erased.
+`@ApiProperty({ nullable: true })` lets the member be `null`.
+
+On Nest 12, a schema given to the binding — `@Body({ schema })`, `@Query({ schema })`,
+`@Query("q", { schema })`, `@Param("id", { schema })` — is what the pipe validates against, so it
+outranks every other source. It is read through Standard JSON Schema, which zod 4.2 and later
+implement; whether a named query is required is asked of the schema itself. A schema that cannot be
+converted is reported as `unreadable_shape` and the declared type is read instead.
 
 A whole-object query binding is expanded into one argument per member, so the agent sees the
 filters:
@@ -139,7 +148,8 @@ list(@Query() query: ListOrdersQuery) { ... }
 
 The expansion needs a readable type. A member that cannot be expressed as a query parameter — a
 nested object, a dictionary — is omitted with an `unbound_query_object` warning. If **no** member
-can be read (`@Query() q: Record<string, unknown>`, or a DTO with no `class-validator` decorators)
+can be read (`@Query() q: Record<string, unknown>`, or a DTO with neither `class-validator` nor
+`@ApiProperty` decorators)
 the endpoint is dropped with `unresolved_query_shape` rather than published as a tool that claims
 to take no filters. Decorate the type, declare `options.schema.typeShape`, or add the code to
 `options.diagnostics.downgrade` to publish it filterless anyway.
@@ -160,7 +170,17 @@ URI versioning, controller path and method path. Two consequences worth knowing:
   diagnostic naming the fix: `setGlobalPrefix("api", { exclude: ["/.well-known/oauth-protected-resource/mcp"] })`.
 - **Non-URI versioning is not carried into invocation.** With `HEADER`, `MEDIA_TYPE` or `CUSTOM`
   versioning the version never enters the path, and the synthetic request sezzlee replays carries no
-  version header, so dispatch lands on the default version. URI versioning has no such gap.
+  version header, so dispatch lands on the default version. A handler bound to any other version is
+  dropped with `version_not_carried` rather than published as a tool that would call its neighbour;
+  `options.diagnostics.downgrade` keeps it. URI versioning has no such gap, and `defaultVersion` is
+  applied the way Nest applies it.
+- **The replayed request cannot choose a host or stream.** A controller routed on a host pattern
+  (`@Controller({ host: ":account.example.com" })`) and an `@Sse()` handler are dropped with
+  `unsupported_binding`: the first would reach whatever host the MCP request came in on, the second
+  never ends.
+- **Express path syntax is written as a template.** `:id.json` becomes `{id}.json` and
+  `:from-:to` becomes `{from}-{to}`. An optional part — Express 5's `files{/:name}` or Express 4's
+  `:name?` — is written present, so the agent can send its parameter.
 
 One operation bound to several routes — `@Controller(["orders", "purchases"])`, a legacy path kept
 alongside a new one, or one handler under two URI versions — stays **one tool**: the same code at
@@ -326,14 +346,47 @@ getOrder(@Param("id", ParseIntPipe) id: number): OrderResponse { ... }
 ```
 
 Per status code: a DTO class, `[OrderResponse]` for a collection of it, `{ schema }` for a shape no
-class can express, or `{}` for a status with no body. A DTO needs class-validator decorators, the
-same as a request DTO.
+class can express, a zod (or other Standard JSON Schema) schema of the response, or `{}` for a
+status with no body. A DTO is read the same way as a request DTO.
 
 If you already write `@ApiOkResponse({ type: OrderResponse })`, it is read as a fallback, and a sync
-handler's plain class return type is read as a last resort. The declaration wins over both.
+handler's plain class return type is read as a last resort. The declaration wins over both. The
+Swagger CLI plugin writes that `@ApiResponse` from the handler's return type, `Promise` unwrapped, so
+with the plugin an `async` handler needs no declaration.
+
+A schema read from `@ApiOkResponse` or the return type is what the handler returns, so it is passed
+through the interceptors that change it. `ClassSerializerInterceptor` is understood: the schema
+lists what `classToPlain` writes, without `@Exclude()` members, under `@Expose({ name })` names,
+with `@Expose()` accessors, following the strategy, `excludeExtraneousValues` and `type` of its
+options and `@SerializeOptions()`. An interceptor of your own that reshapes the body describes the
+result by implementing `McpResponseDescriber`:
+
+```ts
+@Injectable()
+export class EnvelopeInterceptor
+  implements NestInterceptor, McpResponseDescriber
+{
+  intercept(_context: ExecutionContext, next: CallHandler) {
+    return next.handle().pipe(map((data) => ({ data })));
+  }
+
+  describeResponse(schema: JsonSchemaObject): JsonSchemaObject {
+    return { type: "object", properties: { data: schema }, required: ["data"] };
+  }
+}
+```
+
+Hooks run innermost first, as the response leaves the handler; returning `undefined` publishes the
+status without a schema. An `@McpTool({ responses })` declaration is the published shape as written
+and is not passed through either.
+
+A body that is not text in the charset its content type names — a PDF, an image — is returned as
+base64 with `bodyEncoding: "base64"` beside its `contentType`, never decoded into replacement
+characters.
 
 Only one status becomes the schema — `200`, `201`, `202`, `204` in that order, then the lowest
-remaining `2xx`. A non-object root is wrapped under `result`, because MCP requires an object. Unlike
+remaining `2xx`. A non-object root is wrapped under `result`, because MCP requires an object, and
+`invoke_tool` returns that body as `body.result` to match. Unlike
 the input side, read-only members are kept: they are what a response is made of.
 
 Full guide: the docs site's _How to tell the agent what a tool returns_.
@@ -343,27 +396,46 @@ Full guide: the docs site's _How to tell the agent what a tool returns_.
 The decorators above can also reach an agent through `@sezzlee/openapi-mcp`, the gateway that
 builds its catalog from an OpenAPI document. `SezzleeCatalog.openApiExtensions()` describes the
 catalog as `x-sezzlee` extensions: one per operation, keyed by `METHOD /path`, with the published
-tool name, selection, hints, argument curation, variants and family members.
-`annotateOpenApiDocument` writes them into the document `@nestjs/swagger` builds:
+tool name, description, tags, schemas, selection, hints, argument curation, variants and family members.
+`annotateOpenApiDocument` writes them into the document `@nestjs/swagger` builds, and marks every
+operation the catalog did not publish, its own MCP route included, `tool: false`:
 
 ```ts
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { annotateOpenApiDocument, SezzleeCatalog } from "@sezzlee/sdk-nestjs";
 
-const document = SwaggerModule.createDocument(
+const catalog = app.get(SezzleeCatalog);
+SwaggerModule.setup(
+  "openapi",
   app,
-  new DocumentBuilder().build(),
+  SwaggerModule.createDocument(app, new DocumentBuilder().build()),
+  {
+    patchDocumentOnRequest: (_req, _res, document) => {
+      const annotated = structuredClone(document);
+      annotateOpenApiDocument(annotated, catalog.openApiExtensions());
+      return annotated;
+    },
+  },
 );
-annotateOpenApiDocument(document, app.get(SezzleeCatalog).openApiExtensions());
-SwaggerModule.setup("openapi", app, document);
+await app.listen(3000);
 ```
+
+`@nestjs/swagger` builds the document once and serves that copy, so annotate it in
+`patchDocumentOnRequest`: each read then describes the current catalog, family members loaded after
+startup included. Call `setup` before `listen`; a route added after the application initialized
+sits behind its 404 handler.
+
+`annotateOpenApiDocument` returns `undocumented`, the operations the SDK publishes that the document
+leaves out, such as a handler marked `@ApiExcludeEndpoint()`; the gateway cannot publish those.
 
 Point the gateway's `source` at the served JSON. The same `operations` map is a valid `operations`
 block of the gateway's own configuration, for a document that cannot be changed.
 
 A gateway has no value providers, so an argument hidden with `hidden.from(...)` reaches it as a
 `deferred` fill it refuses (`unknown_fill_source`); only constants and omitted values travel.
-Visibility does not travel either: a document cannot say which caller may make a call.
+Of visibility, only `anonymous: true` travels, for an operation any caller may make (a guard
+declaring `anonymous: "yes"` with no policy); the gateway shows every other tool as uncertain, since
+a document cannot say which caller may make a call.
 
 ## 4. Visibility and guards
 
@@ -564,7 +636,7 @@ SezzleeModule.forRoot((options) => {
 ```
 
 `default` covers every meta-tool without a section of its own, and a host tool registered beside
-them (below). `search`, `load` and `invoke` each replace it for that meta-tool and get a bucket of
+them (below). `search`, `load`, `invoke` and `read` each replace it for that meta-tool and get a bucket of
 their own; the rest share one. `invokeConcurrency` also holds an `invoke_tool` call's lease until
 its answer is mapped, whatever way the call ends. The limiters are in-memory and per process: a
 token bucket, a fixed window, a sliding window (`segmentsPerWindow`) and a concurrency limit. They
@@ -616,23 +688,29 @@ options.rateLimiting = {
 };
 ```
 
-`McpCallContext` carries the outer `request`, the `metaTool` (`search`, `load`, `invoke` or
-`other`), the `target` a `load_tool` or `invoke_tool` call names as `McpToolInfo`, and the
+`McpCallContext` carries the outer `request`, the `metaTool` (`search`, `load`, `invoke`, `read`
+for `read_result`, or `other`), the `target` a `load_tool` or `invoke_tool` call names as `McpToolInfo`, and the
 `callerScope`. The target comes from the catalog **without** visibility and is `undefined` when
 `name` is missing, not a string or unknown. The limit is taken first: a call naming a hidden or
 unknown tool consumes a permit, so names cannot be enumerated for free.
 
 A refused call answers `isError: true` with `rate_limit_exceeded`, `retryable: true` and, when the
 limiter gives one, `retryAfterSeconds` rounded up to whole seconds. It is distinct from the backend's
-`rate_limited`: the call never reached the backend. A host tool registered on the same server is
-limited by wrapping its handler:
+`rate_limited`: the call never reached the backend. A host tool registered on the same server, in
+`serve`'s `extend` hook, is limited by wrapping its handler:
 
 ```ts
-server.registerTool(
-  "health",
-  { description },
-  rateLimitHostTool(deps, "health", handler),
-);
+endpoint.serve({
+  name: "your-api",
+  version: "1.0.0",
+  extend: (server, deps) => {
+    server.registerTool(
+      "health",
+      { description },
+      rateLimitHostTool(deps, "health", handler),
+    );
+  },
+});
 ```
 
 One gap: a `search_tools` call whose arguments the MCP framework itself rejects, such as a `limit`
@@ -641,13 +719,31 @@ The rules are in [rate-limiting.md](../../packages/http/spec/rate-limiting.md).
 
 ## 5. Connecting an MCP client
 
-The endpoint speaks Streamable HTTP. `tools/list` returns only three meta-tools:
+The endpoint speaks Streamable HTTP. `tools/list` returns only four meta-tools:
 
-| Tool           | Job                                        |
-| -------------- | ------------------------------------------ |
-| `search_tools` | Finds operations by keyword, returns cards |
-| `load_tool`    | Returns one operation's full input schema  |
-| `invoke_tool`  | Calls it                                   |
+| Tool           | Job                                                        |
+| -------------- | ---------------------------------------------------------- |
+| `search_tools` | Finds operations by keyword, returns cards                 |
+| `load_tool`    | Returns one operation's full input schema                  |
+| `invoke_tool`  | Calls it                                                   |
+| `read_result`  | Reads part of an answer that was too large to return whole |
+
+`invoke_tool` answers at most `options.invoke.maxResponseBytes` (256 KiB). A success over that is
+kept by the result store and answered with a handle and an outline of the body; the agent reads the
+parts it needs with `read_result`, by JSON Pointer, selected members and a window. A handle is
+readable only by the caller scope it was issued to, and only while that caller can still see the
+tool. The default store keeps each result in memory for `options.results.lifetimeMs` (ten minutes),
+at most `options.results.maxCallerBytes` (16 MiB) per caller and `options.results.maxBytes`
+(64 MiB) in all, dropping the oldest first. Bind your own `ResultStore` for several replicas, or
+`null` to refuse over-budget answers as before and drop `read_result`:
+
+```ts
+SezzleeModule.forRoot(configure, { resultStore: { useValue: null } });
+```
+
+A body larger than `options.invoke.maxBufferedBytes` (16 MiB) is refused while your handler writes
+it, so a runaway endpoint cannot fill the process's memory. The rules are in
+[result-reading.md](../../packages/http/spec/result-reading.md).
 
 The catalog is not dumped into `tools/list`: on a 700-endpoint backend that drowns the agent's
 context. The agent searches, then loads, then calls.
@@ -655,7 +751,8 @@ context. The agent searches, then loads, then calls.
 `search_tools` takes `query`, `limit`, `detail` and `tags`. `tags` narrows the answer to operations
 carrying every tag listed, matched whole and insensitive to case and accents; every answer carries
 the vocabulary the caller may see, so the agent reads a tag rather than guessing one. Each operation
-is tagged with its controller name unless you say otherwise:
+is tagged as `@nestjs/swagger` tags it — the controller's `@ApiTags`, or its name when it has none,
+followed by the handler's `@ApiTags` — unless you say otherwise:
 
 ```ts
 @McpTool({ name: "find_orders", tags: ["billing", "read"] })
@@ -703,7 +800,9 @@ the RFC 9728 metadata handler for you.
 | Catalog empty, decorators appear to do nothing              | `reflect-metadata` not imported first                               | Make it the first import in `main.ts`                                           |
 | Startup throws resolving a provider                         | `app.use(...)` before `app.init()`                                  | `await app.init()` first                                                        |
 | No PRM document, 401 carries no pointer                     | `resourceServer` unset                                              | Set `options.resourceServer`; check `/.well-known/oauth-protected-resource/mcp` |
-| `GET /mcp` returns 405                                      | `transport.sessionMode` is `stateless` (the default)                | Expected. Use `POST`, or switch to `stateful`                                   |
+| `GET /mcp` returns 405                                      | The transport has no sessions to stream                             | Expected. Use `POST`                                                            |
+| Host will not boot, `query_parser_not_extended`             | A tool writes `?filter[x]=` and Express parses queries as `simple`  | `app.set('query parser', 'extended')`, or declare `objectNotation`              |
+| Clients never hear that the catalog changed                 | `streamableHttp.serve(...)` called per request                      | Call it once in the controller's constructor and keep the handler               |
 | Host will not boot, fatal diagnostic                        | `name_collision` / `ambiguous_selection` / `invalid_name`           | Read the codes in the log, then `options.diagnostics.downgrade`                 |
 | A tool is missing and `unresolved_query_shape` was reported | Its `@Query()` type carries no readable members                     | Decorate the DTO, declare `options.schema.typeShape`, or downgrade the code     |
 | PRM 404s under a global prefix                              | `prm_path_prefixed` — Nest prefixed the `.well-known` path          | Add the metadata path to `setGlobalPrefix`'s `exclude` list                     |

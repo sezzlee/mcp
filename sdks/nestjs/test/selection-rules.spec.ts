@@ -70,6 +70,7 @@ describe("selection rules", () => {
 
 describe("selection rules that disagree", () => {
   let conflicted: SezzleeCatalog;
+  let failure: unknown;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -85,7 +86,10 @@ describe("selection rules that disagree", () => {
       controllers: [AdminController, OrdersController],
     }).compile();
     const app = moduleRef.createNestApplication({ logger: false });
-    await app.init();
+    failure = await app.init().then(
+      () => undefined,
+      (error: unknown) => error,
+    );
     conflicted = app.get(SezzleeCatalog);
   });
 
@@ -94,10 +98,12 @@ describe("selection rules that disagree", () => {
     expect(codes).toContain("ambiguous_selection");
   });
 
-  it("is fatal, so the catalog refuses to validate", () => {
-    expect(() => {
-      conflicted.ensureValid();
-    }).toThrow(/equal specificity disagree/);
+  it("is fatal, so the application refuses to start", () => {
+    expect(failure).toMatchObject({
+      name: "SezzleeCatalogError",
+      code: "ambiguous_selection",
+    });
+    expect((failure as Error).message).toMatch(/equal specificity disagree/);
   });
 });
 

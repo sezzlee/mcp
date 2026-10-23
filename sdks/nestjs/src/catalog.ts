@@ -249,10 +249,19 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
    * A source whose load mode is `"background"` is started and not awaited; blocking sources load
    * first, because loads run one at a time.
    *
-   * @throws SezzleeCatalogError `family_source_failed` or `selection_source_failed` when the
-   * source's `onFailure` is `"fatal"` and it never returned
+   * @throws SezzleeCatalogError `unsupported_http_adapter` when the application does not run on
+   * Express; `family_source_failed` or `selection_source_failed` when the source's `onFailure` is
+   * `"fatal"` and it never returned; the first fatal diagnostic's code when the catalog built from
+   * what loaded is fatal
    */
   async onApplicationBootstrap(): Promise<void> {
+    const adapterType = this.adapterHost?.httpAdapter?.getType();
+    if (adapterType !== undefined && adapterType !== "express") {
+      throw new SezzleeCatalogError(
+        "unsupported_http_adapter",
+        `sezzlee replays every call through the Express application, and this application runs on '${adapterType}'. Use @nestjs/platform-express.`,
+      );
+    }
     const active = this.channels.filter((channel) => channel.registered);
     const blocking = active.filter(
       (channel) => channel.settings.loadMode !== "background",
@@ -274,6 +283,7 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
     }
     await Promise.all(waited);
     blocking.forEach((channel) => this.scheduleRefresh(channel));
+    this.ensureValid();
   }
 
   onModuleDestroy(): void {
@@ -428,7 +438,8 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
    * N6) — a tool the backend answers as if every field were absent. The default parsers are
    * `jsonParser` and `urlencodedParser`, visible by name on the router stack (N7); a text body
    * needs `app.useBodyParser('text')`. Only Express is checked, for `reportUnparsedBrackets`'s
-   * reason.
+   * reason. `_router` is read first: Express 4 keeps the stack there and defines `router` as a
+   * getter that throws, which would fail every catalog build; Express 5 has no `_router`.
    */
   private lacksBodyParser(descriptor: EndpointDescriptor): string | undefined {
     const contentType = descriptor.requestBody?.contentType;
@@ -450,7 +461,7 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
       router?: { stack?: readonly { name?: string }[] };
       _router?: { stack?: readonly { name?: string }[] };
     }>();
-    const stack = instance.router?.stack ?? instance._router?.stack ?? [];
+    const stack = (instance._router ?? instance.router)?.stack ?? [];
     return stack.some((layer) => layer.name === needed) ? undefined : needed;
   }
 
@@ -486,6 +497,18 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
         ? {}
         : { schema: this.options.schema }),
       ...(versioningOptions === undefined ? {} : { versioningOptions }),
+      globalGuards: [
+        ...this.applicationConfig.getGlobalGuards(),
+        ...this.applicationConfig
+          .getGlobalRequestGuards()
+          .map((wrapper) => wrapper.metatype),
+      ],
+      globalInterceptors: [
+        ...this.applicationConfig.getGlobalInterceptors(),
+        ...this.applicationConfig
+          .getGlobalRequestInterceptors()
+          .map((wrapper) => wrapper.instance ?? wrapper.metatype),
+      ],
       globalPrefix,
       routePaths,
       severity: (code) => this.severityFor(code),
@@ -510,7 +533,10 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
       .map(normalizeRoute);
     const families = new Map<DiscoveredEndpoint, LoweredFamily>();
     const routed = discovered.filter((endpoint) => {
-      if (reserved.some((path) => endpoint.descriptor.route.startsWith(path))) {
+      const route = endpoint.descriptor.route;
+      if (
+        reserved.some((path) => route === path || route.startsWith(`${path}/`))
+      ) {
         return false;
       }
       const family = endpoint.hints.family;

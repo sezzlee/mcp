@@ -208,7 +208,7 @@ describe("form body probes", () => {
       body,
     );
     expect(status).toBe(400);
-    expect(json.message).toBe("Unexpected field - wrong");
+    expect(json.message).toMatch(/^Unexpected (file )?field( - wrong)?$/);
   });
 
   it("N5 repeats a file field for a files interceptor", async () => {
@@ -220,6 +220,10 @@ describe("form body probes", () => {
     expect(json.names).toEqual(["a.txt", "b.txt"]);
   });
 
+  /**
+   * Guard: Express 5 leaves an unparsed body `undefined` and Express 4 an empty object; either way no
+   * field reaches the handler, which is what `body_parser_missing` exists to prevent.
+   */
   it("N6 leaves a JSON-suffix body and a text body unparsed under the default parsers", async () => {
     const merge = await send(
       "PATCH",
@@ -228,7 +232,7 @@ describe("form body probes", () => {
       Buffer.from('{"name":"x"}', "utf8"),
     );
     expect(merge.status).toBe(200);
-    expect(merge.json.body).toBeNull();
+    expect([null, {}]).toContainEqual(merge.json.body);
 
     const text = await send(
       "POST",
@@ -236,14 +240,15 @@ describe("form body probes", () => {
       "text/plain; charset=utf-8",
       Buffer.from("hello", "utf8"),
     );
-    expect(text.json.body).toBeNull();
+    expect([null, {}]).toContainEqual(text.json.body);
   });
 
   it("N7 names the default parsers on the Express router stack", () => {
     const app = nest.getHttpAdapter().getInstance() as unknown as {
+      _router?: { stack: { name: string }[] };
       router: { stack: { name: string }[] };
     };
-    const names = app.router.stack.map((layer) => layer.name);
+    const names = (app._router ?? app.router).stack.map((layer) => layer.name);
     expect(names).toContain("jsonParser");
     expect(names).toContain("urlencodedParser");
     expect(names).not.toContain("textParser");

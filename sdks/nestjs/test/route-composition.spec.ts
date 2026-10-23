@@ -2,16 +2,20 @@ import "reflect-metadata";
 import {
   Controller,
   Get,
+  HostParam,
   Module,
   Param,
+  Sse,
   Version,
   VersioningType,
   type INestApplication,
 } from "@nestjs/common";
 import { RouterModule } from "@nestjs/core";
 import { Test, type TestingModuleBuilder } from "@nestjs/testing";
+import { interval, map, type Observable } from "rxjs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { SezzleeCatalog } from "../src/catalog.js";
+import { discoverEndpoints } from "../src/discovery/endpoint-discovery.js";
 import { McpTool } from "../src/decorators.js";
 import { SezzleeModule } from "../src/sezzlee.module.js";
 import type {
@@ -42,6 +46,15 @@ class HealthController {
 class LookalikeMcpController {
   @Get()
   handle(): string {
+    return "ok";
+  }
+}
+
+@Controller("mcp-servers")
+@McpTool()
+class McpServersController {
+  @Get()
+  list(): string {
     return "ok";
   }
 }
@@ -79,6 +92,38 @@ class MountedOrdersController {
   }
 }
 
+@Controller({ path: "accounts", host: ":account.example.com" })
+@McpTool()
+class TenantHostController {
+  @Get()
+  list(@HostParam("account") _account: string): string {
+    return "ok";
+  }
+}
+
+@Controller({ path: "admin", host: "admin.example.com" })
+@McpTool()
+class AdminHostController {
+  @Get()
+  list(): string {
+    return "ok";
+  }
+}
+
+@Controller("events")
+@McpTool()
+class EventsController {
+  @Sse("stream")
+  stream(): Observable<MessageEvent> {
+    return interval(1000).pipe(map(() => ({ data: "tick" }) as MessageEvent));
+  }
+
+  @Get()
+  list(): string {
+    return "ok";
+  }
+}
+
 @Module({ controllers: [MountedOrdersController] })
 class OrdersFeatureModule {}
 
@@ -107,6 +152,7 @@ describe("R1: global prefix", () => {
           PrefixedOrdersController,
           HealthController,
           LookalikeMcpController,
+          McpServersController,
         ],
       }),
       (app) => app.setGlobalPrefix("api", { exclude: ["health"] }),
@@ -123,7 +169,14 @@ describe("R1: global prefix", () => {
 
   it("still filters the reserved mcp path once it carries the prefix", () => {
     expect(routesOf(catalog)).not.toContain("/api/mcp");
-    expect(catalog.current.entries).toHaveLength(2);
+  });
+
+  it("keeps a route that only begins with the reserved path's letters", () => {
+    expect(routesOf(catalog)).toEqual([
+      "/api/mcp-servers",
+      "/api/orders/{id}",
+      "/health",
+    ]);
   });
 });
 
@@ -186,6 +239,149 @@ describe("R3: URI versioning", () => {
   });
 });
 
+describe("R3b: URI versioning with a default version", () => {
+  let catalog: SezzleeCatalog;
+
+  beforeAll(async () => {
+    catalog = await catalogOf(
+      Test.createTestingModule({
+        imports: [SezzleeModule.forRoot()],
+        controllers: [HealthController, VersionedOrdersController],
+      }),
+      (app) => {
+        app.enableVersioning({ type: VersioningType.URI, defaultVersion: "3" });
+      },
+    );
+  });
+
+  it("routes an unversioned controller under the default version, as Nest does", () => {
+    expect(routesOf(catalog)).toEqual([
+      "/v1/orders",
+      "/v2/orders/archive",
+      "/v3/health",
+    ]);
+  });
+});
+
+describe("R3c: header versioning", () => {
+  const catalogUnder = (configure: (options: SezzleeOptions) => void) =>
+    catalogOf(
+      Test.createTestingModule({
+        imports: [SezzleeModule.forRoot(configure)],
+        controllers: [HealthController, VersionedOrdersController],
+      }),
+      (app) => {
+        app.enableVersioning({
+          type: VersioningType.HEADER,
+          header: "X-API-Version",
+          defaultVersion: "1",
+        });
+      },
+    );
+
+  it("drops a handler whose version the replayed request cannot carry", async () => {
+    const catalog = await catalogUnder(() => {});
+    expect(routesOf(catalog)).toEqual(["/health", "/orders"]);
+    expect(
+      catalog.diagnostics.find(
+        (diagnostic) => diagnostic.code === "version_not_carried",
+      )?.message,
+    ).toBe(
+      "VersionedOrdersController.archive answers version 2 under HEADER versioning; the replayed request carries no version, so a call would reach another version's handler.",
+    );
+  });
+
+  it("keeps it when the host downgrades the code", async () => {
+    const catalog = await catalogUnder((options) => {
+      options.diagnostics.downgrade.add("version_not_carried");
+    });
+    expect(routesOf(catalog)).toEqual([
+      "/health",
+      "/orders",
+      "/orders/archive",
+    ]);
+  });
+});
+
+describe("R3d: host-routed controllers", () => {
+  it("drops a controller routed on a host pattern and keeps one on a fixed host", async () => {
+    const catalog = await catalogOf(
+      Test.createTestingModule({
+        imports: [SezzleeModule.forRoot()],
+        controllers: [TenantHostController, AdminHostController],
+      }),
+    );
+    expect(routesOf(catalog)).toEqual(["/admin"]);
+    expect(
+      catalog.diagnostics
+        .filter((diagnostic) => diagnostic.code === "unsupported_binding")
+        .map((diagnostic) => diagnostic.message),
+    ).toEqual([
+      "TenantHostController.list is routed on a host pattern; the replayed request cannot choose the host, so a call would reach another host's handler or none. Endpoint skipped.",
+    ]);
+  });
+});
+
+describe("R3e: server-sent events", () => {
+  it("drops a handler whose response never ends", async () => {
+    const catalog = await catalogOf(
+      Test.createTestingModule({
+        imports: [SezzleeModule.forRoot()],
+        controllers: [EventsController],
+      }),
+    );
+    expect(routesOf(catalog)).toEqual(["/events"]);
+    expect(
+      catalog.diagnostics.find(
+        (diagnostic) => diagnostic.code === "unsupported_binding",
+      )?.message,
+    ).toBe(
+      "EventsController.stream streams server-sent events, which never end, so a tool call could only time out; endpoint skipped.",
+    );
+  });
+});
+
+describe("R3f: Express route syntax", () => {
+  @Controller()
+  @McpTool()
+  class SyntaxController {
+    @Get("exports/:id.json")
+    exported(@Param("id") _id: string): string {
+      return "ok";
+    }
+
+    @Get("ranges/:from-:to")
+    range(@Param("from") _from: string, @Param("to") _to: string): string {
+      return "ok";
+    }
+
+    @Get("files{/:name}")
+    file(@Param("name") _name?: string): string {
+      return "ok";
+    }
+
+    @Get("legacy/:id(\\d+)/:page?")
+    legacy(@Param("id") _id: string, @Param("page") _page?: string): string {
+      return "ok";
+    }
+  }
+
+  const routes = discoverEndpoints([{ metatype: SyntaxController }]).map(
+    (endpoint) => [endpoint.handlerName, endpoint.descriptor.route],
+  );
+
+  it("writes a parameter followed by literal text inside its segment", () => {
+    expect(routes).toContainEqual(["exported", "/exports/{id}.json"]);
+    expect(routes).toContainEqual(["range", "/ranges/{from}-{to}"]);
+  });
+
+  it("writes an optional part present, so its parameter can be sent", () => {
+    expect(routes).toContainEqual(["file", "/files/{name}"]);
+    expect(routes).toContainEqual(["legacy", "/legacy/{id}/{page}"]);
+    expect(routes).toHaveLength(4);
+  });
+});
+
 describe("R4: a module mounted through RouterModule", () => {
   let catalog: SezzleeCatalog;
 
@@ -220,21 +416,22 @@ describe("R5: protected-resource metadata under a global prefix", () => {
     options.diagnostics.failOn = undefined;
   };
 
-  it("is fatal when the metadata path is not excluded from the prefix", async () => {
-    const catalog = await catalogOf(
-      Test.createTestingModule({
-        imports: [SezzleeModule.forRoot(configure)],
-        controllers: [PrefixedOrdersController],
-      }),
-      (app) => app.setGlobalPrefix("api"),
-    );
-    const prefixed = catalog.diagnostics.find(
-      (diagnostic) => diagnostic.code === "prm_path_prefixed",
-    );
-    expect(prefixed?.message).toContain(
-      "/.well-known/oauth-protected-resource/mcp",
-    );
-    expect(prefixed?.message).toContain("exclude");
+  it("stops startup when the metadata path is not excluded from the prefix", async () => {
+    await expect(
+      catalogOf(
+        Test.createTestingModule({
+          imports: [SezzleeModule.forRoot(configure)],
+          controllers: [PrefixedOrdersController],
+        }),
+        (app) => app.setGlobalPrefix("api"),
+      ),
+    ).rejects.toMatchObject({
+      name: "SezzleeCatalogError",
+      code: "prm_path_prefixed",
+      message: expect.stringMatching(
+        /\/\.well-known\/oauth-protected-resource\/mcp.*exclude/,
+      ),
+    });
   });
 
   it("is silent once the host excludes it", async () => {

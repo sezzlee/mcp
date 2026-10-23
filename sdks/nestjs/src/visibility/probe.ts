@@ -8,7 +8,10 @@ import { of, type Observable } from "rxjs";
 import type { VisibilityDecision } from "@sezzlee/core";
 import type { CatalogEntry } from "../catalog.js";
 import { SezzleeDispatcher, type ProbeResult } from "../dispatcher.js";
-import { SezzleeDispatchAborted } from "../synthetic-context.js";
+import {
+  SezzleeDispatchAborted,
+  SezzleeResponseTooLarge,
+} from "../synthetic-context.js";
 import {
   isSezzleeProbe,
   markShortCircuited,
@@ -83,7 +86,10 @@ export class SezzleeProbeEvaluator implements ProbeEvaluator {
         },
       );
     } catch (error) {
-      if (error instanceof SezzleeDispatchAborted) {
+      if (
+        error instanceof SezzleeDispatchAborted ||
+        error instanceof SezzleeResponseTooLarge
+      ) {
         return "unknown";
       }
       throw error;

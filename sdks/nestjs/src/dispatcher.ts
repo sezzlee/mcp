@@ -27,6 +27,7 @@ import { createSyntheticContext } from "./synthetic-context.js";
 export interface DispatchResult {
   readonly status: number;
   readonly body: string;
+  readonly bodyEncoding?: "base64";
   readonly contentType?: string;
   readonly headers: Readonly<Record<string, string>>;
 }
@@ -224,6 +225,7 @@ export class SezzleeDispatcher {
         scheme,
         written?.bytes,
         outer?.connection,
+        this.options.invoke.maxBufferedBytes,
       );
       markSyntheticRequest(req, probe);
       deadlineState.onAbandon(abort);

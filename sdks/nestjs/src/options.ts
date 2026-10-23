@@ -1,6 +1,10 @@
 import type { IncomingHttpHeaders } from "node:http";
 import type { OAuthTokenVerifier } from "@modelcontextprotocol/express";
-import { defaultRankerTimeoutMs, invokeLimits } from "@sezzlee/core";
+import {
+  defaultRankerTimeoutMs,
+  invokeLimits,
+  resultLimits,
+} from "@sezzlee/core";
 import type {
   RankerFailureMode,
   Recognizer,
@@ -214,6 +218,8 @@ export interface InvokeTarget {
 export interface SezzleeInvokeOptions {
   /** The largest tool response, in UTF-8 bytes, that may reach the agent. */
   maxResponseBytes: number;
+  /** The largest backend body read, in bytes; a larger one is refused unread. */
+  maxBufferedBytes: number;
   /**
    * How long an invocation waits for the backend, in whole milliseconds. Zero means no deadline.
    *
@@ -227,6 +233,16 @@ export interface SezzleeInvokeOptions {
   maxInlineFileBytes: number;
   /** The bytes one resolved `ref` file may carry. */
   maxFileBytes: number;
+}
+
+/**
+ * The default result store's limits; packages/http/spec/result-reading.md. A store bound through
+ * `extensionTokens.resultStore` replaces the default and these with it.
+ */
+export interface SezzleeResultOptions {
+  lifetimeMs: number;
+  maxCallerBytes: number;
+  maxBytes: number;
 }
 
 export class ErrorMappingOptions {
@@ -362,9 +378,15 @@ export class SezzleeOptions {
   };
   readonly invoke: SezzleeInvokeOptions = {
     maxResponseBytes: invokeLimits.maxResponseBytes,
+    maxBufferedBytes: invokeLimits.maxBufferedBytes,
     timeoutMs: invokeLimits.invokeTimeoutMs,
     maxInlineFileBytes: invokeLimits.maxInlineFileBytes,
     maxFileBytes: invokeLimits.maxFileBytes,
+  };
+  readonly results: SezzleeResultOptions = {
+    lifetimeMs: resultLimits.lifetimeMs,
+    maxCallerBytes: resultLimits.maxCallerBytes,
+    maxBytes: resultLimits.maxBytes,
   };
   readonly search: SezzleeSearchOptions = {
     rankerTimeoutMs: defaultRankerTimeoutMs,
