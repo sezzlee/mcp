@@ -275,6 +275,7 @@ export function readSheet(
           window.sheet,
           window.bounds,
           window.headerRow,
+          window.headerRowSource,
           headers,
           options.range !== undefined || window.table !== undefined,
           window.mergedCells,

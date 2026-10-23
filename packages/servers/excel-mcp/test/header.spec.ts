@@ -4,6 +4,7 @@ import type { SezzleeExcelError } from "../src/platform/errors.js";
 import {
   declaredHeaderRow,
   defaultHeaderRow,
+  headerWarnings,
   isHeaderCandidate,
   rowFacts,
   scanHeaderRow,
@@ -280,5 +281,45 @@ describe("the header row a call that names none reads by", () => {
         ["Ada", "Izmir"],
       ]),
     ).toEqual({ row: 1, source: "scanned" });
+  });
+});
+
+describe("header warnings on a range two tables claim", () => {
+  const bounds: GridBounds = { top: 1, left: 1, bottom: 6, right: 2 };
+  const table = (name: string, ref: string): DeclaredTable => ({
+    name,
+    ref,
+    headerRow: true,
+    columns: ["Status", "Count"],
+  });
+  const sheet: SheetView = {
+    name: "S",
+    bounds,
+    merges: [],
+    tables: [table("First", "A1:B3"), table("Second", "A4:B6")],
+    autoFilter: undefined,
+    hiddenRows: new Set<number>(),
+    rowAt: () => undefined,
+    populatedRows: () => [],
+  };
+  const warningsFor = (source: "explicit" | "default") =>
+    headerWarnings(
+      sheet,
+      bounds,
+      4,
+      source,
+      ["Status", "Count"],
+      false,
+      "master",
+    );
+
+  it("accepts the headerRow the ambiguity error asks for", () => {
+    expect(warningsFor("explicit")).toEqual([]);
+  });
+
+  it("still refuses to pick a table's header on its own", () => {
+    expect(() => warningsFor("default")).toThrow(
+      expect.objectContaining({ code: "ambiguous_header_row" }),
+    );
   });
 });

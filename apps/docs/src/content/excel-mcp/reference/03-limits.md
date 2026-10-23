@@ -1,6 +1,6 @@
 # Limits
 
-> Generated from the exported `limits` object of `@sezzlee/excel-mcp` 0.10.1.
+> Generated from the exported `limits` object of `@sezzlee/excel-mcp` 0.10.2.
 
 These bounds are exported by the server. Tool arguments can request smaller pages or samples within them. Truncation and continuation are tool-specific: follow a cursor only when the response supplies one. An operation that cannot stay within its resource budget can fail with `resource_limit`.
 
