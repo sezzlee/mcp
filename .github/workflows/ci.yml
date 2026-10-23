@@ -138,6 +138,42 @@ jobs:
           read -ra filters <<< "$FILTERS"
           pnpm turbo run test "${filters[@]}"
 
+  # The lockfile pins the NestJS SDK's host stack to Nest 11 on Express 5,
+  # which the node job covers. Its peer range also admits Nest 10 on Express 4
+  # and Nest 12, and it reads Nest and Express internals that differ between
+  # them, so each leg swaps the host stack in and runs the SDK's whole suite.
+  nest-compat:
+    name: NestJS host (${{ matrix.leg.id }})
+    needs: plan
+    if: ${{ contains(needs.plan.outputs.filters, '@sezzlee/sdk-nestjs') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        leg:
+          - id: nest10-express4
+            packages: "@nestjs/common@^10 @nestjs/core@^10 @nestjs/platform-express@^10 @nestjs/testing@^10 @nestjs/swagger@^8 express@^4 @types/express@^4"
+          - id: nest12-express5
+            packages: "@nestjs/common@^12 @nestjs/core@^12 @nestjs/platform-express@^12 @nestjs/testing@^12 @nestjs/swagger@^12"
+    env:
+      PACKAGES: ${{ matrix.leg.packages }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.6.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run build --filter=@sezzlee/sdk-nestjs^...
+      - run: |
+          read -ra packages <<< "$PACKAGES"
+          pnpm --filter @sezzlee/sdk-nestjs add -D --ignore-scripts "${packages[@]}"
+      - run: pnpm --filter @sezzlee/sdk-nestjs exec vitest run
+
   # Packs what a publish can release: the HTTP catalog packages always, the
   # file packages only when the native matrix built their prebuilds. Publish
   # skips any version already on its registry, so a package left out here is
