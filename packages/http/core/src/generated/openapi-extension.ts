@@ -35,6 +35,7 @@ export interface OperationExtension {
   responses?: {
     [k: string]: ResponseBody;
   };
+  publishedSchemas?: boolean;
   annotations?: ToolAnnotations;
   anonymous?: true;
   arguments?: ArgumentCuration[];

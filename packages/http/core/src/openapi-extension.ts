@@ -203,13 +203,18 @@ const anyCaller = (auth: EndpointDescriptor["auth"]): boolean =>
 /**
  * Guard: every slot is written, an empty one included, so the gateway reads the schemas the SDK
  * published rather than the generator's: a schema the SDK could not read stays unread there too.
+ * `publishedSchemas` keeps the gateway from normalizing them as Schema Objects of the document,
+ * which drops `default` and merges `allOf`, so a host-declared schema would reach it changed.
  */
 function schemasOf(
   descriptor: EndpointDescriptor,
-): Required<Pick<OperationExtension, "parameters" | "responses">> &
+): Required<
+  Pick<OperationExtension, "parameters" | "responses" | "publishedSchemas">
+> &
   Pick<OperationExtension, "requestBody"> {
   const body = descriptor.requestBody;
   return {
+    publishedSchemas: true,
     parameters: (descriptor.parameters ?? []).map((parameter) => ({
       name: parameter.name,
       in: parameter.in,

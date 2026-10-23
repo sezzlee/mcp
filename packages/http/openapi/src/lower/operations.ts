@@ -1,7 +1,6 @@
 import {
   snakeCase,
   type EndpointDescriptor,
-  type ParameterSchema,
   type Revision,
   type SelectionDecision,
 } from "@sezzlee/core";
@@ -406,33 +405,37 @@ function withCarriedSchemas(
 ): Slots {
   let parameters = document.parameters;
   if (carried.parameters !== undefined) {
-    const byKey = new Map(
-      carried.parameters.map((parameter) => [
-        parameterKey(parameter),
-        parameter,
-      ]),
+    const documented = new Map(
+      parameters.map((parameter) => [parameterKey(parameter), parameter]),
     );
+    const carriedKeys = carried.parameters.map(parameterKey);
     const matched =
-      byKey.size === parameters.length &&
-      parameters.every((parameter) => byKey.has(parameterKey(parameter)));
+      carriedKeys.length === parameters.length &&
+      new Set(carriedKeys).size === carriedKeys.length &&
+      carriedKeys.every((key) => documented.has(key));
     if (matched) {
-      parameters = parameters.map((parameter) => {
-        const { description: _description, ...wire } = parameter;
-        const schema = byKey.get(parameterKey(parameter)) as ParameterSchema;
-        return {
-          ...wire,
-          required: schema.required,
-          schema: schema.schema,
-          ...(schema.description === undefined
-            ? {}
-            : { description: schema.description }),
-        };
+      parameters = carried.parameters.flatMap((schema) => {
+        const found = documented.get(parameterKey(schema));
+        if (found === undefined) {
+          return [];
+        }
+        const { description: _description, ...wire } = found;
+        return [
+          {
+            ...wire,
+            required: schema.required,
+            schema: schema.schema,
+            ...(schema.description === undefined
+              ? {}
+              : { description: schema.description }),
+          },
+        ];
       });
     } else {
       context.diagnostics.report(
         "extension_schema_mismatch",
         childPointer(at, "parameters"),
-        `The carried parameters (${[...byKey.keys()].join(", ") || "none"}) are not the document's (${parameters.map(parameterKey).join(", ") || "none"}); the document's schemas are kept.`,
+        `The carried parameters (${carriedKeys.join(", ") || "none"}) are not the document's (${parameters.map(parameterKey).join(", ") || "none"}); the document's schemas are kept.`,
       );
     }
   }

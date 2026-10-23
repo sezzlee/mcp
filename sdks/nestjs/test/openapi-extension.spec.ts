@@ -22,6 +22,7 @@ import {
   ApiOperation,
   ApiProperty,
   ApiPropertyOptional,
+  ApiQuery,
   ApiTags,
   DocumentBuilder,
   SwaggerModule,
@@ -222,6 +223,29 @@ class CustomersController {
   @McpTool({ readOnly: true, description: "Lists customers." })
   list(): { id: number }[] {
     return [{ id: 1 }];
+  }
+
+  @Get("between")
+  @ApiQuery({ name: "from", type: String, required: true })
+  @ApiQuery({ name: "to", type: String, required: true })
+  @McpTool({
+    name: "list_customers_between",
+    readOnly: true,
+    description: "Lists customers who ordered between two dates.",
+    responses: {
+      200: {
+        schema: {
+          type: "object",
+          properties: { state: { type: "string", default: "open" } },
+        },
+      },
+    },
+  })
+  between(
+    @Query("from") _from: string,
+    @Query("to") _to: string,
+  ): { state: string } {
+    return { state: "open" };
   }
 }
 
@@ -451,6 +475,7 @@ const calls: readonly (readonly [string, Record<string, unknown>])[] = [
   ["orders_list", { limit: 5, status: "open" }],
   ["read_order", { orderId: "7" }],
   ["customers_list", {}],
+  ["list_customers_between", { from: "2026-01-01", to: "2026-02-01" }],
   [
     "orders_create",
     { customerId: 1, shipTo: { street: "1 Main", city: "Izmir" } },
@@ -524,7 +549,7 @@ describe("a gateway reading the NestJS SDK's annotated document", () => {
     }
   });
 
-  it("loads, lists and invokes every tool as the SDK does, apart from the accepted differences", async () => {
+  it("loads and lists every tool and answers the sample calls as the SDK does, apart from the accepted differences", async () => {
     const gateway = gatewayOf("exclude");
     const differences: string[] = [];
     const cards = async (client: Client) => {

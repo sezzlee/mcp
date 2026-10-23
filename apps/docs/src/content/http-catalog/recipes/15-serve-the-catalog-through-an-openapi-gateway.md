@@ -45,6 +45,7 @@ In the NestJS sample, `GET /orders/:id` is published with this extension, its sc
   "toolName": "get_order",
   "description": "Fetches one order by id.",
   "tags": ["Orders"],
+  "publishedSchemas": true,
   "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { … } }],
   "responses": { "200": { "schema": { … } }, "404": {} }
 }
@@ -56,6 +57,8 @@ serves keeps what was written for its readers. The schemas are the SDK's because
 differ even when both are right: class-validator's `@IsInt()` is an `integer` where
 `@nestjs/swagger` writes `number`, and `@nestjs/swagger` marks a named `@Query()` required. The wire
 form, how each parameter and the body are written, still comes from the document.
+`publishedSchemas` tells the gateway to take those schemas as written instead of normalizing them as
+the document's own, so a schema you declared keeps its `default` and its `allOf`.
 
 An operation the SDK publishes but the document leaves out, such as a handler marked
 `@ApiExcludeEndpoint()`, cannot reach the gateway; `report.undocumented` names it.

@@ -57,6 +57,10 @@
         "responses": {
           "$ref": "endpoint-descriptor.schema.json#/properties/responses"
         },
+        "publishedSchemas": {
+          "type": "boolean",
+          "description": "Every schema this extension carries (parameters, requestBody, responses, and the request bodies of variants and family members) is JSON Schema 2020-12 as an SDK published it, self-contained, and is taken as written rather than normalized as a Schema Object of the document."
+        },
         "annotations": {
           "$ref": "tool-definition.schema.json#/$defs/ToolAnnotations"
         },

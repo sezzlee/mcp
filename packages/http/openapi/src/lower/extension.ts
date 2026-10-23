@@ -83,8 +83,15 @@ class Invalid extends Error {
   }
 }
 
+type SchemaReader = (
+  value: JsonValue | undefined,
+  at: JsonPointer,
+  direction: "request" | "response",
+) => JsonSchemaObject;
+
 interface Field {
   readonly context: SchemaContext;
+  readonly read: SchemaReader;
   readonly value: JsonValue;
   readonly at: JsonPointer;
 }
@@ -221,7 +228,7 @@ function parseArguments(
 }
 
 function parseRequestBody(
-  context: SchemaContext,
+  read: SchemaReader,
   value: JsonValue | undefined,
   at: JsonPointer,
 ): VariantRequestBody | undefined {
@@ -230,26 +237,7 @@ function parseRequestBody(
   }
   const declared = objectAt(value, at, "requestBody");
   onlyKeys(declared, at, ["schema", "required", "description"]);
-  const schemaAt = childPointer(at, "schema");
-  if (!isObject(declared["schema"])) {
-    throw new Invalid(schemaAt, "must be a Schema Object");
-  }
-  let schema: ReturnType<typeof normalizeSlot>;
-  try {
-    schema = normalizeSlot(context, declared["schema"], schemaAt, {
-      direction: "request",
-      root: "preferred",
-    });
-  } catch (error) {
-    if (!(error instanceof OperationDropped)) {
-      throw error;
-    }
-    throw new Invalid(error.at, `cannot be carried (${error.message})`);
-  }
-  const problem = declaredSchemaProblem(schema);
-  if (problem !== undefined) {
-    throw new Invalid(schemaAt, problem);
-  }
+  const schema = read(declared["schema"], childPointer(at, "schema"), "request");
   const required = declared["required"];
   if (required !== undefined && typeof required !== "boolean") {
     throw new Invalid(childPointer(at, "required"), "must be a boolean");
@@ -273,27 +261,43 @@ const parameterLocations: ReadonlySet<string> = new Set([
   "querystring",
 ]);
 
-function carriedSchema(
-  context: SchemaContext,
-  value: JsonValue | undefined,
-  at: JsonPointer,
-  direction: "request" | "response",
-): JsonSchemaObject {
+function documentSchemas(context: SchemaContext): SchemaReader {
+  return (value, at, direction) => {
+    if (!isObject(value)) {
+      throw new Invalid(at, "must be a Schema Object");
+    }
+    let schema: JsonSchemaObject;
+    try {
+      schema = normalizeSlot(context, value, at, {
+        direction,
+        root: "preferred",
+      });
+    } catch (error) {
+      if (!(error instanceof OperationDropped)) {
+        throw error;
+      }
+      throw new Invalid(error.at, `cannot be carried (${error.message})`);
+    }
+    return selfContained(schema, at);
+  };
+}
+
+/**
+ * Guard: a published schema skips normalization, so it is held to the one property normalization
+ * would otherwise have produced: every `$ref` resolves within its own `$defs`. A reference into the
+ * document's `components` would be left aimed at nothing in the tool's schema.
+ */
+const publishedSchema: SchemaReader = (value, at) => {
   if (!isObject(value)) {
     throw new Invalid(at, "must be a Schema Object");
   }
-  let schema: JsonSchemaObject;
-  try {
-    schema = normalizeSlot(context, value, at, {
-      direction,
-      root: "preferred",
-    });
-  } catch (error) {
-    if (!(error instanceof OperationDropped)) {
-      throw error;
-    }
-    throw new Invalid(error.at, `cannot be carried (${error.message})`);
-  }
+  return selfContained(structuredClone(value) as JsonSchemaObject, at);
+};
+
+function selfContained(
+  schema: JsonSchemaObject,
+  at: JsonPointer,
+): JsonSchemaObject {
   const problem = declaredSchemaProblem(schema);
   if (problem !== undefined) {
     throw new Invalid(at, problem);
@@ -316,7 +320,7 @@ function optionalString(
   return { description: value };
 }
 
-function parseParameters({ context, value, at }: Field): ParameterSchema[] {
+function parseParameters({ read, value, at }: Field): ParameterSchema[] {
   if (!Array.isArray(value)) {
     throw new Invalid(at, "parameters must be an array");
   }
@@ -357,8 +361,7 @@ function parseParameters({ context, value, at }: Field): ParameterSchema[] {
       name,
       in: location as ParameterSchema["in"],
       required,
-      schema: carriedSchema(
-        context,
+      schema: read(
         declared["schema"],
         childPointer(parameterAt, "schema"),
         "request",
@@ -371,7 +374,7 @@ function parseParameters({ context, value, at }: Field): ParameterSchema[] {
 const responseStatus = /^([1-5][0-9]{2}|[1-5]XX|default)$/;
 
 function parseResponses({
-  context,
+  read,
   value,
   at,
 }: Field): NonNullable<OperationExtension["responses"]> {
@@ -390,8 +393,7 @@ function parseResponses({
           ...(response["schema"] === undefined
             ? {}
             : {
-                schema: carriedSchema(
-                  context,
+                schema: read(
                   response["schema"],
                   childPointer(responseAt, "schema"),
                   "response",
@@ -405,7 +407,7 @@ function parseResponses({
 }
 
 function parseVariant(
-  context: SchemaContext,
+  read: SchemaReader,
   value: JsonValue,
   at: JsonPointer,
 ): ToolVariant {
@@ -422,7 +424,7 @@ function parseVariant(
     childPointer(at, "arguments"),
   );
   const requestBody = parseRequestBody(
-    context,
+    read,
     declared["requestBody"],
     childPointer(at, "requestBody"),
   );
@@ -447,7 +449,7 @@ function parseVariant(
 }
 
 function parseVariants({
-  context,
+  read,
   value,
   at,
 }: Field): [ToolVariant, ...ToolVariant[]] {
@@ -456,7 +458,7 @@ function parseVariants({
   }
   const seen = new Set<string>();
   const [first, ...rest] = value.map((raw: JsonValue, index: number) => {
-    const variant = parseVariant(context, raw, childPointer(at, index));
+    const variant = parseVariant(read, raw, childPointer(at, index));
     if (seen.has(variant.name)) {
       throw new Invalid(
         childPointer(at, index, "name"),
@@ -483,7 +485,7 @@ function familyKey(value: JsonValue | undefined, at: JsonPointer): FamilyKey {
 }
 
 function parseMember(
-  context: SchemaContext,
+  read: SchemaReader,
   value: JsonValue,
   at: JsonPointer,
   parameter: string,
@@ -491,7 +493,7 @@ function parseMember(
   const declared = objectAt(value, at, "a member");
   const key = familyKey(declared["key"], childPointer(at, "key"));
   const { key: _key, ...variantFields } = declared;
-  const variant = parseVariant(context, variantFields, at);
+  const variant = parseVariant(read, variantFields, at);
   if (variant.arguments?.some((argument) => argument.name === parameter)) {
     throw new Invalid(
       childPointer(at, "arguments"),
@@ -506,7 +508,12 @@ function parseMember(
  * bad row must not take every sibling offline; only a defect in the declaration itself drops the
  * operation, so the uncurated dispatcher is never published in the family's place.
  */
-function parseFamily({ context, value, at }: Field): FamilyDeclaration {
+function parseFamily({
+  context,
+  read,
+  value,
+  at,
+}: Field): FamilyDeclaration {
   const declared = objectAt(value, at, "family");
   onlyKeys(declared, at, ["parameter", "members"]);
   const parameter = nonBlank(
@@ -527,7 +534,7 @@ function parseFamily({ context, value, at }: Field): FamilyDeclaration {
         ? raw["name"]
         : `#${index}`;
     try {
-      const member = parseMember(context, raw, memberAt, parameter);
+      const member = parseMember(read, raw, memberAt, parameter);
       if (names.has(member.name)) {
         throw new Invalid(memberAt, "another member has the same name");
       }
@@ -641,7 +648,13 @@ const fieldParsers: FieldParsers = {
   description: parseDescription,
   tags: parseTags,
   parameters: parseParameters,
-  requestBody: ({ context, value, at }) => parseRequestBody(context, value, at),
+  requestBody: ({ read, value, at }) => parseRequestBody(read, value, at),
+  publishedSchemas: ({ value, at }) => {
+    if (typeof value !== "boolean") {
+      throw new Invalid(at, "must be a boolean");
+    }
+    return value;
+  },
   responses: parseResponses,
   annotations: ({ value, at }) => parseAnnotations(value, at),
   anonymous: ({ value, at }) => {
@@ -669,10 +682,11 @@ function aliasOf(
 ): Field | undefined {
   const legacyValue = operation[legacy];
   const value = declared[field];
+  const read = documentSchemas(context);
   if (legacyValue === undefined) {
     return value === undefined
       ? undefined
-      : { context, value, at: childPointer(at, extensionKey, field) };
+      : { context, read, value, at: childPointer(at, extensionKey, field) };
   }
   if (
     value !== undefined &&
@@ -685,7 +699,7 @@ function aliasOf(
     );
     return undefined;
   }
-  return { context, value: legacyValue, at: childPointer(at, legacy) };
+  return { context, read, value: legacyValue, at: childPointer(at, legacy) };
 }
 
 const legacyOf: Readonly<Record<string, string>> = {
@@ -788,11 +802,11 @@ function parseExtension(
       `${extensionKey} declares both variants and a family; a family's members are its variants`,
     );
   }
-  const fieldAt = (field: string): Field | undefined => {
+  const siteOf = (field: string, read: SchemaReader): Field | undefined => {
     const value = raw[field];
     return value === undefined
       ? undefined
-      : { context, value, at: childPointer(extensionAt, field) };
+      : { context, read, value, at: childPointer(extensionAt, field) };
   };
   const searchTerms = aliasOf(
     context,
@@ -830,6 +844,14 @@ function parseExtension(
   const extension: {
     -readonly [K in keyof OperationExtension]: OperationExtension[K];
   } = {};
+  const documentReader = documentSchemas(context);
+  const published = parse(
+    "publishedSchemas",
+    siteOf("publishedSchemas", documentReader),
+  );
+  const read = published === true ? publishedSchema : documentReader;
+  const fieldAt = (field: string): Field | undefined => siteOf(field, read);
+  assign(extension, "publishedSchemas", published);
   assign(extension, "tool", parse("tool", fieldAt("tool")));
   assign(extension, "foldedInto", parse("foldedInto", fieldAt("foldedInto")));
   assign(extension, "toolName", parse("toolName", fieldAt("toolName")));
@@ -922,6 +944,7 @@ export function lowerExtension(
     responses,
     anonymous,
     foldedInto,
+    publishedSchemas: _publishedSchemas,
     ...fields
   } = extension;
   return {
