@@ -155,6 +155,12 @@ add up (`count`, `countValues`, `countTrue`, `countFalse`, `sum`). A zero denomi
 and a `derived_division_by_zero` warning. `orderByDerived` sorts by one of them. Derived values
 are not offered with `pivotBy`.
 
+Requested total-scope metrics use checked compensated summation over the groups. A non-finite
+total or intermediate derived calculation refuses the call with `numeric_overflow`, in both
+inline and retained modes; no retained identifier is published. Missing inputs and zero
+denominators keep their null behavior. Cross-group totals are calculated only for metrics
+referenced with `scope: "total"`, so an unrequested total cannot reject valid finite groups.
+
 `inColumn` and `notInColumn` keep the rows whose cell is, or is not, among the values of another
 column, named by `source`: a sheet and column of the same file or of another file under the
 root, opened through the same gates. Values match as `eq` compares them, never trimmed; the

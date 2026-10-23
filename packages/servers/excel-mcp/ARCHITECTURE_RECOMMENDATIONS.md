@@ -17,21 +17,21 @@ to calculate over the complete selected scope in the environment and return boun
 Use a retained result when the agent needs another operation over that completed calculation.
 
 The review found a reproducible numerical defect in the shared derived-metric path: a total
-across finite group sums can overflow and produce a misleading zero share. This remains
-unfixed by this documentation addition. Treat its correction as the first correctness gate;
-the passing payment scenario does not cover it. See the reproduction below.
+across finite group sums could overflow and produce a misleading zero share. Shared numerical
+finalization now refuses non-finite totals and intermediate derived calculations before
+publication. The historical reproduction and independent regression coverage are described
+below; the ordinary payment scenario alone does not cover this boundary.
 
-| Priority | Smallest useful change                                                                     | Existing tool or new surface?                                               | Required evidence                                                                                                 |
-| -------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| P0       | Check additive totals and every derived arithmetic stage for non-finite values             | Repair `aggregate_sheet` internals                                          | Independent extreme-value expectations through inline and retained MCP calls; explicit refusal before publication |
-| P0       | Teach the agent lab about result dependencies and completeness                             | Existing test/replay infrastructure                                         | Replayed handles bind to the new instance; a preview cannot satisfy a whole-table oracle                          |
-| P1       | Bind discovered interpretations to a source version; expose compact calculation provenance | Extend existing source tools                                                | An explicitly expected version cannot silently select newer content                                               |
-| P1       | Offer cheaper, focused discovery and exact declared table-body facts                       | Extend `describe_workbook` and `get_tables`                                 | Unselected sheets need no cell materialization; counts agree with table selection                                 |
-| P1       | Support stable sorting, then selected typed predicates on retained rows                    | Extend `query_result`                                                       | Full matching result sorted before paging, with deterministic ties and bounded workspace                          |
-| P2       | Reuse complete-scope type decisions                                                        | Internal cache, no new tool                                                 | Same interpretations and diagnostics, version/scope invalidation, measured benefit                                |
-| P2       | Preserve and query individual filtered records                                             | A narrow row-query tool is justified if corpus tasks need it                | Duplicates and source row identity survive filtering, projection and retention                                    |
-| P2       | Release an unneeded retained result early                                                  | A small lifecycle tool is justified if four live entries constrain sessions | Instance ownership, predictable missing-ID behavior and immediate capacity recovery                               |
-| Later    | Row-level expressions, multiple sources and richer result algebra                          | Extend only after contracts and task evidence                               | Correct grain, units, provenance and resource ownership                                                           |
+| Priority | Smallest useful change                                                                     | Existing tool or new surface?                                               | Required evidence                                                                        |
+| -------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| P0       | Teach the agent lab about result dependencies and completeness                             | Existing test/replay infrastructure                                         | Replayed handles bind to the new instance; a preview cannot satisfy a whole-table oracle |
+| P1       | Bind discovered interpretations to a source version; expose compact calculation provenance | Extend existing source tools                                                | An explicitly expected version cannot silently select newer content                      |
+| P1       | Offer cheaper, focused discovery and exact declared table-body facts                       | Extend `describe_workbook` and `get_tables`                                 | Unselected sheets need no cell materialization; counts agree with table selection        |
+| P1       | Support stable sorting, then selected typed predicates on retained rows                    | Extend `query_result`                                                       | Full matching result sorted before paging, with deterministic ties and bounded workspace |
+| P2       | Reuse complete-scope type decisions                                                        | Internal cache, no new tool                                                 | Same interpretations and diagnostics, version/scope invalidation, measured benefit       |
+| P2       | Preserve and query individual filtered records                                             | A narrow row-query tool is justified if corpus tasks need it                | Duplicates and source row identity survive filtering, projection and retention           |
+| P2       | Release an unneeded retained result early                                                  | A small lifecycle tool is justified if four live entries constrain sessions | Instance ownership, predictable missing-ID behavior and immediate capacity recovery      |
+| Later    | Row-level expressions, multiple sources and richer result algebra                          | Extend only after contracts and task evidence                               | Correct grain, units, provenance and resource ownership                                  |
 
 `context-mode` is useful inspiration for [keeping large tool data outside the conversation][context-mode].
 For Excel, the retained object must preserve complete structured numeric results. Retrieving
@@ -150,11 +150,11 @@ do not put a full document validator on every analytical request without measure
 
 ## 3. First gate: repair shared numerical finalization
 
-The per-group metric implementation already uses compensated summation and finite-value
-checks in [aggregate-metrics](src/grid/aggregate-metrics.ts). The gap is later:
-[aggregate finalization](src/grid/aggregate.ts) sums finalized group values into total-scope
-metrics using ordinary addition, and [derived evaluation](src/grid/derived.ts) checks the
-final value without detecting every invalid intermediate.
+At the reviewed implementation commit, per-group metrics used compensated summation and
+finite-value checks, but [aggregate finalization](src/grid/aggregate.ts) summed finalized
+group values using ordinary addition, and [derived evaluation](src/grid/derived.ts) checked
+only the final value. The shared checked arithmetic now lives in [numeric](src/grid/numeric.ts)
+and serves per-group metrics, requested cross-group totals and derived calculations.
 
 ### Reproduced through MCP at the reviewed commit
 
@@ -189,7 +189,7 @@ The request was:
 }
 ```
 
-Observed response excerpt, without an error or warning:
+Observed response excerpt at implementation commit `50070b6`, without an error or warning:
 
 ```json
 {
@@ -207,15 +207,17 @@ dividing a finite group value by it produces the finite but incorrect share zero
 independent mathematical expectation is one half for each group. Under the existing numeric
 representation, an explicit numerical refusal is an acceptable first correction.
 
-Reuse checked accumulation only for additive metric slots actually referenced by total-scope
-derived terms, and validate term multiplication, addition, division, scaling and rounding
-before exposing or retaining a result. Checking unused cross-group totals would incorrectly
-reject the same two valid group sums when no total-scope calculation was requested; pin that
-successful case too. Preserve the documented zero-denominator
-warning, while making overflow distinguishable from missing input. Never publish a handle
-after this failure. Cover inline and retained responses, cancellation-heavy sums, finite
-groups whose total overflows, factor/scale overflow and rounding boundaries. This is a
-shared grid fix, not a retained-store workaround or a reason to raise resource limits.
+Finalization now uses checked compensated accumulation only for additive metric slots
+referenced by total-scope derived terms. Derived term multiplication, addition, division,
+scaling and rounding are checked before exposing or retaining the result. A non-finite
+calculation refuses with `numeric_overflow` and publishes no handle; missing inputs and the
+documented zero-denominator warning keep their existing behavior. Unrequested cross-group
+totals are not calculated, preserving the same finite groups when no such total is needed.
+
+The [real-MCP numerical regressions](test/aggregate-numeric.spec.ts) cover inline and retained
+responses, cancellation-heavy cross-group sums, finite groups whose requested total
+overflows, unreferenced total slots, factor/scale overflow and rounding boundaries. Resource
+limits and retained-store admission are unchanged.
 
 ## 4. Improve existing tools before adding overlapping ones
 
@@ -491,8 +493,8 @@ above are proposals, not additional commands that already exist.
 
 ## 9. Decisions for the next increment
 
-Correctness comes first: repair the reproduced derived overflow, then make the harness unable
-to confuse preview evidence with complete data. Follow with small existing-tool improvements
+The next correctness gate is making the harness unable to confuse preview evidence with
+complete data. Follow with small existing-tool improvements
 whose acceptance cases can be demonstrated without a model. Measure real model behavior once
 the protocol baseline is trustworthy.
 

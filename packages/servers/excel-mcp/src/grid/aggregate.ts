@@ -11,6 +11,7 @@ import {
   type DerivedMetric,
 } from "./derived.js";
 import { limits } from "../platform/limits.js";
+import { accumulate, finite } from "./numeric.js";
 import {
   explicitReading,
   rawReading,
@@ -835,6 +836,10 @@ export function aggregateSheet(
   ];
   const metricSlot = (options.orderByMetric ?? 1) - 1;
   const sortMetric = options.metrics[metricSlot] ?? firstMetric;
+  const totalSlots = new Set<number>();
+  for (const entry of derived)
+    for (const term of [...entry.numerator, ...(entry.denominator ?? [])])
+      if (term.scope === "total") totalSlots.add(term.metric - 1);
   let divisionByZero = false;
   const finishGrouping = (set: Grouping): GroupingResult => {
     const numeric = (value: CellScalar): number | null =>
@@ -845,12 +850,17 @@ export function aggregateSheet(
      * every group's share null as soon as one group had no amounts.
      */
     const totals = options.metrics.map((metric, slot) => {
-      let total: number | null = set.groups.size === 0 ? 0 : null;
+      if (!totalSlots.has(slot)) return null;
+      const sums = { sum: 0, compensation: 0 };
+      let hasValue = set.groups.size === 0;
       for (const group of set.groups.values()) {
         const value = numeric(finishMetric(metric, group.metrics[slot]));
-        if (value !== null) total = (total ?? 0) + value;
+        if (value !== null) {
+          accumulate(sums, value);
+          hasValue = true;
+        }
       }
-      return total;
+      return hasValue ? finite(sums.sum + sums.compensation) : null;
     });
     const derivedValues = new Map<GroupState | undefined, (number | null)[]>();
     const derivedOf = (group: GroupState | undefined): (number | null)[] => {
