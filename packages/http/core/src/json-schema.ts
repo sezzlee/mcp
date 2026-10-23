@@ -81,19 +81,15 @@ export function flattenableBody(
  */
 export function admittingNull(schema: JsonSchemaObject): JsonSchemaObject {
   const type = schema.type;
-  if (typeof type === "string") {
-    return {
-      ...schema,
-      type: [type, "null"],
-      ...(Array.isArray(schema.enum) && !schema.enum.includes(null)
-        ? { enum: [...schema.enum, null] }
-        : {}),
-    } as JsonSchemaObject;
+  if (type === undefined) {
+    return { anyOf: [schema, { type: "null" }] } as JsonSchemaObject;
   }
-  if (Array.isArray(type)) {
-    return type.includes("null")
-      ? schema
-      : ({ ...schema, type: [...type, "null"] } as JsonSchemaObject);
-  }
-  return { anyOf: [schema, { type: "null" }] } as JsonSchemaObject;
+  const types = typeof type === "string" ? [type] : type;
+  return {
+    ...schema,
+    type: types.includes("null") ? types : [...types, "null"],
+    ...(Array.isArray(schema.enum) && !schema.enum.includes(null)
+      ? { enum: [...schema.enum, null] }
+      : {}),
+  } as JsonSchemaObject;
 }

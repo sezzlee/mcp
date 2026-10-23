@@ -240,9 +240,9 @@ export async function emitGuarded<Target>(
 }
 
 /**
- * Guard: a store can only add a way to read an answer, never lose one. A failure, a value the store
- * refuses, or a stored answer that is itself over the budget leaves the caller with the refusal it
- * would have had without a store.
+ * Guard: a store can only add a way to read an answer, never lose one. A failure of the store or of
+ * the reporter told about it, a value the store refuses, or a stored answer that is itself over the
+ * budget leaves the caller with the refusal it would have had without a store.
  */
 async function keep(
   storable: StorableAnswer,
@@ -258,7 +258,11 @@ async function keep(
       storedRecord(storable.tool, storable.success.body),
     );
   } catch (error) {
-    shelf.report?.(error);
+    try {
+      shelf.report?.(error);
+    } catch {
+      return undefined;
+    }
     return undefined;
   }
   if (expiresInSeconds === undefined) {

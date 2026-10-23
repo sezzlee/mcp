@@ -147,7 +147,7 @@ No stored result answers this handle: it expired, was evicted, or was not issued
 
 A missing `handle` is `unknown_argument` with the message every meta-tool uses for a missing `name`; one that is not a string is `unknown_argument` with `Tool 'read_result' takes 'handle' as a string; {type} arrived. Call it again with the handle an invoke_tool answer returned.` `{names}` lists the unknown names in `select` order, each in single quotes, joined by `, `; `{fields}` is the `fields` list of the outline entry for that path, joined by `, `.
 
-The type checks come first, then the handle, then the visibility check below, then the path and the selection, so a call that has no result to read learns nothing about the shape of one.
+A missing `handle`, or one that is not a string, is checked first, as every meta-tool checks the argument it cannot work without; then the types of the other arguments; then whether the handle names a result of this caller; then the visibility check below; then the path and the selection. A call that has no result to read therefore learns nothing about the shape of one.
 
 ## The store
 
@@ -213,7 +213,7 @@ The other drives a read of a body already stored:
 
 ## Known limits
 
-- A handle is a bearer value inside its partition. A host whose caller scope key does not tell callers apart, because it declares no identity carrier, has one partition for all of them; the visibility check is then what stands between a leaked handle and another caller.
+- A handle is a bearer value inside its partition. A host whose caller scope key does not tell callers apart, because it declares no identity carrier or its callers carry none of those it declares (a session cookie under the default `authorization`), has one partition for all of them; the visibility check is then what stands between a leaked handle and another caller, and it decides the tool, not whose answer was stored. An SDK SHOULD tell the host when it first stores a result for a call that carries none of its identity carriers.
 - A gateway partitions by a digest of the caller's token, so a client that refreshes its token cannot read results stored under the previous one. The lifetime bounds that loss.
 - The default store lives in one process. Behind a load balancer, a read that reaches another process answers `result_unavailable` unless the host binds a shared store.
 - Member order is the order the parsed body enumerates. A JavaScript object enumerates integer-like member names first, so an implementation on another platform can order the outline and an object window differently.

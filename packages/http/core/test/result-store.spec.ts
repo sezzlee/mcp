@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   emitGuarded,
   MemoryResultStore,
@@ -62,6 +62,29 @@ describe("MemoryResultStore", () => {
     expect(await store.get("p", "first")).toBeUndefined();
     expect(await store.get("q", "second")).toBe("bbbb");
     expect(await store.get("r", "third")).toBe("cccc");
+  });
+
+  it("counts a replaced value's bytes once", async () => {
+    const store = new MemoryResultStore({ maxCallerBytes: 10 });
+    await store.put("p", "h", "aaaa");
+    await store.put("p", "other", "bbbb");
+    await store.put("p", "h", "cc");
+    await store.put("p", "third", "dddd");
+    expect(await store.get("p", "other")).toBe("bbbb");
+    expect(await store.get("p", "h")).toBe("cc");
+    expect(await store.get("p", "third")).toBe("dddd");
+  });
+
+  it("keeps a value for its lifetime when the wall clock is set forward", async () => {
+    const wall = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    try {
+      const store = new MemoryResultStore({ lifetimeMs: 2_000 });
+      await store.put("p", "h", "v");
+      wall.mockReturnValue(1_000_000 + 3_600_000);
+      expect(await store.get("p", "h")).toBe("v");
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 
   it("refuses a value over the partition cap without dropping what it holds", async () => {
@@ -216,6 +239,41 @@ describe("storing an over-budget answer", () => {
     expect(wire.isError).toBe(true);
     expect(answerOf(wire)).toMatchObject({ error: "response_too_large" });
     expect(reported).toEqual([failure]);
+  });
+
+  it.each<{ readonly name: string; readonly shelf: ResultShelf }>([
+    {
+      name: "the store does not keep the value",
+      shelf: {
+        store: { put: async () => undefined, get: async () => undefined },
+        partition: "alice",
+      },
+    },
+    {
+      name: "the store and then its reporter fail",
+      shelf: {
+        store: {
+          put: async () => {
+            throw new Error("store down");
+          },
+          get: async () => undefined,
+        },
+        partition: "alice",
+        report: () => {
+          throw new Error("logger down");
+        },
+      },
+    },
+  ])("falls back to the refusal when $name", async ({ shelf }) => {
+    const wire = await emitGuarded(budget, async () => overBudget(), shelf);
+    expect(wire.isError).toBe(true);
+    expect(answerOf(wire)).toMatchObject({ error: "response_too_large" });
+  });
+
+  it("checks a missing handle before the types of the other arguments", async () => {
+    const shelf = { store: new MemoryResultStore(), partition: "alice" };
+    const wire = await read(shelf, { handle: null, path: 42 });
+    expect(answerOf(wire)).toMatchObject({ error: "unknown_argument" });
   });
 
   it("falls back to the refusal when the stored answer itself is over the budget", async () => {

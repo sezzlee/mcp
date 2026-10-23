@@ -48,6 +48,13 @@ export interface MemoryResultStoreOptions {
   readonly lifetimeMs?: number;
   readonly maxCallerBytes?: number;
   readonly maxBytes?: number;
+  /**
+   * Milliseconds from a clock that never goes back; `performance.now` by default.
+   *
+   * Guard: insertion order is expiry order only under such a clock. The wall clock moves when the
+   * host's time is corrected, and a step back would leave an expired value behind a live one, where
+   * the sweep stops before reaching it and the live one is evicted first.
+   */
   readonly now?: () => number;
 }
 
@@ -77,7 +84,7 @@ export class MemoryResultStore implements ResultStore {
     this.lifetimeMs = options.lifetimeMs ?? resultLimits.lifetimeMs;
     this.maxCallerBytes = options.maxCallerBytes ?? resultLimits.maxCallerBytes;
     this.maxBytes = options.maxBytes ?? resultLimits.maxBytes;
-    this.now = options.now ?? Date.now;
+    this.now = options.now ?? (() => performance.now());
   }
 
   async put(
