@@ -2,6 +2,7 @@
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
+import { MemoryResultStore } from "@sezzlee/core";
 import type { DocumentLoader } from "@sezzlee/openapi";
 import {
   buildGatewayCatalog,
@@ -169,8 +170,23 @@ const reloader = createCatalogReloader({
   describe,
 });
 const fetcher = createBoundedFetch(gateway.allowedHosts);
+const results = config.results.enabled
+  ? new MemoryResultStore(config.results)
+  : undefined;
 const factory = (announce: boolean) => () =>
-  createOpenApiMcpServer(reloader, fetcher, config.limits, { announce });
+  createOpenApiMcpServer(reloader, fetcher, config.limits, {
+    announce,
+    ...(results === undefined
+      ? {}
+      : {
+          results,
+          reportStoreFailure: (error: unknown) => {
+            process.stderr.write(
+              `sezzlee-openapi: the result store failed to keep an over-budget answer: ${error instanceof Error ? error.message : String(error)}\n`,
+            );
+          },
+        }),
+  });
 
 function report(outcome: ReloadOutcome): void {
   switch (outcome.kind) {

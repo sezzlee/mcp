@@ -4,7 +4,7 @@
 
 ## Group operations with tags
 
-Every operation already carries one tag, its container's name: the controller class, minus the `Controller` suffix. That follows your code layout, not the job the agent is doing. Declare your own:
+Every operation already carries the tags `@nestjs/swagger` gives it: the controller's `@ApiTags` followed by the handler's, or, for a controller with no `@ApiTags`, its class name minus the `Controller` suffix. A class name follows your code layout, not the job the agent is doing. Declare your own:
 
 ```ts
 @Get("orders")

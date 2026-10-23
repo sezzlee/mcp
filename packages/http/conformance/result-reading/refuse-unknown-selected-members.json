@@ -1,0 +1,37 @@
+{
+  "kind": "result-reading",
+  "description": "Selected names that no element has are listed, followed by the members that exist there.",
+  "input": {
+    "body": {
+      "total": 3,
+      "items": [
+        {
+          "id": 1,
+          "status": "open"
+        },
+        {
+          "id": 2,
+          "status": "paid",
+          "note": "gift"
+        },
+        {
+          "id": 3
+        }
+      ],
+      "meta": {
+        "page": {
+          "size": 3
+        }
+      }
+    },
+    "read": {
+      "path": "/items",
+      "select": ["id", "price", "qty"]
+    }
+  },
+  "expected": {
+    "error": "invalid_selection",
+    "message": "Path '/items' has no property named 'price', 'qty'. Its properties are: id, status, note.",
+    "retryable": false
+  }
+}

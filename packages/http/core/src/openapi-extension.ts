@@ -77,24 +77,35 @@ const methods = [
 ] as const;
 
 /**
- * Writes the extensions into an OpenAPI document in place, replacing any already there. Operations
- * the extensions do not name are left as they are.
+ * What {@link annotateOpenApiDocument} could not match, keyed `METHOD /path`.
+ *
+ * @param excluded operations of the document the extensions do not name, written `tool: false`
+ * @param undocumented operations the catalog publishes from that the document does not carry, so a
+ * gateway reading it cannot publish their tools
+ */
+export interface AnnotationReport {
+  readonly excluded: readonly string[];
+  readonly undocumented: readonly string[];
+}
+
+/**
+ * Writes the extensions into an OpenAPI document in place, replacing any already there.
+ *
+ * Guard: an operation the extensions do not name is written `tool: false`. The catalog decided
+ * every route it saw, so one it does not name is one it did not publish: its own MCP route, a
+ * handler it dropped, or a route outside its discovery. Left unmarked, it would fall to a gateway's
+ * selection default, and a gateway that includes by default would publish it.
  */
 export function annotateOpenApiDocument(
   document: object,
   extensions: OpenApiExtensions,
-): void {
-  if (!isRecord(document)) {
-    return;
-  }
-  if (extensions.document !== undefined) {
+): AnnotationReport {
+  const paths = isRecord(document) ? document["paths"] : undefined;
+  if (isRecord(document) && extensions.document !== undefined) {
     document[openApiExtensionKey] = structuredClone(extensions.document);
   }
-  const paths = document["paths"];
-  if (!isRecord(paths)) {
-    return;
-  }
-  for (const [path, item] of Object.entries(paths)) {
+  const documented = new Map<string, Record<string, unknown>>();
+  for (const [path, item] of Object.entries(isRecord(paths) ? paths : {})) {
     if (!isRecord(item)) {
       continue;
     }
@@ -104,14 +115,27 @@ export function annotateOpenApiDocument(
     }
     for (const method of methods) {
       const operation = item[method];
-      const extension = extensions.operations.get(
-        `${method.toUpperCase()} ${path}`,
-      );
-      if (isRecord(operation) && extension !== undefined) {
-        operation[openApiExtensionKey] = structuredClone(extension);
+      if (isRecord(operation)) {
+        documented.set(`${method.toUpperCase()} ${path}`, operation);
       }
     }
   }
+  const excluded: string[] = [];
+  for (const [key, operation] of documented) {
+    const extension = extensions.operations.get(key);
+    if (extension === undefined) {
+      excluded.push(key);
+    }
+    operation[openApiExtensionKey] = structuredClone(
+      extension ?? { tool: false },
+    );
+  }
+  const undocumented = [...extensions.operations]
+    .filter(
+      ([key, extension]) => extension.tool === true && !documented.has(key),
+    )
+    .map(([key]) => key);
+  return { excluded, undocumented };
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -131,17 +155,24 @@ function soleRevision(
  * the two hosts.
  */
 function extensionOf(decision: OperationDecision): OperationExtension {
-  const { descriptor, toolName } = decision;
+  const { descriptor, toolName, foldedInto } = decision;
   if (descriptor === undefined) {
-    return { tool: false };
+    return foldedInto === undefined
+      ? { tool: false }
+      : { tool: false, foldedInto };
   }
   const annotations = descriptor.annotations;
   const family = descriptor.family;
+  const single = descriptor.variants === undefined;
   return {
     tool: true,
-    ...(toolName === undefined || descriptor.variants !== undefined
+    ...(toolName === undefined || !single ? {} : { toolName }),
+    ...(descriptor.description === undefined || !single
       ? {}
-      : { toolName }),
+      : { description: descriptor.description }),
+    ...(descriptor.tags === undefined ? {} : { tags: [...descriptor.tags] }),
+    ...schemasOf(descriptor),
+    ...(anyCaller(descriptor.auth) ? { anonymous: true } : {}),
     ...(annotations === undefined || Object.keys(annotations).length === 0
       ? {}
       : { annotations }),
@@ -159,6 +190,52 @@ function extensionOf(decision: OperationDecision): OperationExtension {
     ...(descriptor.revision?.operation === undefined
       ? {}
       : { revision: descriptor.revision.operation }),
+  };
+}
+
+/**
+ * Guard: only an operation any caller may make is marked. A gateway knows nothing of its caller, so
+ * a policy or an imperative guard the SDK evaluates per caller would read as certain there.
+ */
+const anyCaller = (auth: EndpointDescriptor["auth"]): boolean =>
+  auth.anonymous === "yes" && auth.policies.length === 0 && !auth.imperative;
+
+/**
+ * Guard: every slot is written, an empty one included, so the gateway reads the schemas the SDK
+ * published rather than the generator's: a schema the SDK could not read stays unread there too.
+ * `publishedSchemas` keeps the gateway from normalizing them as Schema Objects of the document,
+ * which drops `default` and merges `allOf`, so a host-declared schema would reach it changed.
+ */
+function schemasOf(
+  descriptor: EndpointDescriptor,
+): Required<
+  Pick<OperationExtension, "parameters" | "responses" | "publishedSchemas">
+> &
+  Pick<OperationExtension, "requestBody"> {
+  const body = descriptor.requestBody;
+  return {
+    publishedSchemas: true,
+    parameters: (descriptor.parameters ?? []).map((parameter) => ({
+      name: parameter.name,
+      in: parameter.in,
+      required: parameter.required,
+      schema: parameter.schema,
+      ...(parameter.description === undefined
+        ? {}
+        : { description: parameter.description }),
+    })),
+    ...(body === undefined
+      ? {}
+      : {
+          requestBody: {
+            schema: body.schema,
+            ...(body.required === undefined ? {} : { required: body.required }),
+            ...(body.description === undefined
+              ? {}
+              : { description: body.description }),
+          },
+        }),
+    responses: descriptor.responses ?? {},
   };
 }
 

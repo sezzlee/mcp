@@ -11,6 +11,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { MemoryResultStore, type ResultStore } from "@sezzlee/core";
 import {
   buildGatewayCatalog,
   configSchema,
@@ -37,7 +38,13 @@ beforeAll(async () => {
   server = createServer((req, res) => {
     if (req.url !== "/openapi.json") {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end("{}");
+      res.end(
+        req.url === "/v1/b"
+          ? JSON.stringify(
+              Array.from({ length: 200 }, (_value, id) => ({ id })),
+            )
+          : "{}",
+      );
       return;
     }
     reads += 1;
@@ -106,11 +113,13 @@ async function start(
   body: string,
   etag: string | undefined = "v1",
   credentials: ReadonlyMap<string, ResolvedCredential> = new Map(),
+  results?: ResultStore,
 ) {
   served = { body, etag };
   const config = configSchema.parse({
     source: `${origin}/openapi.json`,
     selection: { default: "include" },
+    limits: { maxResponseBytes: 1024 },
   });
   const fetch = createBoundedFetch(new Set([new URL(origin).host]));
   const read = (validators: DocumentValidators) =>
@@ -144,6 +153,7 @@ async function start(
   });
   const mcp = createOpenApiMcpServer(reloader, fetch, config.limits, {
     announce: true,
+    ...(results === undefined ? {} : { results }),
   });
   const client = new Client({ name: "reload-spec", version: "0.0.0" });
   let announced = 0;
@@ -184,6 +194,27 @@ describe("openapi-mcp document reload", () => {
         })
       ).error,
     ).toBe("tool_changed");
+    await client.close();
+  });
+
+  it("stops serving a stored result once a reload removes the tool that produced it", async () => {
+    const { reloader, client, call } = await start(
+      first(),
+      "v1",
+      new Map(),
+      new MemoryResultStore(),
+    );
+    const stored = (await call("invoke_tool", {
+      name: "get_b",
+      arguments: {},
+    })) as { stored: { handle: string } };
+    const read = { handle: stored.stored.handle, limit: 1 };
+    expect((await call("read_result", read)).error).toBeUndefined();
+
+    served = { body: second(), etag: "v2" };
+    await reloader.reload();
+
+    expect((await call("read_result", read)).error).toBe("result_unavailable");
     await client.close();
   });
 

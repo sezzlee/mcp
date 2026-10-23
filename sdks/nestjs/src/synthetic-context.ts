@@ -1,6 +1,7 @@
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
 import {
+  decodeResponseBody,
   SezzleeDispatchAborted,
   type DispatchAbortReason,
 } from "@sezzlee/core";
@@ -9,6 +10,17 @@ import type { OuterConnection } from "./outer-connection.js";
 
 export { SezzleeDispatchAborted };
 export type { DispatchAbortReason };
+
+/** The handler wrote more than the read cap; the body was dropped as it crossed it. */
+export class SezzleeResponseTooLarge extends Error {
+  constructor(
+    readonly limit: number,
+    readonly status: number,
+  ) {
+    super(`The response exceeded ${limit} bytes.`);
+    this.name = "SezzleeResponseTooLarge";
+  }
+}
 
 export interface SyntheticContext {
   req: IncomingMessage;
@@ -49,6 +61,17 @@ function reflectConnection(
   }
 }
 
+function bodyOf(
+  bytes: Buffer,
+  contentType: string | undefined,
+): Pick<DispatchResult, "body" | "bodyEncoding"> {
+  const { body, bodyEncoding } = decodeResponseBody(bytes, contentType);
+  return {
+    body: body ?? "",
+    ...(bodyEncoding === undefined ? {} : { bodyEncoding }),
+  };
+}
+
 export function createSyntheticContext(
   method: string,
   url: string,
@@ -56,6 +79,7 @@ export function createSyntheticContext(
   scheme: string,
   body?: Buffer,
   connection?: OuterConnection,
+  maxBytes?: number,
 ): SyntheticContext {
   const socket = new Socket();
   if (scheme === "https") {
@@ -82,25 +106,39 @@ export function createSyntheticContext(
 
   const res = new ServerResponse(req);
   const chunks: Buffer[] = [];
+  let buffered = 0;
   let settled = false;
-  let abandon: ((reason: DispatchAbortReason) => void) | undefined;
+  let stop: ((error: Error) => void) | undefined;
   const result = new Promise<DispatchResult>((resolve, reject) => {
     const capture = (chunk: unknown, encoding: unknown): void => {
       if (settled) {
         return;
       }
+      const textEncoding: BufferEncoding =
+        typeof encoding === "string" ? (encoding as BufferEncoding) : "utf8";
+      let size: number;
       if (typeof chunk === "string") {
-        chunks.push(
-          Buffer.from(
-            chunk,
-            typeof encoding === "string"
-              ? (encoding as BufferEncoding)
-              : "utf8",
-          ),
-        );
-      } else if (chunk instanceof Buffer || chunk instanceof Uint8Array) {
-        chunks.push(Buffer.from(chunk));
+        size = Buffer.byteLength(chunk, textEncoding);
+      } else if (chunk instanceof Uint8Array) {
+        size = chunk.byteLength;
+      } else {
+        return;
       }
+      buffered += size;
+      /**
+       * Guard: the cap is checked on the chunk's length before it is copied. Copying first doubled
+       * the memory of a chunk over the cap — the handler's buffer and the copy — before refusing it.
+       */
+      if (maxBytes !== undefined && buffered > maxBytes) {
+        chunks.length = 0;
+        stop?.(new SezzleeResponseTooLarge(maxBytes, res.statusCode));
+        return;
+      }
+      chunks.push(
+        typeof chunk === "string"
+          ? Buffer.from(chunk, textEncoding)
+          : Buffer.from(chunk),
+      );
     };
     res.write = function write(
       chunk: unknown,
@@ -128,11 +166,17 @@ export function createSyntheticContext(
       const done = [chunk, encoding, callback].find(
         (arg) => typeof arg === "function",
       );
+      if (settled) {
+        if (typeof done === "function") {
+          (done as () => void)();
+        }
+        return res;
+      }
       const responseHeaders = captureHeaders(res);
       settled = true;
       resolve({
         status: res.statusCode,
-        body: Buffer.concat(chunks).toString("utf8"),
+        ...bodyOf(Buffer.concat(chunks), responseHeaders["content-type"]),
         contentType: responseHeaders["content-type"],
         headers: responseHeaders,
       });
@@ -151,12 +195,12 @@ export function createSyntheticContext(
      * the normal case, not the exception. Pinned by the abandoned-handler tests in
      * test/dispatch-abort.spec.ts.
      */
-    abandon = (reason: DispatchAbortReason): void => {
+    stop = (error: Error): void => {
       if (settled) {
         return;
       }
       settled = true;
-      reject(new SezzleeDispatchAborted(reason));
+      reject(error);
       try {
         req.emit("aborted");
         req.emit("close");
@@ -175,7 +219,7 @@ export function createSyntheticContext(
     res,
     result,
     abort: (reason: DispatchAbortReason): void => {
-      abandon?.(reason);
+      stop?.(new SezzleeDispatchAborted(reason));
     },
   };
 }

@@ -1,0 +1,36 @@
+{
+  "kind": "result-reading",
+  "description": "A member the root does not have names nothing; the longest existing part is the root.",
+  "input": {
+    "body": {
+      "total": 3,
+      "items": [
+        {
+          "id": 1,
+          "status": "open"
+        },
+        {
+          "id": 2,
+          "status": "paid",
+          "note": "gift"
+        },
+        {
+          "id": 3
+        }
+      ],
+      "meta": {
+        "page": {
+          "size": 3
+        }
+      }
+    },
+    "read": {
+      "path": "/orders"
+    }
+  },
+  "expected": {
+    "error": "invalid_selection",
+    "message": "Path '/orders' names nothing in the stored result. The longest part of it that exists is ''.",
+    "retryable": false
+  }
+}

@@ -123,6 +123,7 @@ describe("query grouping", () => {
 
 describe("the Express query parser guard", () => {
   let catalog: SezzleeCatalog;
+  let failure: unknown;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -135,23 +136,29 @@ describe("the Express query parser guard", () => {
       controllers: [GroupedController],
     }).compile();
     const app = moduleRef.createNestApplication({ logger: false });
-    await app.init();
+    app.getHttpAdapter().getInstance().set("query parser", "simple");
+    failure = await app.init().then(
+      () => undefined,
+      (error: unknown) => error,
+    );
     catalog = app.get(SezzleeCatalog);
   });
 
   /**
-   * Guard: Express 5 defaults `query parser` to `simple`, so a stock host
-   * receives `filter[status]` as one literal key and the DTO binds nothing.
+   * Guard: Express 5 defaults `query parser` to `simple` and Express 4 to `extended`, so the host
+   * sets it explicitly; under `simple` `filter[status]` arrives as one literal key and the DTO binds
+   * nothing.
    */
-  it("G5: reports query_parser_not_extended on a stock Express host", () => {
+  it("G5: reports query_parser_not_extended on a host that parses queries as simple", () => {
     expect(catalog.diagnostics.map((diagnostic) => diagnostic.code)).toContain(
       "query_parser_not_extended",
     );
   });
 
-  it("G6: is fatal, so the catalog refuses to validate", () => {
-    expect(() => {
-      catalog.ensureValid();
-    }).toThrow(/query parser/);
+  it("G6: is fatal, so the application refuses to start", () => {
+    expect(failure).toMatchObject({
+      name: "SezzleeCatalogError",
+      code: "query_parser_not_extended",
+    });
   });
 });

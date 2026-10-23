@@ -1,0 +1,15 @@
+{
+  "kind": "error-mapping",
+  "description": "Text is decoded in the charset its content type names, so ISO-8859-1 bytes that are not valid UTF-8 still arrive as text.",
+  "input": {
+    "status": 200,
+    "contentType": "text/plain; charset=iso-8859-1",
+    "body": "R3L83w==",
+    "bodyEncoding": "base64"
+  },
+  "expected": {
+    "status": 200,
+    "body": "Grüß",
+    "contentType": "text/plain; charset=iso-8859-1"
+  }
+}

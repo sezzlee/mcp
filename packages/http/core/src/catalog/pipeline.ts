@@ -78,6 +78,8 @@ export interface CatalogCandidate<Source extends object = object> {
   readonly tags?: readonly string[];
   readonly searchTerms?: readonly string[];
   readonly revision?: RevisionDeclarations;
+  /** Routes the source already folded into this operation, handled like the ones the catalog folds. */
+  readonly alternateRoutes?: readonly string[];
   readonly declare: (tags: readonly string[] | undefined) => EndpointDescriptor;
 }
 
@@ -117,6 +119,8 @@ export interface CatalogPipelineOptions<Source extends object = object> {
 export interface OperationDecision {
   readonly descriptor?: EndpointDescriptor;
   readonly toolName?: string;
+  /** The key of the operation this route was folded into, which publishes its tool. */
+  readonly foldedInto?: string;
 }
 
 export interface CatalogBuild<Source extends object = object> {
@@ -212,12 +216,19 @@ export function buildCatalog<Source extends object>(
   };
 
   const alternates = new Map<CatalogCandidate<Source>, string[]>();
+  const foldedInto = new Map<CatalogCandidate<Source>, string>();
   const operations = deduplicateOperations(
     chosen,
     declare,
     ({ kept, folded }) => {
       const routes = folded.map((candidate) => candidate.descriptor.route);
-      alternates.set(kept, routes);
+      alternates.set(kept, [
+        ...routes,
+        ...folded.flatMap((candidate) => candidate.alternateRoutes ?? []),
+      ]);
+      for (const candidate of folded) {
+        foldedInto.set(candidate, operationKeyOf(kept.descriptor));
+      }
       report({
         code: "route_folded",
         message: `${kept.owner} is also mounted at ${routes.join(", ")}; one tool is produced and ${kept.descriptor.route} is the route it invokes.`,
@@ -241,8 +252,23 @@ export function buildCatalog<Source extends object>(
     }
   });
 
+  for (const candidate of operations) {
+    const declared = candidate.alternateRoutes ?? [];
+    if (declared.length > 0) {
+      alternates.set(candidate, [
+        ...declared,
+        ...(alternates.get(candidate) ?? []),
+      ]);
+    }
+  }
   const decisions = new Map<string, OperationDecision>(
-    candidates.map((candidate) => [operationKeyOf(candidate.descriptor), {}]),
+    candidates.map((candidate) => {
+      const into = foldedInto.get(candidate);
+      return [
+        operationKeyOf(candidate.descriptor),
+        into === undefined ? {} : { foldedInto: into },
+      ];
+    }),
   );
   const productions: ToolProduction[] = [];
   for (const declared of declaredList) {

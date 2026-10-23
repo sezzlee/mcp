@@ -1,0 +1,16 @@
+{
+  "kind": "error-mapping",
+  "description": "A success body that is not UTF-8 text is carried as base64 with bodyEncoding, not decoded into replacement characters.",
+  "input": {
+    "status": 200,
+    "contentType": "application/pdf",
+    "body": "JVBERi0xLjcK4uPP0w==",
+    "bodyEncoding": "base64"
+  },
+  "expected": {
+    "status": 200,
+    "body": "JVBERi0xLjcK4uPP0w==",
+    "contentType": "application/pdf",
+    "bodyEncoding": "base64"
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "kind": "result-reading",
+  "description": "The outline lists containers at most three levels below the root.",
+  "input": {
+    "stored": {
+      "status": 200,
+      "body": {
+        "l1": {
+          "l2": {
+            "l3": {
+              "l4": {
+                "l5": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+    "bytes": 812345,
+    "limit": 262144,
+    "expiresInSeconds": 600
+  },
+  "expected": {
+    "status": 200,
+    "stored": {
+      "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+      "bytes": 812345,
+      "limit": 262144,
+      "expiresInSeconds": 600,
+      "outline": [
+        {
+          "path": "",
+          "kind": "object",
+          "count": 1,
+          "fields": ["l1"]
+        },
+        {
+          "path": "/l1",
+          "kind": "object",
+          "count": 1,
+          "fields": ["l2"]
+        },
+        {
+          "path": "/l1/l2",
+          "kind": "object",
+          "count": 1,
+          "fields": ["l3"]
+        },
+        {
+          "path": "/l1/l2/l3",
+          "kind": "object",
+          "count": 1,
+          "fields": ["l4"]
+        }
+      ]
+    },
+    "message": "The response is 812345 bytes; the limit is 262144 bytes. It was stored, not returned: read it with read_result and the handle, choosing a path from the outline, the properties to select and a window with offset and limit. The stored result expires in 600 seconds."
+  }
+}

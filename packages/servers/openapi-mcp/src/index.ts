@@ -18,6 +18,7 @@ export {
   applyCredentials,
 } from "./credentials/credentials.js";
 export {
+  BackendUnreachable,
   createBoundedFetch,
   HostNotAllowed,
   ResponseTooLarge,

@@ -1,0 +1,20 @@
+{
+  "kind": "result-reading",
+  "description": "A null argument is read as an absent one.",
+  "input": {
+    "body": [1],
+    "read": {
+      "path": null,
+      "select": null,
+      "offset": null,
+      "limit": null
+    }
+  },
+  "expected": {
+    "path": "",
+    "kind": "array",
+    "total": 1,
+    "offset": 0,
+    "value": [1]
+  }
+}

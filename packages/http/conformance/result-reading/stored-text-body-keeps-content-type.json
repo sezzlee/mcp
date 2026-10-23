@@ -1,0 +1,33 @@
+{
+  "kind": "result-reading",
+  "description": "A text body that is not JSON is stored as a string; the answer keeps its content type and the outline counts UTF-16 code units.",
+  "input": {
+    "stored": {
+      "status": 200,
+      "contentType": "text/csv",
+      "body": "id,name\n1,Çağrı\n"
+    },
+    "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+    "bytes": 300000,
+    "limit": 262144,
+    "expiresInSeconds": 120
+  },
+  "expected": {
+    "status": 200,
+    "contentType": "text/csv",
+    "stored": {
+      "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+      "bytes": 300000,
+      "limit": 262144,
+      "expiresInSeconds": 120,
+      "outline": [
+        {
+          "path": "",
+          "kind": "string",
+          "count": 16
+        }
+      ]
+    },
+    "message": "The response is 300000 bytes; the limit is 262144 bytes. It was stored, not returned: read it with read_result and the handle, choosing a path from the outline, the properties to select and a window with offset and limit. The stored result expires in 120 seconds."
+  }
+}

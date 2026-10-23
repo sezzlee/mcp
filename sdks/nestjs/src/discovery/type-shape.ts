@@ -9,6 +9,8 @@ import type {
   TypeShape,
 } from "@sezzlee/core";
 
+import { asRecord, documentedType, resolveLazy } from "./swagger-metadata.js";
+
 const load = createRequire(import.meta.url);
 
 export interface TypeShapeDiagnostic {
@@ -21,6 +23,13 @@ export interface TypeShapeBinderOptions {
     target: NewableFunction,
   ) => TypeShape | TypeNode | undefined;
   readonly report?: (diagnostic: TypeShapeDiagnostic) => void;
+  readonly serialization?: SerializationView;
+}
+
+/** How `ClassSerializerInterceptor` writes an instance: class-transformer's `classToPlain` options. */
+export interface SerializationView {
+  readonly strategy?: string;
+  readonly excludeExtraneousValues?: boolean;
 }
 
 interface ValidationEntry {
@@ -104,22 +113,97 @@ export class NestTypeShapeBinder {
 
   private members(target: NewableFunction): Member[] {
     const validation = groupValidators(target);
-    if (validation.size === 0) {
+    const documentation = documentedMembers(target);
+    if (validation.size === 0 && documentation.size === 0) {
       this.options.report?.({
         code: "unreadable_shape",
-        message: `'${target.name}' carries no class-validator metadata; its shape cannot be read. Decorate its properties, or declare options.schema.typeShape.`,
+        message: `'${target.name}' carries no class-validator or @nestjs/swagger metadata; its shape cannot be read. Decorate its properties, or declare options.schema.typeShape.`,
       });
       return [];
     }
-    return [...validation].map(([property, entries]) =>
-      this.member(target, property, entries),
+    const members = interleave(
+      [...validation.keys()],
+      [...documentation.keys()],
+    ).map((property) =>
+      this.member(
+        target,
+        property,
+        validation.get(property) ?? [],
+        documentation.get(property),
+      ),
     );
+    return this.options.serialization === undefined
+      ? members
+      : this.serialized(target, members, this.options.serialization);
   }
 
+  /**
+   * The members `classToPlain` writes: what `@Exclude()` removes, what the strategy or
+   * `excludeExtraneousValues` leaves out, what an `@Expose()` accessor adds, under the name
+   * `@Expose({ name })` gives it.
+   */
+  private serialized(
+    target: NewableFunction,
+    members: readonly Member[],
+    view: SerializationView,
+  ): Member[] {
+    const storage = transformStorage();
+    if (storage === undefined) {
+      return [...members];
+    }
+    const declared = storage.getStrategy(target);
+    const strategy =
+      declared === "none" ? (view.strategy ?? "exposeAll") : declared;
+    const exposed = storage.getExposedProperties(target, classToPlain);
+    const excluded = new Set(
+      storage.getExcludedProperties(target, classToPlain),
+    );
+    const everything =
+      strategy === "exposeAll" && view.excludeExtraneousValues !== true;
+    const written = members.filter(
+      (member) =>
+        (everything || exposed.includes(member.name)) &&
+        !excluded.has(member.name),
+    );
+    for (const name of exposed) {
+      if (
+        excluded.has(name) ||
+        written.some((member) => member.name === name)
+      ) {
+        continue;
+      }
+      written.push({
+        name,
+        type: this.fromReflected(
+          Reflect.getMetadata("design:type", target.prototype as object, name),
+          name,
+        ),
+        required: false,
+        readOnly: true,
+        constructorBound: false,
+      });
+    }
+    return written.map((member) => {
+      const options = storage.findExposeMetadata(target, member.name)?.options;
+      const renamed =
+        options?.toClassOnly === true && options.toPlainOnly !== true
+          ? undefined
+          : options?.name;
+      return renamed === undefined ? member : { ...member, name: renamed };
+    });
+  }
+
+  /**
+   * Validators describe what the pipe enforces, so they decide a member's type and whether it is
+   * required wherever they speak; `@ApiProperty` fills only what they leave unsaid. A member
+   * documented as optional but validated without `@IsOptional()` is rejected when it is missing,
+   * so publishing it as optional would invite a call that fails.
+   */
   private member(
     target: NewableFunction,
     property: string,
     entries: readonly ValidationEntry[],
+    documented: DocumentedMember | undefined,
   ): Member {
     const nested = nestedType(target, property);
     const reflected = Reflect.getMetadata(
@@ -128,32 +212,48 @@ export class NestTypeShapeBinder {
       property,
     ) as unknown;
 
+    const validated =
+      nested === undefined ? this.fromValidators(entries) : undefined;
+    const declared =
+      nested === undefined &&
+      validated === undefined &&
+      documented !== undefined
+        ? this.fromDocumentation(documented)
+        : undefined;
     const inner =
       nested !== undefined
         ? this.node(nested, property)
-        : this.fromValidators(entries, reflected, property);
+        : (validated ?? declared ?? this.fromReflected(reflected, property));
 
-    const each = entries.some((entry) => entry.each === true);
-    const type: TypeNode = each ? { kind: "array", items: inner } : inner;
-    const constraints = constraintsOf(entries);
+    const listed =
+      entries.some((entry) => entry.each === true) ||
+      (validated === undefined &&
+        (documented?.isArray === true ||
+          (nested !== undefined && reflected === Array)));
+    const type: TypeNode = listed ? { kind: "array", items: inner } : inner;
+    const constraints = constraintsOf(entries, documented?.options);
+    const description = documented?.options["description"];
 
     return {
       name: property,
       type,
-      required: !entries.some(
-        (entry) => entry.type === "conditionalValidation",
-      ),
-      readOnly: false,
+      required:
+        entries.length > 0
+          ? !entries.some((entry) => entry.type === "conditionalValidation")
+          : documented?.options["required"] !== false,
+      readOnly: documented?.options["readOnly"] === true,
       constructorBound: false,
+      ...(documented?.options["nullable"] === true ? { nullable: true } : {}),
+      ...(typeof description === "string" && description.length > 0
+        ? { description }
+        : {}),
       ...(constraints === undefined ? {} : { constraints }),
     };
   }
 
   private fromValidators(
     entries: readonly ValidationEntry[],
-    reflected: unknown,
-    property: string,
-  ): TypeNode {
+  ): TypeNode | undefined {
     const enumFacts = enumFactsOf(entries);
     if (enumFacts !== undefined) {
       return { kind: "enum", enumFacts };
@@ -164,13 +264,170 @@ export class NestTypeShapeBinder {
         return mapped;
       }
     }
+    return undefined;
+  }
+
+  private fromDocumentation(
+    documented: DocumentedMember,
+  ): TypeNode | undefined {
+    if (documented.values !== undefined) {
+      const enumFacts = factsOf(documented.values, []);
+      return enumFacts === undefined ? undefined : { kind: "enum", enumFacts };
+    }
+    const { type } = documented;
+    if (typeof type === "string") {
+      return documentedScalar(type, documented.options["format"]);
+    }
+    if (typeof type !== "function" || type === Object || type === Array) {
+      return undefined;
+    }
+    return this.node(type, undefined);
+  }
+
+  private fromReflected(reflected: unknown, property: string): TypeNode {
     if (reflected !== undefined && reflected !== Array) {
       return this.node(reflected, property);
     }
     return unreadable(
-      `Member '${property}' has no readable type; add a class-validator type decorator or @Type(() => X).`,
+      `Member '${property}' has no readable type; add a class-validator type decorator, @ApiProperty({ type }) or @Type(() => X).`,
     );
   }
+}
+
+interface DocumentedMember {
+  readonly type: unknown;
+  readonly isArray: boolean;
+  readonly values?: readonly unknown[];
+  readonly options: Readonly<Record<string, unknown>>;
+}
+
+const documentedProperties = "swagger/apiModelProperties";
+const documentedPropertyList = "swagger/apiModelPropertiesArray";
+const pluginMetadataFactory = "_OPENAPI_METADATA_FACTORY";
+
+/**
+ * Reads what `@nestjs/swagger` knows about a class's members without loading it: the metadata its
+ * `@ApiProperty` decorators write, under the plugin's `_OPENAPI_METADATA_FACTORY`. The factory is
+ * read directly because `@nestjs/swagger` folds it into the decorator metadata only while it builds
+ * a document, which may never happen or happen after the catalog is built. A decorator wins over
+ * the factory and a subclass over its base, as `@nestjs/swagger` merges them.
+ */
+function documentedMembers(
+  target: NewableFunction,
+): Map<string, DocumentedMember> {
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const owner of lineageOf(target)) {
+    const factory: unknown = Object.hasOwn(owner, pluginMetadataFactory)
+      ? (owner as unknown as Record<string, unknown>)[pluginMetadataFactory]
+      : undefined;
+    if (typeof factory !== "function") {
+      continue;
+    }
+    const declared: unknown = (factory as () => unknown).call(owner);
+    for (const [name, options] of Object.entries(asRecord(declared) ?? {})) {
+      merged.set(name, { ...merged.get(name), ...asRecord(options) });
+    }
+  }
+  const listed: unknown = Reflect.getMetadata(
+    documentedPropertyList,
+    target.prototype as object,
+  );
+  for (const key of Array.isArray(listed) ? listed : []) {
+    if (typeof key !== "string" || !key.startsWith(":")) {
+      continue;
+    }
+    const name = key.slice(1);
+    const decorated = asRecord(
+      Reflect.getMetadata(
+        documentedProperties,
+        target.prototype as object,
+        name,
+      ),
+    );
+    merged.set(name, { ...merged.get(name), ...decorated });
+  }
+  return new Map(
+    [...merged].map(([name, options]) => [name, documentedMember(options)]),
+  );
+}
+
+function documentedMember(options: Record<string, unknown>): DocumentedMember {
+  let { type, isArray } = documentedType(options["type"], options["isArray"]);
+  let values = enumValuesOfDeclaration(options["enum"]);
+  const items = asRecord(options["items"]);
+  if (type === "array" && items !== undefined) {
+    type = items["type"];
+    values = enumValuesOfDeclaration(items["enum"]);
+    isArray = true;
+  }
+  return {
+    type,
+    isArray,
+    options,
+    ...(values === undefined ? {} : { values }),
+  };
+}
+
+function enumValuesOfDeclaration(
+  declared: unknown,
+): readonly unknown[] | undefined {
+  const resolved = resolveLazy(declared);
+  if (Array.isArray(resolved)) {
+    return resolved as readonly unknown[];
+  }
+  const entity = asRecord(resolved);
+  return entity === undefined
+    ? undefined
+    : namedValuesOf(entity).map(([, value]) => value);
+}
+
+function documentedScalar(type: string, format: unknown): TypeNode | undefined {
+  switch (type) {
+    case "string":
+      return typeof format === "string" && format.length > 0
+        ? scalar("string", format)
+        : scalar("string");
+    case "integer":
+    case "number":
+    case "boolean":
+      return scalar(type);
+    default:
+      return undefined;
+  }
+}
+
+function lineageOf(target: NewableFunction): NewableFunction[] {
+  const lineage: NewableFunction[] = [];
+  let current: unknown = target;
+  while (typeof current === "function" && current !== Function.prototype) {
+    lineage.unshift(current as NewableFunction);
+    current = Object.getPrototypeOf(current);
+  }
+  return lineage;
+}
+
+/**
+ * Merges two member lists that each follow declaration order but name different subsets of it, so
+ * a member read from only one registry keeps its place among the others.
+ */
+function interleave(
+  first: readonly string[],
+  second: readonly string[],
+): string[] {
+  const merged: string[] = [];
+  let next = 0;
+  for (const name of second) {
+    const at = first.indexOf(name);
+    if (at >= next) {
+      merged.push(...first.slice(next, at));
+      next = at + 1;
+    }
+    if (!merged.includes(name)) {
+      merged.push(name);
+    }
+  }
+  merged.push(...first.slice(next).filter((name) => !merged.includes(name)));
+  return merged;
 }
 
 /**
@@ -200,6 +457,10 @@ function memberEntriesOf(
   if (typeof entity !== "object" || entity === null) {
     return undefined;
   }
+  return namedValuesOf(entity);
+}
+
+function namedValuesOf(entity: object): [string, unknown][] {
   return Object.entries(entity).filter(([key]) =>
     Number.isNaN(Number.parseInt(key, 10)),
   );
@@ -226,42 +487,53 @@ function enumFactsOf(
 ): EnumFacts | undefined {
   for (const entry of entries) {
     const values = enumValuesOf(entry);
-    if (values === undefined || values.length === 0) {
+    if (values === undefined) {
       continue;
     }
-    const names = new Set<string>();
-    const numbers = new Set<number>();
-    let readable = true;
-    for (const value of values) {
-      if (typeof value === "string") {
-        names.add(value);
-      } else if (typeof value === "number" && Number.isInteger(value)) {
-        numbers.add(value);
-      } else {
-        readable = false;
-        break;
-      }
+    const facts = factsOf(
+      values,
+      memberEntriesOf(entry)?.map(([key]) => key) ?? [],
+    );
+    if (facts !== undefined) {
+      return facts;
     }
-    if (!readable) {
-      continue;
-    }
-    if (names.size > 0 && numbers.size > 0) {
-      return {
-        wireForm: "unresolved",
-        names: [...names],
-        numbers: [...numbers],
-      };
-    }
-    if (numbers.size > 0) {
-      return {
-        wireForm: "integer",
-        names: memberEntriesOf(entry)?.map(([key]) => key) ?? [],
-        numbers: [...numbers],
-      };
-    }
-    return { wireForm: "string", names: [...names], numbers: [] };
   }
   return undefined;
+}
+
+function factsOf(
+  values: readonly unknown[],
+  memberNames: readonly string[],
+): EnumFacts | undefined {
+  if (values.length === 0) {
+    return undefined;
+  }
+  const names = new Set<string>();
+  const numbers = new Set<number>();
+  for (const value of values) {
+    if (typeof value === "string") {
+      names.add(value);
+    } else if (typeof value === "number" && Number.isInteger(value)) {
+      numbers.add(value);
+    } else {
+      return undefined;
+    }
+  }
+  if (names.size > 0 && numbers.size > 0) {
+    return {
+      wireForm: "unresolved",
+      names: [...names],
+      numbers: [...numbers],
+    };
+  }
+  if (numbers.size > 0) {
+    return {
+      wireForm: "integer",
+      names: [...memberNames],
+      numbers: [...numbers],
+    };
+  }
+  return { wireForm: "string", names: [...names], numbers: [] };
 }
 
 function validatorScalar(name: string | undefined): TypeNode | undefined {
@@ -288,6 +560,7 @@ function validatorScalar(name: string | undefined): TypeNode | undefined {
 
 function constraintsOf(
   entries: readonly ValidationEntry[],
+  documented: Readonly<Record<string, unknown>> = {},
 ): Constraints | undefined {
   const found: Record<string, unknown> = {};
   const number = (value: unknown): number | undefined =>
@@ -325,6 +598,21 @@ function constraintsOf(
         break;
     }
   }
+  const documentedNumber = (...keys: string[]): number | undefined =>
+    keys
+      .map((key) => number(documented[key]))
+      .find((value) => value !== undefined);
+  found["minSize"] ??= documentedNumber("minLength", "minItems");
+  found["maxSize"] ??= documentedNumber("maxLength", "maxItems");
+  found["minimum"] ??= documentedNumber("minimum");
+  found["maximum"] ??= documentedNumber("maximum");
+  const pattern = documented["pattern"];
+  found["pattern"] ??=
+    pattern instanceof RegExp
+      ? pattern.source
+      : typeof pattern === "string"
+        ? pattern
+        : undefined;
   for (const key of Object.keys(found)) {
     if (found[key] === undefined) {
       delete found[key];
@@ -344,7 +632,24 @@ interface MetadataStorage {
 
 interface TransformStorage {
   findTypeMetadata(target: NewableFunction, property: string): unknown;
+  findExposeMetadata(
+    target: NewableFunction,
+    property: string,
+  ):
+    | {
+        readonly options?: {
+          readonly name?: string;
+          readonly toClassOnly?: boolean;
+          readonly toPlainOnly?: boolean;
+        };
+      }
+    | undefined;
+  getStrategy(target: NewableFunction): string;
+  getExposedProperties(target: NewableFunction, type: number): string[];
+  getExcludedProperties(target: NewableFunction, type: number): string[];
 }
+
+const classToPlain = 1;
 
 let validators: MetadataStorage | null | undefined;
 let transforms: TransformStorage | null | undefined;
@@ -384,10 +689,7 @@ function groupValidators(
   return grouped;
 }
 
-function nestedType(
-  target: NewableFunction,
-  property: string,
-): unknown | undefined {
+function transformStorage(): TransformStorage | undefined {
   if (transforms === undefined) {
     try {
       transforms = (
@@ -399,10 +701,14 @@ function nestedType(
       transforms = null;
     }
   }
-  if (transforms === null) {
-    return undefined;
-  }
-  const metadata = transforms.findTypeMetadata(target, property) as
+  return transforms ?? undefined;
+}
+
+function nestedType(
+  target: NewableFunction,
+  property: string,
+): unknown | undefined {
+  const metadata = transformStorage()?.findTypeMetadata(target, property) as
     { typeFunction?: () => unknown } | undefined;
   return metadata?.typeFunction?.();
 }

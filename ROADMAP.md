@@ -46,6 +46,17 @@ spec, a guard comment or the package README.
   sees it. Filtering members per caller needs a caller-dependent published schema, which the catalog
   snapshot, the generation stamp and `listChanged` all rule out today
   ([argument-curation.md](packages/http/spec/argument-curation.md), out of scope).
+- **Images inside the response budget.** A success whose body is an image under the budget is
+  answered as base64 text today. An MCP `image` content block would let a model that sees images
+  read it; the open question is what a client that does not support the block receives, and both
+  implementations have to answer it the same way.
+- **A stored binary result as a file argument.** `read_result` skips a body that carries
+  `bodyEncoding`, because a base64 window is of no use to an agent. Kept whole, its handle could be
+  passed to another tool as a `ref` file argument ([request-bodies.md](packages/http/spec/request-bodies.md)),
+  so a PDF one operation returns reaches a reader without passing through the agent's context.
+- **A `resource_link` beside the handle.** MCP can point a client at a resource instead of returning
+  it. Most clients do not let the model read one on demand and `resources/read` has no window, so
+  `read_result` stays the path; a link can be added beside the handle once clients read it.
 - **A dispatch key in the body.** A family dispatches on a path, query, header or cookie parameter.
   A JSON-RPC-style `{"method": ..., "params": ...}` body is not covered.
 

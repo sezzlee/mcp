@@ -8,7 +8,7 @@ import type {
   TypeNode,
   TypeShape,
 } from "./generated/type-shape.js";
-import { typeOf } from "./json-schema.js";
+import { admittingNull, typeOf } from "./json-schema.js";
 
 export type SchemaDiagnosticCode =
   | "unsupported_dictionary_key"
@@ -390,7 +390,7 @@ class Writer {
       const only = members[0] as Member;
       const unwrapped = this.node(only.type, depth);
       applyConstraints(unwrapped, only.description, only.constraints);
-      return unwrapped;
+      return only.nullable === true ? admittingNull(unwrapped) : unwrapped;
     }
 
     const properties: Record<string, JsonSchemaObject> = {};
@@ -399,7 +399,8 @@ class Writer {
     for (const member of members) {
       const schema = this.descend(member.type, depth);
       applyConstraints(schema, member.description, member.constraints);
-      properties[member.name] = schema;
+      properties[member.name] =
+        member.nullable === true ? admittingNull(schema) : schema;
       if (member.required) {
         required.push(member.name);
       }

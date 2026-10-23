@@ -15,33 +15,28 @@ import {
 } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { All, Req, Res, type INestApplication } from "@nestjs/common";
-import { McpServer } from "@modelcontextprotocol/server";
 import {
   Client,
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 import type { Request, Response } from "express";
-import { IsNotEmpty, IsString } from "class-validator";
+import { IsInt, IsNotEmpty, IsString } from "class-validator";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SezzleeCatalog } from "../src/catalog.js";
 import { McpTool } from "../src/decorators.js";
-import { SezzleeDispatcher } from "../src/dispatcher.js";
-import { extensionTokens } from "../src/extension-points.js";
-import type { InvokeResultMapper } from "../src/invoke-result-mapper.js";
-import { registerSezzleeTools } from "../src/meta-tools.js";
-import { SEZZLEE_OPTIONS, type SezzleeOptions } from "../src/options.js";
 import { SezzleeModule } from "../src/sezzlee.module.js";
-import {
-  SezzleeStreamableHttp,
-  type SezzleeRequestHandler,
-} from "../src/transport/streamable-http.js";
-import type { CallerScopeResolver } from "../src/cache.js";
-import { CallerVisibilityProvider } from "../src/visibility/provider.js";
+import { SezzleeMcpEndpoint } from "../src/transport/mcp-endpoint.js";
+import type { SezzleeRequestHandler } from "../src/transport/streamable-http.js";
 
 class NoteDto {
   @IsString()
   @IsNotEmpty()
   text!: string;
+}
+
+class OrderView {
+  @IsInt()
+  id!: number;
 }
 
 interface Authed {
@@ -95,6 +90,12 @@ class MatrixController {
     return { id };
   }
 
+  @Get("orders")
+  @McpTool({ responses: { 200: [OrderView] } })
+  listOrders(): OrderView[] {
+    return [{ id: 1 }, { id: 2 }];
+  }
+
   @Post("orders/:id/notes")
   @UseGuards(TokenGuard, OrdersReadGuard)
   addOrderNote(
@@ -114,27 +115,8 @@ interface Wire {
 class MetaToolsMcpController {
   private readonly serve: SezzleeRequestHandler;
 
-  constructor(
-    private readonly streamableHttp: SezzleeStreamableHttp,
-    private readonly catalog: SezzleeCatalog,
-    private readonly dispatcher: SezzleeDispatcher,
-    private readonly visibility: CallerVisibilityProvider,
-  ) {
-    this.serve = this.streamableHttp.serve(() => {
-      const server = new McpServer({
-        name: "nest-matrix",
-        version: "0.0.0",
-      });
-      registerSezzleeTools(server, {
-        catalog: this.catalog,
-        dispatcher: this.dispatcher,
-        mapper: mapper as InvokeResultMapper,
-        visibility: this.visibility,
-        scopes: scopes as CallerScopeResolver,
-        options: options as SezzleeOptions,
-      });
-      return server;
-    });
+  constructor(endpoint: SezzleeMcpEndpoint) {
+    this.serve = endpoint.serve({ name: "nest-matrix", version: "0.0.0" });
   }
 
   @All("mcp")
@@ -142,10 +124,6 @@ class MetaToolsMcpController {
     await this.serve(req, res);
   }
 }
-
-let mapper: InvokeResultMapper | undefined;
-let scopes: CallerScopeResolver | undefined;
-let options: SezzleeOptions | undefined;
 
 describe("nest meta-tools", () => {
   let app: INestApplication;
@@ -205,9 +183,6 @@ describe("nest meta-tools", () => {
     baseUrl = await app.getUrl();
 
     catalog = app.get(SezzleeCatalog);
-    mapper = app.get<InvokeResultMapper>(extensionTokens.invokeResultMapper);
-    scopes = app.get<CallerScopeResolver>(extensionTokens.callerScopeResolver);
-    options = app.get<SezzleeOptions>(SEZZLEE_OPTIONS);
   });
 
   afterAll(async () => {
@@ -217,11 +192,12 @@ describe("nest meta-tools", () => {
     await app.close();
   });
 
-  it("lists exactly the three meta-tools", async () => {
+  it("lists exactly the four meta-tools, read_result with the default result store", async () => {
     const listed = await (await clientFor("alice")).listTools();
     expect(listed.tools.map((tool) => tool.name).sort()).toEqual([
       "invoke_tool",
       "load_tool",
+      "read_result",
       "search_tools",
     ]);
   });
@@ -419,6 +395,25 @@ describe("nest meta-tools", () => {
     expect(alice.isError).toBe(false);
     expect(alice.parsed.status).toBe(200);
     expect(alice.parsed.body.id).toBe(1);
+  });
+
+  it("invoke_tool returns a list under the result key load_tool published", async () => {
+    const name = [...catalog.current.byName.keys()].find((candidate) =>
+      candidate.endsWith("list_orders"),
+    ) as string;
+    const loaded = await call<{ outputSchema: { required: string[] } }>(
+      "load_tool",
+      { name },
+      "alice",
+    );
+    const invoked = await call<{ status: number; body: unknown }>(
+      "invoke_tool",
+      { name, arguments: {} },
+      "alice",
+    );
+    expect(loaded.parsed.outputSchema.required).toEqual(["result"]);
+    expect(invoked.isError).toBe(false);
+    expect(invoked.parsed.body).toEqual({ result: [{ id: 1 }, { id: 2 }] });
   });
 
   it("invoke_tool flattens a body and forwards identity", async () => {

@@ -14,6 +14,7 @@ const schemas = [
   "endpoint-descriptor.schema.json",
   "tool-definition.schema.json",
   "invoke-result.schema.json",
+  "result-reading.schema.json",
   "type-shape.schema.json",
   "fixture.schema.json",
   "openapi-extension.schema.json",

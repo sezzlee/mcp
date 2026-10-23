@@ -8,7 +8,7 @@ Fixtures live under [packages/http/conformance](../conformance); every SDK's tes
 
 ```json
 {
-  "kind": "naming | metadata-extraction | argument-mapping | selection | visibility | search | error-mapping | schema-simplification | card | detail",
+  "kind": "naming | metadata-extraction | argument-mapping | selection | visibility | search | error-mapping | result-reading | schema-simplification | card | detail",
   "description": "what the fixture tests",
   "input": {},
   "expected": {}
@@ -28,6 +28,7 @@ Fixtures live under [packages/http/conformance](../conformance); every SDK's tes
 - `kind: "card"` — `input`: `{tool, decision?}` (`tool` being a complete `ToolDefinition`; `decision` being the three-valued visibility decision, defaulting to `allow`); `expected`: `{name, description, parameters, authUncertain?}`. Rules: [search-semantics.md](search-semantics.md), "The compact card".
 - `kind: "detail"` — `input` is the `card` input exactly: `{tool, decision?}`. `expected`: `{name, description, inputSchema, outputSchema?, annotations, authUncertain?}` — the shape `load_tool` returns and `search_tools` returns per result under `detail: "schema"`. One corpus pins both, because one projection serves both. It is a kind of its own rather than a second `expected` shape of `card`: a disjunction there would let a card fixture that forgot `parameters` pass as a detail fixture. The `search` kind is unaffected by `detail`: it fixes ranking, and its `expected` stays a name list. Rules: [search-semantics.md](search-semantics.md), "The loaded shape".
 - `kind: "error-mapping"` — two input forms, and which one a fixture uses decides which function runs. A `BackendResponseSpec` (`status`, `contentType?`, `headers?`, `body?`, `knownFields?`, `fieldAliases?`, `hiddenFields?`) drives the response mapper; an `SdkErrorSpec` (`sdkError`, plus `message?`, `bytes?`, `limit?`, `payload?`, `limitMs?`, `narrowing?`, `field?`, `reason?`) drives the SDK-side builders. `expected`: an `InvokeSuccess`, `MappedError` or `SdkError` conforming to [invoke-result.schema.json](schemas/invoke-result.schema.json). Rules: [error-mapping.md](error-mapping.md) and [invoke-semantics.md](invoke-semantics.md).
+- `kind: "result-reading"` — two input forms. A `StoreSpec` (`stored`: the `InvokeSuccess` the gate measured; `handle`, `bytes`, `limit`, `expiresInSeconds`, `applied?`) drives the stored answer, and `expected` is an `InvokeStored`. A `ReadSpec` (`body`: the stored body; `read`: the `read_result` arguments other than `handle`, as the agent sent them) drives a read, and `expected` is a `ReadResult` or an `SdkError`. Both conform to [result-reading.schema.json](schemas/result-reading.schema.json). Rules: [result-reading.md](result-reading.md).
 
 - `kind: "openapi-ingestion"` — `input`: `{document, options?}` (`document` being a Swagger 2.0 or OpenAPI 3.x document as parsed JSON; `options` carrying `documentUrl`, `baseUrl`, `strict`, `outputSchema`, `hoistPathPrefix`); `expected`: `{endpoints: [{key, baseUrl?, descriptor}], diagnostics: [{code, at}]}` — every endpoint and every diagnostic, in the order ingestion produces them, `at` being an RFC 6901 pointer into `input.document`. Rules: [openapi-ingestion.md](openapi-ingestion.md).
 
@@ -35,10 +36,10 @@ Fixtures live under [packages/http/conformance](../conformance); every SDK's tes
 
 A kind belongs to one profile, and an implementation is bound by the profiles it implements — not by every directory under `conformance/`.
 
-| Profile             | Kinds                                                                                                                                                                 | Bound implementations                                                   |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `core`              | `naming`, `metadata-extraction`, `argument-mapping`, `selection`, `visibility`, `search`, `ranked-search`, `schema-simplification`, `card`, `detail`, `error-mapping` | every SDK: `packages/http/core`, `sdks/nestjs`                          |
-| `openapi-ingestion` | `openapi-ingestion`                                                                                                                                                   | an implementation that reads OpenAPI documents: `packages/http/openapi` |
+| Profile             | Kinds                                                                                                                                                                                   | Bound implementations                                                   |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `core`              | `naming`, `metadata-extraction`, `argument-mapping`, `selection`, `visibility`, `search`, `ranked-search`, `schema-simplification`, `card`, `detail`, `error-mapping`, `result-reading` | every SDK: `packages/http/core`, `sdks/nestjs`                          |
+| `openapi-ingestion` | `openapi-ingestion`                                                                                                                                                                     | an implementation that reads OpenAPI documents: `packages/http/openapi` |
 
 A runner names the kinds it runs explicitly; it never walks the directory list. A directory walk would silently skip a newly added core kind in a runner that filters by name, and silently run a foreign profile's kind in one that does not. A new wire feature always enters the `core` profile, even when only an OpenAPI source produces it today, because the descriptor that carries it is shared.
 

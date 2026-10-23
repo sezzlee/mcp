@@ -1,0 +1,197 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "dokumanda olmayan ya da METHOD /path biciminde olmayan foldedInto uyarilir ve route alternatif olarak tasinmaz",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/orders/{id}": {
+          "get": {
+            "operationId": "read",
+            "parameters": [
+              {
+                "name": "id",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "tool": true,
+              "toolName": "read_order"
+            }
+          }
+        },
+        "/o/{id}": {
+          "get": {
+            "operationId": "readShort",
+            "parameters": [
+              {
+                "name": "id",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "tool": false,
+              "foldedInto": "POST /orders/{id}"
+            }
+          }
+        },
+        "/legacy/{id}": {
+          "get": {
+            "operationId": "readLegacy",
+            "parameters": [
+              {
+                "name": "id",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "tool": false,
+              "foldedInto": "read_order"
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "GET /orders/{id}",
+        "baseUrl": "https://api.test",
+        "selection": "include",
+        "descriptor": {
+          "operationId": "read",
+          "method": "GET",
+          "route": "/orders/{id}",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          },
+          "toolName": "read_order"
+        }
+      },
+      {
+        "key": "GET /o/{id}",
+        "baseUrl": "https://api.test",
+        "selection": "exclude",
+        "descriptor": {
+          "operationId": "readShort",
+          "method": "GET",
+          "route": "/o/{id}",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      },
+      {
+        "key": "GET /legacy/{id}",
+        "baseUrl": "https://api.test",
+        "selection": "exclude",
+        "descriptor": {
+          "operationId": "readLegacy",
+          "method": "GET",
+          "route": "/legacy/{id}",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      }
+    ],
+    "diagnostics": [
+      {
+        "code": "extension_fold_unmatched",
+        "at": "/paths/~1legacy~1{id}/get/x-sezzlee/foldedInto"
+      },
+      {
+        "code": "extension_fold_unmatched",
+        "at": "/paths/~1o~1{id}/get/x-sezzlee/foldedInto"
+      }
+    ]
+  }
+}

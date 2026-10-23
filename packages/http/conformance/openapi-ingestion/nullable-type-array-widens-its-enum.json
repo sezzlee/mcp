@@ -1,0 +1,76 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "nullable beside a type array adds null to the type list and to the enum, since an enum that omits null still rejects it",
+  "input": {
+    "document": {
+      "openapi": "3.1.0",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/items": {
+          "get": {
+            "operationId": "listItems",
+            "parameters": [
+              {
+                "name": "state",
+                "in": "query",
+                "schema": {
+                  "type": ["string"],
+                  "enum": ["open"],
+                  "nullable": true
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "GET /items",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "listItems",
+          "method": "GET",
+          "route": "/items",
+          "parameters": [
+            {
+              "name": "state",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": ["string", "null"],
+                "enum": ["open", null]
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      }
+    ],
+    "diagnostics": []
+  }
+}

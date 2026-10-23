@@ -641,7 +641,7 @@ describe("rate limiting configuration", () => {
     );
 
     expect(collectConfigurationFailures(options)).toEqual([
-      "rateLimiting.partition replaces the declared limits (default, search, load, invoke, invokeConcurrency, key); set one or the other.",
+      "rateLimiting.partition replaces the declared limits (default, search, load, invoke, read, invokeConcurrency, key); set one or the other.",
     ]);
   });
 
@@ -650,7 +650,7 @@ describe("rate limiting configuration", () => {
     options.rateLimiting = { key: (call) => call.callerScope };
 
     expect(collectConfigurationFailures(options)).toEqual([
-      "rateLimiting.key needs a declared limit (default, search, load, invoke or invokeConcurrency) to partition.",
+      "rateLimiting.key needs a declared limit (default, search, load, invoke, read or invokeConcurrency) to partition.",
     ]);
   });
 });

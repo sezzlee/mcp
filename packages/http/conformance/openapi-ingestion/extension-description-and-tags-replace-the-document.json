@@ -1,0 +1,64 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "x-sezzlee description ve tags operasyonun summary, description ve tags alanlarinin yerine gecer; bos etiket duser, isimlendirme container'i dokumanin ilk etiketinden kalir",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/orders": {
+          "get": {
+            "operationId": "listOrders",
+            "summary": "List orders",
+            "description": "Lists orders, newest first.",
+            "tags": ["sales", "reports"],
+            "x-sezzlee": {
+              "description": "  Cancels nothing; lists every order.  ",
+              "tags": ["Orders", " "]
+            },
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "GET /orders",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "listOrders",
+          "container": "sales",
+          "method": "GET",
+          "route": "/orders",
+          "description": "Cancels nothing; lists every order.",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          },
+          "tags": ["Orders"]
+        }
+      }
+    ],
+    "diagnostics": []
+  }
+}

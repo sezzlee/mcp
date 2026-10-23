@@ -12,19 +12,56 @@ the gateway's configuration.
 `@nestjs/swagger` builds:
 
 ```ts
+import { Logger } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { annotateOpenApiDocument, SezzleeCatalog } from "@sezzlee/sdk-nestjs";
 
+const catalog = app.get(SezzleeCatalog);
 const document = SwaggerModule.createDocument(app, new DocumentBuilder().build());
-annotateOpenApiDocument(document, app.get(SezzleeCatalog).openApiExtensions());
-SwaggerModule.setup("openapi", app, document);
+SwaggerModule.setup("openapi", app, document, {
+  patchDocumentOnRequest: (_req, _res, built) => {
+    const annotated = structuredClone(built);
+    annotateOpenApiDocument(annotated, catalog.openApiExtensions());
+    return annotated;
+  },
+});
+await app.listen(3000);
+
+const { undocumented } = annotateOpenApiDocument(structuredClone(document), catalog.openApiExtensions());
+if (undocumented.length > 0) {
+  Logger.warn(`Not in the OpenAPI document, so not on the gateway: ${undocumented.join(", ")}`);
+}
 ```
 
-In the NestJS sample, `GET /orders/:id` is published with this extension:
+`@nestjs/swagger` builds the document once and serves that copy, so the extensions are written in
+`patchDocumentOnRequest`, on a fresh copy for every read. Call `setup` before `listen`: a route added
+after the application initialized sits behind its 404 handler.
+
+In the NestJS sample, `GET /orders/:id` is published with this extension, its schemas shortened:
 
 ```json
-{"tool": true, "toolName": "get_order"}
+{
+  "tool": true,
+  "toolName": "get_order",
+  "description": "Fetches one order by id.",
+  "tags": ["Orders"],
+  "publishedSchemas": true,
+  "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { … } }],
+  "responses": { "200": { "schema": { … } }, "404": {} }
+}
 ```
+
+The description, tags and schemas are the ones the SDK published. They replace the operation's own
+`summary`, `description`, `tags` and schemas for the tool only, so the page `SwaggerModule.setup`
+serves keeps what was written for its readers. The schemas are the SDK's because the two readers
+differ even when both are right: class-validator's `@IsInt()` is an `integer` where
+`@nestjs/swagger` writes `number`, and `@nestjs/swagger` marks a named `@Query()` required. The wire
+form, how each parameter and the body are written, still comes from the document.
+`publishedSchemas` tells the gateway to take those schemas as written instead of normalizing them as
+the document's own, so a schema you declared keeps its `default` and its `allOf`.
+
+An operation the SDK publishes but the document leaves out, such as a handler marked
+`@ApiExcludeEndpoint()`, cannot reach the gateway; `report.undocumented` names it.
 
 A curated operation also carries its renamed, re-described and hidden arguments, from
 [Curate the arguments an agent sees](/docs/http-catalog/curate-the-arguments-an-agent-sees). A family
@@ -129,18 +166,23 @@ is.
 }
 ```
 
-Every operation the SDK knows of carries `tool: true` or `tool: false`, so the gateway publishes
-exactly what the SDK publishes, a refused family included. Keep `selection.default` at `exclude`: an
-operation outside the SDK's discovery carries no marker, and the default decides it. Each read of
-the document reflects the latest catalog, so members from `families.provide` reach the gateway on
-its next reload.
+Every operation of the document carries `tool: true` or `tool: false`: one the SDK did not publish,
+such as its own MCP route, a handler it dropped or a refused family, is written `false`
+(`report.excluded` lists the ones the catalog did not name). A second route of one handler, such as
+`@Get([":id", "by-id/:id"])`, is written `tool: false` with `foldedInto` naming the route the tool
+invokes, so the gateway indexes it as that tool's alternate route, as the SDK does. The gateway therefore publishes exactly
+what the SDK publishes, whatever its `selection.default`. Because each read is annotated again, it
+reflects the latest catalog, so members from `families.provide` reach the gateway on its next
+reload.
 
 :::details[What does not travel]
 
 A gateway registers no value providers, so an argument hidden with `hidden.from(...)` arrives as a
 `deferred` fill that the gateway refuses with `unknown_fill_source`. Only constants and omitted
-values travel. Visibility does not travel either: a document says which credential a call needs,
-never which caller may make it, so the gateway shows every tool with `authUncertain`.
+values travel. Of visibility, only `anonymous: true` travels, written on an operation any caller may
+make: a guard that declares `anonymous: "yes"` with no policy. A document says which credential a
+call needs, never which caller may make it, so the gateway shows every other tool with
+`authUncertain`. The marker changes no credential the gateway sends.
 
 :::
 

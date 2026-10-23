@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { McpServer, type RegisteredTool } from "@modelcontextprotocol/server";
 import {
@@ -14,6 +15,13 @@ import {
   loadDescription,
   missingArgument,
   operationNameDescription,
+  readHandleDescription,
+  readLimitDescription,
+  readOffsetDescription,
+  readPathDescription,
+  readResultDescription,
+  readSelectDescription,
+  readStoredResult,
   searchCatalog,
   searchDescription,
   searchDetailDescription,
@@ -24,6 +32,8 @@ import {
   unknownTool,
   wrongArgumentType,
   type CatalogEntry,
+  type ResultShelf,
+  type ResultStore,
   type SearchRankerOptions,
   type VisibilityDecision,
 } from "@sezzlee/core";
@@ -41,7 +51,10 @@ const { version } = createRequire(import.meta.url)("../package.json") as {
 interface ToolContext {
   readonly mcpReq?: { readonly signal?: AbortSignal };
   readonly http?: {
-    readonly authInfo?: { readonly extra?: Record<string, unknown> };
+    readonly authInfo?: {
+      readonly token?: string;
+      readonly extra?: Record<string, unknown>;
+    };
   };
 }
 
@@ -68,14 +81,31 @@ function decide(entry: CatalogEntry<GatewaySource>): VisibilityDecision {
 const visible = (decision: VisibilityDecision): boolean => decision !== "deny";
 
 /**
+ * Guard: a stored result is the caller's own, so it is kept under a digest of the token the caller
+ * authenticated with. Without a bearer gate the server admits only loopback callers, which share
+ * one partition. The token itself is never stored.
+ */
+function partitionOf(context: ToolContext | undefined): string {
+  const token = context?.http?.authInfo?.token;
+  return token === undefined
+    ? ""
+    : createHash("sha256").update(token).digest("hex");
+}
+
+/**
  * @param options.ranker a host ranker for `search_tools`, for an embedder; the CLI binds none
  * @param options.announce re-stamp the catalog generation and send `tools/list_changed` from this
  * instance whenever the state changes; for one instance that outlives a reload, as on stdio. The
  * subscription lasts as long as the state does
+ * @param options.results where an over-budget `invoke_tool` success is kept for `read_result`; it
+ * has to outlive the server, which the http transport builds per request
+ * @param options.reportStoreFailure receives a store failure, answered as `response_too_large`
  */
 export interface OpenApiMcpServerOptions {
   readonly ranker?: SearchRankerOptions;
   readonly announce?: boolean;
+  readonly results?: ResultStore;
+  readonly reportStoreFailure?: (error: unknown) => void;
 }
 
 /**
@@ -187,38 +217,113 @@ export function createOpenApiMcpServer(
         .meta({ required: ["name", "arguments"] }),
     },
     async ({ name, arguments: args, version: pinned }, ctx) =>
-      emitGuarded(budget, async () => {
-        if (name === undefined) {
-          return missingArgument("invoke_tool", "name");
-        }
-        if (typeof name !== "string") {
-          return wrongArgumentType("invoke_tool", "name", name);
-        }
-        const catalog = catalogNow();
-        assertCatalogValid(catalog.fatal);
-        const entry = catalog.byName.get(name);
-        if (entry === undefined) {
-          return unknownTool(name);
-        }
-        const stale = checkPinnedVersion(entry.tool, pinned);
-        if (stale !== undefined) {
-          return stale;
-        }
-        const context = ctx as ToolContext | undefined;
-        const exchanged = context?.http?.authInfo?.extra?.[exchangedTokenKey];
-        return invokeEntry(
-          entry,
-          args,
-          fetcher,
-          limits,
-          context?.mcpReq?.signal,
-          typeof exchanged === "string" ? exchanged : undefined,
-        );
-      }),
+      emitGuarded(
+        budget,
+        async () => {
+          if (name === undefined) {
+            return missingArgument("invoke_tool", "name");
+          }
+          if (typeof name !== "string") {
+            return wrongArgumentType("invoke_tool", "name", name);
+          }
+          const catalog = catalogNow();
+          assertCatalogValid(catalog.fatal);
+          const entry = catalog.byName.get(name);
+          if (entry === undefined) {
+            return unknownTool(name);
+          }
+          const stale = checkPinnedVersion(entry.tool, pinned);
+          if (stale !== undefined) {
+            return stale;
+          }
+          const context = ctx as ToolContext | undefined;
+          const exchanged = context?.http?.authInfo?.extra?.[exchangedTokenKey];
+          return invokeEntry(
+            entry,
+            args,
+            fetcher,
+            limits,
+            context?.mcpReq?.signal,
+            typeof exchanged === "string" ? exchanged : undefined,
+          );
+        },
+        shelfOf(ctx as ToolContext | undefined),
+      ),
   );
 
+  const tools = [search, load, invoke];
+  const store = options.results;
+  if (store !== undefined) {
+    tools.push(
+      server.registerTool(
+        "read_result",
+        {
+          description: readResultDescription,
+          _meta: generationMeta(),
+          annotations: { readOnlyHint: true },
+          inputSchema: z
+            .object({
+              handle: namedArgument(readHandleDescription),
+              path: z.unknown().optional().meta({
+                type: "string",
+                description: readPathDescription,
+                default: "",
+              }),
+              select: z
+                .unknown()
+                .optional()
+                .meta({
+                  type: "array",
+                  items: { type: "string" },
+                  description: readSelectDescription,
+                  default: null,
+                }),
+              offset: z.unknown().optional().meta({
+                type: "integer",
+                minimum: 0,
+                description: readOffsetDescription,
+                default: 0,
+              }),
+              limit: z.unknown().optional().meta({
+                type: "integer",
+                minimum: 1,
+                description: readLimitDescription,
+                default: null,
+              }),
+            })
+            .meta({ required: ["handle"] }),
+        },
+        async ({ handle, path, select, offset, limit }, ctx) =>
+          emitGuarded(budget, () =>
+            readStoredResult(
+              { handle, path, select, offset, limit },
+              { store, partition: partitionOf(ctx as ToolContext | undefined) },
+              async (tool) => {
+                const catalog = catalogNow();
+                assertCatalogValid(catalog.fatal);
+                const entry = catalog.byName.get(tool);
+                return entry !== undefined && visible(decide(entry));
+              },
+            ),
+          ),
+      ),
+    );
+  }
+
+  function shelfOf(context: ToolContext | undefined): ResultShelf | undefined {
+    return store === undefined
+      ? undefined
+      : {
+          store,
+          partition: partitionOf(context),
+          ...(options.reportStoreFailure === undefined
+            ? {}
+            : { report: options.reportStoreFailure }),
+        };
+  }
+
   if (options.announce === true) {
-    announceChanges(server, state, [search, load, invoke], generationMeta);
+    announceChanges(server, state, tools, generationMeta);
   }
   return server;
 }

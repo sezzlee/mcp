@@ -1,6 +1,7 @@
 # Meta-tool contract
 
-`tools/list` returns exactly three tools, whatever the catalog contains. Their argument names, types
+`tools/list` returns three tools whatever the catalog contains, and a fourth, `read_result`, when a
+result store is bound, which it is by default in both the NestJS SDK and the gateway. Their argument names, types
 and defaults are the contract. The key order of a published schema, and the dialect
 decoration a generator writes around it — a `$schema` keyword, the numeric bounds of an integer —
 are framework detail, not contract.
@@ -11,10 +12,10 @@ are framework detail, not contract.
 > [`tool-definition.schema.json`](https://github.com/sezzlee/mcp/blob/main/packages/http/spec/schemas/tool-definition.schema.json);
 > where they differ from this page, they win.
 
-## The three tools
+## The tools
 
 ```text
-load_tool, search_tools, invoke_tool
+load_tool, search_tools, invoke_tool, read_result
 ```
 
 Every one of them carries a `_meta` stamp naming the catalog generation it was listed for:
@@ -194,7 +195,8 @@ first one. It is present only when the endpoint declares a success body: the sta
 `201`, `202` and `204` are tried in that order, then the lowest remaining `2xx`, and a `204` or an
 endpoint with no `2xx` at all publishes no `outputSchema`. A response whose root is not an object —
 an array, a scalar — is wrapped as `{"type":"object","properties":{"result":…},"required":["result"]}`,
-because MCP requires the root to be an object.
+because MCP requires the root to be an object. `invoke_tool` wraps that tool's parsed body the same
+way, so a list comes back as `{"status":200,"body":{"result":[…]}}`.
 
 Unlike `inputSchema`, a response schema keeps read-only members: a get-only property is a response
 field precisely because the server is the one that computes it. Curation does not reach
@@ -245,6 +247,81 @@ Success returns the HTTP result:
 
 Failure returns an error envelope with `isError` set. Both layers of that are on
 [invoke result envelope](/docs/http-catalog/invoke-result-envelope).
+
+A success over the response budget is kept by the result store and answered with a handle instead
+of its body; see [`read_result`](#read-result).
+
+## `read_result`
+
+Reads part of a result `invoke_tool` stored because it was over the response budget. Present only
+when a result store is bound.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "handle": {
+      "type": "string",
+      "description": "The handle an invoke_tool answer returned in stored.handle."
+    },
+    "path": {
+      "type": "string",
+      "description": "JSON Pointer into the stored body; empty for all of it.",
+      "default": ""
+    },
+    "select": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Member names to keep, of each element of an array or of an object.",
+      "default": null
+    },
+    "offset": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "First element, member or character to return; 0 by default.",
+      "default": 0
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Most elements, members or characters to return; all from offset by default.",
+      "default": null
+    }
+  },
+  "required": ["handle"]
+}
+```
+
+`path` is an [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901) JSON Pointer into the stored body,
+the same body `outputSchema` describes: `/result` for a wrapped list, `/result/0` for its first
+element. `select` keeps the named members of each element of an array, in `select` order, or the
+named members of an object, in the object's order. `offset` and `limit` then choose a window of
+elements, members or code units:
+
+```json
+{
+  "path": "/result",
+  "kind": "array",
+  "total": 8412,
+  "offset": 100,
+  "nextOffset": 102,
+  "value": [
+    { "id": 101, "status": "refunded" },
+    { "id": 102, "status": "open" }
+  ]
+}
+```
+
+`nextOffset` is absent on the last window. A scalar comes back whole, with neither `total` nor
+`offset`. The answer passes the response budget like every other; over it, the refusal names
+`limit`, `offset`, `select` and `path`.
+
+A handle that expired, was evicted, was never issued or was issued to another caller is
+`result_unavailable`, with one message for all four. A read also answers `result_unavailable` when
+the caller can no longer see the tool that produced the result. A path that names nothing, a
+`select` at a string, or a member no element has is `invalid_selection`, and the message names
+what exists instead. The rules are normative in
+[`result-reading.md`](https://github.com/sezzlee/mcp/blob/main/packages/http/spec/result-reading.md).
 
 ## The envelope every result shares
 

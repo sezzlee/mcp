@@ -1,0 +1,56 @@
+{
+  "kind": "card",
+  "description": "inputSchema.$defs'e isaret eden $ref hedefinin tipini alir, zincir izlenir; dongu ve tanimsiz hedef any olur",
+  "input": {
+    "tool": {
+      "name": "create_order",
+      "description": "Siparis olusturur.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "shipTo": {
+            "$ref": "#/$defs/Address"
+          },
+          "billTo": {
+            "$ref": "#/$defs/BillingAddress"
+          },
+          "loop": {
+            "$ref": "#/$defs/Loop"
+          },
+          "missing": {
+            "$ref": "#/$defs/Missing"
+          }
+        },
+        "required": ["shipTo"],
+        "additionalProperties": false,
+        "$defs": {
+          "Address": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            }
+          },
+          "BillingAddress": {
+            "$ref": "#/$defs/Address"
+          },
+          "Loop": {
+            "$ref": "#/$defs/Loop"
+          }
+        }
+      },
+      "annotations": {},
+      "auth": {
+        "anonymous": "no",
+        "policies": [],
+        "imperative": false
+      }
+    }
+  },
+  "expected": {
+    "name": "create_order",
+    "description": "Siparis olusturur.",
+    "parameters": "shipTo: object (required), billTo: object, loop: any, missing: any"
+  }
+}

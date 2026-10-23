@@ -1,0 +1,22 @@
+{
+  "kind": "result-reading",
+  "description": "A string is windowed over UTF-16 code units.",
+  "input": {
+    "body": {
+      "text": "abcdef"
+    },
+    "read": {
+      "path": "/text",
+      "offset": 2,
+      "limit": 3
+    }
+  },
+  "expected": {
+    "path": "/text",
+    "kind": "string",
+    "total": 6,
+    "offset": 2,
+    "nextOffset": 5,
+    "value": "cde"
+  }
+}

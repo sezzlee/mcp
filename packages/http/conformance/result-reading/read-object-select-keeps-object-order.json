@@ -1,0 +1,24 @@
+{
+  "kind": "result-reading",
+  "description": "select on an object keeps the selected members in the object's own order, and the total counts what was selected.",
+  "input": {
+    "body": {
+      "a": 1,
+      "b": 2,
+      "c": 3
+    },
+    "read": {
+      "select": ["c", "a", "c"]
+    }
+  },
+  "expected": {
+    "path": "",
+    "kind": "object",
+    "total": 2,
+    "offset": 0,
+    "value": {
+      "a": 1,
+      "c": 3
+    }
+  }
+}

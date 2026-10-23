@@ -1,5 +1,5 @@
 import { asciiLower } from "../platform/ascii.js";
-import type { BackendResponse } from "@sezzlee/core";
+import { decodeResponseBody, type BackendResponse } from "@sezzlee/core";
 
 export class HostNotAllowed extends Error {
   constructor(readonly host: string) {
@@ -9,9 +9,19 @@ export class HostNotAllowed extends Error {
 }
 
 export class ResponseTooLarge extends Error {
-  constructor(readonly limit: number) {
+  constructor(
+    readonly limit: number,
+    readonly status: number,
+  ) {
     super(`sezzlee-openapi: the response exceeded ${String(limit)} bytes.`);
     this.name = "ResponseTooLarge";
+  }
+}
+
+export class BackendUnreachable extends Error {
+  constructor(cause: unknown) {
+    super("sezzlee-openapi: the backend could not be reached.", { cause });
+    this.name = "BackendUnreachable";
   }
 }
 
@@ -60,7 +70,7 @@ async function readCapped(
     total += value.byteLength;
     if (total > maxBytes) {
       await reader.cancel();
-      throw new ResponseTooLarge(maxBytes);
+      throw new ResponseTooLarge(maxBytes, response.status);
     }
     chunks.push(value);
   }
@@ -88,16 +98,25 @@ export function createBoundedFetch(
     if (!allowedHosts.has(asciiLower(request.url.host))) {
       throw new HostNotAllowed(request.url.host);
     }
-    const response = await fetch(request.url, {
-      method: request.method,
-      headers: request.headers,
-      redirect: "manual",
-      signal,
-      ...(request.body === undefined
-        ? {}
-        : { body: new Uint8Array(request.body) }),
-    });
-    const bytes = await readCapped(response, maxBytes);
+    let response: Response;
+    let bytes: Uint8Array;
+    try {
+      response = await fetch(request.url, {
+        method: request.method,
+        headers: request.headers,
+        redirect: "manual",
+        signal,
+        ...(request.body === undefined
+          ? {}
+          : { body: new Uint8Array(request.body) }),
+      });
+      bytes = await readCapped(response, maxBytes);
+    } catch (error) {
+      if (error instanceof ResponseTooLarge || signal.aborted) {
+        throw error;
+      }
+      throw new BackendUnreachable(error);
+    }
     const headers: Record<string, string> = {};
     response.headers.forEach((value, name) => {
       if (!droppedHeaders.has(asciiLower(name))) {
@@ -109,9 +128,7 @@ export function createBoundedFetch(
       status: response.status,
       headers,
       ...(contentType === undefined ? {} : { contentType }),
-      ...(bytes.byteLength === 0
-        ? {}
-        : { body: new TextDecoder().decode(bytes) }),
+      ...decodeResponseBody(bytes, contentType),
     };
   };
 }

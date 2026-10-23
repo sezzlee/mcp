@@ -34,6 +34,9 @@ export class DefaultInvokeResultMapper implements InvokeResultMapper {
         contentType: result.contentType,
         headers: result.headers,
         body: result.body,
+        ...(result.bodyEncoding === undefined
+          ? {}
+          : { bodyEncoding: result.bodyEncoding }),
       },
       {
         recognizers: this.options.errors.recognizers,

@@ -19,6 +19,7 @@ interface Seen {
 let server: Server;
 let origin: string;
 const seen: Seen[] = [];
+let endlessClosed: Promise<void> = Promise.resolve();
 
 beforeAll(async () => {
   server = createServer((req, res) => {
@@ -39,6 +40,22 @@ beforeAll(async () => {
       if (req.url?.startsWith("/v1/big") === true) {
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ blob: "x".repeat(4096) }));
+        return;
+      }
+      if (req.url?.startsWith("/v1/endless") === true) {
+        res.writeHead(200, { "content-type": "application/json" });
+        const writing = setInterval(() => res.write("x".repeat(512)), 5);
+        endlessClosed = new Promise((resolve) =>
+          res.on("close", () => {
+            clearInterval(writing);
+            resolve();
+          }),
+        );
+        return;
+      }
+      if (req.url?.startsWith("/v1/orders") === true) {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify([{ id: 1 }, { id: 2 }]));
         return;
       }
       if (req.url?.startsWith("/v1/slow") === true) {
@@ -156,8 +173,39 @@ const document = () => ({
         responses: { "200": { description: "ok" } },
       },
     },
+    "/orders": {
+      get: {
+        operationId: "listOrders",
+        responses: {
+          "200": {
+            description: "ok",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: { id: { type: "integer" } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     "/big": {
       get: { operationId: "big", responses: { "200": { description: "ok" } } },
+      post: {
+        operationId: "bigWrite",
+        responses: { "200": { description: "ok" } },
+      },
+    },
+    "/endless": {
+      get: {
+        operationId: "endless",
+        responses: { "200": { description: "ok" } },
+      },
     },
     "/slow": {
       get: { operationId: "slow", responses: { "200": { description: "ok" } } },
@@ -172,7 +220,9 @@ const document = () => ({
   },
 });
 
-async function gatewayOf(): Promise<GatewayCatalog> {
+async function gatewayOf(
+  source: Record<string, unknown> = document(),
+): Promise<GatewayCatalog> {
   const config = configSchema.parse({
     source: "inline",
     selection: { default: "include" },
@@ -182,7 +232,7 @@ async function gatewayOf(): Promise<GatewayCatalog> {
     },
   });
   return buildGatewayCatalog(
-    document(),
+    source,
     config,
     new Map([
       ["Key", { kind: "value", value: "k-123" }],
@@ -197,6 +247,7 @@ async function gatewayOf(): Promise<GatewayCatalog> {
 const limits = {
   timeoutMs: 5000,
   maxResponseBytes: 1024,
+  maxBufferedBytes: 1024,
   maxInlineFileBytes: 1024,
 };
 
@@ -212,9 +263,12 @@ describe("openapi-mcp gateway", () => {
     ]);
     expect([...gateway.catalog.byName.keys()].sort()).toEqual([
       "big",
+      "big_write",
       "create_item",
+      "endless",
       "filtered",
       "get_items",
+      "list_orders",
       "moved",
       "put_avatar",
       "search_items",
@@ -239,6 +293,18 @@ describe("openapi-mcp gateway", () => {
     expect(request.headers["x-api-key"]).toBe("k-123");
     expect(request.headers["cookie"]).toBe("sid=s-456; lang=tr");
     expect(JSON.stringify(response.payload)).not.toContain("backend_session");
+  });
+
+  it("returns a list under the result key its outputSchema publishes", async () => {
+    const gateway = await gatewayOf();
+    const fetcher = createBoundedFetch(gateway.allowedHosts);
+    const entry = gateway.catalog.byName.get("list_orders")!;
+    const response = await invokeEntry(entry, {}, fetcher, limits, undefined);
+    expect(entry.tool.outputSchema?.["required"]).toEqual(["result"]);
+    expect(response.isError).toBe(false);
+    expect(payloadOf(response)["body"]).toEqual({
+      result: [{ id: 1 }, { id: 2 }],
+    });
   });
 
   it("sends a JSON body", async () => {
@@ -314,18 +380,71 @@ describe("openapi-mcp gateway", () => {
     expect(JSON.stringify(response.payload)).toContain("elsewhere.test");
   });
 
-  it("stops reading a response over the byte cap", async () => {
+  it.each([
+    [
+      "big",
+      "The response exceeded 1024 bytes and was not read to the end. It is refused, not truncated: no part of the body was returned. No argument of this call narrows the response.",
+    ],
+    [
+      "big_write",
+      "The response exceeded 1024 bytes and was not read to the end. It is refused, not truncated: no part of the body was returned. The backend already applied the operation; calling it again applies it again.",
+    ],
+  ])("stops reading %s over the byte cap", async (name, message) => {
     const gateway = await gatewayOf();
     const fetcher = createBoundedFetch(gateway.allowedHosts);
     const response = await invokeEntry(
-      gateway.catalog.byName.get("big")!,
+      gateway.catalog.byName.get(name)!,
       {},
       fetcher,
       limits,
       undefined,
     );
     expect(response.isError).toBe(true);
-    expect(payloadOf(response)["error"]).toBe("response_too_large");
+    expect(payloadOf(response)).toEqual({
+      error: "response_too_large",
+      message,
+      retryable: false,
+    });
+  });
+
+  it("closes the connection of a backend that never stops writing once the cap is crossed", async () => {
+    const gateway = await gatewayOf();
+    const response = await invokeEntry(
+      gateway.catalog.byName.get("endless")!,
+      {},
+      createBoundedFetch(gateway.allowedHosts),
+      limits,
+      undefined,
+    );
+    expect(payloadOf(response)).toMatchObject({ error: "response_too_large" });
+    await endlessClosed;
+  });
+
+  it("answers a backend that refuses the connection with backend_unreachable", async () => {
+    const closed = createServer();
+    await new Promise<void>((resolve) =>
+      closed.listen(0, "127.0.0.1", resolve),
+    );
+    const port = (closed.address() as AddressInfo).port;
+    await new Promise<void>((resolve) => closed.close(() => resolve()));
+    const gateway = await gatewayOf({
+      ...document(),
+      servers: [{ url: `http://127.0.0.1:${String(port)}/v1` }],
+    });
+    const response = await invokeEntry(
+      gateway.catalog.byName.get("big")!,
+      {},
+      createBoundedFetch(gateway.allowedHosts),
+      limits,
+      undefined,
+    );
+    expect(response.isError).toBe(true);
+    expect(payloadOf(response)).toEqual({
+      error: "backend_unreachable",
+      message:
+        "The backend could not be reached, or dropped the connection before answering. The operation may already have been applied; re-read before retrying.",
+      retryable: true,
+    });
   });
 
   it("abandons a call past the deadline", async () => {

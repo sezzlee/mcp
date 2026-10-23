@@ -1,0 +1,39 @@
+{
+  "kind": "naming",
+  "description": "ayni container + operationId + metodu paylasan ama farkli tam ad beyan eden iki endpoint iki ayri operasyondur; ayni tam adi beyan edenler tek operasyon olarak katlanir",
+  "input": {
+    "endpoints": [
+      {
+        "operationId": "list",
+        "container": "shop",
+        "toolName": "orders_list",
+        "method": "GET",
+        "route": "/orders"
+      },
+      {
+        "operationId": "list",
+        "container": "shop",
+        "toolName": "users_list",
+        "method": "GET",
+        "route": "/users"
+      },
+      {
+        "operationId": "read",
+        "container": "shop",
+        "toolName": "read_order",
+        "method": "GET",
+        "route": "/orders/{id}"
+      },
+      {
+        "operationId": "read",
+        "container": "shop",
+        "toolName": "read_order",
+        "method": "GET",
+        "route": "/orders/by-id/{id}"
+      }
+    ]
+  },
+  "expected": {
+    "names": ["orders_list", "users_list", "read_order"]
+  }
+}

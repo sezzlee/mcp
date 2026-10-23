@@ -67,7 +67,7 @@ export function rateLimitingFailures(
       options.invokeConcurrency !== undefined ||
       options.key !== undefined
       ? [
-          "rateLimiting.partition replaces the declared limits (default, search, load, invoke, invokeConcurrency, key); set one or the other.",
+          "rateLimiting.partition replaces the declared limits (default, search, load, invoke, read, invokeConcurrency, key); set one or the other.",
         ]
       : [];
   }
@@ -75,11 +75,17 @@ export function rateLimitingFailures(
     return options.key === undefined
       ? []
       : [
-          "rateLimiting.key needs a declared limit (default, search, load, invoke or invokeConcurrency) to partition.",
+          "rateLimiting.key needs a declared limit (default, search, load, invoke, read or invokeConcurrency) to partition.",
         ];
   }
   const failures: string[] = [];
-  for (const section of ["default", "search", "load", "invoke"] as const) {
+  for (const section of [
+    "default",
+    "search",
+    "load",
+    "invoke",
+    "read",
+  ] as const) {
     const settings = options[section];
     if (settings !== undefined) {
       failures.push(...settingFailures(`rateLimiting.${section}`, settings));

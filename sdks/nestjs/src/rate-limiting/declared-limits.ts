@@ -12,6 +12,7 @@ export function declaresLimits(limits: DeclaredRateLimits): boolean {
     limits.search !== undefined ||
     limits.load !== undefined ||
     limits.invoke !== undefined ||
+    limits.read !== undefined ||
     limits.invokeConcurrency !== undefined
   );
 }

@@ -1,4 +1,5 @@
 import type { EndpointDescriptor } from "./generated/endpoint-descriptor.js";
+import type { InvokeSuccess } from "./generated/invoke-result.js";
 import type {
   ToolAnnotations,
   ToolDefinition,
@@ -374,6 +375,33 @@ function isObjectRoot(schema: JsonSchemaObject): boolean {
   }
   const declared = type.filter((candidate) => candidate !== "null");
   return declared.length === 1 && declared[0] === "object";
+}
+
+function wrapsOutputRoot(endpoint: EndpointDescriptor): boolean {
+  const primary =
+    endpoint.responses === undefined
+      ? undefined
+      : primaryResponseOf(endpoint.responses);
+  return primary !== undefined && !isObjectRoot(primary);
+}
+
+/**
+ * The success as the tool's `outputSchema` describes it: a parsed body sits under `result` when
+ * that schema wraps a non-object root, so a path read from the schema exists in the body.
+ */
+export function publishedSuccess(
+  endpoint: EndpointDescriptor,
+  success: InvokeSuccess,
+): InvokeSuccess {
+  if (
+    success.body === undefined ||
+    success.contentType !== undefined ||
+    success.bodyEncoding !== undefined ||
+    !wrapsOutputRoot(endpoint)
+  ) {
+    return success;
+  }
+  return { ...success, body: { [resultRootProperty]: success.body } };
 }
 
 /**

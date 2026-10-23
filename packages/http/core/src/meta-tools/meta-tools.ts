@@ -5,16 +5,26 @@ import {
   maxSearchTagVocabulary,
 } from "../card.js";
 import type { CatalogBuild, CatalogEntry } from "../catalog/pipeline.js";
+import { isInvokeError } from "../error-mapping.js";
 import type { ArgumentFill } from "../generated/endpoint-descriptor.js";
-import type { FieldError, SdkErrorCode } from "../generated/invoke-result.js";
+import type {
+  FieldError,
+  InvokeResult,
+  InvokeSuccess,
+  SdkErrorCode,
+} from "../generated/invoke-result.js";
 import type { ToolDefinition } from "../generated/tool-definition.js";
 import {
   describePayload,
+  narrowingArguments,
   refuseChangedTool,
   refuseOversizeResponse,
   refuseRankerUnavailable,
   sdkError,
 } from "../invoke-guard.js";
+import { publishedSuccess } from "../tool-definition.js";
+import { storedAnswer, storedRecord } from "../results/reading.js";
+import { mintHandle, type ResultShelf } from "../results/store.js";
 import { forwardable } from "../leak-filter.js";
 import type { RequestTemplate } from "../request-template.js";
 import {
@@ -72,14 +82,23 @@ export const searchNarrowing: readonly FieldError[] = [
  *
  * @param summaryOf the value a refusal summarises; the payload itself when omitted
  * @param narrowing the arguments a refusal names as narrowing this call
+ * @param applied the backend accepted a call of an operation that is not read-only
  * @param target what a per-endpoint budget override sees
+ * @param storable the success a bound result store may keep instead of refusing it
  */
 export interface MetaResponse<Target = unknown> {
   readonly payload: unknown;
   readonly isError: boolean;
   readonly summaryOf?: unknown;
   readonly narrowing?: readonly FieldError[];
+  readonly applied?: boolean;
   readonly target?: Target;
+  readonly storable?: StorableAnswer;
+}
+
+export interface StorableAnswer {
+  readonly tool: string;
+  readonly success: InvokeSuccess;
 }
 
 export interface WireResult {
@@ -167,10 +186,14 @@ export function checkPinnedVersion(
  * passing the payload budget. It also swallows a handler throw: the MCP SDK's own catch emits
  * `error.message` verbatim, with no envelope and no leak filter, which would forward a stack or a
  * file path straight to the agent. Pinned by sdks/nestjs test/response-budget.spec.ts.
+ *
+ * @param shelf where an over-budget `invoke_tool` success is kept instead of refused; absent, every
+ * over-budget answer is refused
  */
 export async function emitGuarded<Target>(
   budgetFor: (target: Target | undefined) => number,
   produce: () => Promise<MetaResponse<Target>>,
+  shelf?: ResultShelf,
 ): Promise<WireResult> {
   let response: MetaResponse<Target>;
   try {
@@ -191,6 +214,16 @@ export async function emitGuarded<Target>(
   if (bytes <= limit) {
     return { content: [{ type: "text", text }], isError: response.isError };
   }
+  if (response.storable !== undefined && shelf !== undefined) {
+    const kept = await keep(response.storable, shelf, {
+      bytes,
+      limit,
+      applied: response.applied === true,
+    });
+    if (kept !== undefined) {
+      return kept;
+    }
+  }
   const refusal = refuseOversizeResponse({
     bytes,
     limit,
@@ -198,11 +231,54 @@ export async function emitGuarded<Target>(
     ...(response.narrowing === undefined
       ? {}
       : { narrowing: response.narrowing }),
+    ...(response.applied === undefined ? {} : { applied: response.applied }),
   });
   return {
     content: [{ type: "text", text: JSON.stringify(refusal) }],
     isError: true,
   };
+}
+
+/**
+ * Guard: a store can only add a way to read an answer, never lose one. A failure of the store or of
+ * the reporter told about it, a value the store refuses, or a stored answer that is itself over the
+ * budget leaves the caller with the refusal it would have had without a store.
+ */
+async function keep(
+  storable: StorableAnswer,
+  shelf: ResultShelf,
+  measured: { bytes: number; limit: number; applied: boolean },
+): Promise<WireResult | undefined> {
+  const handle = mintHandle();
+  let expiresInSeconds: number | undefined;
+  try {
+    expiresInSeconds = await shelf.store.put(
+      shelf.partition,
+      handle,
+      storedRecord(storable.tool, storable.success.body),
+    );
+  } catch (error) {
+    try {
+      shelf.report?.(error);
+    } catch {
+      return undefined;
+    }
+    return undefined;
+  }
+  if (expiresInSeconds === undefined) {
+    return undefined;
+  }
+  const text = JSON.stringify(
+    storedAnswer({
+      success: storable.success,
+      handle,
+      expiresInSeconds,
+      ...measured,
+    }),
+  );
+  return Buffer.byteLength(text, "utf8") <= measured.limit
+    ? { content: [{ type: "text", text }], isError: false }
+    : undefined;
 }
 
 /**
@@ -427,4 +503,29 @@ export function vocabularyOf(template: RequestTemplate | undefined): {
 
 export function knownFields(tool: ToolDefinition): string[] {
   return Object.keys(tool.inputSchema.properties ?? {});
+}
+
+/**
+ * The `invoke_tool` answer for a mapped backend response, built here for every implementation so
+ * the body each one returns matches the `outputSchema` its `load_tool` published.
+ */
+export function invokeResponse<Target>(
+  entry: CatalogEntry,
+  outcome: InvokeResult,
+  target: Target,
+): MetaResponse<Target> {
+  const narrowing = narrowingArguments(entry.tool.inputSchema);
+  if (isInvokeError(outcome)) {
+    return textResult(outcome, true, { summaryOf: outcome, narrowing, target });
+  }
+  const published = publishedSuccess(entry.descriptor, outcome);
+  return textResult(published, false, {
+    summaryOf: outcome.body,
+    narrowing,
+    applied: entry.tool.annotations.readOnlyHint !== true,
+    target,
+    ...(published.body === undefined || published.bodyEncoding !== undefined
+      ? {}
+      : { storable: { tool: entry.tool.name, success: published } }),
+  });
 }

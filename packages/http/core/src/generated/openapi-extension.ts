@@ -25,36 +25,30 @@ export type FamilyKey = string | number;
 
 export interface OperationExtension {
   tool?: boolean;
+  foldedInto?: string;
   toolName?: string;
   containerPrefix?: string;
+  description?: string;
+  tags?: string[];
+  parameters?: ParameterSchema[];
+  requestBody?: VariantRequestBody;
+  responses?: {
+    [k: string]: ResponseBody;
+  };
+  publishedSchemas?: boolean;
   annotations?: ToolAnnotations;
+  anonymous?: true;
   arguments?: ArgumentCuration[];
   variants?: [ToolVariant, ...ToolVariant[]];
   family?: FamilyDeclaration;
   searchTerms?: string[];
   revision?: number;
 }
-export interface ToolAnnotations {
-  readOnlyHint?: boolean;
-  destructiveHint?: boolean;
-  idempotentHint?: boolean;
-}
-export interface ArgumentCuration {
+export interface ParameterSchema {
   name: string;
-  as?: string;
-  description?: string;
-  hidden?: ArgumentFill;
-}
-export interface ToolVariant {
-  name: string;
-  description: string;
-  arguments?: ArgumentCuration[];
-  requestBody?: VariantRequestBody;
-  annotations?: ToolAnnotations;
-}
-export interface VariantRequestBody {
+  in: "path" | "query" | "header" | "cookie" | "querystring";
+  required: boolean;
   schema: JsonSchemaObject;
-  required?: boolean;
   description?: string;
 }
 export interface JsonSchemaObject {
@@ -103,6 +97,33 @@ export interface JsonSchemaObject {
     [k: string]: JsonSchemaObject;
   };
   [k: string]: unknown;
+}
+export interface VariantRequestBody {
+  schema: JsonSchemaObject;
+  required?: boolean;
+  description?: string;
+}
+export interface ResponseBody {
+  schema?: JsonSchemaObject;
+  description?: string;
+}
+export interface ToolAnnotations {
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+}
+export interface ArgumentCuration {
+  name: string;
+  as?: string;
+  description?: string;
+  hidden?: ArgumentFill;
+}
+export interface ToolVariant {
+  name: string;
+  description: string;
+  arguments?: ArgumentCuration[];
+  requestBody?: VariantRequestBody;
+  annotations?: ToolAnnotations;
 }
 export interface FamilyDeclaration {
   parameter: string;

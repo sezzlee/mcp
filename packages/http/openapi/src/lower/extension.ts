@@ -8,7 +8,9 @@ import {
   type FamilyDeclaration,
   type FamilyKey,
   type FamilyMember,
+  type JsonSchemaObject,
   type OperationExtension,
+  type ParameterSchema,
   type SelectionDecision,
   type ToolAnnotations,
   type ToolVariant,
@@ -16,7 +18,12 @@ import {
 } from "@sezzlee/core";
 import { OperationDropped } from "../diagnostics.js";
 import { childPointer, type JsonPointer } from "../ir/brand.js";
-import { isObject, type JsonObject, type JsonValue } from "../ir/json.js";
+import {
+  entriesOf,
+  isObject,
+  type JsonObject,
+  type JsonValue,
+} from "../ir/json.js";
 import { normalizeSlot, type SchemaContext } from "../normalize/schema.js";
 
 export const extensionKey = "x-sezzlee";
@@ -44,6 +51,8 @@ type Curation = Pick<
   EndpointDescriptor,
   | "toolName"
   | "containerPrefix"
+  | "description"
+  | "tags"
   | "annotations"
   | "arguments"
   | "variants"
@@ -51,9 +60,17 @@ type Curation = Pick<
   | "searchTerms"
 >;
 
+export type CarriedSchemas = Pick<
+  OperationExtension,
+  "parameters" | "requestBody" | "responses"
+>;
+
 export interface LoweredExtension {
   readonly selection?: SelectionDecision;
   readonly curation: Curation;
+  readonly schemas: CarriedSchemas;
+  readonly anonymous?: true;
+  readonly foldedInto?: string;
   readonly revision?: number;
 }
 
@@ -66,8 +83,15 @@ class Invalid extends Error {
   }
 }
 
+type SchemaReader = (
+  value: JsonValue | undefined,
+  at: JsonPointer,
+  direction: "request" | "response",
+) => JsonSchemaObject;
+
 interface Field {
   readonly context: SchemaContext;
+  readonly read: SchemaReader;
   readonly value: JsonValue;
   readonly at: JsonPointer;
 }
@@ -204,7 +228,7 @@ function parseArguments(
 }
 
 function parseRequestBody(
-  context: SchemaContext,
+  read: SchemaReader,
   value: JsonValue | undefined,
   at: JsonPointer,
 ): VariantRequestBody | undefined {
@@ -213,26 +237,11 @@ function parseRequestBody(
   }
   const declared = objectAt(value, at, "requestBody");
   onlyKeys(declared, at, ["schema", "required", "description"]);
-  const schemaAt = childPointer(at, "schema");
-  if (!isObject(declared["schema"])) {
-    throw new Invalid(schemaAt, "must be a Schema Object");
-  }
-  let schema: ReturnType<typeof normalizeSlot>;
-  try {
-    schema = normalizeSlot(context, declared["schema"], schemaAt, {
-      direction: "request",
-      root: "preferred",
-    });
-  } catch (error) {
-    if (!(error instanceof OperationDropped)) {
-      throw error;
-    }
-    throw new Invalid(error.at, `cannot be carried (${error.message})`);
-  }
-  const problem = declaredSchemaProblem(schema);
-  if (problem !== undefined) {
-    throw new Invalid(schemaAt, problem);
-  }
+  const schema = read(
+    declared["schema"],
+    childPointer(at, "schema"),
+    "request",
+  );
   const required = declared["required"];
   if (required !== undefined && typeof required !== "boolean") {
     throw new Invalid(childPointer(at, "required"), "must be a boolean");
@@ -248,8 +257,161 @@ function parseRequestBody(
   };
 }
 
+const parameterLocations: ReadonlySet<string> = new Set([
+  "path",
+  "query",
+  "header",
+  "cookie",
+  "querystring",
+]);
+
+function documentSchemas(context: SchemaContext): SchemaReader {
+  return (value, at, direction) => {
+    if (!isObject(value)) {
+      throw new Invalid(at, "must be a Schema Object");
+    }
+    let schema: JsonSchemaObject;
+    try {
+      schema = normalizeSlot(context, value, at, {
+        direction,
+        root: "preferred",
+      });
+    } catch (error) {
+      if (!(error instanceof OperationDropped)) {
+        throw error;
+      }
+      throw new Invalid(error.at, `cannot be carried (${error.message})`);
+    }
+    return selfContained(schema, at);
+  };
+}
+
+/**
+ * Guard: a published schema skips normalization, so it is held to the one property normalization
+ * would otherwise have produced: every `$ref` resolves within its own `$defs`. A reference into the
+ * document's `components` would be left aimed at nothing in the tool's schema.
+ */
+const publishedSchema: SchemaReader = (value, at) => {
+  if (!isObject(value)) {
+    throw new Invalid(at, "must be a Schema Object");
+  }
+  return selfContained(structuredClone(value) as JsonSchemaObject, at);
+};
+
+function selfContained(
+  schema: JsonSchemaObject,
+  at: JsonPointer,
+): JsonSchemaObject {
+  const problem = declaredSchemaProblem(schema);
+  if (problem !== undefined) {
+    throw new Invalid(at, problem);
+  }
+  return schema;
+}
+
+function optionalString(
+  declared: JsonObject,
+  field: string,
+  at: JsonPointer,
+): { readonly description?: string } {
+  const value = declared[field];
+  if (value === undefined) {
+    return {};
+  }
+  if (typeof value !== "string") {
+    throw new Invalid(childPointer(at, field), "must be a string");
+  }
+  return { description: value };
+}
+
+function parseParameters({ read, value, at }: Field): ParameterSchema[] {
+  if (!Array.isArray(value)) {
+    throw new Invalid(at, "parameters must be an array");
+  }
+  const seen = new Set<string>();
+  return value.map((raw: JsonValue, index: number) => {
+    const parameterAt = childPointer(at, index);
+    const declared = objectAt(raw, parameterAt, "a parameter");
+    onlyKeys(declared, parameterAt, [
+      "name",
+      "in",
+      "required",
+      "schema",
+      "description",
+    ]);
+    const name = nonBlank(declared["name"], childPointer(parameterAt, "name"));
+    const location = declared["in"];
+    if (typeof location !== "string" || !parameterLocations.has(location)) {
+      throw new Invalid(
+        childPointer(parameterAt, "in"),
+        `must be one of ${[...parameterLocations].join(", ")}`,
+      );
+    }
+    const required = declared["required"];
+    if (typeof required !== "boolean") {
+      throw new Invalid(
+        childPointer(parameterAt, "required"),
+        "must be a boolean",
+      );
+    }
+    if (seen.has(`${location} ${name}`)) {
+      throw new Invalid(
+        parameterAt,
+        `'${name}' in ${location} is declared twice`,
+      );
+    }
+    seen.add(`${location} ${name}`);
+    return {
+      name,
+      in: location as ParameterSchema["in"],
+      required,
+      schema: read(
+        declared["schema"],
+        childPointer(parameterAt, "schema"),
+        "request",
+      ),
+      ...optionalString(declared, "description", parameterAt),
+    };
+  });
+}
+
+const responseStatus = /^([1-5][0-9]{2}|[1-5]XX|default)$/;
+
+function parseResponses({
+  read,
+  value,
+  at,
+}: Field): NonNullable<OperationExtension["responses"]> {
+  const declared = objectAt(value, at, "responses");
+  return Object.fromEntries(
+    entriesOf(declared).map(([status, raw]) => {
+      const responseAt = childPointer(at, status);
+      if (!responseStatus.test(status)) {
+        throw new Invalid(responseAt, "is not a response status");
+      }
+      const response = objectAt(raw, responseAt, "a response");
+      onlyKeys(response, responseAt, ["schema", "description"]);
+      return [
+        status,
+        {
+          ...(response["schema"] === undefined
+            ? {}
+            : {
+                schema: read(
+                  response["schema"],
+                  childPointer(responseAt, "schema"),
+                  "response",
+                ),
+              }),
+          ...optionalString(response, "description", responseAt),
+        },
+      ];
+    }),
+  );
+}
+
 function parseVariant(
-  context: SchemaContext,
+  read: SchemaReader,
   value: JsonValue,
   at: JsonPointer,
 ): ToolVariant {
@@ -266,7 +428,7 @@ function parseVariant(
     childPointer(at, "arguments"),
   );
   const requestBody = parseRequestBody(
-    context,
+    read,
     declared["requestBody"],
     childPointer(at, "requestBody"),
   );
@@ -291,7 +453,7 @@ function parseVariant(
 }
 
 function parseVariants({
-  context,
+  read,
   value,
   at,
 }: Field): [ToolVariant, ...ToolVariant[]] {
@@ -300,7 +462,7 @@ function parseVariants({
   }
   const seen = new Set<string>();
   const [first, ...rest] = value.map((raw: JsonValue, index: number) => {
-    const variant = parseVariant(context, raw, childPointer(at, index));
+    const variant = parseVariant(read, raw, childPointer(at, index));
     if (seen.has(variant.name)) {
       throw new Invalid(
         childPointer(at, index, "name"),
@@ -327,7 +489,7 @@ function familyKey(value: JsonValue | undefined, at: JsonPointer): FamilyKey {
 }
 
 function parseMember(
-  context: SchemaContext,
+  read: SchemaReader,
   value: JsonValue,
   at: JsonPointer,
   parameter: string,
@@ -335,7 +497,7 @@ function parseMember(
   const declared = objectAt(value, at, "a member");
   const key = familyKey(declared["key"], childPointer(at, "key"));
   const { key: _key, ...variantFields } = declared;
-  const variant = parseVariant(context, variantFields, at);
+  const variant = parseVariant(read, variantFields, at);
   if (variant.arguments?.some((argument) => argument.name === parameter)) {
     throw new Invalid(
       childPointer(at, "arguments"),
@@ -350,7 +512,7 @@ function parseMember(
  * bad row must not take every sibling offline; only a defect in the declaration itself drops the
  * operation, so the uncurated dispatcher is never published in the family's place.
  */
-function parseFamily({ context, value, at }: Field): FamilyDeclaration {
+function parseFamily({ context, read, value, at }: Field): FamilyDeclaration {
   const declared = objectAt(value, at, "family");
   onlyKeys(declared, at, ["parameter", "members"]);
   const parameter = nonBlank(
@@ -371,7 +533,7 @@ function parseFamily({ context, value, at }: Field): FamilyDeclaration {
         ? raw["name"]
         : `#${index}`;
     try {
-      const member = parseMember(context, raw, memberAt, parameter);
+      const member = parseMember(read, raw, memberAt, parameter);
       if (names.has(member.name)) {
         throw new Invalid(memberAt, "another member has the same name");
       }
@@ -411,6 +573,47 @@ function parseSearchTerms({ context, value, at }: Field): string[] | undefined {
   return terms.length === 0 ? undefined : terms;
 }
 
+function parseDescription({ context, value, at }: Field): string | undefined {
+  if (typeof value !== "string" || value.trim() === "") {
+    context.diagnostics.report(
+      "description_invalid",
+      at,
+      "A description must be a non-empty string; the operation keeps the one its summary and description give.",
+    );
+    return undefined;
+  }
+  return value.trim();
+}
+
+function parseTags({ context, value, at }: Field): string[] | undefined {
+  if (
+    !Array.isArray(value) ||
+    !value.every((tag: JsonValue) => typeof tag === "string")
+  ) {
+    context.diagnostics.report(
+      "tags_invalid",
+      at,
+      "Tags must be an array of strings; the operation keeps its own tags.",
+    );
+    return undefined;
+  }
+  return value.filter((tag: string) => tag.trim() !== "");
+}
+
+const operationKeyPattern = /^[A-Z]+ \//;
+
+function parseFoldedInto({ context, value, at }: Field): string | undefined {
+  if (typeof value !== "string" || !operationKeyPattern.test(value)) {
+    context.diagnostics.report(
+      "extension_fold_unmatched",
+      at,
+      "foldedInto must name an operation as METHOD /path; the route is not carried as an alternate route.",
+    );
+    return undefined;
+  }
+  return value;
+}
+
 function parseRevision({ context, value, at }: Field): number | undefined {
   if (!isRevisionNumber(value)) {
     context.diagnostics.report(
@@ -438,9 +641,27 @@ const fieldParsers: FieldParsers = {
     }
     return value;
   },
+  foldedInto: parseFoldedInto,
   toolName: ({ value, at }) => toolName(value, at),
   containerPrefix: ({ value, at }) => nonBlank(value, at),
+  description: parseDescription,
+  tags: parseTags,
+  parameters: parseParameters,
+  requestBody: ({ read, value, at }) => parseRequestBody(read, value, at),
+  publishedSchemas: ({ value, at }) => {
+    if (typeof value !== "boolean") {
+      throw new Invalid(at, "must be a boolean");
+    }
+    return value;
+  },
+  responses: parseResponses,
   annotations: ({ value, at }) => parseAnnotations(value, at),
+  anonymous: ({ value, at }) => {
+    if (value !== true) {
+      throw new Invalid(at, "must be true");
+    }
+    return value;
+  },
   arguments: ({ value, at }) => parseArguments(value, at),
   variants: parseVariants,
   family: parseFamily,
@@ -460,10 +681,11 @@ function aliasOf(
 ): Field | undefined {
   const legacyValue = operation[legacy];
   const value = declared[field];
+  const read = documentSchemas(context);
   if (legacyValue === undefined) {
     return value === undefined
       ? undefined
-      : { context, value, at: childPointer(at, extensionKey, field) };
+      : { context, read, value, at: childPointer(at, extensionKey, field) };
   }
   if (
     value !== undefined &&
@@ -476,7 +698,7 @@ function aliasOf(
     );
     return undefined;
   }
-  return { context, value: legacyValue, at: childPointer(at, legacy) };
+  return { context, read, value: legacyValue, at: childPointer(at, legacy) };
 }
 
 const legacyOf: Readonly<Record<string, string>> = {
@@ -579,11 +801,11 @@ function parseExtension(
       `${extensionKey} declares both variants and a family; a family's members are its variants`,
     );
   }
-  const fieldAt = (field: string): Field | undefined => {
+  const siteOf = (field: string, read: SchemaReader): Field | undefined => {
     const value = raw[field];
     return value === undefined
       ? undefined
-      : { context, value, at: childPointer(extensionAt, field) };
+      : { context, read, value, at: childPointer(extensionAt, field) };
   };
   const searchTerms = aliasOf(
     context,
@@ -621,7 +843,16 @@ function parseExtension(
   const extension: {
     -readonly [K in keyof OperationExtension]: OperationExtension[K];
   } = {};
+  const documentReader = documentSchemas(context);
+  const published = parse(
+    "publishedSchemas",
+    siteOf("publishedSchemas", documentReader),
+  );
+  const read = published === true ? publishedSchema : documentReader;
+  const fieldAt = (field: string): Field | undefined => siteOf(field, read);
+  assign(extension, "publishedSchemas", published);
   assign(extension, "tool", parse("tool", fieldAt("tool")));
+  assign(extension, "foldedInto", parse("foldedInto", fieldAt("foldedInto")));
   assign(extension, "toolName", parse("toolName", fieldAt("toolName")));
   assign(
     extension,
@@ -630,9 +861,23 @@ function parseExtension(
   );
   assign(
     extension,
+    "description",
+    parse("description", fieldAt("description")),
+  );
+  assign(extension, "tags", parse("tags", fieldAt("tags")));
+  assign(extension, "parameters", parse("parameters", fieldAt("parameters")));
+  assign(
+    extension,
+    "requestBody",
+    parse("requestBody", fieldAt("requestBody")),
+  );
+  assign(extension, "responses", parse("responses", fieldAt("responses")));
+  assign(
+    extension,
     "annotations",
     parse("annotations", fieldAt("annotations")),
   );
+  assign(extension, "anonymous", parse("anonymous", fieldAt("anonymous")));
   assign(extension, "arguments", parse("arguments", fieldAt("arguments")));
   assign(extension, "variants", parse("variants", fieldAt("variants")));
   assign(extension, "family", parse("family", fieldAt("family")));
@@ -689,13 +934,31 @@ export function lowerExtension(
   at: JsonPointer,
 ): LoweredExtension {
   const extension = parseExtension(context, operation, at);
-  const { tool, revision, family, ...fields } = extension;
+  const {
+    tool,
+    revision,
+    family,
+    parameters,
+    requestBody,
+    responses,
+    anonymous,
+    foldedInto,
+    publishedSchemas: _publishedSchemas,
+    ...fields
+  } = extension;
   return {
     ...(tool === undefined ? {} : { selection: tool ? "include" : "exclude" }),
     curation: {
       ...fields,
       ...(family === undefined ? {} : familyCuration(family)),
     },
+    schemas: {
+      ...(parameters === undefined ? {} : { parameters }),
+      ...(requestBody === undefined ? {} : { requestBody }),
+      ...(responses === undefined ? {} : { responses }),
+    },
+    ...(anonymous === undefined ? {} : { anonymous }),
+    ...(foldedInto === undefined ? {} : { foldedInto }),
     ...(revision === undefined ? {} : { revision }),
   };
 }

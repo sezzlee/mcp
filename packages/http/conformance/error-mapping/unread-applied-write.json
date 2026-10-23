@@ -1,0 +1,21 @@
+{
+  "kind": "error-mapping",
+  "description": "byte tavanini asan govde, backend'in zaten uyguladigi bir yazmanin cevabi: tekrar cagirma onerilmez",
+  "input": {
+    "sdkError": "response_too_large",
+    "limit": 262144,
+    "narrowing": [
+      {
+        "name": "limit",
+        "message": "Maximum number of rows to return."
+      }
+    ],
+    "applied": true,
+    "unread": true
+  },
+  "expected": {
+    "error": "response_too_large",
+    "message": "The response exceeded 262144 bytes and was not read to the end. It is refused, not truncated: no part of the body was returned. The backend already applied the operation; calling it again applies it again.",
+    "retryable": false
+  }
+}

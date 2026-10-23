@@ -19,11 +19,17 @@ import {
   serializationFor,
   resolveRules,
   describePayload,
+  decodeResponseBody,
   mapInvokeResult,
+  parseReadArguments,
+  selectFrom,
+  storedAnswer,
   refuseOversizeResponse,
+  refuseUnreadResponse,
   refuseChangedTool,
   refuseRankerUnavailable,
   refuseTimedOutInvoke,
+  refuseUnreachableBackend,
   refuseUnresolvedFile,
   isListQuery,
   normalizeRanking,
@@ -554,27 +560,40 @@ function rawBody(body: BackendInput["body"]): string | undefined {
 
 function backendResponseFrom(input: BackendInput): BackendResponse {
   const body = rawBody(input.body);
+  const bytes =
+    body === undefined
+      ? new Uint8Array()
+      : Buffer.from(body, input.bodyEncoding === "base64" ? "base64" : "utf8");
   return {
     status: input.status,
     ...(input.contentType === undefined
       ? {}
       : { contentType: input.contentType }),
     headers: input.headers ?? {},
-    ...(body === undefined ? {} : { body }),
+    ...decodeResponseBody(bytes, input.contentType),
   };
 }
 
 function sdkResultFrom(input: SdkInput): InvokeResult {
   if (input.sdkError === "response_too_large") {
-    return refuseOversizeResponse({
-      bytes: input.bytes ?? 0,
-      limit: input.limit ?? 1,
-      shape: describePayload(input.payload),
+    const advice = {
       ...(input.narrowing === undefined ? {} : { narrowing: input.narrowing }),
-    });
+      ...(input.applied === undefined ? {} : { applied: input.applied }),
+    };
+    return input.unread === true
+      ? refuseUnreadResponse({ limit: input.limit ?? 1, ...advice })
+      : refuseOversizeResponse({
+          bytes: input.bytes ?? 0,
+          limit: input.limit ?? 1,
+          shape: describePayload(input.payload),
+          ...advice,
+        });
   }
   if (input.sdkError === "invoke_timeout") {
     return refuseTimedOutInvoke(input.limitMs ?? 0);
+  }
+  if (input.sdkError === "backend_unreachable") {
+    return refuseUnreachableBackend();
   }
   if (input.sdkError === "search_ranker_unavailable") {
     return refuseRankerUnavailable();
@@ -612,6 +631,31 @@ describe("conformance: error-mapping", () => {
           : { hiddenFields: fixture.input.hiddenFields }),
       };
       expect(mapInvokeResult(response, options)).toEqual(fixture.expected);
+    });
+  }
+});
+
+describe("conformance: result-reading", () => {
+  for (const [file, fixture] of fixturesOf("result-reading")) {
+    it(file, () => {
+      const { input } = fixture;
+      if ("stored" in input) {
+        expect(
+          storedAnswer({
+            success: input.stored,
+            handle: input.handle,
+            bytes: input.bytes,
+            limit: input.limit,
+            expiresInSeconds: input.expiresInSeconds,
+            ...(input.applied === undefined ? {} : { applied: input.applied }),
+          }),
+        ).toEqual(fixture.expected);
+        return;
+      }
+      const request = parseReadArguments(input.read);
+      expect(
+        "error" in request ? request : selectFrom(input.body, request),
+      ).toEqual(fixture.expected);
     });
   }
 });

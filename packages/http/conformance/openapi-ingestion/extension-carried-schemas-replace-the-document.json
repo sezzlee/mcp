@@ -1,0 +1,211 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "x-sezzlee parameters, requestBody ve responses dokumanin semalarinin yerine gecer; wire bicimi dokumandan kalir, header adi buyuk-kucuk harf gozetmeden eslesir, kokunde $defs olan sema 3.0 dokumaninda da yerel cozulur ve $ref yanindaki anahtar korunur",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "components": {
+        "schemas": {
+          "Order": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "paths": {
+        "/orders": {
+          "post": {
+            "operationId": "createOrder",
+            "parameters": [
+              {
+                "name": "limit",
+                "in": "query",
+                "schema": {
+                  "type": "number"
+                }
+              },
+              {
+                "name": "X-Tenant",
+                "in": "header",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Order"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "ok",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Order"
+                    }
+                  }
+                }
+              }
+            },
+            "x-sezzlee": {
+              "parameters": [
+                {
+                  "name": "limit",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "description": "Most rows."
+                },
+                {
+                  "name": "x-tenant",
+                  "in": "header",
+                  "required": true,
+                  "schema": {
+                    "type": "string"
+                  }
+                }
+              ],
+              "requestBody": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "shipTo": {
+                      "$ref": "#/$defs/Address",
+                      "description": "Where it goes."
+                    },
+                    "billTo": {
+                      "$ref": "#/$defs/Address"
+                    }
+                  },
+                  "required": ["shipTo"],
+                  "$defs": {
+                    "Address": {
+                      "type": "object",
+                      "properties": {
+                        "city": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "201": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "POST /orders",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "createOrder",
+          "method": "POST",
+          "route": "/orders",
+          "parameters": [
+            {
+              "name": "limit",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "description": "Most rows."
+            },
+            {
+              "name": "X-Tenant",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "shipTo": {
+                  "$ref": "#/$defs/Address",
+                  "description": "Where it goes."
+                },
+                "billTo": {
+                  "$ref": "#/$defs/Address"
+                }
+              },
+              "required": ["shipTo"],
+              "$defs": {
+                "Address": {
+                  "type": "object",
+                  "properties": {
+                    "city": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      }
+    ],
+    "diagnostics": []
+  }
+}

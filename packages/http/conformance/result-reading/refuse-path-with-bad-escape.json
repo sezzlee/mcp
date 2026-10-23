@@ -1,0 +1,36 @@
+{
+  "kind": "result-reading",
+  "description": "A '~' not followed by '0' or '1' is not a JSON Pointer.",
+  "input": {
+    "body": {
+      "total": 3,
+      "items": [
+        {
+          "id": 1,
+          "status": "open"
+        },
+        {
+          "id": 2,
+          "status": "paid",
+          "note": "gift"
+        },
+        {
+          "id": 3
+        }
+      ],
+      "meta": {
+        "page": {
+          "size": 3
+        }
+      }
+    },
+    "read": {
+      "path": "/a~2b"
+    }
+  },
+  "expected": {
+    "error": "invalid_selection",
+    "message": "'/a~2b' is not a JSON Pointer: it is empty for the whole result, or starts with '/' and escapes '~' as '~0' and '/' as '~1'.",
+    "retryable": false
+  }
+}

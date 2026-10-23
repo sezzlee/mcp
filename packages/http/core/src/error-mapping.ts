@@ -13,6 +13,7 @@ export interface BackendResponse {
   readonly contentType?: string;
   readonly headers: Readonly<Record<string, string>>;
   readonly body?: string;
+  readonly bodyEncoding?: "base64";
 }
 
 export type ParsedBody =
@@ -92,7 +93,7 @@ export const standardMessages = {
   bad_request: ({ status }) =>
     `The backend rejected the request (${status}) without usable details. Check the arguments against the input schema.`,
   unauthenticated: () =>
-    "The backend did not accept the caller's identity (401). The MCP session's credentials were forwarded unchanged; retrying with the same session will not help.",
+    "The backend did not accept the credentials the call carried (401); retrying with the same session will not help.",
   forbidden: () =>
     "The caller is authenticated but not permitted to perform this operation (403).",
   not_found: () =>
@@ -436,7 +437,13 @@ function buildSuccess(
   parsed: ParsedBody,
 ): InvokeSuccess {
   const result: InvokeSuccess = { status: response.status };
-  if (parsed.kind === "json") {
+  if (response.bodyEncoding === "base64" && response.body !== undefined) {
+    result.body = response.body;
+    result.bodyEncoding = "base64";
+    if (response.contentType !== undefined) {
+      result.contentType = response.contentType;
+    }
+  } else if (parsed.kind === "json") {
     result.body = parsed.value;
   } else if (parsed.kind === "text") {
     result.body = parsed.text;
@@ -457,7 +464,10 @@ export function mapInvokeResult(
   response: BackendResponse,
   options: ErrorMappingOptions = {},
 ): InvokeResult {
-  const parsed = parseBody(response.body, response.contentType);
+  const parsed: ParsedBody =
+    response.bodyEncoding === "base64"
+      ? { kind: "empty" }
+      : parseBody(response.body, response.contentType);
   const status = response.status;
   const reference =
     status >= 500 ? resolveReference(response, parsed) : undefined;

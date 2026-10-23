@@ -27,16 +27,20 @@ export type SdkErrorCode =
   | "file_unresolved"
   | "response_too_large"
   | "invoke_timeout"
+  | "backend_unreachable"
   | "search_ranker_unavailable"
   | "internal_error"
   | "tool_changed"
-  | "rate_limit_exceeded";
+  | "rate_limit_exceeded"
+  | "result_unavailable"
+  | "invalid_selection";
 export type PayloadShapeKind = "array" | "object" | "text";
 
 export interface InvokeSuccess {
   status: number;
   body?: unknown;
   contentType?: string;
+  bodyEncoding?: "base64";
   location?: string;
 }
 export interface MappedError {

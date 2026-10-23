@@ -15,7 +15,7 @@ Every meta-tool answer passes five stages, in order:
 1. **Compose** — flat agent arguments become an HTTP request ([argument-mapping.md](argument-mapping.md)).
 2. **Dispatch under a deadline** — every `ref` file argument is resolved, then the request runs through the backend's own pipeline. Resolution is inside the deadline, so a resolver that hangs is bounded the way a backend that hangs is ([request-bodies.md](request-bodies.md)). An exception that escapes the backend's pipeline is answered the way the backend's own server answers it: a `500` with no body and no headers, logged by the SDK. It is therefore mapped as `backend_error`, never as `internal_error` — that code belongs to the layer's own failures, and an exception message reaching the agent would bypass the rule that no 5xx body is forwarded ([error-mapping.md](error-mapping.md)). A probe dispatch follows the same rule.
 3. **Map** — the backend response becomes an `InvokeSuccess` or a `MappedError` ([error-mapping.md](error-mapping.md)).
-4. **Gate** — the serialized answer is measured against the payload budget.
+4. **Gate** — the serialized answer is measured against the payload budget; an over-budget `invoke_tool` success is stored instead of refused when a result store is bound ([result-reading.md](result-reading.md)).
 5. **Emit** — the answer becomes a `CallToolResult`.
 
 The gate is the **last step before emission on every meta-tool path**, not only `invoke_tool`. `search_tools` and `load_tool` pass it too: an operation whose `inputSchema` is large enough is otherwise an unbounded response with no argument to narrow it. An implementation MUST have exactly one place where a `CallToolResult` is constructed, so no answer can bypass the gate. This is the sibling of the rule `packages/cores/file-core` states for file-backed servers; the two packages share the principle and never the code.
@@ -31,6 +31,8 @@ The **serialized text the implementation is about to emit**, in UTF-8 bytes. Not
 An over-budget answer is **refused in full**. No prefix, no preview, no partial body.
 
 The reason is that a preview is not a cheaper failure. It spends the entire budget the gate exists to protect, it still forces the agent to call again because a truncated array cannot be reasoned over, and it adds the risk that the agent answers confidently from a fragment it believes is the whole. Refusal costs a few hundred bytes and leaves the agent with an accurate picture.
+
+Storing is not truncating. With a result store bound, an over-budget `invoke_tool` success is kept whole and the agent receives a handle and an outline instead of the body ([result-reading.md](result-reading.md)); every part it then reads is labelled with its place in the whole and passes this gate again. Everything else that is over the budget is refused as described here.
 
 ### The refusal
 
@@ -51,6 +53,10 @@ Cardinality arguments are listed first, each set in schema property order, and t
 
 When no argument narrows the call — `load_tool` is the standing case — `fields` is absent and the message says so. A `load_tool` refusal is not recoverable by the agent; the host-side remedy is the depth budget of [schema-conversion-rules.md](schema-conversion-rules.md).
 
+When the backend answered a call of an operation whose `readOnlyHint` is not `true` with a status below `400`, the operation was **applied**, and calling it again applies it again. The refusal then MUST NOT name a narrowing argument: `fields` is absent and the advice says the operation was applied. Like the second sentence of the deadline message, the hazard is published in the message. Fixture: `oversize-applied-write-names-no-narrowing`.
+
+An implementation caps the body while it reads it, at `invoke.maxBufferedBytes`, and refuses a body that crosses the cap with the same code, before it is measured. Neither its size nor its shape is known, so `payload` is absent; `fields` and the advice follow the rules above. Fixtures: `unread-over-cap-names-narrowing`, `unread-applied-write`.
+
 ### Standard messages
 
 Fixture-pinned. Every interpolated number is an integer: a decimal would render differently under a culture such as `tr-TR`.
@@ -59,10 +65,16 @@ Fixture-pinned. Every interpolated number is an integer: a decimal would render 
 The response is {bytes} bytes; the limit is {limit} bytes. It is refused, not truncated: no part of the body was returned. {shape} {advice}
 ```
 
+A body cut off at a read cap:
+
+```
+The response exceeded {limit} bytes and was not read to the end. It is refused, not truncated: no part of the body was returned. {advice}
+```
+
 | slot     | value                                                                                                                                                                                       |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `shape`  | `The body is an array of {count} items.` / `The body is an object with {count} properties.` / `The body is a text value of {count} characters.` / `The body is not a JSON array or object.` |
-| `advice` | `Narrow it and call again: {names}.` / `No argument of this call narrows the response.`                                                                                                     |
+| `advice` | `Narrow it and call again: {names}.` / `No argument of this call narrows the response.` / `The backend already applied the operation; calling it again applies it again.`                   |
 
 ## The invoke deadline
 
@@ -75,6 +87,14 @@ The backend did not answer within {limitMs} ms and the call was abandoned. The o
 ```
 
 `retryable` is `true` because a slow backend may answer next time — the same reading that puts 504 in `backend_unavailable`. The second sentence is load-bearing: the deadline does not roll anything back, so a retry can apply an operation twice. That hazard is published in the message rather than hidden behind a `false` flag.
+
+An implementation that reaches the backend over the network emits `backend_unreachable` with `retryable: true` when the connection fails before an answer arrives — refused, reset, a DNS or TLS failure:
+
+```
+The backend could not be reached, or dropped the connection before answering. The operation may already have been applied; re-read before retrying.
+```
+
+The second sentence holds for the deadline's reason: a connection can drop after the request was delivered. Fixture: `backend-unreachable`.
 
 A deadline at or above **60000 ms is unreachable** through a stock MCP client, whose own per-request timeout cancels first. A host that raises the deadline past that point gets the client's behaviour, not its own.
 
@@ -97,13 +117,16 @@ Exactly one result is emitted per call. A result that arrives after the call was
 | Setting                      | Default    | Meaning                                     |
 | ---------------------------- | ---------- | ------------------------------------------- |
 | `invoke.maxResponseBytes`    | `262144`   | The largest answer, in UTF-8 bytes          |
+| `invoke.maxBufferedBytes`    | `16777216` | The largest backend body read, in bytes     |
 | `invoke.timeoutMs`           | `30000`    | The invoke deadline; zero means no deadline |
 | `invoke.maxResponseBytesFor` | unset      | Per-endpoint override, consulted first      |
 | `invoke.timeoutMsFor`        | unset      | Per-endpoint override, consulted first      |
 | `invoke.maxInlineFileBytes`  | `1048576`  | Decoded `base64` file bytes per call        |
 | `invoke.maxFileBytes`        | `16777216` | The bytes of one resolved `ref` file        |
 
-A host lowers either; neither is negotiable by the agent. The overrides are delegates over the invoked endpoint, not fields on `EndpointDescriptor`: how many bytes a deployment's answer may occupy is a property of **that deployment**, not of the endpoint, and two hosts serving the same descriptor must be free to disagree.
+`invoke.maxBufferedBytes` bounds memory, not the agent's context: a body under it and over the budget is stored or refused with its shape, and a body over it is refused unread. It applies to the body as read, before decoding and wrapping, so it does not depend on the budget.
+
+A host lowers any of them; none is negotiable by the agent. The overrides are delegates over the invoked endpoint, not fields on `EndpointDescriptor`: how many bytes a deployment's answer may occupy is a property of **that deployment**, not of the endpoint, and two hosts serving the same descriptor must be free to disagree.
 
 Precedence is a single step — `maxResponseBytesFor(target) ?? maxResponseBytes` — deliberately simpler than the layered ladder of [argument-curation.md](argument-curation.md). That ladder needs `seal` because a method decorator can defeat a central rule; there is no decorator layer here, so there is nothing to seal against. Restoring the parity would be ceremony with no failure mode behind it.
 
@@ -152,7 +175,6 @@ The tool '{name}' changed after it was loaded, so the call was refused before re
 ## Known limits
 
 - Every interpolated number in a standard message is an integer, so culture-sensitive formatting cannot diverge.
-- Every implementation buffers the whole backend body before anything is measured, so an endpoint returning gigabytes exhausts memory before the budget runs. This predates the budget and is not addressed here.
 - A `retryable: true` timeout can produce a duplicate write. The message says so; the protocol offers nothing better.
 - A replica built before the tool version existed drops `version` as an argument it does not know, so a pinned call answered by such a replica is not checked. The gap closes once every replica carries the check.
 - `SdkErrorCode` and `BackendErrorCode` MUST stay disjoint. A shared member makes an envelope match two branches of the `InvokeResult` union, and the resulting validation error names the top-level fixture union rather than the real cause.

@@ -98,6 +98,7 @@ export interface Member {
   required: boolean;
   readOnly: boolean;
   constructorBound: boolean;
+  nullable?: boolean;
   description?: string;
   constraints?: Constraints;
 }

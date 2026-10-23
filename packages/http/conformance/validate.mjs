@@ -16,6 +16,7 @@ ajv.addSchema(
 );
 ajv.addSchema(readJson(path.join(schemasDir, "tool-definition.schema.json")));
 ajv.addSchema(readJson(path.join(schemasDir, "invoke-result.schema.json")));
+ajv.addSchema(readJson(path.join(schemasDir, "result-reading.schema.json")));
 ajv.addSchema(readJson(path.join(schemasDir, "type-shape.schema.json")));
 ajv.addSchema(readJson(path.join(schemasDir, "openapi-extension.schema.json")));
 const validate = ajv.compile(
@@ -34,6 +35,7 @@ const expectedKinds = [
   "naming",
   "openapi-ingestion",
   "ranked-search",
+  "result-reading",
   "schema-simplification",
   "search",
   "selection",

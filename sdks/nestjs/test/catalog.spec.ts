@@ -8,9 +8,13 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  Scope,
   UseGuards,
   type CanActivate,
+  type INestApplication,
+  type Provider,
 } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { Test } from "@nestjs/testing";
 import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from "class-validator";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -44,6 +48,28 @@ class DeclaringGuard implements CanActivate {
 
   describeVisibility(): { anonymous: "no"; policies: string[] } {
     return { anonymous: "no", policies: ["OrdersRead"] };
+  }
+}
+
+@Injectable()
+class TenantGuard implements CanActivate {
+  canActivate(): boolean {
+    return true;
+  }
+
+  describeVisibility(): { anonymous: "no"; policies: string[] } {
+    return { anonymous: "no", policies: ["Tenant"] };
+  }
+}
+
+@Injectable()
+class SilentGuard implements CanActivate {
+  canActivate(): boolean {
+    return true;
+  }
+
+  describeVisibility(): Record<string, never> {
+    return {};
   }
 }
 
@@ -158,5 +184,81 @@ describe("nest catalog", () => {
   it("reports no diagnostics for a clean host", () => {
     expect(catalog.current.diagnostics).toEqual([]);
     expect(catalog.current.fatal).toEqual([]);
+  });
+});
+
+describe("nest catalog behind global guards", () => {
+  const appWith = async (
+    providers: Provider[],
+    configure: (app: INestApplication) => void = () => {},
+  ): Promise<INestApplication> => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [SezzleeModule.forRoot()],
+      controllers: [CatalogOrdersController],
+      providers: [OpaqueGuard, DeclaringGuard, ...providers],
+    }).compile();
+    const app = moduleRef.createNestApplication({ logger: false });
+    configure(app);
+    await app.init();
+    return app;
+  };
+
+  it.each<[string, Provider]>([
+    ["an APP_GUARD provider", { provide: APP_GUARD, useClass: TenantGuard }],
+    [
+      "a request-scoped APP_GUARD provider",
+      { provide: APP_GUARD, useClass: TenantGuard, scope: Scope.REQUEST },
+    ],
+  ])("reads %s into every endpoint's auth", async (_case, provider) => {
+    const app = await appWith([provider]);
+    try {
+      const catalog = app.get(SezzleeCatalog);
+      expect(catalog.find("catalog_orders_ping")?.descriptor.auth).toEqual({
+        anonymous: "no",
+        policies: ["Tenant"],
+        imperative: false,
+      });
+      expect(catalog.find("catalog_orders_get_order")?.descriptor.auth).toEqual(
+        {
+          anonymous: "no",
+          policies: ["Tenant", "OrdersRead"],
+          imperative: false,
+        },
+      );
+    } finally {
+      await app.close();
+    }
+  });
+
+  it.each<[string, CanActivate, unknown]>([
+    [
+      "marks every endpoint imperative behind a global guard that does not declare itself",
+      new OpaqueGuard(),
+      { anonymous: "unknown", policies: [], imperative: true },
+    ],
+    [
+      "keeps a global guard that declares nothing out of the decision",
+      new SilentGuard(),
+      { anonymous: "unknown", policies: [], imperative: false },
+    ],
+  ])("%s", async (_case, guard, auth) => {
+    const app = await appWith([], (host) => {
+      host.useGlobalGuards(guard);
+    });
+    try {
+      expect(
+        app.get(SezzleeCatalog).find("catalog_orders_ping")?.descriptor.auth,
+      ).toEqual(auth);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("refuses to start on an HTTP adapter other than Express", async () => {
+    await expect(
+      appWith([], (host) => {
+        host.getHttpAdapter().getType = () => "fastify";
+      }),
+    ).rejects.toMatchObject({ code: "unsupported_http_adapter" });
   });
 });

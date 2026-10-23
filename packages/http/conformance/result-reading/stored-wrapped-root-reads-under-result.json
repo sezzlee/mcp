@@ -1,0 +1,48 @@
+{
+  "kind": "result-reading",
+  "description": "A non-object root wrapped under result for the outputSchema is stored wrapped, so the outline paths match the published schema.",
+  "input": {
+    "stored": {
+      "status": 200,
+      "body": {
+        "result": [
+          {
+            "a": 1
+          },
+          {
+            "b": 2
+          },
+          7
+        ]
+      }
+    },
+    "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+    "bytes": 812345,
+    "limit": 262144,
+    "expiresInSeconds": 600
+  },
+  "expected": {
+    "status": 200,
+    "stored": {
+      "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+      "bytes": 812345,
+      "limit": 262144,
+      "expiresInSeconds": 600,
+      "outline": [
+        {
+          "path": "",
+          "kind": "object",
+          "count": 1,
+          "fields": ["result"]
+        },
+        {
+          "path": "/result",
+          "kind": "array",
+          "count": 3,
+          "fields": ["a", "b"]
+        }
+      ]
+    },
+    "message": "The response is 812345 bytes; the limit is 262144 bytes. It was stored, not returned: read it with read_result and the handle, choosing a path from the outline, the properties to select and a window with offset and limit. The stored result expires in 600 seconds."
+  }
+}

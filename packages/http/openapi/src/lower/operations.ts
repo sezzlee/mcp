@@ -27,6 +27,7 @@ import {
   lowerExtension,
   overlayExtension,
   scopeRevisionOf,
+  type CarriedSchemas,
 } from "./extension.js";
 import { lowerParameters } from "./parameters.js";
 import { lowerResponses } from "./responses.js";
@@ -50,6 +51,10 @@ export interface SourcedEndpoint {
   readonly security: readonly SecurityRequirement[] | undefined;
   /** The operation-level marker `x-sezzlee.tool` declares; absent when it declares none. */
   readonly selection?: SelectionDecision;
+  /** The operation `x-sezzlee.foldedInto` names, as `METHOD /path`. */
+  readonly foldedInto?: string;
+  /** The routes of operations folded into this one, in document order. */
+  readonly alternateRoutes?: readonly string[];
 }
 
 export interface OperationOptions extends ServerOptions {
@@ -265,6 +270,13 @@ function lowerOperation(
   };
   const { route, prefix } = hoisted(site.path, options.hoistPathPrefix);
   const description = descriptionOf(operation);
+  const carried = withCarriedSchemas(
+    context,
+    childPointer(at, "x-sezzlee"),
+    { parameters: lowered.parameters, requestBody, responses },
+    extension.schemas,
+    options.outputSchema,
+  );
   const carriers = [...credentialSlots, ...lowered.carriers];
   const descriptor: EndpointDescriptor = {
     ...(usableId === undefined ? {} : { operationId: usableId }),
@@ -273,12 +285,19 @@ function lowerOperation(
     route,
     ...(description === undefined ? {} : { description }),
     ...(operation["deprecated"] === true ? { deprecated: true } : {}),
-    ...(lowered.parameters.length === 0
+    ...(carried.parameters.length === 0
       ? {}
-      : { parameters: lowered.parameters }),
-    ...(requestBody === undefined ? {} : { requestBody }),
-    ...(responses === undefined ? {} : { responses }),
-    auth: authOf(security, carriers),
+      : { parameters: carried.parameters }),
+    ...(carried.requestBody === undefined
+      ? {}
+      : { requestBody: carried.requestBody }),
+    ...(carried.responses === undefined
+      ? {}
+      : { responses: carried.responses }),
+    auth: {
+      ...authOf(security, carriers),
+      ...(extension.anonymous === true ? { anonymous: "yes" } : {}),
+    },
     ...(tags.length === 0 ? {} : { tags }),
     ...(Object.keys(revision).length === 0 ? {} : { revision }),
     ...extension.curation,
@@ -308,7 +327,143 @@ function lowerOperation(
     ...(extension.selection === undefined
       ? {}
       : { selection: extension.selection }),
+    ...(extension.foldedInto === undefined
+      ? {}
+      : { foldedInto: extension.foldedInto }),
   };
+}
+
+/**
+ * Hands each folded route to the operation it names, as that operation's alternate route.
+ *
+ * Guard: the target must be a lowered operation of the same method that is not itself folded. A
+ * route named into another method's operation, or into one dropped or folded away, would index the
+ * tool under a path that does not reach it.
+ */
+function withAlternateRoutes(
+  context: SchemaContext,
+  endpoints: readonly SourcedEndpoint[],
+): SourcedEndpoint[] {
+  const byKey = new Map<string, SourcedEndpoint>(
+    endpoints.map((endpoint) => [endpoint.key, endpoint]),
+  );
+  const alternates = new Map<string, string[]>();
+  for (const endpoint of endpoints) {
+    if (endpoint.foldedInto === undefined) {
+      continue;
+    }
+    const target = byKey.get(endpoint.foldedInto);
+    if (
+      target === undefined ||
+      target.foldedInto !== undefined ||
+      target.descriptor.method !== endpoint.descriptor.method
+    ) {
+      context.diagnostics.report(
+        "extension_fold_unmatched",
+        childPointer(endpoint.at, "x-sezzlee", "foldedInto"),
+        `${endpoint.foldedInto} names no unfolded operation of the same method; ${endpoint.key} is not carried as its alternate route.`,
+      );
+      continue;
+    }
+    alternates.set(target.key, [
+      ...(alternates.get(target.key) ?? []),
+      endpoint.descriptor.route,
+    ]);
+  }
+  return endpoints.map((endpoint) => {
+    const routes = alternates.get(endpoint.key);
+    return routes === undefined
+      ? endpoint
+      : { ...endpoint, alternateRoutes: routes };
+  });
+}
+
+interface Slots {
+  readonly parameters: NonNullable<EndpointDescriptor["parameters"]>;
+  readonly requestBody: EndpointDescriptor["requestBody"];
+  readonly responses: EndpointDescriptor["responses"];
+}
+
+const parameterKey = (parameter: { name: string; in: string }): string =>
+  `${parameter.in} ${parameter.in === "header" ? parameter.name.toLowerCase() : parameter.name}`;
+
+/**
+ * Lays the schemas an `x-sezzlee` carries over the ones the document gives, keeping the document's
+ * wire form: parameter style and media type come from the document, schema, requiredness and
+ * description from the extension.
+ *
+ * Guard: a carried slot the document cannot match is reported and the document's is kept. A
+ * parameter the document does not declare has no wire form to borrow, and one the extension
+ * leaves out would lose its schema to a guess.
+ */
+function withCarriedSchemas(
+  context: SchemaContext,
+  at: JsonPointer,
+  document: Slots,
+  carried: CarriedSchemas,
+  outputSchema: OperationOptions["outputSchema"],
+): Slots {
+  let parameters = document.parameters;
+  if (carried.parameters !== undefined) {
+    const documented = new Map(
+      parameters.map((parameter) => [parameterKey(parameter), parameter]),
+    );
+    const carriedKeys = carried.parameters.map(parameterKey);
+    const matched =
+      carriedKeys.length === parameters.length &&
+      new Set(carriedKeys).size === carriedKeys.length &&
+      carriedKeys.every((key) => documented.has(key));
+    if (matched) {
+      parameters = carried.parameters.flatMap((schema) => {
+        const found = documented.get(parameterKey(schema));
+        if (found === undefined) {
+          return [];
+        }
+        const { description: _description, ...wire } = found;
+        return [
+          {
+            ...wire,
+            required: schema.required,
+            schema: schema.schema,
+            ...(schema.description === undefined
+              ? {}
+              : { description: schema.description }),
+          },
+        ];
+      });
+    } else {
+      context.diagnostics.report(
+        "extension_schema_mismatch",
+        childPointer(at, "parameters"),
+        `The carried parameters (${carriedKeys.join(", ") || "none"}) are not the document's (${parameters.map(parameterKey).join(", ") || "none"}); the document's schemas are kept.`,
+      );
+    }
+  }
+  let requestBody = document.requestBody;
+  if (carried.requestBody !== undefined) {
+    if (requestBody === undefined) {
+      context.diagnostics.report(
+        "extension_schema_mismatch",
+        childPointer(at, "requestBody"),
+        "The operation declares no request body for the carried one to describe; it is not carried.",
+      );
+    } else {
+      const {
+        schema: _schema,
+        required: _required,
+        description: _description,
+        ...wire
+      } = requestBody;
+      requestBody = { ...wire, ...carried.requestBody };
+    }
+  }
+  const responses =
+    carried.responses === undefined || outputSchema === "omit"
+      ? document.responses
+      : Object.keys(carried.responses).length === 0
+        ? undefined
+        : carried.responses;
+  return { parameters, requestBody, responses };
 }
 
 type ScopeRevision = number | undefined | "dropped";
@@ -397,5 +552,5 @@ export function lowerOperations(
       context.diagnostics.report(error.code, error.at, error.message);
     }
   }
-  return endpoints;
+  return withAlternateRoutes(context, endpoints);
 }

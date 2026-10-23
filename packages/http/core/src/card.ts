@@ -56,9 +56,15 @@ export function summarizeParameters(inputSchema: JsonSchemaObject): string {
       ? declared.filter((name): name is string => typeof name === "string")
       : [],
   );
+  const defs: unknown = inputSchema.$defs;
   const parts: string[] = [];
   for (const [name, schema] of Object.entries(properties)) {
-    const type = typeLabel(schema);
+    const type = typeLabel(
+      schema,
+      typeof defs === "object" && defs !== null && !Array.isArray(defs)
+        ? (defs as Record<string, unknown>)
+        : {},
+    );
     parts.push(
       required.has(name) ? `${name}: ${type} (required)` : `${name}: ${type}`,
     );
@@ -175,7 +181,28 @@ export function createDetail(
   };
 }
 
-function typeLabel(schema: JsonSchemaObject): string {
+const localDefPrefix = "#/$defs/";
+
+/**
+ * Guard: a property that names one of the root's `$defs` takes its target's type. An SDK hoists a
+ * type used twice into `$defs`, and labelling the reference `any` would tell the agent the property
+ * accepts anything. A chain that loops or leaves the table stays `any`.
+ */
+function typeLabel(
+  schema: unknown,
+  defs: Readonly<Record<string, unknown>>,
+  seen: ReadonlySet<string> = new Set(),
+): string {
+  const ref: unknown = (schema as { $ref?: unknown } | null)?.$ref;
+  if (typeof ref === "string" && ref.startsWith(localDefPrefix)) {
+    const name = ref
+      .slice(localDefPrefix.length)
+      .replaceAll("~1", "/")
+      .replaceAll("~0", "~");
+    return seen.has(name) || !Object.hasOwn(defs, name)
+      ? "any"
+      : typeLabel(defs[name], defs, new Set([...seen, name]));
+  }
   const type: unknown = (schema as { type?: unknown } | null)?.type;
   if (typeof type === "string") {
     return type;

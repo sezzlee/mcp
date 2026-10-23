@@ -17,7 +17,6 @@ import {
   Client,
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
-import { SezzleeCatalogError } from "@sezzlee/core";
 import type { Request, Response } from "express";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -630,7 +629,7 @@ describe("visibility coverage", () => {
     expect(message).toContain("and 5 more");
   });
 
-  it("fails the catalog when onUncovered is fatal, with or without an authorizer", async () => {
+  it("stops startup when onUncovered is fatal, with or without an authorizer", async () => {
     const configure = (options: SezzleeOptions): void => {
       options.visibility.onUncovered = "fatal";
     };
@@ -638,15 +637,16 @@ describe("visibility coverage", () => {
       new TableAuthorizer((tool) => tool.handler.name !== "audit"),
       undefined,
     ]) {
-      const catalog = await bootCatalog({
-        controllers: [ReportsController],
-        configure,
-        ...(authorizer === undefined ? {} : { authorizer }),
+      await expect(
+        startHost({
+          controllers: [ReportsController],
+          configure,
+          ...(authorizer === undefined ? {} : { authorizer }),
+        }),
+      ).rejects.toMatchObject({
+        name: "SezzleeCatalogError",
+        code: "visibility_uncovered",
       });
-      expect(() => catalog.ensureValid()).toThrow(SezzleeCatalogError);
-      expect(catalog.current.fatal.map((entry) => entry.code)).toContain(
-        "visibility_uncovered",
-      );
     }
   });
 });

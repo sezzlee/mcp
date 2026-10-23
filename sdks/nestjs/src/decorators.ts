@@ -3,6 +3,7 @@ import type {
   EndpointDescriptor,
   JsonSchemaObject,
 } from "@sezzlee/core";
+import type { StandardJsonSchema } from "./discovery/standard-schema.js";
 
 export type JsonValue =
   | string
@@ -64,13 +65,15 @@ export interface McpParameterOptions {
  * What one status code returns.
  *
  * A bare class is bound through the same TypeShape reader the request body uses; a one-element
- * tuple declares a collection of it; `{ schema }` supplies a schema verbatim; `{}` declares a
- * status that carries no body.
+ * tuple declares a collection of it; `{ schema }` supplies a schema verbatim; a Standard Schema
+ * such as a zod schema is written as the JSON Schema of what it produces; `{}` declares a status
+ * that carries no body.
  */
 export type McpResponseDeclaration =
   | NewableFunction
   | readonly [NewableFunction]
   | { readonly schema: JsonSchemaObject }
+  | StandardJsonSchema
   | Record<string, never>;
 
 export interface McpFileFieldOptions {

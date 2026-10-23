@@ -6,7 +6,7 @@ Defines how an embedded SDK limits the meta-tool calls one caller makes. The sha
 
 ## Why this document exists
 
-`search_tools`, `load_tool` and `invoke_tool` arrive as the same `POST` to the MCP endpoint. Only the JSON-RPC body says which tool is called and, for `load_tool` and `invoke_tool`, which operation it names. A host's HTTP rate limiter runs before that body is read, so it can only count requests: it cannot give a search a different budget from a write, and it cannot answer in a form the agent reads. It answers with HTTP 429, and some MCP clients drop the streamable HTTP session on a 429 in the middle of one. The SDK already parses the call, so the limit belongs there.
+`search_tools`, `load_tool`, `invoke_tool` and `read_result` arrive as the same `POST` to the MCP endpoint. Only the JSON-RPC body says which tool is called and, for `load_tool` and `invoke_tool`, which operation it names. A host's HTTP rate limiter runs before that body is read, so it can only count requests: it cannot give a search a different budget from a write, and it cannot answer in a form the agent reads. It answers with HTTP 429, and some MCP clients drop the streamable HTTP session on a 429 in the middle of one. The SDK already parses the call, so the limit belongs there.
 
 ## Scope
 
@@ -17,6 +17,7 @@ Rate limiting applies to `tools/call` requests. Each call is classified by the t
 | `search`  | `search_tools`                                   | none                                       |
 | `load`    | `load_tool`                                      | the catalog tool its `name` argument names |
 | `invoke`  | `invoke_tool`                                    | the catalog tool its `name` argument names |
+| `read`    | `read_result`                                    | none                                       |
 | `other`   | any other tool registered on the same MCP server | none                                       |
 
 Other JSON-RPC methods (`initialize`, `tools/list`, `ping`, notifications) are not limited by the SDK. They carry no operation to tell apart, so the host's HTTP limiter covers them as well as the SDK could.
@@ -29,7 +30,7 @@ With no rate limit configured nothing is limited, and the SDK behaves exactly as
 
 A host configures limits in one of two forms, and an SDK implements the first as a prebuilt instance of the second, so there is one code path:
 
-1. **Declared limits**: a default limit, optional per-meta-tool limits for `search`, `load` and `invoke` that replace the default for that meta-tool, and an optional concurrency limit on `invoke`. Declared limits are partitioned by a key. The default key is the caller scope key ([caching.md](caching.md)); the host MAY supply its own key function.
+1. **Declared limits**: a default limit, optional per-meta-tool limits for `search`, `load`, `invoke` and `read` that replace the default for that meta-tool, and an optional concurrency limit on `invoke`. Declared limits are partitioned by a key. The default key is the caller scope key ([caching.md](caching.md)); the host MAY supply its own key function.
 2. **A partition function**: called once per call with the call context, it returns zero or more partitions. Each partition is a key and a factory for the limiter that key uses. Partitions with equal keys share one limiter for the life of the process, until the limiter idles out. Zero partitions means the call is not limited.
 
 The call context carries the host's request (from which the host reads its own identity), the meta-tool, the target, and the caller scope key.

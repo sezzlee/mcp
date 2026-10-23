@@ -1,0 +1,77 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "x-sezzlee anonymous: true operasyonu her cagirana acik isaretler (auth.anonymous yes); dokumanin guvenlik gereksinimi ve kimlik tasiyicilari degismez",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "components": {
+        "securitySchemes": {
+          "Key": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-Key"
+          }
+        }
+      },
+      "security": [
+        {
+          "Key": []
+        }
+      ],
+      "paths": {
+        "/orders": {
+          "get": {
+            "operationId": "listOrders",
+            "x-sezzlee": {
+              "anonymous": true
+            },
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "GET /orders",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "listOrders",
+          "method": "GET",
+          "route": "/orders",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "yes",
+            "policies": [],
+            "imperative": false,
+            "carriers": [
+              {
+                "in": "header",
+                "name": "X-API-Key"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "diagnostics": []
+  }
+}

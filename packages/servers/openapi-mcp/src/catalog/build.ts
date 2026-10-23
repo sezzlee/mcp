@@ -115,6 +115,9 @@ export async function buildGatewayCatalog(
         descriptor,
         ...(descriptor.tags === undefined ? {} : { tags: descriptor.tags }),
         ...(searchTerms === undefined ? {} : { searchTerms }),
+        ...(endpoint.alternateRoutes === undefined
+          ? {}
+          : { alternateRoutes: endpoint.alternateRoutes }),
         revision: revisionDeclarations(endpoint, config.revision),
         declare: (tags: readonly string[] | undefined) => ({
           ...descriptor,

@@ -1,7 +1,7 @@
 import type { OuterRequest } from "../options.js";
 import type { McpToolInfo } from "../visibility/authorizer.js";
 
-export type McpMetaTool = "search" | "load" | "invoke" | "other";
+export type McpMetaTool = "search" | "load" | "invoke" | "read" | "other";
 
 /**
  * What a rate-limit key or partition function is asked about: one `tools/call`.
@@ -94,6 +94,7 @@ export interface DeclaredRateLimits {
   readonly search?: RateLimitSettings;
   readonly load?: RateLimitSettings;
   readonly invoke?: RateLimitSettings;
+  readonly read?: RateLimitSettings;
   readonly invokeConcurrency?: number;
   readonly key?: (call: McpCallContext) => string;
   readonly now?: RateLimitClock;
@@ -112,6 +113,7 @@ export interface PartitionedRateLimits {
   readonly search?: never;
   readonly load?: never;
   readonly invoke?: never;
+  readonly read?: never;
   readonly invokeConcurrency?: never;
   readonly key?: never;
   readonly now?: never;

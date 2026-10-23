@@ -1,0 +1,201 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "With publishedSchemas the carried schemas are taken as written: default and allOf stay, and a schema that references the document's components drops the operation",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "components": {
+        "schemas": {
+          "Order": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "paths": {
+        "/orders": {
+          "post": {
+            "operationId": "createOrder",
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Order"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "ok",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Order"
+                    }
+                  }
+                }
+              }
+            },
+            "x-sezzlee": {
+              "publishedSchemas": true,
+              "parameters": [],
+              "requestBody": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "note": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "rush": {
+                          "type": "boolean",
+                          "default": false
+                        }
+                      }
+                    }
+                  ]
+                },
+                "required": true
+              },
+              "responses": {
+                "200": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "default": "open"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/orders/{id}": {
+          "get": {
+            "operationId": "readOrder",
+            "parameters": [
+              {
+                "name": "id",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "publishedSchemas": true,
+              "parameters": [
+                {
+                  "name": "id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "string"
+                  }
+                }
+              ],
+              "responses": {
+                "200": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Order"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "POST /orders",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "createOrder",
+          "method": "POST",
+          "route": "/orders",
+          "requestBody": {
+            "schema": {
+              "allOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "note": {
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "rush": {
+                      "type": "boolean",
+                      "default": false
+                    }
+                  }
+                }
+              ]
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "default": "open"
+                  }
+                }
+              }
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      }
+    ],
+    "diagnostics": [
+      {
+        "code": "extension_invalid",
+        "at": "/paths/~1orders~1{id}/get/x-sezzlee/responses/200/schema"
+      }
+    ]
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "kind": "openapi-ingestion",
+  "description": "dokumanin parametreleriyle eslesmeyen x-sezzlee parameters ve govdesiz operasyona tasinan requestBody uyarilir ve tasinmaz; dokumanin semalari kalir",
+  "input": {
+    "document": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "t",
+        "version": "1"
+      },
+      "servers": [
+        {
+          "url": "https://api.test"
+        }
+      ],
+      "paths": {
+        "/orders": {
+          "get": {
+            "operationId": "listOrders",
+            "parameters": [
+              {
+                "name": "limit",
+                "in": "query",
+                "schema": {
+                  "type": "number"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "ok"
+              }
+            },
+            "x-sezzlee": {
+              "parameters": [
+                {
+                  "name": "max",
+                  "in": "query",
+                  "required": false,
+                  "schema": {
+                    "type": "integer"
+                  }
+                }
+              ],
+              "requestBody": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "endpoints": [
+      {
+        "key": "GET /orders",
+        "baseUrl": "https://api.test",
+        "descriptor": {
+          "operationId": "listOrders",
+          "method": "GET",
+          "route": "/orders",
+          "parameters": [
+            {
+              "name": "limit",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "number"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          },
+          "auth": {
+            "anonymous": "unknown",
+            "policies": [],
+            "imperative": false
+          }
+        }
+      }
+    ],
+    "diagnostics": [
+      {
+        "code": "extension_schema_mismatch",
+        "at": "/paths/~1orders/get/x-sezzlee/parameters"
+      },
+      {
+        "code": "extension_schema_mismatch",
+        "at": "/paths/~1orders/get/x-sezzlee/requestBody"
+      }
+    ]
+  }
+}

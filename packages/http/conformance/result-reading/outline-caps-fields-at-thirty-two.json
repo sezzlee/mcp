@@ -1,0 +1,120 @@
+{
+  "kind": "result-reading",
+  "description": "An entry names at most thirty-two members, in the order they are first seen; its count still counts them all.",
+  "input": {
+    "stored": {
+      "status": 200,
+      "body": [
+        {
+          "k01": 1,
+          "k02": 1,
+          "k03": 1,
+          "k04": 1,
+          "k05": 1,
+          "k06": 1,
+          "k07": 1,
+          "k08": 1,
+          "k09": 1,
+          "k10": 1,
+          "k11": 1,
+          "k12": 1,
+          "k13": 1,
+          "k14": 1,
+          "k15": 1,
+          "k16": 1,
+          "k17": 1,
+          "k18": 1,
+          "k19": 1,
+          "k20": 1
+        },
+        {
+          "k11": 1,
+          "k12": 1,
+          "k13": 1,
+          "k14": 1,
+          "k15": 1,
+          "k16": 1,
+          "k17": 1,
+          "k18": 1,
+          "k19": 1,
+          "k20": 1,
+          "k21": 1,
+          "k22": 1,
+          "k23": 1,
+          "k24": 1,
+          "k25": 1,
+          "k26": 1,
+          "k27": 1,
+          "k28": 1,
+          "k29": 1,
+          "k30": 1,
+          "k31": 1,
+          "k32": 1,
+          "k33": 1,
+          "k34": 1,
+          "k35": 1,
+          "k36": 1,
+          "k37": 1,
+          "k38": 1,
+          "k39": 1,
+          "k40": 1
+        }
+      ]
+    },
+    "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+    "bytes": 812345,
+    "limit": 262144,
+    "expiresInSeconds": 600
+  },
+  "expected": {
+    "status": 200,
+    "stored": {
+      "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+      "bytes": 812345,
+      "limit": 262144,
+      "expiresInSeconds": 600,
+      "outline": [
+        {
+          "path": "",
+          "kind": "array",
+          "count": 2,
+          "fields": [
+            "k01",
+            "k02",
+            "k03",
+            "k04",
+            "k05",
+            "k06",
+            "k07",
+            "k08",
+            "k09",
+            "k10",
+            "k11",
+            "k12",
+            "k13",
+            "k14",
+            "k15",
+            "k16",
+            "k17",
+            "k18",
+            "k19",
+            "k20",
+            "k21",
+            "k22",
+            "k23",
+            "k24",
+            "k25",
+            "k26",
+            "k27",
+            "k28",
+            "k29",
+            "k30",
+            "k31",
+            "k32"
+          ]
+        }
+      ]
+    },
+    "message": "The response is 812345 bytes; the limit is 262144 bytes. It was stored, not returned: read it with read_result and the handle, choosing a path from the outline, the properties to select and a window with offset and limit. The stored result expires in 600 seconds."
+  }
+}

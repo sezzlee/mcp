@@ -1,7 +1,7 @@
 # @sezzlee/openapi-mcp
 
 MCP server that exposes an OpenAPI (Swagger 2.0 / OpenAPI 3.0–3.2) document as sezzlee's
-search-first tool catalog — `search_tools`, `load_tool`, `invoke_tool` — over a **remote**
+search-first tool catalog — `search_tools`, `load_tool`, `invoke_tool`, `read_result` — over a **remote**
 backend, calling it with `fetch`.
 
 > Status: `1.0.0`, stable. Install with `npm install -g @sezzlee/openapi-mcp` or run it with
@@ -105,7 +105,12 @@ schema (`src/platform/config.ts`) that rejects unknown keys.
 | `refHosts`                       | array of string                             | `[]`           | Hosts an external `$ref` may be fetched from, beyond the document's own host. Kept apart from `allowHosts`, so allowing a schema host never lets calls or credentials go there          |
 | `identityCookies`                | array of string                             | `[]`           | Cookie names treated as identity carriers on top of the default deny-list (compared case-insensitively); they extend it and never replace it                                            |
 | `limits.timeoutMs`               | positive int                                | `30000`        | Per-invocation deadline                                                                                                                                                                 |
-| `limits.maxResponseBytes`        | positive int                                | `262144`       | Response byte cap, applied while the body streams                                                                                                                                       |
+| `limits.maxResponseBytes`        | positive int                                | `262144`       | The largest answer that reaches the agent; a larger success is stored for `read_result` while `results.enabled` holds, and refused otherwise                                            |
+| `limits.maxBufferedBytes`        | positive int                                | `16777216`     | The largest backend body read, applied while the body streams; a larger one is refused unread                                                                                           |
+| `results.enabled`                | boolean                                     | `true`         | Keeps over-budget successes in memory and publishes `read_result`; see [result-reading.md](../../http/spec/result-reading.md)                                                           |
+| `results.lifetimeMs`             | int ≥ 1000                                  | `600000`       | How long a stored result is kept                                                                                                                                                        |
+| `results.maxCallerBytes`         | positive int                                | `16777216`     | What one caller's stored results may hold; the oldest go first. A caller is the bearer token it authenticated with, or every loopback caller when there is no token exchange            |
+| `results.maxBytes`               | positive int                                | `67108864`     | What all stored results may hold; at least `results.maxCallerBytes`                                                                                                                     |
 | `limits.maxInlineFileBytes`      | positive int                                | `1048576`      | —                                                                                                                                                                                       |
 
 A `credentials` entry is keyed by the security scheme name it satisfies; a `tokenExchange.schemes`

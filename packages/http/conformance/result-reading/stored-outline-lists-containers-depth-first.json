@@ -1,0 +1,71 @@
+{
+  "kind": "result-reading",
+  "description": "An over-budget success is answered with a handle and an outline: the root, then each array and object reached through object members, depth first in member order, with their counts and member names.",
+  "input": {
+    "stored": {
+      "status": 200,
+      "body": {
+        "total": 3,
+        "items": [
+          {
+            "id": 1,
+            "status": "open"
+          },
+          {
+            "id": 2,
+            "status": "paid",
+            "note": "gift"
+          },
+          {
+            "id": 3
+          }
+        ],
+        "meta": {
+          "page": {
+            "size": 3
+          }
+        }
+      }
+    },
+    "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+    "bytes": 812345,
+    "limit": 262144,
+    "expiresInSeconds": 600
+  },
+  "expected": {
+    "status": 200,
+    "stored": {
+      "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+      "bytes": 812345,
+      "limit": 262144,
+      "expiresInSeconds": 600,
+      "outline": [
+        {
+          "path": "",
+          "kind": "object",
+          "count": 3,
+          "fields": ["total", "items", "meta"]
+        },
+        {
+          "path": "/items",
+          "kind": "array",
+          "count": 3,
+          "fields": ["id", "status", "note"]
+        },
+        {
+          "path": "/meta",
+          "kind": "object",
+          "count": 1,
+          "fields": ["page"]
+        },
+        {
+          "path": "/meta/page",
+          "kind": "object",
+          "count": 1,
+          "fields": ["size"]
+        }
+      ]
+    },
+    "message": "The response is 812345 bytes; the limit is 262144 bytes. It was stored, not returned: read it with read_result and the handle, choosing a path from the outline, the properties to select and a window with offset and limit. The stored result expires in 600 seconds."
+  }
+}

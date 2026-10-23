@@ -3,13 +3,13 @@ import {
   All,
   Controller,
   Get,
+  Post,
   Query,
   Req,
   Res,
   type INestApplication,
 } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { McpServer } from "@modelcontextprotocol/server";
 import {
   Client,
   StreamableHTTPClientTransport,
@@ -17,20 +17,11 @@ import {
 import type { Request, Response } from "express";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SdkError } from "@sezzlee/core";
-import type { CallerScopeResolver } from "../src/cache.js";
-import { SezzleeCatalog } from "../src/catalog.js";
 import { McpTool } from "../src/decorators.js";
-import { SezzleeDispatcher } from "../src/dispatcher.js";
-import { extensionTokens } from "../src/extension-points.js";
-import type { InvokeResultMapper } from "../src/invoke-result-mapper.js";
-import { registerSezzleeTools } from "../src/meta-tools.js";
 import { SEZZLEE_OPTIONS, type SezzleeOptions } from "../src/options.js";
 import { SezzleeModule } from "../src/sezzlee.module.js";
-import {
-  SezzleeStreamableHttp,
-  type SezzleeRequestHandler,
-} from "../src/transport/streamable-http.js";
-import { CallerVisibilityProvider } from "../src/visibility/provider.js";
+import { SezzleeMcpEndpoint } from "../src/transport/mcp-endpoint.js";
+import type { SezzleeRequestHandler } from "../src/transport/streamable-http.js";
 
 @Controller()
 class BulkController {
@@ -42,6 +33,12 @@ class BulkController {
       id: index,
       note: "x".repeat(64),
     }));
+  }
+
+  @Post("rows/export")
+  @McpTool({ name: "export_rows" })
+  exportRows(@Query("limit") limit?: string) {
+    return this.rows(limit);
   }
 
   @Get("slow")
@@ -63,32 +60,12 @@ interface Wire {
   readonly isError?: boolean;
 }
 
-let mapper: InvokeResultMapper | undefined;
-let scopes: CallerScopeResolver | undefined;
-let options: SezzleeOptions | undefined;
-
 @Controller()
 class BudgetMcpController {
   private readonly serve: SezzleeRequestHandler;
 
-  constructor(
-    private readonly streamableHttp: SezzleeStreamableHttp,
-    private readonly catalog: SezzleeCatalog,
-    private readonly dispatcher: SezzleeDispatcher,
-    private readonly visibility: CallerVisibilityProvider,
-  ) {
-    this.serve = this.streamableHttp.serve(() => {
-      const server = new McpServer({ name: "budget", version: "0.0.0" });
-      registerSezzleeTools(server, {
-        catalog: this.catalog,
-        dispatcher: this.dispatcher,
-        mapper: mapper as InvokeResultMapper,
-        visibility: this.visibility,
-        scopes: scopes as CallerScopeResolver,
-        options: options as SezzleeOptions,
-      });
-      return server;
-    });
+  constructor(endpoint: SezzleeMcpEndpoint) {
+    this.serve = endpoint.serve({ name: "budget", version: "0.0.0" });
   }
 
   @All("mcp")
@@ -97,7 +74,7 @@ class BudgetMcpController {
   }
 }
 
-describe("response budget and invoke deadline", () => {
+describe("response budget and invoke deadline, with no result store bound", () => {
   let app: INestApplication;
   let client: Client;
 
@@ -118,20 +95,19 @@ describe("response budget and invoke deadline", () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [
-        SezzleeModule.forRoot((opts) => {
-          opts.invoke.maxResponseBytes = 4_096;
-          opts.invoke.timeoutMs = 150;
-        }),
+        SezzleeModule.forRoot(
+          (opts) => {
+            opts.invoke.maxResponseBytes = 4_096;
+            opts.invoke.timeoutMs = 150;
+          },
+          { resultStore: { useValue: null } },
+        ),
       ],
       controllers: [BulkController, BudgetMcpController],
     }).compile();
     app = moduleRef.createNestApplication({ logger: false });
     await app.init();
     await app.listen(0);
-
-    mapper = app.get<InvokeResultMapper>(extensionTokens.invokeResultMapper);
-    scopes = app.get<CallerScopeResolver>(extensionTokens.callerScopeResolver);
-    options = app.get<SezzleeOptions>(SEZZLEE_OPTIONS);
 
     client = new Client({ name: "budget-probe", version: "0.0.0" });
     await client.connect(
@@ -142,6 +118,11 @@ describe("response budget and invoke deadline", () => {
   afterAll(async () => {
     await client.close();
     await app.close();
+  });
+
+  it("B0 publishes no read_result", async () => {
+    const listed = await client.listTools();
+    expect(listed.tools.map((tool) => tool.name)).not.toContain("read_result");
   });
 
   it("B1 refuses an oversize response and names the narrowing arguments", async () => {
@@ -157,6 +138,19 @@ describe("response budget and invoke deadline", () => {
     expect(parsed.payload?.shape).toEqual({ kind: "array", count: 200 });
     expect(parsed.fields?.map((field) => field.name)).toContain("limit");
     expect(parsed.message).not.toContain("xxxx");
+  });
+
+  it("B1b refuses an oversize write without inviting the agent to apply it again", async () => {
+    const { parsed, isError } = await call("invoke_tool", {
+      name: "export_rows",
+      arguments: { limit: "200" },
+    });
+    expect(isError).toBe(true);
+    expect(parsed.error).toBe("response_too_large");
+    expect(parsed.fields).toBeUndefined();
+    expect(parsed.message).toMatch(
+      / The body is an array of 200 items\. The backend already applied the operation; calling it again applies it again\.$/,
+    );
   });
 
   it("B2 admits a response that fits and refuses one byte over", async () => {
@@ -175,7 +169,7 @@ describe("response budget and invoke deadline", () => {
   });
 
   it("B3 lets a per-endpoint override lower the budget for one tool alone", async () => {
-    const live = options as SezzleeOptions;
+    const live = app.get<SezzleeOptions>(SEZZLEE_OPTIONS);
     live.invoke.maxResponseBytesFor = (target) =>
       target.tool === "exact_size" ? 32 : undefined;
     try {

@@ -25,6 +25,7 @@ export type {
   FamilyMember,
   OpenApiExtension,
   OperationExtension,
+  ParameterSchema,
   ScopeExtension,
 } from "./generated/openapi-extension.js";
 export {
@@ -32,7 +33,10 @@ export {
   openApiExtensionKey,
   openApiExtensions,
 } from "./openapi-extension.js";
-export type { OpenApiExtensions } from "./openapi-extension.js";
+export type {
+  AnnotationReport,
+  OpenApiExtensions,
+} from "./openapi-extension.js";
 export {
   SezzleeTemplateError,
   SezzleeArgumentError,
@@ -115,6 +119,7 @@ export {
 export type { FileOptions } from "./file-argument.js";
 export {
   additionalPropertiesOf,
+  admittingNull,
   allowsAdditional,
   flattenableBody,
   isObjectSchema,
@@ -225,6 +230,7 @@ export {
   parseBody,
   retryableStatuses,
 } from "./error-mapping.js";
+export { decodeResponseBody } from "./response-body.js";
 export type {
   BackendResponse,
   ErrorMappingOptions,
@@ -255,10 +261,16 @@ export {
   refuseRankerUnavailable,
   refuseRateLimited,
   refuseTimedOutInvoke,
+  refuseUnreachableBackend,
+  refuseUnreadResponse,
   refuseUnresolvedFile,
   sdkError,
 } from "./invoke-guard.js";
-export type { FileRefusalReason, OversizeResponse } from "./invoke-guard.js";
+export type {
+  FileRefusalReason,
+  OversizeResponse,
+  UnreadResponse,
+} from "./invoke-guard.js";
 export { normalizeInvokeArguments } from "./invoke-arguments.js";
 export type { NormalizedInvokeArguments } from "./invoke-arguments.js";
 export { forwardable, inspect } from "./leak-filter.js";
@@ -342,6 +354,7 @@ export {
   errorResult,
   invokeArgumentsDescription,
   invokeDescription,
+  invokeResponse,
   invokeVersionDescription,
   knownFields,
   loadDescription,
@@ -365,5 +378,41 @@ export type { ProbeOptions } from "./meta-tools/probe-walk.js";
 export type {
   MetaResponse,
   SearchRequest,
+  StorableAnswer,
   WireResult,
 } from "./meta-tools/meta-tools.js";
+export { readStoredResult } from "./meta-tools/read-result.js";
+export type { ReadResultCall } from "./meta-tools/read-result.js";
+export {
+  outlineOf,
+  parseReadArguments,
+  readHandleDescription,
+  readLimitDescription,
+  readNarrowing,
+  readOffsetDescription,
+  readPathDescription,
+  readResultDescription,
+  readSelectDescription,
+  selectFrom,
+  storedAnswer,
+} from "./results/reading.js";
+export type { ReadRequest, StoredFacts } from "./results/reading.js";
+export {
+  handlePattern,
+  MemoryResultStore,
+  mintHandle,
+  resultLimits,
+} from "./results/store.js";
+export type {
+  MemoryResultStoreOptions,
+  ResultShelf,
+  ResultStore,
+} from "./results/store.js";
+export type {
+  InvokeStored,
+  OutlineEntry,
+  ReadResult,
+  ResultReading,
+  StoredResult,
+  StoredValueKind,
+} from "./generated/result-reading.js";
