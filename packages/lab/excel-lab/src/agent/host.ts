@@ -44,6 +44,13 @@ export interface Usage {
   readonly output: number;
 }
 
+/** Where the host says a request's time went: loading the model, reading the prompt, generating. */
+export interface HostTiming {
+  readonly loadMs: number;
+  readonly promptEvalMs: number;
+  readonly evalMs: number;
+}
+
 export type ChatResult =
   | {
       readonly kind: "reply";
@@ -52,6 +59,8 @@ export type ChatResult =
       readonly toolCalls: readonly ToolCall[];
       readonly estimatedTokens: number;
       readonly usage: Usage | null;
+      readonly timing: HostTiming | null;
+      readonly doneReason: string | null;
       readonly ms: number;
     }
   | { readonly kind: "preflightRefused"; readonly estimatedTokens: number };
@@ -79,9 +88,16 @@ export class HostRequestError extends Error {
   }
 }
 
-/** A model host the runner talks to; Ollama is the one implementation. */
+/**
+ * A model host the runner talks to; Ollama is the one implementation.
+ *
+ * Guard: `endpoint` is recorded with each trial and kept out of the
+ * manifest, so one condition can be split across hosts and a slow trial can
+ * still be traced to the host that served it.
+ */
 export interface ModelHost {
   readonly model: string;
+  readonly endpoint: string;
   identity(): Promise<HostIdentity>;
   chat(request: ChatRequest): Promise<ChatResult>;
   loadedWindow(): Promise<number | null>;

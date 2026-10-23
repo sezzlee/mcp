@@ -31,6 +31,10 @@ const chatChunkSchema = z.object({
   prompt_eval_count: z.int().optional(),
   prompt_eval_cached_count: z.int().optional(),
   eval_count: z.int().optional(),
+  load_duration: z.int().optional(),
+  prompt_eval_duration: z.int().optional(),
+  eval_duration: z.int().optional(),
+  done_reason: z.string().optional(),
 });
 
 const runningSchema = z.object({
@@ -106,6 +110,10 @@ export class OllamaHost implements ModelHost {
 
   get model(): string {
     return this.#model;
+  }
+
+  get endpoint(): string {
+    return new URL(this.#baseUrl).origin;
   }
 
   #headers(): Record<string, string> {
@@ -246,6 +254,17 @@ export class OllamaHost implements ModelHost {
               cachedInput: last.prompt_eval_cached_count ?? 0,
               output: last.eval_count,
             },
+      timing:
+        last.load_duration === undefined ||
+        last.prompt_eval_duration === undefined ||
+        last.eval_duration === undefined
+          ? null
+          : {
+              loadMs: last.load_duration / 1e6,
+              promptEvalMs: last.prompt_eval_duration / 1e6,
+              evalMs: last.eval_duration / 1e6,
+            },
+      doneReason: last.done_reason ?? null,
       ms: performance.now() - started,
     };
   }

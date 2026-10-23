@@ -79,6 +79,8 @@ function costOf(run: Run, metric: CostMetric): number | null {
       return run.calls;
     case "inputTokens":
       return run.inputTokens;
+    case "outputTokens":
+      return run.outputTokens;
     case "responseBytes":
       return run.responseBytes;
     case "seconds":
@@ -138,6 +140,7 @@ const metrics: readonly (readonly [string, (run: Run) => number | null])[] = [
     (run) => run.callLog.filter((call) => call.error !== null).length,
   ],
   ["input tokens, all requests", (run) => run.inputTokens],
+  ["output tokens, all requests", (run) => run.outputTokens],
   ["peak prompt tokens", (run) => run.peakInputTokens],
   ["response bytes", (run) => run.responseBytes],
   ["seconds", (run) => run.ms / 1000],

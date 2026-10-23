@@ -34,10 +34,13 @@ const messageSchema: z.ZodType<ChatMessage> = z.union([
 /**
  * A saved run as reports read it. Runs saved before the experiment record
  * existed lack a trial id, a task revision and a repetition; they read as
- * repetition 0 of an unknown revision.
+ * repetition 0 of an unknown revision. Runs saved before attempts and hosts
+ * were recorded read as a first attempt on an unknown endpoint.
  */
 const storedRunSchema = z.looseObject({
   trialId: z.string().nullable().default(null),
+  attempt: z.int().positive().default(1),
+  endpoint: z.string().nullable().default(null),
   taskRevision: z.string().nullable().default(null),
   repetition: z.int().nonnegative().default(0),
   task: z.string(),
@@ -52,6 +55,7 @@ const storedRunSchema = z.looseObject({
   excessCalls: z.int(),
   responseBytes: z.int(),
   inputTokens: z.number().nullable(),
+  outputTokens: z.number().nullable().default(null),
   peakInputTokens: z.number().nullable(),
   failedRequests: z.int().default(0),
   ms: z.number(),
