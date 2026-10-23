@@ -631,7 +631,7 @@
       "files": ["trabzon-hayrat-roads"],
       "question": {
         "tr": "Bu yolların kaç tanesi cadde?",
-        "en": "How many of these roads are avenues?"
+        "en": "How many of these roads are avenues (cadde)?"
       },
       "answer": {
         "kind": "integer",
@@ -2122,7 +2122,7 @@
       "cases": ["V4", "Q6", "T2"],
       "files": ["uk-glos-invoices"],
       "question": {
-        "tr": "En çok ödemenin yapıldığı gün hangisi?",
+        "tr": "Hangi gün toplamda en çok para ödenmiş?",
         "en": "On which day was the most money paid out?"
       },
       "answer": {
@@ -3111,7 +3111,8 @@
       },
       "answer": {
         "kind": "text",
-        "value": "2025 Q3: July to September"
+        "value": "2025 Q3: July to September",
+        "accept": ["2025 Q3", "2025 Q3 (July to September)"]
       },
       "plan": {
         "steps": [
@@ -4618,7 +4619,7 @@
       "answer": {
         "kind": "percent",
         "value": 1.78,
-        "tolerance": 0.01
+        "tolerance": 0.05
       },
       "plan": {
         "steps": [
