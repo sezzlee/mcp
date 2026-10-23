@@ -5,6 +5,7 @@ import {
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { MemoryResultStore } from "@sezzlee/core";
 import {
   buildGatewayCatalog,
   configSchema,
@@ -36,7 +37,13 @@ beforeAll(async () => {
   backend = createServer((req, res) => {
     backendSaw.push(req.headers.authorization ?? "");
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ ok: true }));
+    res.end(
+      JSON.stringify(
+        req.url === "/api/rows"
+          ? Array.from({ length: 100 }, (_value, id) => ({ id }))
+          : { ok: true },
+      ),
+    );
   });
   authorization = createServer((req, res) => {
     let body = "";
@@ -47,16 +54,17 @@ beforeAll(async () => {
       const clientOk =
         req.headers.authorization ===
         `Basic ${Buffer.from("gateway:shh").toString("base64")}`;
+      const subject = form.get("subject_token");
       if (
         clientOk &&
         form.get("grant_type") ===
           "urn:ietf:params:oauth:grant-type:token-exchange" &&
-        form.get("subject_token") === "caller-token"
+        (subject === "caller-token" || subject === "other-token")
       ) {
         res.writeHead(200, { "content-type": "application/json" });
         res.end(
           JSON.stringify({
-            access_token: "backend-token-for-caller",
+            access_token: `backend-token-for-${subject === "caller-token" ? "caller" : "other"}`,
             issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
             token_type: "Bearer",
             expires_in: 120,
@@ -74,6 +82,7 @@ beforeAll(async () => {
   const config = configSchema.parse({
     source: "inline",
     selection: { default: "include" },
+    limits: { maxResponseBytes: 512 },
     transport: {
       kind: "http",
       port: 0,
@@ -104,6 +113,12 @@ beforeAll(async () => {
             responses: { "200": { description: "ok" } },
           },
         },
+        "/rows": {
+          get: {
+            operationId: "rows",
+            responses: { "200": { description: "ok" } },
+          },
+        },
       },
     },
     config,
@@ -118,12 +133,14 @@ beforeAll(async () => {
     createBoundedFetch(new Set([new URL(asOrigin).host])),
     2000,
   );
+  const results = new MemoryResultStore();
   ({ server: gateway } = await serveHttp(
     () =>
       createOpenApiMcpServer(
         catalog,
         createBoundedFetch(catalog.allowedHosts),
         config.limits,
+        { results },
       ),
     exchange,
     {
@@ -250,5 +267,54 @@ describe("openapi-mcp over http with token exchange", () => {
       retryable: false,
     });
     expect(backendSaw.length).toBe(calls + 1);
+  });
+
+  it("reads a stored result back only for the token that stored it", async () => {
+    const connect = async (token: string): Promise<Client> => {
+      const client = new Client({ name: "http-spec", version: "0.0.0" });
+      await client.connect(
+        new StreamableHTTPClientTransport(new URL(mcpUrl), {
+          requestInit: { headers: { authorization: `Bearer ${token}` } },
+        }),
+      );
+      return client;
+    };
+    const textOf = (result: unknown): Record<string, unknown> =>
+      JSON.parse(
+        (result as { content: { text: string }[] }).content[0]?.text ?? "",
+      ) as Record<string, unknown>;
+    const owner = await connect("caller-token");
+    const other = await connect("other-token");
+    try {
+      const stored = textOf(
+        await owner.callTool({
+          name: "invoke_tool",
+          arguments: { name: "rows", arguments: {} },
+        }),
+      ) as { stored: { handle: string } };
+      const { handle } = stored.stored;
+
+      const own = await owner.callTool({
+        name: "read_result",
+        arguments: { handle, offset: 99 },
+      });
+      const foreign = await other.callTool({
+        name: "read_result",
+        arguments: { handle },
+      });
+
+      expect(textOf(own)).toEqual({
+        path: "",
+        kind: "array",
+        total: 100,
+        offset: 99,
+        value: [{ id: 99 }],
+      });
+      expect(foreign.isError).toBe(true);
+      expect(textOf(foreign)["error"]).toBe("result_unavailable");
+    } finally {
+      await owner.close();
+      await other.close();
+    }
   });
 });

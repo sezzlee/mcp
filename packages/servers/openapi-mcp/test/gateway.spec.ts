@@ -19,6 +19,7 @@ interface Seen {
 let server: Server;
 let origin: string;
 const seen: Seen[] = [];
+let endlessClosed: Promise<void> = Promise.resolve();
 
 beforeAll(async () => {
   server = createServer((req, res) => {
@@ -39,6 +40,17 @@ beforeAll(async () => {
       if (req.url?.startsWith("/v1/big") === true) {
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ blob: "x".repeat(4096) }));
+        return;
+      }
+      if (req.url?.startsWith("/v1/endless") === true) {
+        res.writeHead(200, { "content-type": "application/json" });
+        const writing = setInterval(() => res.write("x".repeat(512)), 5);
+        endlessClosed = new Promise((resolve) =>
+          res.on("close", () => {
+            clearInterval(writing);
+            resolve();
+          }),
+        );
         return;
       }
       if (req.url?.startsWith("/v1/orders") === true) {
@@ -189,6 +201,12 @@ const document = () => ({
         responses: { "200": { description: "ok" } },
       },
     },
+    "/endless": {
+      get: {
+        operationId: "endless",
+        responses: { "200": { description: "ok" } },
+      },
+    },
     "/slow": {
       get: { operationId: "slow", responses: { "200": { description: "ok" } } },
     },
@@ -247,6 +265,7 @@ describe("openapi-mcp gateway", () => {
       "big",
       "big_write",
       "create_item",
+      "endless",
       "filtered",
       "get_items",
       "list_orders",
@@ -386,6 +405,19 @@ describe("openapi-mcp gateway", () => {
       message,
       retryable: false,
     });
+  });
+
+  it("closes the connection of a backend that never stops writing once the cap is crossed", async () => {
+    const gateway = await gatewayOf();
+    const response = await invokeEntry(
+      gateway.catalog.byName.get("endless")!,
+      {},
+      createBoundedFetch(gateway.allowedHosts),
+      limits,
+      undefined,
+    );
+    expect(payloadOf(response)).toMatchObject({ error: "response_too_large" });
+    await endlessClosed;
   });
 
   it("answers a backend that refuses the connection with backend_unreachable", async () => {
