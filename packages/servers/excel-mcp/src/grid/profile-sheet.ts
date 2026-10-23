@@ -670,6 +670,7 @@ export function profileSheet(
       sheet,
       bounds,
       options.headerRow,
+      options.headerRowSource,
       headers,
       options.range !== undefined || selected.table !== undefined,
       options.mergedCells,

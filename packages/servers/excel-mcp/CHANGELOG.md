@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Reading fixes
+
+- An explicit `headerRow` on a range that two or more tables claim is read by that row. `read_sheet`, `aggregate_sheet` and `profile_sheet` answered it with the same `ambiguous_header_row` whose recovery asks for it, so the sheet could be read only through `range` or `table`.
+
 ## 0.10.1
 
 ### Reading fixes

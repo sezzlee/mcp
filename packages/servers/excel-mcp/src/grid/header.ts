@@ -374,10 +374,15 @@ function declaredUnlessAmbiguous(
   }
 }
 
+/**
+ * Guard: an explicit headerRow is the recovery `ambiguous_header_row` names,
+ * so a sheet whose tables disagree must not raise that error again here.
+ */
 export function headerWarnings(
   sheet: SheetView,
   bounds: GridBounds,
   headerRow: number,
+  headerRowSource: HeaderRowSource,
   headers: readonly (string | null)[],
   hasExplicitRange: boolean,
   mergePolicy: MergePolicy,
@@ -399,7 +404,10 @@ export function headerWarnings(
   const named = headers.filter(
     (header) => header !== null && header !== "",
   ).length;
-  const declared = declaredHeaderRow(sheet, bounds, mergePolicy);
+  const declared =
+    headerRowSource === "explicit"
+      ? declaredUnlessAmbiguous(sheet, bounds, mergePolicy)
+      : declaredHeaderRow(sheet, bounds, mergePolicy);
   if (declared !== undefined && declared.row !== headerRow) {
     return [
       warning(
