@@ -376,8 +376,10 @@ export class EnvelopeInterceptor
 }
 ```
 
-Hooks run innermost first, as the response leaves the handler; returning `undefined` publishes the
-status without a schema. An `@McpTool({ responses })` declaration is the published shape as written
+Hooks run innermost first, as the response leaves the handler, on the instance Nest built, so they
+can read the interceptor's fields and injected dependencies; returning `undefined` publishes the
+status without a schema. A request-scoped or transient interceptor has no single instance, so its
+hook is not run: the status is published without a schema and `unreadable_shape` is reported. An `@McpTool({ responses })` declaration is the published shape as written
 and is not passed through either.
 
 A body that is not text in the charset its content type names — a PDF, an image — is returned as
@@ -732,7 +734,10 @@ The endpoint speaks Streamable HTTP. `tools/list` returns only four meta-tools:
 kept by the result store and answered with a handle and an outline of the body; the agent reads the
 parts it needs with `read_result`, by JSON Pointer, selected members and a window. A handle is
 readable only by the caller scope it was issued to, and only while that caller can still see the
-tool. The default store keeps each result in memory for `options.results.lifetimeMs` (ten minutes),
+tool. The caller scope is a digest of the identity carriers (`authorization` by default), so callers
+told apart by something else, such as a session cookie, share one scope: forward that header with
+`identity.forward()` or bind a `callerScopeResolver`. The SDK warns once when it stores a result for
+a call that carries none of them. The default store keeps each result in memory for `options.results.lifetimeMs` (ten minutes),
 at most `options.results.maxCallerBytes` (16 MiB) per caller and `options.results.maxBytes`
 (64 MiB) in all, dropping the oldest first. Bind your own `ResultStore` for several replicas, or
 `null` to refuse over-budget answers as before and drop `read_result`:

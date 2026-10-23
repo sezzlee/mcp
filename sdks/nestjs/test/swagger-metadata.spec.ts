@@ -196,6 +196,21 @@ class DocumentedController {
   }
 }
 
+@Controller("reports")
+@ApiHeader({ name: "X-Report-Format", required: true, enum: ["csv", "json"] })
+@ApiHeader({ name: "X-Tenant", required: true, description: "Any tenant." })
+@McpTool()
+class ReportsController {
+  @Get()
+  @ApiHeader({ name: "X-Tenant", required: false, description: "Tenant." })
+  report(
+    @Headers("x-report-format") _format: string,
+    @Headers("x-tenant") _tenant: string,
+  ): string {
+    return "";
+  }
+}
+
 @Controller("plain")
 @McpTool()
 class PlainController {
@@ -208,7 +223,11 @@ class PlainController {
 const diagnostics: DiscoveryDiagnostic[] = [];
 const endpoints = new Map<string, DiscoveredEndpoint>(
   discoverEndpoints(
-    [{ metatype: DocumentedController }, { metatype: PlainController }],
+    [
+      { metatype: DocumentedController },
+      { metatype: ReportsController },
+      { metatype: PlainController },
+    ],
     { report: (diagnostic) => diagnostics.push(diagnostic) },
   ).map((endpoint) => [endpoint.handlerName, endpoint]),
 );
@@ -382,6 +401,24 @@ describe("@nestjs/swagger metadata", () => {
         required: true,
         schema: { type: "number" },
         description: "Search text.",
+      },
+    ]);
+  });
+
+  it("documents a header the controller declares, the handler's declaration taking precedence", () => {
+    expect(descriptorOf("report")?.parameters).toEqual([
+      {
+        name: "x-tenant",
+        in: "header",
+        required: false,
+        schema: { type: "string" },
+        description: "Tenant.",
+      },
+      {
+        name: "x-report-format",
+        in: "header",
+        required: true,
+        schema: { type: "string", enum: ["csv", "json"] },
       },
     ]);
   });

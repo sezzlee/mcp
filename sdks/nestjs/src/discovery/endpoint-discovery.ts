@@ -163,6 +163,14 @@ export interface DiscoveryOptions {
   readonly schema?: TypeShapeBinderOptions;
   readonly globalGuards?: readonly unknown[];
   readonly globalInterceptors?: readonly unknown[];
+  /**
+   * The one instance Nest built of an interceptor class bound to the controller or one of its
+   * handlers; `undefined` when there is none, as for a request-scoped or transient interceptor.
+   */
+  readonly interceptorInstance?: (
+    interceptor: NewableFunction,
+    controller: NewableFunction,
+  ) => object | undefined;
   readonly severity?: (code: string) => CatalogSeverity;
   readonly report?: (diagnostic: DiscoveryDiagnostic) => void;
   readonly queryGrouping?: "flatten" | "group";
@@ -398,6 +406,10 @@ function fromController(
  * The Express router matches a controller's `host` against the replayed request's `Host` header,
  * which is the MCP request's own: a pattern there (`:account.example.com`, a RegExp) is a value the
  * agent cannot choose.
+ *
+ * Guard: Nest hands the whole host to path-to-regexp, which starts a parameter at any unescaped
+ * `:`, a wildcard at `*` and an optional group at `{` (`(` in older releases), inside a label too:
+ * `tenant-:account.example.com` is a pattern. A plain hostname has none of them.
  */
 function routesOnHostPattern(controller: NewableFunction): boolean {
   const declared: unknown = Reflect.getMetadata(HOST_METADATA, controller);
@@ -405,7 +417,7 @@ function routesOnHostPattern(controller: NewableFunction): boolean {
   return hosts.some(
     (host) =>
       host instanceof RegExp ||
-      (typeof host === "string" && /(^|\.):/.test(host)),
+      (typeof host === "string" && /(^|[^\\])[:*{(]/.test(host)),
   );
 }
 
@@ -531,7 +543,7 @@ function describe(
                 declaredType,
                 name,
                 "query",
-                documentedParameter(handler, "query", name),
+                documentedParameter(controller, handler, "query", name),
                 validated,
               ),
           );
@@ -565,7 +577,7 @@ function describe(
             declaredType,
             name,
             "header",
-            documentedParameter(handler, "header", name),
+            documentedParameter(controller, handler, "header", name),
             validated,
           ),
         );
@@ -635,7 +647,12 @@ function describe(
   bodySchema = encoding.schema;
 
   const pathParameters = placeholdersOf(route).map((placeholder) => {
-    const documented = documentedParameter(handler, "path", placeholder);
+    const documented = documentedParameter(
+      controller,
+      handler,
+      "path",
+      placeholder,
+    );
     return {
       name: placeholder,
       in: "path" as const,
@@ -1026,7 +1043,7 @@ function responsesOf(
     );
   return found === undefined
     ? undefined
-    : describedResponses(found, chain, where, options);
+    : describedResponses(found, chain, controller, where, options);
 }
 
 function interceptorsOn(target: object): unknown[] {
@@ -1081,34 +1098,58 @@ function serializationOf(
  * response leaves the handler through the method's interceptors before the controller's and the
  * global ones. The root `$defs` is held aside while a hook wraps the body, since every reference
  * into it is written from the root.
+ *
+ * Guard: a hook runs on the instance Nest built, never on the class's prototype, where its fields
+ * and injected dependencies are absent: an envelope key read from `this` came back `undefined` and
+ * the schema named a property `"undefined"`, which is still a valid schema. A class Nest holds no
+ * single instance of loses its success schemas instead.
  */
 function describedResponses(
   responses: NonNullable<EndpointDescriptor["responses"]>,
   chain: readonly unknown[],
+  controller: NewableFunction,
   where: string,
   options: DiscoveryOptions,
 ): NonNullable<EndpointDescriptor["responses"]> {
   const describers = chain.flatMap((interceptor) => {
     const target: unknown =
+      typeof interceptor === "function"
+        ? options.interceptorInstance?.(interceptor, controller)
+        : interceptor;
+    const declared: unknown =
       typeof interceptor === "function" ? interceptor.prototype : interceptor;
-    const describe = (target as Partial<McpResponseDescriber> | null)
-      ?.describeResponse;
-    return typeof describe === "function"
-      ? [{ target, describe, name: nameOfInterceptor(interceptor) }]
+    return typeof describerOf(declared) === "function"
+      ? [
+          {
+            describe: describerOf(target),
+            name: nameOfInterceptor(interceptor),
+            target,
+          },
+        ]
       : [];
   });
   if (describers.length === 0) {
     return responses;
+  }
+  const unresolved = describers.find(({ describe }) => describe === undefined);
+  if (unresolved !== undefined) {
+    options.report?.({
+      code: "unreadable_shape",
+      message: `${where}: ${unresolved.name}.describeResponse is not run, because Nest holds no single instance of ${unresolved.name} (it is request-scoped or transient); its success statuses are published without a body schema.`,
+    });
   }
   return Object.fromEntries(
     Object.entries(responses).map(([status, response]) => {
       if (!/^2/.test(status) || response.schema === undefined) {
         return [status, response];
       }
+      if (unresolved !== undefined) {
+        return [status, {}];
+      }
       const { $defs, ...body } = response.schema;
       let schema: JsonSchemaObject | undefined = body;
       for (const { target, describe, name } of [...describers].reverse()) {
-        if (schema === undefined) {
+        if (schema === undefined || describe === undefined) {
           break;
         }
         try {
@@ -1137,6 +1178,14 @@ function describedResponses(
       return [status, { schema: described }];
     }),
   );
+}
+
+function describerOf(
+  target: unknown,
+): McpResponseDescriber["describeResponse"] | undefined {
+  const describe = (target as Partial<McpResponseDescriber> | null | undefined)
+    ?.describeResponse;
+  return typeof describe === "function" ? describe : undefined;
 }
 
 function nameOfInterceptor(interceptor: unknown): string {

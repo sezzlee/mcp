@@ -55,7 +55,10 @@ import {
 import { Logger } from "@nestjs/common";
 import { z } from "zod";
 import type { CatalogEntry, SezzleeCatalog } from "./catalog.js";
-import type { CallerScopeResolver } from "./cache.js";
+import {
+  CarrierHashCallerScopeResolver,
+  type CallerScopeResolver,
+} from "./cache.js";
 import type {
   DispatchDeadline,
   DispatchFiles,
@@ -204,6 +207,44 @@ function emitGuarded(
   return emitWithin((target) => budgetFor(deps, target), produce, shelf);
 }
 
+const sharedPartitionWarned = new WeakSet<ResultStore>();
+
+/**
+ * Guard: under the default resolver a call that carries none of the identity carriers — every call
+ * of an app that authenticates by cookie, say — shares one partition with every other such call,
+ * and the visibility check on read decides the tool, not whose answer it was. A leaked handle then
+ * reads across identities. The store keeps working; the host is told once per store, at the first
+ * value kept that way. A stdio session serves one client, so it is never warned about.
+ */
+function warnedOnSharedPartition(store: ResultStore): ResultStore {
+  return {
+    put: async (partition, handle, value) => {
+      const kept = await store.put(partition, handle, value);
+      if (kept !== undefined && !sharedPartitionWarned.has(store)) {
+        sharedPartitionWarned.add(store);
+        logger.warn(
+          "An over-budget result was stored for a call that carries none of the identity carriers, so it shares one result partition with every such call: a leaked handle can be read by another caller who may use the same tool. Forward the header that tells callers apart with identity.forward(), or bind a callerScopeResolver.",
+        );
+      }
+      return kept;
+    },
+    get: (partition, handle) => store.get(partition, handle),
+  };
+}
+
+function sharesPartition(
+  deps: MetaToolDependencies,
+  outer: OuterRequest | undefined,
+): boolean {
+  return (
+    outer !== undefined &&
+    deps.scopes instanceof CarrierHashCallerScopeResolver &&
+    [...deps.options.identity.carriers].every(
+      (name) => outer.headers[name] === undefined,
+    )
+  );
+}
+
 function shelfFor(
   deps: MetaToolDependencies,
   ctx: unknown,
@@ -212,9 +253,12 @@ function shelfFor(
   if (store === undefined || store === null) {
     return undefined;
   }
+  const outer = outerFrom(ctx);
   return {
-    store,
-    partition: scopeFor(deps, outerFrom(ctx)).key,
+    store: sharesPartition(deps, outer)
+      ? warnedOnSharedPartition(store)
+      : store,
+    partition: scopeFor(deps, outer).key,
     report: (error) => {
       logger.warn(
         "The result store failed to keep an over-budget answer; the call was answered with response_too_large instead.",

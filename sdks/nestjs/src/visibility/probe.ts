@@ -31,6 +31,13 @@ export class SezzleeProbeInterceptor implements NestInterceptor {
   }
 }
 
+/**
+ * Guard: the status alone decides a denial, never the body. A 401 or 403 whose body crosses the read
+ * cap is still a denial; read as `unknown` it fell to the default that shows the tool, and
+ * `read_result` served a stored result to a caller whose access had been revoked.
+ */
+const denies = (status: number): boolean => status === 401 || status === 403;
+
 export interface ProbeEvaluator {
   canProbe(entry: CatalogEntry): boolean;
   /**
@@ -86,16 +93,16 @@ export class SezzleeProbeEvaluator implements ProbeEvaluator {
         },
       );
     } catch (error) {
-      if (
-        error instanceof SezzleeDispatchAborted ||
-        error instanceof SezzleeResponseTooLarge
-      ) {
+      if (error instanceof SezzleeResponseTooLarge) {
+        return denies(error.status) ? "deny" : "unknown";
+      }
+      if (error instanceof SezzleeDispatchAborted) {
         return "unknown";
       }
       throw error;
     }
 
-    if (result.status === 401 || result.status === 403) {
+    if (denies(result.status)) {
       return "deny";
     }
     if (result.shortCircuited) {

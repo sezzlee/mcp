@@ -3,6 +3,8 @@ import {
   ClassSerializerInterceptor,
   Controller,
   Get,
+  Injectable,
+  Scope,
   SerializeOptions,
   UseInterceptors,
   type CallHandler,
@@ -66,6 +68,36 @@ class Envelope implements NestInterceptor {
   }
 }
 
+@Injectable()
+class EnvelopeKey {
+  readonly name = "data";
+}
+
+@Injectable()
+class KeyedEnvelope implements NestInterceptor {
+  constructor(private readonly key: EnvelopeKey) {}
+
+  intercept(
+    _context: ExecutionContext,
+    next: CallHandler,
+  ): Observable<unknown> {
+    return next
+      .handle()
+      .pipe(map((data: unknown) => ({ [this.key.name]: data })));
+  }
+
+  describeResponse(schema: JsonSchemaObject): JsonSchemaObject {
+    return {
+      type: "object",
+      properties: { [this.key.name]: schema },
+      required: [this.key.name],
+    };
+  }
+}
+
+@Injectable({ scope: Scope.REQUEST })
+class ScopedEnvelope extends Envelope {}
+
 class Opaque implements NestInterceptor {
   intercept(
     _context: ExecutionContext,
@@ -102,6 +134,20 @@ class UsersController {
     return [];
   }
 
+  @Get("keyed")
+  @ApiOkResponse({ type: BadgeDto })
+  @UseInterceptors(KeyedEnvelope)
+  keyed(): BadgeDto {
+    return new BadgeDto();
+  }
+
+  @Get("scoped")
+  @ApiOkResponse({ type: BadgeDto })
+  @UseInterceptors(ScopedEnvelope)
+  scoped(): BadgeDto {
+    return new BadgeDto();
+  }
+
   @Get("opaque")
   @ApiOkResponse({ type: BadgeDto })
   @UseInterceptors(Opaque)
@@ -122,6 +168,7 @@ async function responsesOf(): Promise<Map<string | undefined, unknown>> {
     imports: [SezzleeModule.forRoot()],
     controllers: [UsersController],
     providers: [
+      EnvelopeKey,
       { provide: APP_INTERCEPTOR, useClass: ClassSerializerInterceptor },
     ],
   }).compile();
@@ -188,6 +235,28 @@ describe("interceptors that change the response", async () => {
         },
       },
     });
+  });
+
+  it("runs describeResponse on the instance Nest built, with its injected dependencies", () => {
+    expect(responses.get("keyed")).toEqual({
+      "200": {
+        schema: {
+          type: "object",
+          properties: {
+            data: {
+              type: "object",
+              properties: { label: { type: "string" } },
+              required: ["label"],
+            },
+          },
+          required: ["data"],
+        },
+      },
+    });
+  });
+
+  it("drops the body schema of an interceptor Nest builds per request", () => {
+    expect(responses.get("scoped")).toEqual({ "200": {} });
   });
 
   it("drops the body schema an interceptor cannot describe", () => {

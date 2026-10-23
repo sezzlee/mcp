@@ -105,6 +105,33 @@ type LoweredFamily = Extract<FamilyResolution, { kind: "members" }>;
 
 const logger = new Logger("Sezzlee");
 
+interface BuiltInstance {
+  readonly instance: unknown;
+  readonly isTransient: boolean;
+  isDependencyTreeStatic(): boolean;
+}
+
+/**
+ * Guard: Nest gives a request-scoped or transient class a placeholder made from its prototype in
+ * the static context, with no field set and nothing injected; only a static, non-transient
+ * wrapper's instance is the object the requests run through.
+ */
+function singleInstance(
+  wrapper: BuiltInstance | undefined,
+): object | undefined {
+  if (
+    wrapper === undefined ||
+    wrapper.isTransient ||
+    !wrapper.isDependencyTreeStatic()
+  ) {
+    return undefined;
+  }
+  const { instance } = wrapper;
+  return typeof instance === "object" && instance !== null
+    ? instance
+    : undefined;
+}
+
 const uncoveredCode = "visibility_uncovered";
 const uncoveredListed = 20;
 
@@ -481,16 +508,19 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
       refDescription === undefined ? undefined : { refDescription };
 
     const applicationId = this.modules.applicationId;
-    const controllers = this.discovery
+    const wrappers = this.discovery
       .getControllers()
-      .filter((wrapper) => typeof wrapper.metatype === "function")
-      .map((wrapper) => {
-        const modulePath = modulePathOf(wrapper.host?.metatype, applicationId);
-        return {
-          metatype: wrapper.metatype as NewableFunction,
-          ...(modulePath === undefined ? {} : { modulePath }),
-        };
-      });
+      .filter((wrapper) => typeof wrapper.metatype === "function");
+    const controllers = wrappers.map((wrapper) => {
+      const modulePath = modulePathOf(wrapper.host?.metatype, applicationId);
+      return {
+        metatype: wrapper.metatype as NewableFunction,
+        ...(modulePath === undefined ? {} : { modulePath }),
+      };
+    });
+    const hosts = new Map(
+      wrappers.map((wrapper) => [wrapper.metatype, wrapper.host]),
+    );
 
     const found = discoverEndpoints(controllers, {
       ...(this.options.schema === undefined
@@ -507,8 +537,10 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
         ...this.applicationConfig.getGlobalInterceptors(),
         ...this.applicationConfig
           .getGlobalRequestInterceptors()
-          .map((wrapper) => wrapper.instance ?? wrapper.metatype),
+          .map((wrapper) => singleInstance(wrapper) ?? wrapper.metatype),
       ],
+      interceptorInstance: (interceptor, controller) =>
+        singleInstance(hosts.get(controller)?.injectables.get(interceptor)),
       globalPrefix,
       routePaths,
       severity: (code) => this.severityFor(code),

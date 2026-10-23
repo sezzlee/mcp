@@ -2,6 +2,7 @@ import type { JsonSchemaObject } from "@sezzlee/core";
 
 const tagsKey = "swagger/apiUseTags";
 const parametersKey = "swagger/apiParameters";
+const classHeadersKey = "swagger/apiHeaders";
 
 export interface DocumentedParameter {
   readonly schema?: JsonSchemaObject;
@@ -69,7 +70,12 @@ function tagsOf(target: object): string[] {
     : [];
 }
 
+/**
+ * A header may also be declared on the controller, which `@nestjs/swagger` keeps under a key of its
+ * own; the handler's declaration wins.
+ */
 export function documentedParameter(
+  controller: NewableFunction,
   handler: object,
   location: "query" | "path" | "header",
   name: string,
@@ -79,7 +85,13 @@ export function documentedParameter(
       ? typeof declared === "string" &&
         declared.toLowerCase() === name.toLowerCase()
       : declared === name;
-  const found = declaredParameters(handler).find(
+  const declared = [
+    ...declaredParameters(handler, parametersKey),
+    ...(location === "header"
+      ? declaredParameters(controller, classHeadersKey)
+      : []),
+  ];
+  const found = declared.find(
     (parameter) => parameter["in"] === location && matches(parameter["name"]),
   );
   if (found === undefined) {
@@ -99,7 +111,7 @@ export function documentedParameter(
 }
 
 export function documentedBody(handler: object): DocumentedType | undefined {
-  const found = declaredParameters(handler).find(
+  const found = declaredParameters(handler, parametersKey).find(
     (parameter) => parameter["in"] === "body",
   );
   if (found === undefined) {
@@ -109,8 +121,11 @@ export function documentedBody(handler: object): DocumentedType | undefined {
   return typeof declared.type === "function" ? declared : undefined;
 }
 
-function declaredParameters(handler: object): Record<string, unknown>[] {
-  const declared: unknown = Reflect.getMetadata(parametersKey, handler);
+function declaredParameters(
+  target: object,
+  key: string,
+): Record<string, unknown>[] {
+  const declared: unknown = Reflect.getMetadata(key, target);
   return Array.isArray(declared)
     ? declared.flatMap<Record<string, unknown>>(
         (parameter: unknown) => asRecord(parameter) ?? [],

@@ -101,6 +101,15 @@ class TenantHostController {
   }
 }
 
+@Controller({ path: "orders", host: "tenant-:account.example.com" })
+@McpTool()
+class LabelHostController {
+  @Get()
+  list(@HostParam("account") _account: string): string {
+    return "ok";
+  }
+}
+
 @Controller({ path: "admin", host: "admin.example.com" })
 @McpTool()
 class AdminHostController {
@@ -308,7 +317,11 @@ describe("R3d: host-routed controllers", () => {
     const catalog = await catalogOf(
       Test.createTestingModule({
         imports: [SezzleeModule.forRoot()],
-        controllers: [TenantHostController, AdminHostController],
+        controllers: [
+          TenantHostController,
+          LabelHostController,
+          AdminHostController,
+        ],
       }),
     );
     expect(routesOf(catalog)).toEqual(["/admin"]);
@@ -318,6 +331,7 @@ describe("R3d: host-routed controllers", () => {
         .map((diagnostic) => diagnostic.message),
     ).toEqual([
       "TenantHostController.list is routed on a host pattern; the replayed request cannot choose the host, so a call would reach another host's handler or none. Endpoint skipped.",
+      "LabelHostController.list is routed on a host pattern; the replayed request cannot choose the host, so a call would reach another host's handler or none. Endpoint skipped.",
     ]);
   });
 });

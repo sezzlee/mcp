@@ -2,11 +2,17 @@ import "reflect-metadata";
 import {
   All,
   Controller,
+  ForbiddenException,
   Get,
+  Injectable,
+  Logger,
   Post,
   Query,
   Req,
   Res,
+  UseGuards,
+  type CanActivate,
+  type ExecutionContext,
   type INestApplication,
 } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
@@ -15,7 +21,7 @@ import {
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 import type { Request, Response } from "express";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { InvokeStored, ReadResult, SdkError } from "@sezzlee/core";
 import { McpTool } from "../src/decorators.js";
 import type { OuterRequest } from "../src/options.js";
@@ -43,6 +49,32 @@ class RowsController {
   @McpTool({ name: "export_rows" })
   exportRows(@Query("limit") limit?: string) {
     return this.rows(limit);
+  }
+}
+
+const revokedCallers = new Set<string>();
+
+@Injectable()
+class RevocableGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest<Request>();
+    if (revokedCallers.has(String(request.headers.authorization))) {
+      throw new ForbiddenException("x".repeat(70_000));
+    }
+    return true;
+  }
+}
+
+@Controller("guarded")
+@UseGuards(RevocableGuard)
+class GuardedRowsController {
+  @Get("rows")
+  @McpTool({ name: "list_guarded_rows" })
+  rows(@Query("limit") limit?: string) {
+    return Array.from({ length: Number(limit ?? "1") }, (_value, id) => ({
+      id,
+      note: "x".repeat(64),
+    }));
   }
 }
 
@@ -233,5 +265,127 @@ describe("over-budget answers kept for read_result", () => {
 
   it("classes read_result as the read meta-tool for the rate limit", () => {
     expect(calls).toContain("read:read_result");
+  });
+});
+
+describe("a stored result whose tool a probe now denies", () => {
+  let app: INestApplication;
+  let client: Client;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        SezzleeModule.forRoot((opts) => {
+          opts.visibility.tier = "probe";
+          opts.invoke.maxResponseBytes = 4_096;
+          opts.invoke.maxBufferedBytes = 65_536;
+          opts.cache.lifetimeMs = 0;
+        }),
+      ],
+      controllers: [GuardedRowsController, ResultsMcpController],
+      providers: [RevocableGuard],
+    }).compile();
+    app = moduleRef.createNestApplication({ logger: false });
+    await app.init();
+    await app.listen(0);
+    client = new Client({ name: "dave", version: "0.0.0" });
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL(`${await app.getUrl()}/mcp`), {
+        requestInit: { headers: { authorization: "Bearer dave" } },
+      }),
+    );
+  });
+
+  afterAll(async () => {
+    await client.close();
+    await app.close();
+  });
+
+  const call = async (
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<{ parsed: Record<string, unknown>; isError: boolean }> => {
+    const result = (await client.callTool({
+      name,
+      arguments: args,
+    })) as unknown as Wire;
+    return {
+      parsed: JSON.parse(result.content[0]?.text ?? "{}") as Record<
+        string,
+        unknown
+      >,
+      isError: result.isError === true,
+    };
+  };
+
+  it("stops serving it when the denial's body is over the read cap", async () => {
+    const { parsed } = await call("invoke_tool", {
+      name: "list_guarded_rows",
+      arguments: { limit: "200" },
+    });
+    const { handle } = (parsed as unknown as InvokeStored).stored;
+    revokedCallers.add("Bearer dave");
+    const read = await call("read_result", { handle, limit: 1 });
+    expect(read.isError).toBe(true);
+    expect(read.parsed["error"]).toBe("result_unavailable");
+  });
+});
+
+describe("a result stored for a call that carries no identity carrier", () => {
+  let app: INestApplication;
+  const clients: Client[] = [];
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        SezzleeModule.forRoot((opts) => {
+          opts.invoke.maxResponseBytes = 4_096;
+          opts.invoke.maxBufferedBytes = 65_536;
+        }),
+      ],
+      controllers: [RowsController, ResultsMcpController],
+    }).compile();
+    app = moduleRef.createNestApplication({ logger: false });
+    await app.init();
+    await app.listen(0);
+  });
+
+  afterAll(async () => {
+    for (const client of clients) {
+      await client.close();
+    }
+    await app.close();
+  });
+
+  const storeAs = async (headers: Record<string, string>): Promise<void> => {
+    const client = new Client({ name: "store", version: "0.0.0" });
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL(`${await app.getUrl()}/mcp`), {
+        requestInit: { headers },
+      }),
+    );
+    clients.push(client);
+    const result = (await client.callTool({
+      name: "invoke_tool",
+      arguments: { name: "list_rows", arguments: { limit: "200" } },
+    })) as unknown as Wire;
+    expect(result.isError).not.toBe(true);
+  };
+
+  it("warns the host once, and not for a call that carries one", async () => {
+    const warn = vi.spyOn(Logger.prototype, "warn");
+    const shared = () =>
+      warn.mock.calls.filter(([message]) =>
+        String(message).includes("none of the identity carriers"),
+      );
+    try {
+      await storeAs({ authorization: "Bearer erin" });
+      expect(shared()).toEqual([]);
+      await storeAs({ cookie: "session=frank" });
+      await storeAs({ cookie: "session=grace" });
+      expect(shared()).toHaveLength(1);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

@@ -114,24 +114,31 @@ export function createSyntheticContext(
       if (settled) {
         return;
       }
-      let bytes: Buffer;
+      const textEncoding: BufferEncoding =
+        typeof encoding === "string" ? (encoding as BufferEncoding) : "utf8";
+      let size: number;
       if (typeof chunk === "string") {
-        bytes = Buffer.from(
-          chunk,
-          typeof encoding === "string" ? (encoding as BufferEncoding) : "utf8",
-        );
-      } else if (chunk instanceof Buffer || chunk instanceof Uint8Array) {
-        bytes = Buffer.from(chunk);
+        size = Buffer.byteLength(chunk, textEncoding);
+      } else if (chunk instanceof Uint8Array) {
+        size = chunk.byteLength;
       } else {
         return;
       }
-      buffered += bytes.byteLength;
+      buffered += size;
+      /**
+       * Guard: the cap is checked on the chunk's length before it is copied. Copying first doubled
+       * the memory of a chunk over the cap — the handler's buffer and the copy — before refusing it.
+       */
       if (maxBytes !== undefined && buffered > maxBytes) {
         chunks.length = 0;
         stop?.(new SezzleeResponseTooLarge(maxBytes, res.statusCode));
         return;
       }
-      chunks.push(bytes);
+      chunks.push(
+        typeof chunk === "string"
+          ? Buffer.from(chunk, textEncoding)
+          : Buffer.from(chunk),
+      );
     };
     res.write = function write(
       chunk: unknown,
