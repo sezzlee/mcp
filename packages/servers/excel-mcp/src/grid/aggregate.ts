@@ -11,6 +11,7 @@ import {
   type DerivedMetric,
 } from "./derived.js";
 import { limits } from "../platform/limits.js";
+import { accumulate, finite } from "./numeric.js";
 import {
   explicitReading,
   rawReading,
@@ -321,7 +322,18 @@ function conditionWarnings(
 export function aggregateSheet(
   source: SheetSource,
   options: AggregateOptions,
+  capture?: (row: readonly CellScalar[], matchedRows: number) => void,
 ): AggregateResult {
+  if (
+    capture !== undefined &&
+    ((options.pivotBy?.length ?? 0) > 0 ||
+      (options.groupingSets?.length ?? 0) > 0)
+  )
+    throw new SezzleeExcelError(
+      "invalid_argument",
+      "Retained results support one non-pivot grouping.",
+      "Omit pivotBy and groupingSets, or use the default inline result mode.",
+    );
   const firstMetric = options.metrics[0];
   if (firstMetric === undefined || options.metrics.length > limits.maxMetrics)
     throw new SezzleeExcelError(
@@ -825,6 +837,10 @@ export function aggregateSheet(
   ];
   const metricSlot = (options.orderByMetric ?? 1) - 1;
   const sortMetric = options.metrics[metricSlot] ?? firstMetric;
+  const totalSlots = new Set<number>();
+  for (const entry of derived)
+    for (const term of [...entry.numerator, ...(entry.denominator ?? [])])
+      if (term.scope === "total") totalSlots.add(term.metric - 1);
   let divisionByZero = false;
   const finishGrouping = (set: Grouping): GroupingResult => {
     const numeric = (value: CellScalar): number | null =>
@@ -835,12 +851,17 @@ export function aggregateSheet(
      * every group's share null as soon as one group had no amounts.
      */
     const totals = options.metrics.map((metric, slot) => {
-      let total: number | null = set.groups.size === 0 ? 0 : null;
+      if (!totalSlots.has(slot)) return null;
+      const sums = { sum: 0, compensation: 0 };
+      let hasValue = set.groups.size === 0;
       for (const group of set.groups.values()) {
         const value = numeric(finishMetric(metric, group.metrics[slot]));
-        if (value !== null) total = (total ?? 0) + value;
+        if (value !== null) {
+          accumulate(sums, value);
+          hasValue = true;
+        }
       }
-      return total;
+      return hasValue ? finite(sums.sum + sums.compensation) : null;
     });
     const derivedValues = new Map<GroupState | undefined, (number | null)[]>();
     const derivedOf = (group: GroupState | undefined): (number | null)[] => {
@@ -907,7 +928,7 @@ export function aggregateSheet(
         let filtered = 0;
         let kindUsed: ComparableKind | undefined;
         let meaning: MetricMeaning | undefined;
-        for (const group of page) {
+        for (const group of capture === undefined ? page : ordered) {
           const state = (
             pivot === undefined ? group.metrics : group.pivots.get(pivot[0])
           )?.[slot];
@@ -995,28 +1016,32 @@ export function aggregateSheet(
         role: "derived",
       })),
     ];
-    const rows = page.map((group) => [
-      ...group.key.values.map(presentScalar),
+    const rowOf = (group: GroupState): CellScalar[] => [
+      ...group.key.values,
       ...(hasPivot
         ? pivots.flatMap(([id]) =>
             options.metrics.map((metric, slot) =>
-              presentScalar(finishMetric(metric, group.pivots.get(id)?.[slot])),
+              finishMetric(metric, group.pivots.get(id)?.[slot]),
             ),
           )
         : options.metrics.map((metric, slot) =>
-            presentScalar(
-              rounded(metric, finishMetric(metric, group.metrics[slot])),
-            ),
+            rounded(metric, finishMetric(metric, group.metrics[slot])),
           )),
       ...derivedOf(group),
-    ]);
-    if (rows.length === 0 && set.columns.length === 0 && !hasPivot)
-      rows.push([
+    ];
+    if (capture !== undefined)
+      for (const group of ordered) capture(rowOf(group), group.rows);
+    const rows = page.map((group) => rowOf(group).map(presentScalar));
+    if (rows.length === 0 && set.columns.length === 0 && !hasPivot) {
+      const empty = [
         ...options.metrics.map((metric) =>
           rounded(metric, finishMetric(metric, undefined)),
         ),
         ...derivedOf(undefined),
-      ]);
+      ];
+      capture?.(empty, 0);
+      rows.push(empty);
+    }
     const returnedMatchedRows = page.reduce(
       (sum, group) => sum + group.rows,
       0,
@@ -1043,7 +1068,10 @@ export function aggregateSheet(
     return {
       columns,
       rows,
-      groupCount: ordered.length,
+      groupCount:
+        capture === undefined
+          ? ordered.length
+          : Math.max(ordered.length, rows.length),
       returnedGroups: page.length,
       returnedMatchedRows,
       omittedMatchedRows: matchedRows - returnedMatchedRows - set.ungroupedRows,

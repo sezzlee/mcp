@@ -1,5 +1,6 @@
 import { SezzleeExcelError } from "../platform/errors.js";
 import { isCellError, type CellScalar } from "./cell-value.js";
+import { accumulate, finite, type SumState } from "./numeric.js";
 import {
   classify,
   compareWithin,
@@ -35,11 +36,6 @@ export interface MetricRequest {
   readonly percentile?: number;
   readonly where?: readonly Condition[];
   readonly round?: number;
-}
-
-interface SumState {
-  sum: number;
-  compensation: number;
 }
 
 export interface Samples {
@@ -213,27 +209,6 @@ export function newMetricStates(
       }
     }
   });
-}
-
-function finite(value: number): number {
-  if (!Number.isFinite(value))
-    throw new SezzleeExcelError(
-      "numeric_overflow",
-      "A metric calculation exceeded the finite number range.",
-      "Narrow the range or scale the numeric values.",
-    );
-  return value;
-}
-
-function accumulate(state: SumState, value: number): void {
-  const total = finite(state.sum + value);
-  state.compensation = finite(
-    state.compensation +
-      (Math.abs(state.sum) >= Math.abs(value)
-        ? state.sum - total + value
-        : value - total + state.sum),
-  );
-  state.sum = total;
 }
 
 function extremeOf(cell: TypedCell): Extreme | undefined {

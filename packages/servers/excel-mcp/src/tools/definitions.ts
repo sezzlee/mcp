@@ -32,9 +32,7 @@ const typedOptions = {
   columnMode: z
     .enum(["auto", "header", "letter"])
     .optional()
-    .describe(
-      "Columns are named by header text or A1 letter: auto (default), header or letter.",
-    ),
+    .describe("Column references: auto (default), header text or A1 letter."),
 };
 
 const selectionOptions = { table, visibleOnly };
@@ -46,7 +44,7 @@ const profileHeaders = {
     .max(1_048_576)
     .optional()
     .describe(
-      "Header row, 0 for none. Omitted: a table or autofilter header, else the first top row naming its columns in text above any data, else row 1.",
+      "Header row (0: none). Default: table/AutoFilter header, first text header above data, else 1.",
     ),
   headerScan: z
     .boolean()
@@ -160,7 +158,7 @@ export const toolDefinitions = {
         .min(0)
         .optional()
         .describe(
-          "Header row, 0 for none. Omitted: a table or autofilter header, else the first top row naming its columns in text above any data, else row 1.",
+          "Header row (0: none). Default: table/AutoFilter header, first text header above data, else 1.",
         ),
       headerScan: z
         .boolean()
@@ -274,10 +272,16 @@ export const toolDefinitions = {
 
   aggregate_sheet: {
     description:
-      "Answer questions with filtered totals, conditional metrics, rankings, several breakdowns or a pivot in one call. Use this instead of paging rows for a calculation. Known files and columns need no prior discovery call. Columns are named by header text or by A1 letter. A date and time stored without a zone is returned without one, as a local wall clock.",
+      "Calculate filtered totals, grouped rankings, conditional metrics or pivots across the selected range. Known files and columns need no discovery call. Use resultMode retained for a full snapshot and query_result continuation. Unzoned dates remain local wall clocks.",
     inputSchema: z.object({
       filePath,
       sheetName,
+      resultMode: z
+        .enum(["inline", "retained"])
+        .optional()
+        .describe(
+          "inline (default), or retain all groups for 15 minutes in this instance. retained returns a preview up to 16 KiB and resultId; rejects pivots, groupingSets and inColumn/notInColumn. All processing limits apply; failures store nothing.",
+        ),
       ...selectionOptions,
       range: z
         .string()
@@ -354,7 +358,7 @@ export const toolDefinitions = {
         .min(0)
         .optional()
         .describe(
-          "Header row, 0 for none. Omitted: a table or autofilter header, else the first top row naming its columns in text above any data, else row 1.",
+          "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
         ),
       headerScan: z
         .boolean()
@@ -366,7 +370,7 @@ export const toolDefinitions = {
         .enum(["auto", "header", "letter"])
         .optional()
         .describe(
-          "Columns are named by header text or A1 letter: auto (default), header or letter.",
+          "Column references: auto (default), header text or A1 letter.",
         ),
       caseSensitive: z
         .boolean()
@@ -434,12 +438,80 @@ export const toolDefinitions = {
         .min(1)
         .max(
           limits.maxGroupsHard,
-          `maxGroups is at most ${limits.maxGroupsHard} and groups past it are not paged; use orderBy "metric" with orderByMetric for the top groups, or where conditions or a coarser groupBy for fewer groups`,
+          `maxGroups is at most ${limits.maxGroupsHard}; use resultMode "retained" and query_result for continuation, or orderBy "metric", where conditions or a coarser groupBy`,
         )
         .optional()
-        .describe("Groups returned, default 50."),
+        .describe(
+          "Returned groups, default 50. In retained mode, caps only the byte-bounded preview.",
+        ),
       delimiter,
       encoding,
+    }),
+    annotations: { ...readOnly, idempotentHint: false },
+  },
+  query_result: {
+    description:
+      "Query resultId from retained aggregate_sheet: exact, case-sensitive equality on full stored values, projection and stable paging. Reads the immutable snapshot, never the workbook. Continue with nextOffset and the same query.",
+    inputSchema: z.strictObject({
+      resultId: z
+        .string()
+        .min(1)
+        .max(128)
+        .describe("Opaque identifier from this server instance."),
+      columns: z
+        .array(
+          z
+            .int()
+            .min(1)
+            .max(
+              limits.maxMetrics + limits.maxMetrics + limits.maxDerivedMetrics,
+            ),
+        )
+        .min(1)
+        .max(limits.maxMetrics + limits.maxMetrics + limits.maxDerivedMetrics)
+        .optional()
+        .describe(
+          "One-based original result columns in output order; default all.",
+        ),
+      where: z
+        .array(
+          z.strictObject({
+            column: z
+              .int()
+              .min(1)
+              .max(
+                limits.maxMetrics +
+                  limits.maxMetrics +
+                  limits.maxDerivedMetrics,
+              )
+              .describe("One-based original column, before projection."),
+            equals: z
+              .union([
+                z.string().max(limits.maxResultFilterChars),
+                z.number(),
+                z.boolean(),
+                z.null(),
+              ])
+              .describe("Exact scalar; no coercion or text normalization."),
+          }),
+        )
+        .max(limits.maxConditions)
+        .optional()
+        .describe("AND equality over every retained row."),
+      offset: z
+        .int()
+        .min(0)
+        .max(limits.maxResultRows)
+        .optional()
+        .describe(
+          "Zero-based offset among matches; default 0, then nextOffset.",
+        ),
+      maxRows: z
+        .int()
+        .min(1)
+        .max(limits.maxGroupsHard)
+        .optional()
+        .describe("Returned rows, default 50; 16 KiB may admit fewer."),
     }),
     annotations: readOnly,
   },

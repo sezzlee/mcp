@@ -74,6 +74,92 @@ SEZZLEE_CORPUS=/path/to/corpus pnpm turbo run corpus --filter=@sezzlee/excel-lab
 The `corpus` task builds `@sezzlee/excel-mcp` first, so the run always uses the current source.
 `--help` lists every option.
 
+## Retained-result scenario
+
+`result-scenario` checks a complete analysis and a second operation over its retained result
+through the real MCP surface. It runs without a model and does not measure agent success.
+The task builds the server first; fixtures, independent expectations and verbatim responses
+are written outside this repository.
+
+```bash
+pnpm turbo run result-scenario --filter=@sezzlee/excel-lab --ui=stream -- --out /tmp/excel-results
+pnpm turbo run test --filter=@sezzlee/excel-lab --ui=stream -- test/result-scenario.spec.ts
+```
+
+The first JSON line identifies a fresh `payments-*` directory and its `scenario.json`.
+The final line is the verification report; the full report and one request/response file per
+call are also saved in the reported `result-run-*` directory. The fixture is original
+MIT-licensed CSV data: 1,200 customers and 6,000 data rows. Each customer has two overdue
+unpaid amounts, one overdue paid amount, one unpaid amount due on the reference date and one
+unpaid future amount. The reference date is fixed at **2026-10-15**. Strict `Due < reference`
+and `Paid = false` select exactly 2,400 rows. Customer number `n` owes `125 + 1.25 × n`;
+the expected answers are authored from this arithmetic, independently of the reader.
+
+The scenario uses `list_workbooks` and `describe_workbook`, verifies an unchanged inline
+result for three customers, then calls `aggregate_sheet` with `resultMode: "retained"`.
+The retained calculation produces 1,200 groups and returns a bounded preview. Its
+`resultComplete: true` and `sampled: false` describe the calculation; `preview: true`,
+`returnedRows`, `totalRows`, `hasMore` and `nextOffset` describe what was returned.
+The first follow-up call is:
+
+```json
+{
+  "name": "query_result",
+  "arguments": {
+    "resultId": "<resultId from aggregate_sheet>",
+    "columns": [1, 2, 3],
+    "where": [{ "column": 1, "equals": "C1200" }],
+    "maxRows": 5
+  }
+}
+```
+
+Its independently checked `rows` are `[["C1200", 1625, 2]]`: a customer beyond the initial
+preview. `matchingRows` is 1, `matchingSourceRows` is 2 and `totalRows` remains 1,200.
+A second query projects columns `[1, 2]` and requests 137 rows per page. The runner follows
+each `nextOffset` with the same query and compares every row in order against all 1,200
+expected results, detecting omissions, repeats and non-progressing continuation. The query
+keeps the ordering chosen by the initial aggregation; it does not introduce a new sort.
+
+### Use your own corpus
+
+Copy the generated `scenario.json` to an external location and replace its workbook path,
+aggregate arguments, independent counts and query expectations. Its schema is
+`resultScenarioSchema` in `src/result-scenario.ts`. `aggregate` accepts the normal
+`aggregate_sheet` arguments; the runner selects retained mode. `referenceDate` is a report
+label; the date used in the calculation is the explicit operand in `aggregate.where`.
+`expected` fixes
+`scannedRows`, `matchedRows`, `resultRows` and the maximum preview row count.
+Each `queries` entry has `arguments` for `query_result` without `resultId` or `offset`, the
+complete expected `rows` after that query's filter/projection, and `matchingSourceRows`.
+The runner supplies the handle and follows all pages from offset zero. `inline` is optional
+and holds a separate small aggregate call and its exact expected rows. Keep expectations
+independent of the implementation under test.
+
+```bash
+pnpm turbo run result-scenario --filter=@sezzlee/excel-lab --ui=stream -- --root /path/to/workbooks --scenario /path/to/overdue-scenario.json --out /tmp/excel-corpus-results
+```
+
+The same command replays saved generated files: use the printed `payments-*` directory as
+`--root` and its `scenario.json` as `--scenario`. A tool or verification failure saves
+completed calls and a failed report and exits unsuccessfully. Scenario parsing and server
+startup errors exit before a report is available. Invalid handles, lifecycle and resource-budget behavior
+are additionally covered by the server package's tests:
+
+```bash
+pnpm turbo run test --filter=@sezzlee/excel-mcp --ui=stream
+```
+
+The report records observed source/matched/result/preview counts, checked query rows, and
+per-call durations. `textBytes` measures the UTF-8 text payload; `responseBytes` measures
+`JSON.stringify(CallToolResult)` including its envelope and escaped text, excluding JSON-RPC
+framing. Retained pages are checked against the server's page budget and every response
+against its common payload limit. Duration covers the MCP call, excluding fixture generation
+and report writes. `maxRssKiB` is the entire process peak, including fixture generation,
+client and server; it is not per-call memory. `sourceCommit` labels the checkout and
+`sourceVersion` identifies the retained input snapshot. No tokenizer or model is invoked,
+and no token savings percentage is inferred from byte counts.
+
 ## Typed aggregate benchmark
 
 `src/aggregate-bench.ts` generates an original, MIT-licensed CSV outside the repository:

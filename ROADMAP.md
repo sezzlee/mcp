@@ -74,6 +74,22 @@ spec, a guard comment or the package README.
 
 ## Excel analysis and typed data
 
+- **Retained-result evaluation.** Extend the agent lab's plan bindings, replay and completeness
+  checks for retained handles before claiming model evaluation of that workflow. The
+  [architecture review](packages/servers/excel-mcp/ARCHITECTURE_RECOMMENDATIONS.md) also
+  prioritizes expected source versions, focused discovery, declared table-body facts and
+  full-result sorting on existing tools; row-preserving queries and early result release
+  need separate narrow contracts. These recommendations are not implemented by the review.
+- **Retained-result follow-ups.** The first bounded snapshot/query slice is implemented in
+  [excel-mcp](packages/servers/excel-mcp/README.md#continue-on-a-complete-aggregate-result)
+  with a [repeatable MCP scenario](packages/lab/excel-lab/README.md#retained-result-scenario).
+  Evaluate result sorting, richer typed predicates, additional grouping shapes and useful
+  corpus limits before extending it. Reaggregation, joins, streaming inputs, persistence,
+  cancellation and worker scheduling need separate ownership and resource designs. Workbook
+  editing, export, formula evaluation and full Excel compatibility remain later work; none
+  permits weakening the reader's read-only or file-access boundaries. Use external corpus and
+  real model runs to decide which next operation is useful; deterministic protocol tests alone
+  do not establish agent success.
 - **Streaming CSV.** Reading beyond the current 16 MiB byte and two-million-cell limits needs
   a bounded streaming document contract, stable dialect/type decisions, cancellation and
   snapshot validation. The architecture below must be reviewed before implementation.

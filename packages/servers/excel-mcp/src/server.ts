@@ -17,13 +17,15 @@ const manifest = createRequire(import.meta.url)("../package.json") as {
 };
 
 export function createExcelMcpServer(root: WorkbookRoot): McpServer {
+  const handlers = createHandlers(root);
   const server = createFileSourceServer(
     { name: "sezzlee-excel", version: manifest.version },
     toolDefinitions,
-    createHandlers(root),
+    handlers,
   );
   const close = server.close.bind(server);
   server.close = async () => {
+    handlers.dispose();
     await closeRegexWorkers();
     await close();
   };

@@ -31,6 +31,7 @@ import type { DelimiterName, EncodingName } from "../platform/delimited.js";
 import { inheritCursorOptions, decodeCursor } from "../grid/cursor.js";
 import type { ToolHandlers, ToolInput } from "./definitions.js";
 import { guard } from "./guard.js";
+import { createResultCapture, createResultStore } from "./retained-results.js";
 import {
   assertHeaderScan,
   assertPictureKind,
@@ -83,8 +84,12 @@ function gridSelection(
 
 type ToolCondition = NonNullable<ToolInput<"aggregate_sheet">["where"]>[number];
 
-export function createHandlers(root: WorkbookRoot): ToolHandlers {
+export function createHandlers(
+  root: WorkbookRoot,
+): ToolHandlers & { readonly dispose: () => void } {
   const cache = createDocumentCache(root.real);
+  const results = createResultStore();
+  let disposed = false;
   const openXlsx = createXlsxOpener(root, cache);
   const openFor = async (path: string, csv: CsvOptions = {}) =>
     cache.load(await resolveWorkbookPath(root, path), csv);
@@ -164,6 +169,11 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
   };
 
   return {
+    dispose: () => {
+      disposed = true;
+      results.clear();
+      cache.clear();
+    },
     list_workbooks: guard(
       { root: root.real, tool: "list_workbooks" },
       async (args) => {
@@ -388,6 +398,21 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
     aggregate_sheet: guard(
       { root: root.real, tool: "aggregate_sheet" },
       async (args) => {
+        const retained = args.resultMode === "retained";
+        if (
+          retained &&
+          ((args.pivotBy?.length ?? 0) > 0 ||
+            (args.groupingSets?.length ?? 0) > 0 ||
+            [
+              ...(args.where ?? []),
+              ...args.metrics.flatMap((metric) => metric.where ?? []),
+            ].some(({ op }) => op === "inColumn" || op === "notInColumn"))
+        )
+          throw new SezzleeExcelError(
+            "invalid_argument",
+            "Retained results support one non-pivot grouping without column-membership filters.",
+            "Omit pivotBy, groupingSets and inColumn/notInColumn, or use the default inline result mode.",
+          );
         assertHeaderScan(args, args.filePath);
         const loaded = await openFor(args.filePath, csvOptionsOf(args));
         const context = {
@@ -405,45 +430,91 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               : { ...metric, where: resolved };
           }),
         );
+        const capture = retained ? createResultCapture() : undefined;
+        const result = aggregateSheet(
+          sheetSource(loaded),
+          {
+            ...gridSelection(loaded, args),
+            ...readingHintsOf(args),
+            ...(args.sheetName === undefined
+              ? {}
+              : { sheetName: args.sheetName }),
+            ...(args.range === undefined ? {} : { range: args.range }),
+            ...(args.groupBy === undefined ? {} : { groupBy: args.groupBy }),
+            ...(args.pivotBy === undefined ? {} : { pivotBy: args.pivotBy }),
+            ...(args.groupingSets === undefined
+              ? {}
+              : { groupingSets: args.groupingSets }),
+            metrics,
+            ...(where === undefined ? {} : { where }),
+            match: args.match ?? "all",
+            ...resolveHeaderRow(loaded, args),
+            columnMode: args.columnMode ?? "auto",
+            caseSensitive: args.caseSensitive ?? false,
+            ...(args.columns === undefined ? {} : { columns: args.columns }),
+            mergedCells: args.mergedCells ?? "master",
+            orderBy: args.orderBy ?? "group",
+            ...(args.orderByMetric === undefined
+              ? {}
+              : { orderByMetric: args.orderByMetric }),
+            ...(args.orderByDerived === undefined
+              ? {}
+              : { orderByDerived: args.orderByDerived }),
+            ...(args.derived === undefined ? {} : { derived: args.derived }),
+            descending: args.descending ?? false,
+            maxGroups: args.maxGroups ?? limits.maxGroupsDefault,
+          },
+          capture?.add,
+        );
+        if (capture !== undefined) {
+          if (disposed)
+            throw new SezzleeExcelError(
+              "result_unavailable",
+              "This server instance has closed.",
+              "Start a new server instance and repeat the aggregate.",
+            );
+          const {
+            rows: _rows,
+            returnedGroups: _returnedGroups,
+            returnedMatchedRows: _returnedMatchedRows,
+            omittedMatchedRows: _omittedMatchedRows,
+            truncated: _truncated,
+            truncationReason: _truncationReason,
+            hint: _hint,
+            groupingSets: _groupingSets,
+            ...metadata
+          } = result;
+          return json(
+            results.retain(
+              capture,
+              withAggregateEnvelope(
+                {
+                  ...metadata,
+                  sourceVersion: loaded.stamp,
+                  sourcePolicy: "snapshot" as const,
+                },
+                csvReportOf(loaded),
+                loaded.mode,
+                args.compact ?? false,
+              ),
+              args.maxGroups ?? limits.maxGroupsDefault,
+            ),
+          );
+        }
         return json(
           withAggregateEnvelope(
-            aggregateSheet(sheetSource(loaded), {
-              ...gridSelection(loaded, args),
-              ...readingHintsOf(args),
-              ...(args.sheetName === undefined
-                ? {}
-                : { sheetName: args.sheetName }),
-              ...(args.range === undefined ? {} : { range: args.range }),
-              ...(args.groupBy === undefined ? {} : { groupBy: args.groupBy }),
-              ...(args.pivotBy === undefined ? {} : { pivotBy: args.pivotBy }),
-              ...(args.groupingSets === undefined
-                ? {}
-                : { groupingSets: args.groupingSets }),
-              metrics,
-              ...(where === undefined ? {} : { where }),
-              match: args.match ?? "all",
-              ...resolveHeaderRow(loaded, args),
-              columnMode: args.columnMode ?? "auto",
-              caseSensitive: args.caseSensitive ?? false,
-              ...(args.columns === undefined ? {} : { columns: args.columns }),
-              mergedCells: args.mergedCells ?? "master",
-              orderBy: args.orderBy ?? "group",
-              ...(args.orderByMetric === undefined
-                ? {}
-                : { orderByMetric: args.orderByMetric }),
-              ...(args.orderByDerived === undefined
-                ? {}
-                : { orderByDerived: args.orderByDerived }),
-              ...(args.derived === undefined ? {} : { derived: args.derived }),
-              descending: args.descending ?? false,
-              maxGroups: args.maxGroups ?? limits.maxGroupsDefault,
-            }),
+            result,
             csvReportOf(loaded),
             loaded.mode,
             args.compact ?? false,
           ),
         );
       },
+    ),
+
+    query_result: guard(
+      { root: root.real, tool: "query_result" },
+      async (args) => json(results.query(args)),
     ),
 
     find_in_sheet: guard(

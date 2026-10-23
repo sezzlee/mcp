@@ -11,6 +11,7 @@
   "scripts": {
     "corpus": "node src/cli.ts",
     "compare": "node src/compare-cli.ts",
+    "result-scenario": "node src/result-scenario-cli.ts",
     "lint": "oxlint --deny-warnings",
     "check-types": "tsc -p tsconfig.json",
     "test": "vitest run",
