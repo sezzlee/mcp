@@ -237,7 +237,11 @@ function parseRequestBody(
   }
   const declared = objectAt(value, at, "requestBody");
   onlyKeys(declared, at, ["schema", "required", "description"]);
-  const schema = read(declared["schema"], childPointer(at, "schema"), "request");
+  const schema = read(
+    declared["schema"],
+    childPointer(at, "schema"),
+    "request",
+  );
   const required = declared["required"];
   if (required !== undefined && typeof required !== "boolean") {
     throw new Invalid(childPointer(at, "required"), "must be a boolean");
@@ -508,12 +512,7 @@ function parseMember(
  * bad row must not take every sibling offline; only a defect in the declaration itself drops the
  * operation, so the uncurated dispatcher is never published in the family's place.
  */
-function parseFamily({
-  context,
-  read,
-  value,
-  at,
-}: Field): FamilyDeclaration {
+function parseFamily({ context, read, value, at }: Field): FamilyDeclaration {
   const declared = objectAt(value, at, "family");
   onlyKeys(declared, at, ["parameter", "members"]);
   const parameter = nonBlank(
