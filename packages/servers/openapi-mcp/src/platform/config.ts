@@ -1,4 +1,4 @@
-import { invokeLimits } from "@sezzlee/core";
+import { invokeLimits, resultLimits } from "@sezzlee/core";
 import { z } from "zod";
 
 const secret = z.object({ fromEnv: z.string().min(1) }).strict();
@@ -113,6 +113,11 @@ export const configSchema = z
           .int()
           .positive()
           .default(invokeLimits.maxResponseBytes),
+        maxBufferedBytes: z
+          .number()
+          .int()
+          .positive()
+          .default(invokeLimits.maxBufferedBytes),
         maxInlineFileBytes: z
           .number()
           .int()
@@ -123,7 +128,29 @@ export const configSchema = z
       .default({
         timeoutMs: invokeLimits.invokeTimeoutMs,
         maxResponseBytes: invokeLimits.maxResponseBytes,
+        maxBufferedBytes: invokeLimits.maxBufferedBytes,
         maxInlineFileBytes: invokeLimits.maxInlineFileBytes,
+      }),
+    results: z
+      .object({
+        enabled: z.boolean().default(true),
+        lifetimeMs: z.number().int().min(1000).default(resultLimits.lifetimeMs),
+        maxCallerBytes: z
+          .number()
+          .int()
+          .positive()
+          .default(resultLimits.maxCallerBytes),
+        maxBytes: z.number().int().positive().default(resultLimits.maxBytes),
+      })
+      .strict()
+      .refine((results) => results.maxBytes >= results.maxCallerBytes, {
+        message: "results.maxBytes must be at least results.maxCallerBytes",
+      })
+      .default({
+        enabled: true,
+        lifetimeMs: resultLimits.lifetimeMs,
+        maxCallerBytes: resultLimits.maxCallerBytes,
+        maxBytes: resultLimits.maxBytes,
       }),
   })
   .strict();

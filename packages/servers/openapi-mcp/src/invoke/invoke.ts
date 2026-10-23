@@ -3,17 +3,17 @@ import {
   armDeadline,
   compose,
   errorResult,
-  isInvokeError,
+  invokeResponse,
   knownFields,
   mapInvokeResult,
   narrowingArguments,
   normalizeInvokeArguments,
   notInvocable,
   refuseTimedOutInvoke,
-  sdkError,
+  refuseUnreachableBackend,
+  refuseUnreadResponse,
   SezzleeArgumentError,
   SezzleeDispatchAborted,
-  textResult,
   untilAbandoned,
   vocabularyOf,
   writeBody,
@@ -26,6 +26,7 @@ import {
   ExchangedTokenMissing,
 } from "../credentials/credentials.js";
 import {
+  BackendUnreachable,
   HostNotAllowed,
   ResponseTooLarge,
   type BoundedFetch,
@@ -40,6 +41,7 @@ export interface InvokeTarget {
 export interface InvokeLimits {
   readonly timeoutMs: number;
   readonly maxResponseBytes: number;
+  readonly maxBufferedBytes: number;
   readonly maxInlineFileBytes: number;
 }
 
@@ -147,17 +149,13 @@ export async function invokeEntry(
         ...(written === undefined ? {} : { body: written.bytes }),
       },
       deadline.signal,
-      limits.maxResponseBytes,
+      limits.maxBufferedBytes,
     );
     const outcome = mapInvokeResult(response, {
       knownFields: knownFields(entry.tool),
       ...vocabularyOf(template),
     });
-    return textResult(outcome, isInvokeError(outcome), {
-      summaryOf: isInvokeError(outcome) ? outcome : outcome.body,
-      narrowing: narrowingArguments(entry.tool.inputSchema),
-      target,
-    });
+    return invokeResponse(entry, outcome, target);
   } catch (error) {
     const abandoned = deadline.reason();
     if (
@@ -168,13 +166,17 @@ export async function invokeEntry(
     }
     if (error instanceof ResponseTooLarge) {
       return {
-        payload: sdkError(
-          "response_too_large",
-          `The backend's answer exceeded ${String(error.limit)} bytes and was not read to the end; narrow the call and retry.`,
-        ),
+        payload: refuseUnreadResponse({
+          limit: error.limit,
+          narrowing: narrowingArguments(entry.tool.inputSchema),
+          applied:
+            error.status < 400 && entry.tool.annotations.readOnlyHint !== true,
+        }),
         isError: true,
-        narrowing: narrowingArguments(entry.tool.inputSchema),
       };
+    }
+    if (error instanceof BackendUnreachable) {
+      return { payload: refuseUnreachableBackend(), isError: true };
     }
     if (error instanceof HostNotAllowed) {
       return errorResult(
