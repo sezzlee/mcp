@@ -44,6 +44,9 @@ describe("conformance: openapi-ingestion", () => {
             ? {}
             : { selection: endpoint.selection }),
           descriptor: endpoint.descriptor,
+          ...(endpoint.alternateRoutes === undefined
+            ? {}
+            : { alternateRoutes: endpoint.alternateRoutes }),
         })),
       ).toEqual(fixture.expected.endpoints);
     });

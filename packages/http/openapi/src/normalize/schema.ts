@@ -1,9 +1,10 @@
-import type { JsonSchemaObject } from "@sezzlee/core";
+import { admittingNull, type JsonSchemaObject } from "@sezzlee/core";
 import { OperationDropped, type DiagnosticSink } from "../diagnostics.js";
 import { childPointer, segmentsOf, type JsonPointer } from "../ir/brand.js";
 import {
   entriesOf,
   isObject,
+  objectOf,
   stringOf,
   type JsonObject,
   type JsonValue,
@@ -60,22 +61,40 @@ const annotations = new Set(["discriminator", "xml", "externalDocs"]);
 const escapeDefName = (name: string): string =>
   name.replaceAll("~", "~0").replaceAll("/", "~1");
 
+const localDefPrefix = "#/$defs/";
+
 class SlotNormalizer {
   private readonly defs = new Map<string, JsonSchemaObject>();
   private readonly names = new Map<string, string>();
   private readonly queue: string[] = [];
+  private local: JsonObject | undefined;
 
   constructor(
     private readonly context: SchemaContext,
     private readonly options: SlotOptions,
   ) {}
 
+  /**
+   * Guard: a schema with `$defs` at its root is JSON Schema 2020-12, as an SDK writes one into
+   * `x-sezzlee`; an OpenAPI 3.0 Schema Object has no `$defs`. Its `#/$defs/<name>` references
+   * point into that table, not at the document's root, where they would resolve to nothing.
+   */
   normalize(schema: JsonValue | undefined, at: JsonPointer): JsonSchemaObject {
-    let root = this.convert(schema, at, undefined);
+    const local = isObject(schema) ? objectOf(schema["$defs"]) : undefined;
+    this.local = local;
+    let root = this.convert(
+      local === undefined ? schema : withoutDefs(schema as JsonObject),
+      at,
+      undefined,
+    );
     while (this.queue.length > 0) {
       const ref = this.queue.shift() as string;
       const name = this.names.get(ref) as string;
-      const target = resolvePointer(this.context.document, ref);
+      const localName = this.localName(ref);
+      const target =
+        localName === undefined
+          ? resolvePointer(this.context.document, ref)
+          : this.local?.[localName];
       if (target === undefined) {
         this.context.diagnostics.report(
           "openapi_document_invalid",
@@ -149,6 +168,18 @@ class SlotNormalizer {
     return used;
   }
 
+  private localName(ref: string): string | undefined {
+    if (this.local === undefined || !ref.startsWith(localDefPrefix)) {
+      return undefined;
+    }
+    const segment = ref.slice(localDefPrefix.length);
+    if (segment.includes("/")) {
+      return undefined;
+    }
+    const name = defNameOf(ref);
+    return Object.hasOwn(this.local, name) ? name : undefined;
+  }
+
   private nameFor(ref: string): string {
     const known = this.names.get(ref);
     if (known !== undefined) {
@@ -156,11 +187,12 @@ class SlotNormalizer {
     }
     const segments = segmentsOf(ref);
     const base =
-      segments.length === 3 &&
+      this.localName(ref) ??
+      (segments.length === 3 &&
       segments[0] === "components" &&
       segments[1] === "schemas"
         ? (segments[2] as string)
-        : segments.join("_");
+        : segments.join("_"));
     let name = base;
     const taken = new Set(this.names.values());
     for (let suffix = 2; taken.has(name); suffix += 1) {
@@ -284,7 +316,11 @@ class SlotNormalizer {
     const siblings = entriesOf(value).filter(
       ([key]) => key !== "$ref" && key !== "nullable",
     );
-    if (this.context.version === "3.0" && siblings.length > 0) {
+    if (
+      this.context.version === "3.0" &&
+      this.localName(ref) === undefined &&
+      siblings.length > 0
+    ) {
       this.context.diagnostics.report(
         "ref_siblings_ignored",
         at,
@@ -335,25 +371,7 @@ class SlotNormalizer {
     source: JsonObject,
     schema: JsonSchemaObject,
   ): JsonSchemaObject {
-    if (source["nullable"] !== true) {
-      return schema;
-    }
-    const type = schema.type;
-    if (typeof type === "string") {
-      return {
-        ...schema,
-        type: [type, "null"],
-        ...(Array.isArray(schema.enum) && !schema.enum.includes(null)
-          ? { enum: [...schema.enum, null] }
-          : {}),
-      } as JsonSchemaObject;
-    }
-    if (Array.isArray(type)) {
-      return type.includes("null")
-        ? schema
-        : ({ ...schema, type: [...type, "null"] } as JsonSchemaObject);
-    }
-    return { anyOf: [schema, { type: "null" }] } as JsonSchemaObject;
+    return source["nullable"] === true ? admittingNull(schema) : schema;
   }
 }
 
@@ -380,6 +398,11 @@ function nullableReference(
     return first;
   }
   return isRef(second) && isNull(first) ? second : undefined;
+}
+
+function withoutDefs(schema: JsonObject): JsonObject {
+  const { $defs: _defs, ...rest } = schema;
+  return rest;
 }
 
 function defNameOf(ref: string): string {

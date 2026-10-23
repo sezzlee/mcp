@@ -8,7 +8,9 @@ import {
   type FamilyDeclaration,
   type FamilyKey,
   type FamilyMember,
+  type JsonSchemaObject,
   type OperationExtension,
+  type ParameterSchema,
   type SelectionDecision,
   type ToolAnnotations,
   type ToolVariant,
@@ -16,7 +18,12 @@ import {
 } from "@sezzlee/core";
 import { OperationDropped } from "../diagnostics.js";
 import { childPointer, type JsonPointer } from "../ir/brand.js";
-import { isObject, type JsonObject, type JsonValue } from "../ir/json.js";
+import {
+  entriesOf,
+  isObject,
+  type JsonObject,
+  type JsonValue,
+} from "../ir/json.js";
 import { normalizeSlot, type SchemaContext } from "../normalize/schema.js";
 
 export const extensionKey = "x-sezzlee";
@@ -44,6 +51,8 @@ type Curation = Pick<
   EndpointDescriptor,
   | "toolName"
   | "containerPrefix"
+  | "description"
+  | "tags"
   | "annotations"
   | "arguments"
   | "variants"
@@ -51,9 +60,17 @@ type Curation = Pick<
   | "searchTerms"
 >;
 
+export type CarriedSchemas = Pick<
+  OperationExtension,
+  "parameters" | "requestBody" | "responses"
+>;
+
 export interface LoweredExtension {
   readonly selection?: SelectionDecision;
   readonly curation: Curation;
+  readonly schemas: CarriedSchemas;
+  readonly anonymous?: true;
+  readonly foldedInto?: string;
   readonly revision?: number;
 }
 
@@ -248,6 +265,145 @@ function parseRequestBody(
   };
 }
 
+const parameterLocations: ReadonlySet<string> = new Set([
+  "path",
+  "query",
+  "header",
+  "cookie",
+  "querystring",
+]);
+
+function carriedSchema(
+  context: SchemaContext,
+  value: JsonValue | undefined,
+  at: JsonPointer,
+  direction: "request" | "response",
+): JsonSchemaObject {
+  if (!isObject(value)) {
+    throw new Invalid(at, "must be a Schema Object");
+  }
+  let schema: JsonSchemaObject;
+  try {
+    schema = normalizeSlot(context, value, at, {
+      direction,
+      root: "preferred",
+    });
+  } catch (error) {
+    if (!(error instanceof OperationDropped)) {
+      throw error;
+    }
+    throw new Invalid(error.at, `cannot be carried (${error.message})`);
+  }
+  const problem = declaredSchemaProblem(schema);
+  if (problem !== undefined) {
+    throw new Invalid(at, problem);
+  }
+  return schema;
+}
+
+function optionalString(
+  declared: JsonObject,
+  field: string,
+  at: JsonPointer,
+): { readonly description?: string } {
+  const value = declared[field];
+  if (value === undefined) {
+    return {};
+  }
+  if (typeof value !== "string") {
+    throw new Invalid(childPointer(at, field), "must be a string");
+  }
+  return { description: value };
+}
+
+function parseParameters({ context, value, at }: Field): ParameterSchema[] {
+  if (!Array.isArray(value)) {
+    throw new Invalid(at, "parameters must be an array");
+  }
+  const seen = new Set<string>();
+  return value.map((raw: JsonValue, index: number) => {
+    const parameterAt = childPointer(at, index);
+    const declared = objectAt(raw, parameterAt, "a parameter");
+    onlyKeys(declared, parameterAt, [
+      "name",
+      "in",
+      "required",
+      "schema",
+      "description",
+    ]);
+    const name = nonBlank(declared["name"], childPointer(parameterAt, "name"));
+    const location = declared["in"];
+    if (typeof location !== "string" || !parameterLocations.has(location)) {
+      throw new Invalid(
+        childPointer(parameterAt, "in"),
+        `must be one of ${[...parameterLocations].join(", ")}`,
+      );
+    }
+    const required = declared["required"];
+    if (typeof required !== "boolean") {
+      throw new Invalid(
+        childPointer(parameterAt, "required"),
+        "must be a boolean",
+      );
+    }
+    if (seen.has(`${location} ${name}`)) {
+      throw new Invalid(
+        parameterAt,
+        `'${name}' in ${location} is declared twice`,
+      );
+    }
+    seen.add(`${location} ${name}`);
+    return {
+      name,
+      in: location as ParameterSchema["in"],
+      required,
+      schema: carriedSchema(
+        context,
+        declared["schema"],
+        childPointer(parameterAt, "schema"),
+        "request",
+      ),
+      ...optionalString(declared, "description", parameterAt),
+    };
+  });
+}
+
+const responseStatus = /^([1-5][0-9]{2}|[1-5]XX|default)$/;
+
+function parseResponses({
+  context,
+  value,
+  at,
+}: Field): NonNullable<OperationExtension["responses"]> {
+  const declared = objectAt(value, at, "responses");
+  return Object.fromEntries(
+    entriesOf(declared).map(([status, raw]) => {
+      const responseAt = childPointer(at, status);
+      if (!responseStatus.test(status)) {
+        throw new Invalid(responseAt, "is not a response status");
+      }
+      const response = objectAt(raw, responseAt, "a response");
+      onlyKeys(response, responseAt, ["schema", "description"]);
+      return [
+        status,
+        {
+          ...(response["schema"] === undefined
+            ? {}
+            : {
+                schema: carriedSchema(
+                  context,
+                  response["schema"],
+                  childPointer(responseAt, "schema"),
+                  "response",
+                ),
+              }),
+          ...optionalString(response, "description", responseAt),
+        },
+      ];
+    }),
+  );
+}
+
 function parseVariant(
   context: SchemaContext,
   value: JsonValue,
@@ -411,6 +567,47 @@ function parseSearchTerms({ context, value, at }: Field): string[] | undefined {
   return terms.length === 0 ? undefined : terms;
 }
 
+function parseDescription({ context, value, at }: Field): string | undefined {
+  if (typeof value !== "string" || value.trim() === "") {
+    context.diagnostics.report(
+      "description_invalid",
+      at,
+      "A description must be a non-empty string; the operation keeps the one its summary and description give.",
+    );
+    return undefined;
+  }
+  return value.trim();
+}
+
+function parseTags({ context, value, at }: Field): string[] | undefined {
+  if (
+    !Array.isArray(value) ||
+    !value.every((tag: JsonValue) => typeof tag === "string")
+  ) {
+    context.diagnostics.report(
+      "tags_invalid",
+      at,
+      "Tags must be an array of strings; the operation keeps its own tags.",
+    );
+    return undefined;
+  }
+  return value.filter((tag: string) => tag.trim() !== "");
+}
+
+const operationKeyPattern = /^[A-Z]+ \//;
+
+function parseFoldedInto({ context, value, at }: Field): string | undefined {
+  if (typeof value !== "string" || !operationKeyPattern.test(value)) {
+    context.diagnostics.report(
+      "extension_fold_unmatched",
+      at,
+      "foldedInto must name an operation as METHOD /path; the route is not carried as an alternate route.",
+    );
+    return undefined;
+  }
+  return value;
+}
+
 function parseRevision({ context, value, at }: Field): number | undefined {
   if (!isRevisionNumber(value)) {
     context.diagnostics.report(
@@ -438,9 +635,21 @@ const fieldParsers: FieldParsers = {
     }
     return value;
   },
+  foldedInto: parseFoldedInto,
   toolName: ({ value, at }) => toolName(value, at),
   containerPrefix: ({ value, at }) => nonBlank(value, at),
+  description: parseDescription,
+  tags: parseTags,
+  parameters: parseParameters,
+  requestBody: ({ context, value, at }) => parseRequestBody(context, value, at),
+  responses: parseResponses,
   annotations: ({ value, at }) => parseAnnotations(value, at),
+  anonymous: ({ value, at }) => {
+    if (value !== true) {
+      throw new Invalid(at, "must be true");
+    }
+    return value;
+  },
   arguments: ({ value, at }) => parseArguments(value, at),
   variants: parseVariants,
   family: parseFamily,
@@ -622,6 +831,7 @@ function parseExtension(
     -readonly [K in keyof OperationExtension]: OperationExtension[K];
   } = {};
   assign(extension, "tool", parse("tool", fieldAt("tool")));
+  assign(extension, "foldedInto", parse("foldedInto", fieldAt("foldedInto")));
   assign(extension, "toolName", parse("toolName", fieldAt("toolName")));
   assign(
     extension,
@@ -630,9 +840,23 @@ function parseExtension(
   );
   assign(
     extension,
+    "description",
+    parse("description", fieldAt("description")),
+  );
+  assign(extension, "tags", parse("tags", fieldAt("tags")));
+  assign(extension, "parameters", parse("parameters", fieldAt("parameters")));
+  assign(
+    extension,
+    "requestBody",
+    parse("requestBody", fieldAt("requestBody")),
+  );
+  assign(extension, "responses", parse("responses", fieldAt("responses")));
+  assign(
+    extension,
     "annotations",
     parse("annotations", fieldAt("annotations")),
   );
+  assign(extension, "anonymous", parse("anonymous", fieldAt("anonymous")));
   assign(extension, "arguments", parse("arguments", fieldAt("arguments")));
   assign(extension, "variants", parse("variants", fieldAt("variants")));
   assign(extension, "family", parse("family", fieldAt("family")));
@@ -689,13 +913,30 @@ export function lowerExtension(
   at: JsonPointer,
 ): LoweredExtension {
   const extension = parseExtension(context, operation, at);
-  const { tool, revision, family, ...fields } = extension;
+  const {
+    tool,
+    revision,
+    family,
+    parameters,
+    requestBody,
+    responses,
+    anonymous,
+    foldedInto,
+    ...fields
+  } = extension;
   return {
     ...(tool === undefined ? {} : { selection: tool ? "include" : "exclude" }),
     curation: {
       ...fields,
       ...(family === undefined ? {} : familyCuration(family)),
     },
+    schemas: {
+      ...(parameters === undefined ? {} : { parameters }),
+      ...(requestBody === undefined ? {} : { requestBody }),
+      ...(responses === undefined ? {} : { responses }),
+    },
+    ...(anonymous === undefined ? {} : { anonymous }),
+    ...(foldedInto === undefined ? {} : { foldedInto }),
     ...(revision === undefined ? {} : { revision }),
   };
 }
