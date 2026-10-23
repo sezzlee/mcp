@@ -124,7 +124,7 @@ const client = new Client({ name:'packed-http-smoke', version:'1.0.0' });
 try {
   await client.connect(transport);
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map((tool) => tool.name).sort(), ['invoke_tool', 'load_tool', 'search_tools']);
+  assert.deepEqual(tools.map((tool) => tool.name).sort(), ['invoke_tool', 'load_tool', 'read_result', 'search_tools']);
   const found = await client.callTool({ name:'search_tools', arguments:{ query:'order' } });
   assert.notEqual(found.isError, true);
   const body = JSON.parse(found.content[0].text);
