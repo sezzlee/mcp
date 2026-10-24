@@ -77,10 +77,19 @@ each candidate with the oracle before a question is written. Where the corpus ha
 for a case, the case is listed under `uncovered` in the catalog with the reason, rather than
 filled with an invented file; the catalog refuses an `uncovered` entry that a task exercises.
 
-The catalog holds 84 tasks over 29 corpus files from Turkish, British and American open data
-and three small CC0 CSV samples. By level: 3 `L1`, 14 `L2`, 32 `L3`, 26 `L4`, 9 `L5`; by
-knowledge: 4 `K0`, 77 `K1`, 3 `K2`. The plans make 157 calls, 101 of them `answer` steps and 10
-of those expected errors. Several files carry faults found while writing the oracles, and tasks keep them as they
+The catalog holds 104 tasks over 40 corpus files from Turkish, British and American open data
+and three small CC0 CSV samples. By level: 3 `L1`, 17 `L2`, 37 `L3`, 37 `L4`, 10 `L5`; by
+knowledge: 4 `K0`, 97 `K1`, 3 `K2`. The plans make 196 calls, 121 of them `answer` steps and 10
+of those expected errors.
+
+The last 20 tasks, over 11 files, were chosen from a corpus run for the structure that makes a
+file hard rather than for a question it answers: hidden and very hidden sheets, a sheet of 130
+stacked Excel tables, two tables side by side, a form whose answer is the option marked `X`, a
+two-row header whose station names repeat under each group, amounts merged across two rows,
+summary rows that are `#REF!` and shifted one column, district blocks side by side with an
+empty summary below each, a sheet without a header row whose year column holds `23` and
+`3024`, and a sheet cut at Excel's 1,048,576-row limit, so its last month lacks five districts.
+Their oracles stream the two largest files instead of loading them. Several files carry faults found while writing the oracles, and tasks keep them as they
 are: a typed `TOPLAM` that is 1,000 above the sum of its rows, a grand total that disagrees with
 its subtotals, headers that label the neighbouring column, a dashboard table whose cached
 values cover one year of thirteen, and a row label repeated in the total, male and female blocks
@@ -245,17 +254,18 @@ answer are recorded today, so the same task shows the effect of a new tool later
 
 **Layout**
 
-| Id   | Case                                                 |
-| ---- | ---------------------------------------------------- |
-| `S1` | A title band or notes above the header row           |
-| `S2` | A header spread over several rows or merged cells    |
-| `S3` | Totals or subtotal rows inside the data              |
-| `S4` | Footnotes or source lines below the data             |
-| `S5` | Years or months as columns instead of rows           |
-| `S6` | Duplicate header names                               |
-| `S7` | Labels merged down a column, so rows below are blank |
-| `S8` | Several blocks or tables on one sheet                |
-| `S9` | A header that does not describe its column's content |
+| Id    | Case                                                 |
+| ----- | ---------------------------------------------------- |
+| `S1`  | A title band or notes above the header row           |
+| `S2`  | A header spread over several rows or merged cells    |
+| `S3`  | Totals or subtotal rows inside the data              |
+| `S4`  | Footnotes or source lines below the data             |
+| `S5`  | Years or months as columns instead of rows           |
+| `S6`  | Duplicate header names                               |
+| `S7`  | Labels merged down a column, so rows below are blank |
+| `S8`  | Several blocks or tables on one sheet                |
+| `S9`  | A header that does not describe its column's content |
+| `S10` | No header row: columns are addressed by position     |
 
 **Values**
 
@@ -271,6 +281,7 @@ answer are recorded today, so the same task shows the effect of a new tool later
 | `V8`  | Formula errors such as `#DIV/0!` and `#N/A`                            |
 | `V9`  | The 1904 date system                                                   |
 | `V10` | Long or multi-line text cells                                          |
+| `V11` | Implausible values from data entry, such as a year typed 3024          |
 
 **Encoding and CSV**
 
@@ -289,6 +300,7 @@ answer are recorded today, so the same task shows the effect of a new tool later
 | `Z1` | More rows than a page; paging instead of aggregating is the expensive path |
 | `Z2` | More groups than one answer returns                                        |
 | `Z3` | A file over a size or resource limit; the honest answer names the limit    |
+| `Z4` | The data was cut at Excel's row limit, so the last period is incomplete    |
 
 **Question shape**
 

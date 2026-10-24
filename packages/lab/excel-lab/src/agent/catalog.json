@@ -260,6 +260,105 @@
       "license": "OGL-UK-3.0",
       "language": "en",
       "as": "uk-plymouth/public-toilets.csv"
+    },
+    "uk-fire-0104": {
+      "source": "uk-datagov",
+      "file": "files/xlsx/FIRE0104-7ddf1043.xlsx",
+      "sha256": "7ddf1043983c9936038ebc6f454a6f39ed02cee0807b68ffa67671ea98a4ca26",
+      "bytes": 693678,
+      "license": "OGL-UK-3.0",
+      "language": "en",
+      "as": "uk-fire-statistics/fire0104-false-alarms.xlsx"
+    },
+    "uk-spend-2025-12": {
+      "source": "uk-datagov",
+      "file": "files/xlsx/transparency-of-spend-over-25k-december-2025-3ea9ce14.xlsx",
+      "sha256": "3ea9ce142aba7563682bfe067ff3ebbe707a720b9f88b345df2e021ee94a6a93",
+      "bytes": 16108,
+      "license": "OGL-UK-3.0",
+      "language": "en",
+      "as": "uk-nice/spend-over-25k-december-2025.xlsx"
+    },
+    "uk-lsbs-2022": {
+      "source": "uk-datagov",
+      "file": "files/xlsx/LSBS_Year_8_2022_SME_Employers_Data-3f347bd0.xlsx",
+      "sha256": "3f347bd0f27dc89f1f8ae9206885f50ad224f04d34c0699ba93b4d3b9c8a6e43",
+      "bytes": 279608,
+      "license": "OGL-UK-3.0",
+      "language": "en",
+      "as": "uk-business/lsbs-2022-sme-employers.xlsx"
+    },
+    "tuik-quality-2018": {
+      "source": "tr-tuik",
+      "file": "files/tuik/58133-2018-kkr-tr-ceuidb-euigb-tkik.xlsx",
+      "sha256": "69fe2a21dd4a315ecdb2c54907e86384905d3847d9513e128e699afd4edb609b",
+      "bytes": 163118,
+      "license": "TUIK-attribution-reuse",
+      "language": "tr",
+      "as": "tuik/trafik-kaza-istatistikleri-kalite-raporu-2018.xlsx"
+    },
+    "denizli-csbm": {
+      "source": "tr-ckan",
+      "file": "files/denizli/denizli-ilcelerine-ait-csbm-adi-ve-turleri__3678f051.xlsx",
+      "sha256": "c793b31aa7d6571ffc502ebf0d3d6a028bb3f2a202a88f7081ae150bb0c0ec35",
+      "bytes": 1782330,
+      "license": "Denizli-Open-Data-License",
+      "language": "tr",
+      "as": "denizli/denizli-ilcelerine-ait-csbm-adi-ve-turleri.xlsx"
+    },
+    "izmir-water": {
+      "source": "tr-ckan",
+      "file": "files/izmir/yillik-ilce-ve-mahalle-bazli-su-tuketim-miktarlari__f97d83ca.xlsx",
+      "sha256": "423fbbe7eff7118e3b20f8acedfe8f17942d79534fb6aea8730e97114c0896f3",
+      "bytes": 43805785,
+      "license": "CC-BY-4.0",
+      "language": "tr",
+      "as": "izmir/yillik-ilce-ve-mahalle-bazli-su-tuketim-miktarlari.xlsx"
+    },
+    "izmir-aid": {
+      "source": "tr-ckan",
+      "file": "files/izmir/yapilan-sosyal-yardimlar__683857fd.xlsx",
+      "sha256": "cfea9130d639cadf4950fe5e6cfc24d254d1b03aa3e6da22d00e7d5c650d7395",
+      "bytes": 22857929,
+      "license": "CC-BY-4.0",
+      "language": "tr",
+      "as": "izmir/yapilan-sosyal-yardimlar.xlsx"
+    },
+    "uk-hug-2024-10": {
+      "source": "uk-datagov",
+      "file": "files/xlsx/Home_Upgrade_Grant_and_Local_Authority_Delivery_Schemes_Release_-_Octo-0fecdf85.xlsx",
+      "sha256": "0fecdf8501044b75777fa4a8751cddc5c1678566d2d4b49debfff7c84b5935ac",
+      "bytes": 2836052,
+      "license": "OGL-UK-3.0",
+      "language": "en",
+      "as": "uk-energy/home-upgrade-grant-and-lad-statistics-october-2024.xlsx"
+    },
+    "us-bluefish-pcb": {
+      "source": "us-datagov",
+      "file": "files/xlsx/Deshpande_et_al_Manuscript_Tables-d2e9f61d.xlsx",
+      "sha256": "d2e9f61d69030424a409acf48cf982ee056687bef4299c546b29a76bef3e375a",
+      "bytes": 212647,
+      "license": "CC0-1.0",
+      "language": "en",
+      "as": "us-noaa/new-bedford-harbor-pcb-tables.xlsx"
+    },
+    "ktun-foreign-students": {
+      "source": "tr-ckan",
+      "file": "files/konya/ktun-yabanci-uyruklu-ogrenci-istatistikleri__4aae1d02.xlsx",
+      "sha256": "4fb7ec6f571f248caa9ffdfee4713ee1c06997d24014e2fea453e08622028127",
+      "bytes": 12459,
+      "license": "CC-BY-4.0",
+      "language": "tr",
+      "as": "konya/ktun-yabanci-uyruklu-ogrenci-istatistikleri.xlsx"
+    },
+    "us-fort-irwin-weather": {
+      "source": "us-datagov",
+      "file": "files/xlsx/WeatherStationDataSummary-9-16-24-0febf53e.xlsx",
+      "sha256": "0febf53e6f10a406413dedcc913845cf7522579fffd7bed1eed205e1dc43b4db",
+      "bytes": 9253550,
+      "license": "CC0-1.0",
+      "language": "en",
+      "as": "us-usda/fort-irwin-weather-station-summary.xlsx"
     }
   },
   "tasks": [
@@ -5043,6 +5142,1092 @@
         ],
         "derive": {
           "at": [1, "/rows/0/0"]
+        }
+      }
+    },
+    {
+      "id": "fire0104-hidden-sheets",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["D4", "Q12", "T2"],
+      "files": ["uk-fire-0104"],
+      "question": {
+        "tr": "Bu dosyada hangi sayfalar gizli?",
+        "en": "Which sheets in this file are hidden?"
+      },
+      "answer": {
+        "kind": "set",
+        "items": [
+          {
+            "kind": "text",
+            "value": "config"
+          },
+          {
+            "kind": "text",
+            "value": "Old Data"
+          },
+          {
+            "kind": "text",
+            "value": "FIRE0104_working"
+          },
+          {
+            "kind": "text",
+            "value": "QA checks"
+          }
+        ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0104-false-alarms.xlsx"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "pluck": {
+            "step": 0,
+            "items": "/sheets",
+            "field": "name",
+            "where": {
+              "field": "state",
+              "equals": "hidden"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "fire0104-malicious-share",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S2", "S3", "S5", "X1", "T2"],
+      "files": ["uk-fire-0104"],
+      "question": {
+        "tr": "2025/26'daki yanlış alarmların yüzde kaçı kötü niyetliydi?",
+        "en": "What share of the false alarms in 2025/26 were malicious?"
+      },
+      "answer": {
+        "kind": "percent",
+        "value": 2.2,
+        "tolerance": 0.05
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0104-false-alarms.xlsx"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-fire-statistics/fire0104-false-alarms.xlsx",
+              "sheetName": "FIRE0104",
+              "range": "A3:S5",
+              "headerRow": 3
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "fn": "round",
+          "places": 1,
+          "args": [
+            {
+              "fn": "percent",
+              "args": [
+                {
+                  "at": [1, "/values/1/18"]
+                },
+                {
+                  "at": [1, "/values/0/18"]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "spend-nhsps-merged-total",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S7", "Q3", "Q2", "T2"],
+      "files": ["uk-spend-2025-12"],
+      "question": {
+        "tr": "Aralık 2025'te NHS Property Services'e toplam ne kadar ödenmiş?",
+        "en": "How much was paid to NHS Property Services in December 2025 in total?"
+      },
+      "answer": {
+        "kind": "decimal",
+        "value": 1136389.52,
+        "tolerance": 0.01
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-nice/spend-over-25k-december-2025.xlsx",
+              "maxCells": 40
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "uk-nice/spend-over-25k-december-2025.xlsx",
+              "metrics": [
+                {
+                  "column": "Amount",
+                  "fn": "sum"
+                }
+              ],
+              "where": [
+                {
+                  "column": "Supplier",
+                  "op": "eq",
+                  "value": "NHS PROPERTY SERVICES LTD"
+                }
+              ]
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "fn": "round",
+          "places": 2,
+          "args": [
+            {
+              "at": [1, "/rows/0/0"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "spend-very-hidden-sheet",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["D4", "Q12", "T2"],
+      "files": ["uk-spend-2025-12"],
+      "question": {
+        "tr": "Bu dosyada Excel'de görünmeyen bir sayfa var mı? Varsa adı ne?",
+        "en": "Does this file have a sheet that Excel does not show? If so, what is it called?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "Macro1"
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "uk-nice/spend-over-25k-december-2025.xlsx"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "fn": "single",
+          "args": [
+            {
+              "pluck": {
+                "step": 0,
+                "items": "/sheets",
+                "field": "name",
+                "where": {
+                  "field": "state",
+                  "equals": "veryHidden"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "lsbs-scotland-environment",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S8", "D6", "Q1", "T2"],
+      "files": ["uk-lsbs-2022"],
+      "question": {
+        "tr": "İskoçya'daki KOBİ işverenlerinin yüzde kaçı son 12 ayda çevreye etkisini azaltmak için adım atmış?",
+        "en": "What percentage of SME employers in Scotland took steps to reduce their environmental impact over the past 12 months?"
+      },
+      "answer": {
+        "kind": "percent",
+        "value": 61,
+        "tolerance": 0.5
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "find_in_sheet",
+            "args": {
+              "filePath": "uk-business/lsbs-2022-sme-employers.xlsx",
+              "query": "reduce its environmental impact"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-business/lsbs-2022-sme-employers.xlsx",
+              "sheetName": "Tables",
+              "range": "A1658:W1664",
+              "headerRow": 1658
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "row": {
+            "step": 1,
+            "rows": "/values",
+            "key": 0,
+            "equals": "Yes (%)",
+            "value": 3
+          }
+        }
+      }
+    },
+    {
+      "id": "lsbs-profit-size-gap",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S8", "D6", "X1", "T2"],
+      "files": ["uk-lsbs-2022"],
+      "question": {
+        "tr": "Kâr ya da fazla elde eden KOBİ işverenlerinin oranı orta ölçekli işletmelerde mikro işletmelerden kaç puan yüksek?",
+        "en": "How many percentage points higher is the share of SME employers that made a profit or surplus among medium businesses than among micro businesses?"
+      },
+      "answer": {
+        "kind": "integer",
+        "value": 4
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "find_in_sheet",
+            "args": {
+              "filePath": "uk-business/lsbs-2022-sme-employers.xlsx",
+              "query": "generate a profit or surplus"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-business/lsbs-2022-sme-employers.xlsx",
+              "sheetName": "Tables",
+              "range": "A1639:W1645",
+              "headerRow": 1639
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "fn": "subtract",
+          "args": [
+            {
+              "row": {
+                "step": 1,
+                "rows": "/values",
+                "key": 0,
+                "equals": "Yes (%)",
+                "value": 8
+              }
+            },
+            {
+              "row": {
+                "step": 1,
+                "rows": "/values",
+                "key": 0,
+                "equals": "Yes (%)",
+                "value": 6
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tuik-collection-method",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S2", "S7", "Q1", "T1"],
+      "files": ["tuik-quality-2018"],
+      "question": {
+        "tr": "Bu kalite raporunda veri derleme yöntemi olarak hangisi işaretlenmiş?",
+        "en": "Which data collection method is ticked in this quality report?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "İdari kayıtlardan veri derleme",
+        "accept": [
+          "İdari kayıtlardan",
+          "İdari kayıtlar",
+          "İdari kayıt",
+          "Administrative records",
+          "From administrative records",
+          "Data collection from administrative records",
+          "Collection from administrative records"
+        ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "tuik/trafik-kaza-istatistikleri-kalite-raporu-2018.xlsx"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "tuik/trafik-kaza-istatistikleri-kalite-raporu-2018.xlsx",
+              "sheetName": "GENEL BİLGİLER",
+              "range": "C23:H35",
+              "headerRow": 0
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "row": {
+            "step": 1,
+            "rows": "/values",
+            "key": 3,
+            "equals": "X",
+            "value": 5
+          }
+        }
+      }
+    },
+    {
+      "id": "tuik-completeness-ratio",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["S2", "V7", "D3", "Q1", "T1"],
+      "files": ["tuik-quality-2018"],
+      "question": {
+        "tr": "Eurostat'ın talep ettiği hücrelerin yüzde kaçı sunulabilmiş?",
+        "en": "What percentage of the cells Eurostat requested could be supplied?"
+      },
+      "answer": {
+        "kind": "percent",
+        "value": 60,
+        "tolerance": 0.5
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "tuik/trafik-kaza-istatistikleri-kalite-raporu-2018.xlsx"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "tuik/trafik-kaza-istatistikleri-kalite-raporu-2018.xlsx",
+              "sheetName": "KALİTE GÖSTERGELERİ-1",
+              "range": "C6:U10",
+              "headerRow": 0
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "at": [1, "/values/4/3"]
+        }
+      }
+    },
+    {
+      "id": "denizli-acipayam-boulevards",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S8", "S7", "S3", "Z1", "Q2", "T1"],
+      "files": ["denizli-csbm"],
+      "question": {
+        "tr": "Acıpayam ilçesinde kaç bulvar var?",
+        "en": "How many boulevards are there in the Acıpayam district?"
+      },
+      "answer": {
+        "kind": "integer",
+        "value": 29
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "denizli/denizli-ilcelerine-ait-csbm-adi-ve-turleri.xlsx",
+              "range": "A1:G12"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "find_in_sheet",
+            "args": {
+              "filePath": "denizli/denizli-ilcelerine-ait-csbm-adi-ve-turleri.xlsx",
+              "query": "İLÇESİ CSBM LİSTESİ"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "denizli/denizli-ilcelerine-ait-csbm-adi-ve-turleri.xlsx",
+              "range": "A3:C10348",
+              "headerRow": 3,
+              "columnMode": "letter",
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "C",
+                  "op": "eq",
+                  "value": "Bulvar"
+                }
+              ]
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "at": [2, "/rows/0/0"]
+        }
+      }
+    },
+    {
+      "id": "denizli-tavas-avenues",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S8", "S6", "S7", "Q2", "T1"],
+      "files": ["denizli-csbm"],
+      "question": {
+        "tr": "Tavas ilçesinde kaç cadde var?",
+        "en": "How many avenues (cadde) are there in the Tavas district?"
+      },
+      "answer": {
+        "kind": "integer",
+        "value": 187
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "denizli/denizli-ilcelerine-ait-csbm-adi-ve-turleri.xlsx",
+              "range": "A1:G12"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "denizli/denizli-ilcelerine-ait-csbm-adi-ve-turleri.xlsx",
+              "range": "E3:G3847",
+              "headerRow": 3,
+              "columnMode": "letter",
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "G",
+                  "op": "eq",
+                  "value": "Cadde"
+                }
+              ]
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
+        }
+      }
+    },
+    {
+      "id": "water-top-district-2022",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["Z1", "Z2", "Q3", "Q4", "T1"],
+      "files": ["izmir-water"],
+      "question": {
+        "tr": "2022 Aralık'ta en çok konut su abonesi olan ilçe hangisi?",
+        "en": "Which district had the most residential water subscribers in December 2022?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "BUCA"
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "izmir/yillik-ilce-ve-mahalle-bazli-su-tuketim-miktarlari.xlsx",
+              "maxCells": 30
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "izmir/yillik-ilce-ve-mahalle-bazli-su-tuketim-miktarlari.xlsx",
+              "groupBy": ["ILCE"],
+              "metrics": [
+                {
+                  "column": "ABONE_ADEDI",
+                  "fn": "sum"
+                }
+              ],
+              "where": [
+                {
+                  "column": "YIL",
+                  "op": "eq",
+                  "value": 2022
+                },
+                {
+                  "column": "AY",
+                  "op": "eq",
+                  "value": 12
+                },
+                {
+                  "column": "ABONELIK_GRUBU",
+                  "op": "eq",
+                  "value": "Konut"
+                }
+              ],
+              "orderBy": "metric",
+              "orderByMetric": 1,
+              "descending": true,
+              "maxGroups": 3
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
+        }
+      }
+    },
+    {
+      "id": "water-december-2023-missing",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["Z1", "Z4", "Q9", "T1"],
+      "files": ["izmir-water"],
+      "question": {
+        "tr": "Dosyada 2023'ün diğer aylarında olup 2023 Aralık'ta hiç verisi olmayan ilçeler hangileri?",
+        "en": "Which districts have data for other months of 2023 but none for December 2023?"
+      },
+      "answer": {
+        "kind": "set",
+        "items": [
+          {
+            "kind": "text",
+            "value": "ÇEŞME"
+          },
+          {
+            "kind": "text",
+            "value": "ÇİĞLİ"
+          },
+          {
+            "kind": "text",
+            "value": "ÖDEMİŞ"
+          },
+          {
+            "kind": "text",
+            "value": "TİRE"
+          },
+          {
+            "kind": "text",
+            "value": "URLA"
+          }
+        ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "izmir/yillik-ilce-ve-mahalle-bazli-su-tuketim-miktarlari.xlsx",
+              "maxCells": 30
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "izmir/yillik-ilce-ve-mahalle-bazli-su-tuketim-miktarlari.xlsx",
+              "groupBy": ["ILCE"],
+              "metrics": [
+                {
+                  "fn": "count",
+                  "where": [
+                    {
+                      "column": "AY",
+                      "op": "eq",
+                      "value": 12
+                    }
+                  ]
+                }
+              ],
+              "where": [
+                {
+                  "column": "YIL",
+                  "op": "eq",
+                  "value": 2023
+                }
+              ],
+              "maxGroups": 50
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "column": {
+            "step": 1,
+            "rows": "/rows",
+            "value": 0,
+            "where": {
+              "key": 1,
+              "equals": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "water-december-2023-total",
+      "level": "L5",
+      "knowledge": "K1",
+      "cases": ["Z1", "Z4", "Q2", "Q13", "T1"],
+      "files": ["izmir-water"],
+      "question": {
+        "tr": "2023 Aralık'ta İzmir genelinde toplam kaç konut su abonesi vardı?",
+        "en": "How many residential water subscribers were there across İzmir in December 2023?"
+      },
+      "answer": {
+        "kind": "refusal",
+        "reason": "notInFile",
+        "shape": "integer"
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "izmir/yillik-ilce-ve-mahalle-bazli-su-tuketim-miktarlari.xlsx",
+              "maxCells": 30
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "izmir/yillik-ilce-ve-mahalle-bazli-su-tuketim-miktarlari.xlsx",
+              "groupBy": ["AY"],
+              "metrics": [
+                {
+                  "column": "ILCE",
+                  "fn": "countDistinct"
+                }
+              ],
+              "where": [
+                {
+                  "column": "YIL",
+                  "op": "eq",
+                  "value": 2023
+                }
+              ]
+            },
+            "role": "answer"
+          }
+        ],
+        "confirm": {
+          "value": {
+            "at": [1, "/rows/11/1"]
+          },
+          "equals": 25
+        }
+      }
+    },
+    {
+      "id": "aid-implausible-years",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S10", "V11", "Z1", "Q8", "T1"],
+      "files": ["izmir-aid"],
+      "question": {
+        "tr": "Bu dosyada yılı hatalı girilmiş görünen kayıtlar var mı? Varsa hangi yıl değerleri?",
+        "en": "Are there records whose year looks mistyped in this file? If so, which year values?"
+      },
+      "answer": {
+        "kind": "set",
+        "items": [
+          {
+            "kind": "integer",
+            "value": 23
+          },
+          {
+            "kind": "integer",
+            "value": 3024
+          }
+        ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "izmir/yapilan-sosyal-yardimlar.xlsx",
+              "maxCells": 30
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "izmir/yapilan-sosyal-yardimlar.xlsx",
+              "columnMode": "letter",
+              "groupBy": ["A"],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ]
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "list": [
+            {
+              "at": [1, "/rows/0/0"]
+            },
+            {
+              "at": [1, "/rows/5/0"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "hug-heat-pump-lifetime",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["D3", "D5", "S8", "S3", "T2"],
+      "files": ["uk-hug-2024-10"],
+      "question": {
+        "tr": "LAD 1. fazda kurulan ısı pompalarının ömür boyu tahmini enerji tasarrufu kaç GWh?",
+        "en": "What are the estimated lifetime energy savings, in GWh, of the heat pumps installed under LAD Phase 1?"
+      },
+      "answer": {
+        "kind": "decimal",
+        "value": 91.27,
+        "tolerance": 0.05
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "uk-energy/home-upgrade-grant-and-lad-statistics-october-2024.xlsx"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-energy/home-upgrade-grant-and-lad-statistics-october-2024.xlsx",
+              "sheetName": "T9.1",
+              "range": "I6:N21",
+              "headerRow": 6
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "fn": "round",
+          "places": 2,
+          "args": [
+            {
+              "row": {
+                "step": 1,
+                "rows": "/values",
+                "key": 1,
+                "equals": "Heat Pumps",
+                "value": 3
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "bluefish-upper-harbor-mean",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["V8", "X4", "S4", "Q2", "T2"],
+      "files": ["us-bluefish-pcb"],
+      "question": {
+        "tr": "Tablo 5'e göre Upper Harbor'daki balıklarda ortalama PCB değeri kaç mg/kg?",
+        "en": "According to Table 5, what is the mean PCB level in the Upper Harbor fish, in mg/kg?"
+      },
+      "answer": {
+        "kind": "decimal",
+        "value": 51.5,
+        "tolerance": 0.05
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "us-noaa/new-bedford-harbor-pcb-tables.xlsx"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "us-noaa/new-bedford-harbor-pcb-tables.xlsx",
+              "sheetName": "Table 5",
+              "range": "A1:F28",
+              "headerRow": 0
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "us-noaa/new-bedford-harbor-pcb-tables.xlsx",
+              "sheetName": "Table 5",
+              "range": "A6:A23",
+              "headerRow": 0,
+              "columnMode": "letter",
+              "metrics": [
+                {
+                  "column": "A",
+                  "fn": "avg"
+                },
+                {
+                  "column": "A",
+                  "fn": "countValues"
+                }
+              ]
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "fn": "round",
+          "places": 2,
+          "args": [
+            {
+              "at": [2, "/rows/0/0"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "aid-top-district-2025",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S10", "Z1", "Q4", "T1"],
+      "files": ["izmir-aid"],
+      "question": {
+        "tr": "2025'te en çok sosyal yardım kaydı hangi ilçede?",
+        "en": "Which district had the most social aid records in 2025?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "KONAK"
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "izmir/yapilan-sosyal-yardimlar.xlsx",
+              "maxCells": 30
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "aggregate_sheet",
+            "args": {
+              "filePath": "izmir/yapilan-sosyal-yardimlar.xlsx",
+              "columnMode": "letter",
+              "groupBy": ["C"],
+              "metrics": [
+                {
+                  "fn": "count"
+                }
+              ],
+              "where": [
+                {
+                  "column": "A",
+                  "op": "eq",
+                  "value": 2025
+                }
+              ],
+              "orderBy": "metric",
+              "orderByMetric": 1,
+              "descending": true,
+              "maxGroups": 3
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "at": [1, "/rows/0/0"]
+        }
+      }
+    },
+    {
+      "id": "ktun-validation-title",
+      "level": "L2",
+      "knowledge": "K1",
+      "cases": ["Q12", "T1"],
+      "files": ["ktun-foreign-students"],
+      "question": {
+        "tr": "Öğrenci sayısı hücrelerine geçersiz bir değer girilirse çıkan uyarının başlığı ne?",
+        "en": "What is the title of the warning shown when an invalid value is typed into the student count cells?"
+      },
+      "answer": {
+        "kind": "text",
+        "value": "Hatalı Veri Girişi",
+        "accept": [
+          "Incorrect Data Entry",
+          "Invalid Data Entry",
+          "Wrong Data Entry",
+          "Erroneous Data Entry"
+        ]
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "get_data_validations",
+            "args": {
+              "filePath": "konya/ktun-yabanci-uyruklu-ogrenci-istatistikleri.xlsx"
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "at": [0, "/rules/0/errorTitle"]
+        }
+      }
+    },
+    {
+      "id": "weather-bluebell-duration",
+      "level": "L4",
+      "knowledge": "K1",
+      "cases": ["S2", "S6", "S8", "D3", "V4", "T6", "T2"],
+      "files": ["us-fort-irwin-weather"],
+      "question": {
+        "tr": "6 Ekim 2018 yağışı RG2 Bluebell istasyonunda kaç dakika sürmüş?",
+        "en": "How many minutes did the 6 October 2018 rain event last at the RG2 Bluebell station?"
+      },
+      "answer": {
+        "kind": "integer",
+        "value": 265
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "us-usda/fort-irwin-weather-station-summary.xlsx"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "us-usda/fort-irwin-weather-station-summary.xlsx",
+              "sheetName": "Summary",
+              "range": "B4:L15",
+              "headerRow": 5
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "row": {
+            "step": 1,
+            "rows": "/values",
+            "key": 0,
+            "equals": "Oct. 6, 2018",
+            "value": 6
+          }
+        }
+      }
+    },
+    {
+      "id": "hug-phase1-measures",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["D3", "D5", "S3", "Q2", "T2"],
+      "files": ["uk-hug-2024-10"],
+      "question": {
+        "tr": "Home Upgrade Grant 1. fazda toplam kaç önlem kurulmuş?",
+        "en": "How many measures were installed in total under Home Upgrade Grant Phase 1?"
+      },
+      "answer": {
+        "kind": "integer",
+        "value": 6352
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "uk-energy/home-upgrade-grant-and-lad-statistics-october-2024.xlsx"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-energy/home-upgrade-grant-and-lad-statistics-october-2024.xlsx",
+              "sheetName": "T1.4",
+              "range": "A4:F36",
+              "headerRow": 4
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "row": {
+            "step": 1,
+            "rows": "/values",
+            "key": 0,
+            "equals": "Total",
+            "value": 2
+          }
         }
       }
     }
