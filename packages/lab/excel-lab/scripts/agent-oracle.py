@@ -1040,6 +1040,241 @@ def _(files):
     return number(most_common(tally(gaziantep_time(entry).hour for entry in gaziantep(files["gaziantep-requests"]))))
 
 
+@oracle("fire0104-hidden-sheets")
+def _(files):
+    return {"kind": "set", "items": sorted(sheet.name for sheet in Workbook(files["uk-fire-0104"]).sheets if sheet.state == "hidden")}
+
+
+@oracle("fire0104-malicious-share")
+def _(files):
+    table = Workbook(files["uk-fire-0104"]).sheet("FIRE0104")
+    assert table.cells[(3, 19)].value == "2025/26" and table.cells[(4, 1)].value == "Total"
+    assert table.cells[(5, 1)].value == "Malicious" and table.cells[(5, 2)].value == "Total"
+    return number(round(100 * table.cells[(5, 19)].value / table.cells[(4, 19)].value, 1))
+
+
+@oracle("spend-nhsps-merged-total")
+def _(files):
+    sheet = Workbook(files["uk-spend-2025-12"]).sheet("Data")
+    assert sheet.cells[(1, 6)].value == "Supplier" and sheet.cells[(1, 7)].value == "Amount"
+    rows = [row for (row, column), cell in sheet.cells.items() if column == 6 and cell.value == "NHS PROPERTY SERVICES LTD"]
+    merged = {int(REF.match(ref.split(":")[0]).group(2)) for ref in sheet.merges if ref.startswith("G")}
+    assert merged & set(rows)
+    return number(round(sum(sheet.cells[(row, 7)].value for row in rows if (row, 7) in sheet.cells), 2))
+
+
+@oracle("spend-very-hidden-sheet")
+def _(files):
+    hidden = [sheet.name for sheet in Workbook(files["uk-spend-2025-12"]).sheets if sheet.state == "veryHidden"]
+    assert len(hidden) == 1
+    return {"kind": "text", "value": hidden[0]}
+
+
+def lsbs_table(path, title_start):
+    sheet = Workbook(path).sheet("Tables")
+    titles = [row for (row, column), cell in sheet.cells.items() if column == 1 and str(cell.value).startswith(title_start)]
+    assert len(titles) == 1
+    header = titles[0] + 1
+    columns = {sheet.cells[(header, column)].value: column for column in range(2, 24) if (header, column) in sheet.cells}
+    rows = {}
+    row = header + 1
+    while (row, 1) in sheet.cells:
+        rows[sheet.cells[(row, 1)].value] = {name: sheet.cells.get((row, column)) for name, column in columns.items()}
+        row += 1
+    return rows
+
+
+@oracle("lsbs-scotland-environment")
+def _(files):
+    table = lsbs_table(files["uk-lsbs-2022"], "Table 126 Q2. Has your business taken any steps to reduce its environmental impact")
+    return number(table["Yes (%)"]["Nation Scotland"].value)
+
+
+@oracle("lsbs-profit-size-gap")
+def _(files):
+    table = lsbs_table(files["uk-lsbs-2022"], "Table 124 D11.")
+    return number(table["Yes (%)"]["Size Medium"].value - table["Yes (%)"]["Size Micro"].value)
+
+
+@oracle("tuik-collection-method")
+def _(files):
+    sheet = Workbook(files["tuik-quality-2018"]).sheet("GENEL BİLGİLER")
+    assert sheet.cells[(23, 3)].value == "11- VERİ DERLEME YÖNTEM(LER)İ"
+    ticked = [sheet.cells[(row, 8)].value for row in range(23, 36) if (row, 6) in sheet.cells and sheet.cells[(row, 6)].value == "X"]
+    assert len(ticked) == 1
+    return {"kind": "text", "value": ticked[0]}
+
+
+@oracle("tuik-completeness-ratio")
+def _(files):
+    sheet = Workbook(files["tuik-quality-2018"]).sheet("KALİTE GÖSTERGELERİ-1")
+    requested, supplied = sheet.cells[(6, 21)].value, sheet.cells[(8, 21)].value
+    assert sheet.cells[(10, 6)].value == 100 * supplied / requested
+    return number(100 * supplied / requested)
+
+
+def denizli_block(path, district, label_column):
+    sheet = Workbook(path).sheets[0]
+    title = f"{district} İLÇESİ CSBM LİSTESİ"
+    starts = sorted((row, column) for (row, column), cell in sheet.cells.items() if isinstance(cell.value, str) and cell.value.endswith("İLÇESİ CSBM LİSTESİ"))
+    row, column = next(start for start in starts if sheet.cells[start].value == title)
+    later = [other for other, other_column in starts if other > row and other_column == column]
+    end = later[0] if later else max(r for r, _ in sheet.cells) + 1
+    kind = column + label_column
+    return [sheet.cells[(r, kind)].value for r in range(row + 2, end) if (r, kind) in sheet.cells]
+
+
+@oracle("denizli-acipayam-boulevards")
+def _(files):
+    return number(denizli_block(files["denizli-csbm"], "ACIPAYAM", 2).count("Bulvar"))
+
+
+@oracle("denizli-tavas-avenues")
+def _(files):
+    return number(denizli_block(files["denizli-csbm"], "TAVAS", 2).count("Cadde"))
+
+
+def stream_rows(path):
+    """Yields each row of the first sheet as {column letters: value}, without holding the sheet in memory."""
+    archive = zipfile.ZipFile(path)
+    shared = []
+    if "xl/sharedStrings.xml" in archive.namelist():
+        for _, node in ET.iterparse(archive.open("xl/sharedStrings.xml")):
+            if node.tag == f"{{{MAIN}}}si":
+                shared.append(text_of(node))
+                node.clear()
+    for _, node in ET.iterparse(archive.open("xl/worksheets/sheet1.xml")):
+        if node.tag != f"{{{MAIN}}}row":
+            continue
+        row = {}
+        for cell in node.findall("x:c", NS):
+            raw = cell.find("x:v", NS)
+            if raw is None:
+                continue
+            letters = REF.match(cell.attrib["r"]).group(1)
+            row[letters] = shared[int(raw.text)] if cell.attrib.get("t") == "s" else float(raw.text)
+        yield int(node.attrib["r"]), row
+        node.clear()
+
+
+def izmir_water(path):
+    rows = stream_rows(path)
+    _, header = next(rows)
+    assert [header[letter] for letter in "ABCEH"] == ["YIL", "AY", "ILCE", "ABONELIK_GRUBU", "ABONE_ADEDI"]
+    for number, row in rows:
+        yield number, int(float(row["A"])), int(float(row["B"])), row["C"], row.get("E"), float(row["H"])
+
+
+@oracle("water-top-district-2022")
+def _(files):
+    totals = {}
+    for _, year, month, district, group, subscribers in izmir_water(files["izmir-water"]):
+        if year == 2022 and month == 12 and group == "Konut":
+            totals[district] = totals.get(district, 0) + subscribers
+    ranked = sorted(totals, key=lambda district: -totals[district])
+    assert totals[ranked[0]] > totals[ranked[1]]
+    return {"kind": "text", "value": ranked[0]}
+
+
+def water_2023_months(path):
+    months = {}
+    last = 0
+    for number, year, month, district, _, _ in izmir_water(path):
+        last = number
+        if year == 2023:
+            months.setdefault(district, set()).add(month)
+    assert last == 1048576
+    return months
+
+
+@oracle("water-december-2023-missing")
+def _(files):
+    months = water_2023_months(files["izmir-water"])
+    return {"kind": "set", "items": sorted(district for district, seen in months.items() if 12 not in seen)}
+
+
+@oracle("water-december-2023-total")
+def _(files):
+    months = water_2023_months(files["izmir-water"])
+    assert all(months[district] >= set(range(1, 12)) for district in months)
+    assert sum(12 in seen for seen in months.values()) < len(months)
+    return {"kind": "refusal", "reason": "notInFile"}
+
+
+@oracle("aid-implausible-years")
+def _(files):
+    rows = stream_rows(files["izmir-aid"])
+    years = {}
+    for number, row in rows:
+        if number == 1:
+            assert not row
+            continue
+        year = int(row["A"])
+        years[year] = years.get(year, 0) + 1
+    return {"kind": "set", "items": sorted(year for year in years if not 1900 <= year <= 2100)}
+
+
+def hug_row(path, sheet_name, first_column, measure_type):
+    sheet = Workbook(path).sheet(sheet_name)
+    rows = [row for (row, column), cell in sheet.cells.items() if column == first_column + 1 and cell.value == measure_type]
+    assert len(rows) == 1
+    return {sheet.cells[(6, column)].value: sheet.cells.get((rows[0], column)) for column in range(first_column, first_column + 6) if (6, column) in sheet.cells}
+
+
+@oracle("hug-heat-pump-lifetime")
+def _(files):
+    assert Workbook(files["uk-hug-2024-10"]).sheet("T9.1").cells[(1, 1)].value.endswith("for LAD Phase 1")
+    row = hug_row(files["uk-hug-2024-10"], "T9.1", 9, "Heat Pumps")
+    return number(round(row["Estimated Lifetime Energy Savings (GWh)"].value, 2))
+
+
+@oracle("hug-phase1-measures")
+def _(files):
+    sheet = Workbook(files["uk-hug-2024-10"]).sheet("T9.4")
+    assert sheet.cells[(1, 1)].value.endswith("for HUG phase 1")
+    assert sheet.cells[(21, 1)].value == "Total"
+    return number(sheet.cells[(21, 3)].value)
+
+
+@oracle("bluefish-upper-harbor-mean")
+def _(files):
+    sheet = Workbook(files["us-bluefish-pcb"]).sheet("Table 5")
+    assert sheet.cells[(3, 1)].value == "Upper Harbor" and sheet.cells[(4, 1)].value == "(n = 8)"
+    assert sheet.cells[(27, 1)].value == "Mean" and sheet.cells[(27, 2)].kind == "e"
+    values = [sheet.cells[(row, 1)].value for row in range(6, 24) if (row, 1) in sheet.cells]
+    assert len(values) == 8
+    return number(round(sum(values) / len(values), 2))
+
+
+@oracle("aid-top-district-2025")
+def _(files):
+    counts = {}
+    for number, row in stream_rows(files["izmir-aid"]):
+        if number > 1 and int(row["A"]) == 2025:
+            counts[row.get("C")] = counts.get(row.get("C"), 0) + 1
+    ranked = sorted(counts, key=lambda district: -counts[district])
+    assert counts[ranked[0]] > counts[ranked[1]]
+    return {"kind": "text", "value": ranked[0]}
+
+
+@oracle("ktun-validation-title")
+def _(files):
+    book = Workbook(files["ktun-foreign-students"])
+    root = ET.fromstring(book.archive.read(book.sheets[0].part))
+    rules = root.findall("x:dataValidations/x:dataValidation", NS)
+    assert len(rules) == 1 and rules[0].attrib["sqref"] == "B2:C17"
+    return {"kind": "text", "value": rules[0].attrib["errorTitle"]}
+
+
+@oracle("weather-bluebell-duration")
+def _(files):
+    sheet = Workbook(files["us-fort-irwin-weather"]).sheet("Summary")
+    assert sheet.cells[(4, 7)].value == "Duration (mins)" and sheet.cells[(5, 8)].value == "RG2 Bluebell"
+    rows = [row for row in range(6, 13) if sheet.cells[(row, 2)].value == "Oct. 6, 2018"]
+    assert len(rows) == 1
+    return number(sheet.cells[(rows[0], 8)].value)
+
+
 NUMERIC_KINDS = ("integer", "decimal", "percent")
 TEXT_KINDS = ("text", "date", "month", "localDateTime")
 
