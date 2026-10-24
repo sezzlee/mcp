@@ -5985,51 +5985,6 @@
       }
     },
     {
-      "id": "hug-phase1-measures",
-      "level": "L3",
-      "knowledge": "K1",
-      "cases": ["D3", "D5", "S3", "Q2", "T2"],
-      "files": ["uk-hug-2024-10"],
-      "question": {
-        "tr": "Home Upgrade Grant 1. fazda toplam kaç önlem kurulmuş?",
-        "en": "How many measures were installed in total under Home Upgrade Grant Phase 1?"
-      },
-      "answer": {
-        "kind": "integer",
-        "value": 5668
-      },
-      "plan": {
-        "steps": [
-          {
-            "tool": "describe_workbook",
-            "args": {
-              "filePath": "uk-energy/home-upgrade-grant-and-lad-statistics-october-2024.xlsx"
-            },
-            "role": "discover"
-          },
-          {
-            "tool": "read_sheet",
-            "args": {
-              "filePath": "uk-energy/home-upgrade-grant-and-lad-statistics-october-2024.xlsx",
-              "sheetName": "T9.4",
-              "range": "A6:F21",
-              "headerRow": 6
-            },
-            "role": "answer"
-          }
-        ],
-        "derive": {
-          "row": {
-            "step": 1,
-            "rows": "/values",
-            "key": 0,
-            "equals": "Total",
-            "value": 2
-          }
-        }
-      }
-    },
-    {
       "id": "bluefish-upper-harbor-mean",
       "level": "L4",
       "knowledge": "K1",
@@ -6227,6 +6182,51 @@
             "key": 0,
             "equals": "Oct. 6, 2018",
             "value": 6
+          }
+        }
+      }
+    },
+    {
+      "id": "hug-phase1-measures",
+      "level": "L3",
+      "knowledge": "K1",
+      "cases": ["D3", "D5", "S3", "Q2", "T2"],
+      "files": ["uk-hug-2024-10"],
+      "question": {
+        "tr": "Home Upgrade Grant 1. fazda toplam kaç önlem kurulmuş?",
+        "en": "How many measures were installed in total under Home Upgrade Grant Phase 1?"
+      },
+      "answer": {
+        "kind": "integer",
+        "value": 6352
+      },
+      "plan": {
+        "steps": [
+          {
+            "tool": "describe_workbook",
+            "args": {
+              "filePath": "uk-energy/home-upgrade-grant-and-lad-statistics-october-2024.xlsx"
+            },
+            "role": "discover"
+          },
+          {
+            "tool": "read_sheet",
+            "args": {
+              "filePath": "uk-energy/home-upgrade-grant-and-lad-statistics-october-2024.xlsx",
+              "sheetName": "T1.4",
+              "range": "A4:F36",
+              "headerRow": 4
+            },
+            "role": "answer"
+          }
+        ],
+        "derive": {
+          "row": {
+            "step": 1,
+            "rows": "/values",
+            "key": 0,
+            "equals": "Total",
+            "value": 2
           }
         }
       }

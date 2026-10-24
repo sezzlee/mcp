@@ -1230,10 +1230,15 @@ def _(files):
 
 @oracle("hug-phase1-measures")
 def _(files):
-    sheet = Workbook(files["uk-hug-2024-10"]).sheet("T9.4")
-    assert sheet.cells[(1, 1)].value.endswith("for HUG phase 1")
-    assert sheet.cells[(21, 1)].value == "Total"
-    return number(sheet.cells[(21, 3)].value)
+    book = Workbook(files["uk-hug-2024-10"])
+    sheet = book.sheet("T1.4")
+    assert sheet.cells[(1, 1)].value.startswith("Table 1.4 - HUG 1 Measures Installed")
+    assert sheet.cells[(36, 1)].value == "Total"
+    total = sheet.cells[(36, 3)].value
+    assert total == sum(sheet.cells[(row, 3)].value for row in range(5, 36) if sheet.cells[(row, 1)].value == sheet.cells[(row, 2)].value)
+    savings = book.sheet("T9.4")
+    assert savings.cells[(21, 1)].value == "Total" and savings.cells[(21, 3)].value < total
+    return number(total)
 
 
 @oracle("bluefish-upper-harbor-mean")
