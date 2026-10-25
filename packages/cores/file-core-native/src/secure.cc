@@ -671,7 +671,9 @@ void publishOutput(Job& job) {
   HANDLE raw = invalid;
   using Create = NTSTATUS(NTAPI*)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, PIO_STATUS_BLOCK, PLARGE_INTEGER, ULONG, ULONG, ULONG, ULONG, PVOID, ULONG);
   auto create = reinterpret_cast<Create>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtCreateFile"));
-  if (!create) throw Failure("unsupported_platform");
+  using Set = NTSTATUS(NTAPI*)(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, FILE_INFORMATION_CLASS);
+  auto set = reinterpret_cast<Set>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtSetInformationFile"));
+  if (!create || !set) throw Failure("unsupported_platform");
   const auto created = create(&raw, FILE_WRITE_DATA | FILE_READ_ATTRIBUTES | DELETE | SYNCHRONIZE,
     &attributes, &status, nullptr, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, 2,
     0x00200000 | 0x00000020 | 0x00000040, nullptr, 0);
@@ -693,10 +695,14 @@ void publishOutput(Job& job) {
     rename->ReplaceIfExists = FALSE; rename->RootDirectory = job.root->handle.value;
     rename->FileNameLength = static_cast<DWORD>(finalName.size() * sizeof(wchar_t));
     std::memcpy(rename->FileName, finalName.data(), rename->FileNameLength);
-    if (!SetFileInformationByHandle(file.value, FileRenameInfo, rename, static_cast<DWORD>(storage.size()))) {
-      const auto error = GetLastError();
-      if (error == ERROR_ALREADY_EXISTS || error == ERROR_FILE_EXISTS) throw Failure("output_exists");
-      throw Failure("internal_error", static_cast<int>(error));
+    /**
+     * Guard: NtSetInformationFile resolves the simple target name against the
+     * retained directory handle; publication must never re-open its pathname.
+     */
+    const auto renamed = set(file.value, &status, rename, static_cast<ULONG>(storage.size()), FileRenameInformation);
+    if (renamed < 0) {
+      if (static_cast<ULONG>(renamed) == 0xC0000035) throw Failure("output_exists");
+      throw Failure("internal_error", static_cast<int>(renamed));
     }
     published = true;
   } catch (...) {
