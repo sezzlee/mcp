@@ -150,7 +150,7 @@ export function fanOut(visitors: readonly XmlVisitor[]): XmlVisitor {
  * part on its own tokenized a sheet eight times.
  */
 export function scanPart(
-  opc: OpcPackage,
+  opc: Pick<OpcPackage, "scanPart">,
   part: string,
   visitor: XmlVisitor,
 ): boolean {

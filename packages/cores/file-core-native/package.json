@@ -1,6 +1,6 @@
 {
   "name": "@sezzlee/file-core-native",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Handle-relative filesystem access for file-core (Node-API).",
   "keywords": [
     "node-api",
@@ -39,7 +39,9 @@
   "scripts": {
     "build": "node build.mjs",
     "check-types": "node --check index.js",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "test:output": "node --test test/output.test.mjs",
+    "test:security": "node --test test/security.test.mjs"
   },
   "publishConfig": {
     "access": "public"

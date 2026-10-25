@@ -1,22 +1,35 @@
 #!/usr/bin/env node
-import { parseServerArgv, serveFileSourceStdio } from "@sezzlee/file-core";
+import { serveFileSourceStdio } from "@sezzlee/file-core";
 import { createWorkbookRoot } from "./platform/paths.js";
 import { createExcelMcpServer } from "./server.js";
+import { parseExcelArgv } from "./platform/argv.js";
+import { createWorkbookOutput } from "./platform/versions.js";
 
 function fail(message: string, code: number): never {
   process.stderr.write(`${message}\n`);
   process.exit(code);
 }
 
-const parsed = parseServerArgv(process.argv);
+const parsed = parseExcelArgv(process.argv);
 
 if (parsed.kind === "usage") {
-  fail("Usage: sezzlee-excel <workbook-root>", 2);
+  fail(
+    "Usage: sezzlee-excel <workbook-root> [--write <relative-output-directory>]",
+    2,
+  );
 }
 
 try {
   const root = await createWorkbookRoot(parsed.path);
-  const server = createExcelMcpServer(root);
+  const server = createExcelMcpServer(
+    root,
+    parsed.kind === "read"
+      ? { mode: "read" }
+      : {
+          mode: "write",
+          output: await createWorkbookOutput(root, parsed.directory),
+        },
+  );
   /**
    * Guard: stdio carries one connection per process, so pinning the single eagerly built instance
    * is what `serveStdio`'s per-connection factory would produce anyway — and it keeps a

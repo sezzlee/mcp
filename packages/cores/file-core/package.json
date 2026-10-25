@@ -1,6 +1,6 @@
 {
   "name": "@sezzlee/file-core",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Shared machinery for read-only, sandboxed, file-backed MCP servers.",
   "keywords": [
     "mcp",

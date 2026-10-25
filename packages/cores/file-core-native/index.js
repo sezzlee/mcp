@@ -1,8 +1,10 @@
 import { createRequire } from "node:module";
 import { platform, arch } from "node:process";
+import { randomBytes } from "node:crypto";
 
 const require = createRequire(import.meta.url);
 let binding;
+const rootHandles = new WeakMap();
 
 function fail(message) {
   return Object.assign(new Error(message), { code: "unsupported_platform" });
@@ -65,7 +67,7 @@ export function openRoot(path) {
   pathArgument(path);
   const api = load();
   const root = api.openRoot(path);
-  return Object.freeze({
+  const view = Object.freeze({
     async resolve(relative) {
       pathArgument(relative);
       const result = await api.run(root, "resolve", relative, 0, 0, 0, 0, 0);
@@ -189,6 +191,47 @@ export function openRoot(path) {
         )
       )
         invalidResult();
+      return result;
+    },
+  });
+  rootHandles.set(view, root);
+  return view;
+}
+
+export function openOutputRoot(source, directory) {
+  const sourceHandle = rootHandles.get(source);
+  if (sourceHandle === undefined)
+    throw new TypeError("Expected an open source root.");
+  pathArgument(directory);
+  const api = load();
+  if (
+    typeof api.openOutputRoot !== "function" ||
+    typeof api.publish !== "function"
+  )
+    throw fail(
+      "The secure filesystem binary does not support output publication. Rebuild or install a complete platform package.",
+    );
+  const root = api.openOutputRoot(sourceHandle, directory);
+  return Object.freeze({
+    async publish(name, content, maxBytes) {
+      if (
+        typeof name !== "string" ||
+        !/^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/.test(name)
+      )
+        throw new TypeError(
+          "Expected a bounded output name without path components.",
+        );
+      if (!Buffer.isBuffer(content))
+        throw new TypeError("Expected output bytes.");
+      budget(maxBytes, 50 * 1024 * 1024);
+      const result = await api.publish(
+        root,
+        name,
+        randomBytes(16).toString("hex"),
+        content,
+        maxBytes,
+      );
+      if (result !== name) invalidResult();
       return result;
     },
   });

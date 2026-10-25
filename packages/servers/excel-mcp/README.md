@@ -1,6 +1,6 @@
 # @sezzlee/excel-mcp
 
-A standalone MCP server that **reads** local Excel files for an agent. There is no write path.
+Varsayılan olarak yerel Excel dosyalarını **yalnızca okuyan** bağımsız MCP sunucusu. Ayrıca etkinleştirilen yazma modu, kaynak dosyayı değiştirmeden çıktı sürümü hazırlayabilir.
 
 Reads `.xlsx`, `.xlsm` and `.csv`, sandboxed to one folder. Sandboxing, the document cache, the error envelope, the cursor codec and the tool registration layer come from [@sezzlee/file-core](../../cores/file-core).
 
@@ -351,3 +351,99 @@ pnpm turbo run check-types --filter=@sezzlee/excel-mcp
 Run tests through Turbo, not `pnpm --filter @sezzlee/excel-mcp test`: the bare filter skips `dependsOn: ["^build"]`, and this package resolves `@sezzlee/file-core` through `exports.default → ./dist/index.js`, so a bare filter can test against a stale `dist`.
 
 A change to a tool's arguments, an error code or a limit changes the generated reference in `apps/docs`; run `pnpm --filter @sezzlee/docs gen` and commit the result, or `pnpm turbo run validate --filter=@sezzlee/docs` fails.
+
+## Optional writing mode
+
+Reading remains the default. Enable writing explicitly with an existing output directory below the workbook root:
+
+```sh
+mkdir -p /absolute/workbooks/out
+sezzlee-excel /absolute/workbooks --write out
+```
+
+This adds four own-output tools and two read-only preparation tools. They never overwrite a source or an existing output. The output name is chosen by the server from its SHA-256 content version; identical content reuses an existing output after verifying its bytes. All writing-mode tools share one admission slot per server.
+
+| Tool                    | Behavior                                                                                                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| create_workbook         | Create an immutable .xlsx from a non-empty ordered list of named sheets. Each sheet may contain rectangular blocks with an explicit A1 startCell. Omit blocks for an empty sheet.                                                    |
+| edit_workbook           | Atomically edit an exact .xlsx version: values, clear, sheets, ranges and rows/columns, preserving supported existing content and dependencies.                                                                                      |
+| create_workbook_version | Validate and prepare an immutable copy of an existing .xlsx, without changing sheets or cells. Its optional expectedVersion rejects a changed source. Copying an external workbook does not make it eligible for Phase 1 editing.    |
+| prepare_transfer        | Select complete range values, filtered/projected records or a grouped summary from .xlsx/.xlsm/CSV. Returns a version-pinned transfer reference and counts, without returning the dataset or writing a file.                         |
+| prepare_edit            | Dry-run the complete edit against an exact source, returning policy blockers or a ready preservation profile without publishing.                                                                                                     |
+| transfer_data           | Materialize that selection internally and publish it to a new workbook, new sheet or selected authored sheet. Rejects changed sources and occupied targets without explicit overwrite; supports positional or unique-header mapping. |
+
+A create_workbook input:
+
+```json
+{
+  "sheets": [
+    {
+      "name": "Expenses",
+      "blocks": [
+        {
+          "startCell": "A1",
+          "values": [
+            [
+              { "kind": "text", "value": "Item" },
+              { "kind": "text", "value": "Amount" }
+            ],
+            [
+              { "kind": "text", "value": "00123" },
+              { "kind": "number", "value": 12.25 }
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+The result carries kind: complete, version: { filePath, versionId }, source and sizeBytes. Create/edit results also carry changes: { sheetsAdded, blocksWritten, cellsWritten }. They never echo all cells. For edit_workbook, pass the returned version as source, then a changes array, for example:
+
+```json
+{
+  "source": { "filePath": "out/<sha256>.xlsx", "versionId": "<sha256>" },
+  "changes": [
+    { "kind": "add_sheet", "name": "Income" },
+    {
+      "kind": "write_cells",
+      "sheetName": "Expenses",
+      "startCell": "B2",
+      "overwrite": true,
+      "values": [[{ "kind": "number", "value": 20 }]]
+    },
+    {
+      "kind": "write_cells",
+      "sheetName": "Expenses",
+      "startCell": "A3",
+      "values": [
+        [
+          { "kind": "text", "value": "Next" },
+          { "kind": "number", "value": 30 }
+        ]
+      ]
+    }
+  ]
+}
+```
+
+Every operation in that request must succeed before a version is published. Without overwrite: true, populated target cells, including empty text, cause failure. blank explicitly clears a cell when replacement is authorized; it is distinct from text with an empty value. Duplicate sheet names are rejected. Appending writes to an explicit start cell; it does not insert rows or move totals. Retry an identical edit against the same source version for the same output. There is no implicit latest-version lookup.
+
+Cell kinds are text, number, boolean, blank, date and datetime. Text stays literal, including leading zeroes and formula-looking strings. Numbers that would lose Excel precision, unsafe integers, non-finite values and unsupported magnitudes are rejected; choose text explicitly for long identifiers. Dates span 1900-01-01 through 9999-12-31. Datetimes are local wall-clock values with seconds and optional millisecond precision, without a timezone. ISO date cells require Office 2010 or later. Existing formulas and formatting can be copied through the explicit Phase 3 modes below. New formula/style authoring and server-side recalculation remain outside this implementation.
+
+Initial limits are 1,000,000 touched cells per request, 1,000,000 stored cells per workbook, 64 sheets, 128 blocks/changes, 32 MiB stored text and 64 MiB serialized input. The existing 50 MiB file ceiling and OOXML package budgets also apply. Writing uses the separate native output capability and source reads retain their existing native sandbox. Details and verification evidence: [Phase 1](docs/phase-1/README.md), [execution plan](docs/phase-1/implementation-plan.md), [Phase 0](docs/phase-0/README.md).
+
+For edit preparation, call prepare_edit with filePath, optional expectedVersion and the complete changes array. It dry-runs the same editor used by edit_workbook, including occupancy, references and budgets, without publishing. A ready result returns source, requestFingerprint and profile (canonical_values or preserved_package). Send source and the same changes to edit_workbook; execution rechecks all selected source versions. The fingerprint is diagnostic identity, not a retained authorization token.
+
+The preservation profile supports write_cells and clear_contents; add_sheet, rename_sheet, reorder_sheet, copy_sheet and delete_sheet; copy_range and move_range; insert_rows, delete_rows, insert_columns and delete_columns. Sheet operations identify sheetName (add uses name); rename/copy also require name, reorder requires a one-based position, and structural row/column operations require one-based at and count. Ranges use an explicit closed A1 range; copy/move also specify targetSheet and startCell. Occupied destinations require overwrite: true. Clear preserves cell styles and does not shift cells. At least one visible sheet must remain.
+
+Copies require mode values, formulas, formatting or all. Values copies literal/saved values, formulas copies existing formulas and constants without source styling, formatting preserves destination contents, and all combines supported contents and formatting. Full-sheet all copies its supported tables/drawings/charts relationship graph; range copies do not duplicate those sheet-level objects. Full merged ranges can be copied; partial merges, overlapping ranges and partially intersecting incoming move references fail explicitly. An optional from: {filePath, versionId} on copy_range/copy_sheet selects another immutable workbook. Cross-workbook copies require matching style/theme profiles and compatible numeric calendar systems; unsupported profiles or external named/sheet bindings are refused. There is no values-only fallback.
+
+Supported normal A1 formulas, mixed/absolute axes, scoped names and dependent ranges are transformed together with structural edits. Unsupported impacted structured/external/3D/spill references, shared/array group edits, rich metadata or unknown dependencies refuse the whole transaction. Formulas are never calculated: changed workbooks invalidate stale caches/calculation chains and report editing.recalculationRequired, recalculated: false and refreshRequired. Values-mode saved results are counted explicitly. Select an earlier retained version to undo the entire combined request or branch; source and prior outputs remain unchanged.
+
+Editing accepts Transitional .xlsx, including supported noncanonical part paths. Macros, encryption, enabled workbook/sheet protection, write reservations, signatures and Strict markup are excluded. Unrelated part payloads retain their exact bytes; ZIP container bytes may change. The [Phase 3 plan](docs/phase-3/implementation-plan.md) records operation-specific limits and acceptance scope.
+
+For value transfer, call prepare_transfer with filePath and selection, then pass its returned transfer object unchanged to transfer_data. For example, selection {"kind":"records","headerRow":1,"selectColumns":["ID","Amount"]} selects every data record in that column order, even if an earlier read showed a preview. An explicit subset uses scope {"kind":"rows","rows":[2,4]}. Target {"kind":"new","sheetName":"Export"} creates a new workbook; target kind add_sheet or sheet also requires source with the exact selected destination version. For header mapping into an existing list, select includeHeaders false and use target mapping {"kind":"headers","headerRow":1}; startCell supplies the destination row.
+
+Range transfer preserves explicitly requested blank cells instead of clipping to usedRange. CSV and literal date/formula-looking text remain text unless columns explicitly request interpretation. Formula cells contribute saved results only; the compact receipt reports cachedFormulas and recalculated: false. Missing formula caches, errors, rich values, durations, time-only values and numbers the existing writer cannot represent safely fail explicitly. Existing .xlsx transfer targets now use the preservation editor; transfer_data continues to transfer values, while edit_workbook provides formula/style copying. Descriptor size, scan and output budgets apply before publication. See the [Phase 2 implementation and verification plan](docs/phase-2/implementation-plan.md) for the full support boundary and evidence.

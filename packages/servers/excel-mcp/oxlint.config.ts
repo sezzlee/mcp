@@ -33,6 +33,17 @@ const oracles = [
   })),
 ];
 
+const writingCore = {
+  name: "@sezzlee/mcp-core",
+  message:
+    "Only platform/writing bridges the own-output tool and server types; file-core remains read-only.",
+};
+const nativeOutput = {
+  name: "@sezzlee/file-core-native",
+  message: "Only platform/versions derives the explicit output capability.",
+};
+const restrictedPackages = [...oracles, writingCore, nativeOutput];
+
 /**
  * Guard: the platform layer may name the container reader, because sniffing the
  * leading bytes decides whether a file is readable at all and that is a
@@ -61,7 +72,10 @@ const restrict = (
   "no-restricted-imports": [
     "error",
     {
-      paths: [...paths.map((name) => ({ name, message })), ...oracles],
+      paths: [
+        ...paths.map((name) => ({ name, message })),
+        ...restrictedPackages,
+      ],
       patterns: [{ group: [...folders, ...entrypoints], message }],
     },
   ],
@@ -75,7 +89,7 @@ export default defineConfig({
     {
       files: ["src/**/*.ts"],
       rules: {
-        "no-restricted-imports": ["error", { paths: oracles }],
+        "no-restricted-imports": ["error", { paths: restrictedPackages }],
       },
     },
     {
@@ -95,8 +109,78 @@ export default defineConfig({
           "**/metadata/**",
           "**/format/**",
           "**/tools/**",
+          "**/authoring/**",
         ],
       }),
+    },
+    {
+      files: ["src/platform/writing.ts"],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            paths: [...oracles, nativeOutput],
+            patterns: [
+              {
+                group: [
+                  ...entrypoints,
+                  "**/grid/**",
+                  "**/metadata/**",
+                  "**/format/**",
+                  "**/tools/**",
+                  "**/authoring/**",
+                ],
+                message: platformMessage,
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      files: ["src/platform/versions.ts"],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            paths: [...oracles, writingCore],
+            patterns: [
+              {
+                group: [
+                  ...entrypoints,
+                  "**/grid/**",
+                  "**/metadata/**",
+                  "**/format/**",
+                  "**/tools/**",
+                  "**/authoring/**",
+                ],
+                message: platformMessage,
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      files: ["src/authoring/**/*.ts"],
+      rules: restrict(
+        "Authoring value contracts are pure; they do not perform I/O or reach adapters and tools.",
+        {
+          paths: [
+            "@sezzlee/file-core",
+            ...containerPackages,
+            "@modelcontextprotocol/server",
+          ],
+          folders: [
+            "node:*",
+            "**/platform/**",
+            "**/grid/**",
+            "**/metadata/**",
+            "**/format/**",
+            "**/tools/**",
+          ],
+        },
+      ),
     },
     {
       files: ["src/grid/**/*.ts"],

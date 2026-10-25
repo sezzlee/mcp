@@ -74,6 +74,36 @@ SEZZLEE_CORPUS=/path/to/corpus pnpm turbo run corpus --filter=@sezzlee/excel-lab
 The `corpus` task builds `@sezzlee/excel-mcp` first, so the run always uses the current source.
 `--help` lists every option.
 
+## Phase 3 editing acceptance
+
+The [Phase 3 plan](../../servers/excel-mcp/docs/phase-3/implementation-plan.md) records the supported editing profile and measured acceptance. Run these from the vendor repository root, keeping corpus originals unchanged and all generated files outside the repository:
+
+```sh
+pnpm turbo run build check-types lint --filter=@sezzlee/excel-mcp --filter=@sezzlee/excel-lab
+python3 -I packages/lab/excel-lab/scripts/test-inspect-edit-corpus.py
+python3 -I packages/lab/excel-lab/scripts/inspect-edit-corpus.py --corpus /path/to/corpus --out /tmp/excel-edit-inventory
+node packages/lab/excel-lab/src/edit-bench.ts --out /tmp/excel-edit-scale --rows 50000 --columns 20 --operation write --heap-mib 1024
+python3 -I packages/lab/excel-lab/scripts/edit-oracle.py /tmp/excel-edit-scale/edit-REPLACE
+node packages/lab/excel-lab/src/edit-agent-cli.ts --out /tmp/excel-edit-scripted --corpus /path/to/corpus
+SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab/src/edit-agent-cli.ts --out /tmp/excel-edit-live --corpus /path/to/corpus --model MODEL --languages tr,en
+```
+
+Inventory uses Python standard-library ZIP/XML parsing, manifest hashes, containment and archive budgets. Content types select noncanonical XML part paths too. summary.json pins manifests/script and representative features; inventory.jsonl retains failures and budget outcomes. Feature/protection-markup counts are not editing or enabled-protection claims.
+
+The edit benchmark accepts operation write, rows, columns or copy. Defaults produce 1,000,000 numeric sequence cells (50000 by 20); copy requires at least 1024 rows for destination A1000 and its 25-row block. A fresh child uses a fixed heap and 180-second watchdog, executes/retries through actual MCP and checks unchanged originals. edit-results.json records exact source/output hashes, call/request/receipt sizes, timings, peak RSS and generator/build digests. The independent edit-oracle.py checks every expected coordinate/value, types, ZIP CRCs, relationships, stale-cache policy and retained opaque XML. Heap and RSS are different measurements.
+
+The writing-aware agent harness preserves the existing read-agent lab. It runs scripted baselines before optional actual-model trials in Turkish and English: correction, copy, clear, row insertion, restore, protected refusal, complete range-value transfer, filtered/reordered record transfer and aggregate-result transfer. --only transfer_range,transfer_records,transfer_aggregate selects the Phase 2 acceptance set. Public Apache fixtures are pinned by hash; isolated retained outputs are graded by edit-agent-oracle.py, not by model prose. traces, results.jsonl and summary.json retain model identity, build/script hashes and actual calls. Network runs require authorization for their fixture data and target. Editing tasks expose the five edit/read tools; transfer tasks expose prepare_transfer, transfer_data, describe_workbook and read_sheet. Both catalogs are recorded in run.json. A preparatory create_workbook_version receipt is not accepted as a completed edit or transfer.
+
+Optional independent validation:
+
+```sh
+dotnet build packages/lab/excel-lab/scripts/openxml-validate/Validate.csproj -o /tmp/excel-openxml-validator
+dotnet /tmp/excel-openxml-validator/Validate.dll /path/to/source.xlsx /path/to/output.xlsx
+python3 -I packages/lab/excel-lab/scripts/edit-lo-oracle.py /tmp/excel-edit-scripted /tmp/calc-ods-output
+```
+
+The .NET 8 validator uses Microsoft Open XML SDK 2.16.0 Office 2019 validation and emits bounded failures. The ODF oracle requires converting the five scripted output workbooks to ODS with an actual isolated headless LibreOffice instance first, then verifies typed values/formulas after application calculation. These are optional lab dependencies, never production readers/calculation fallbacks. Exact fixture scope matters; a selected successful validation is not whole-corpus acceptance.
+
 ## Typed aggregate benchmark
 
 `src/aggregate-bench.ts` generates an original, MIT-licensed CSV outside the repository:
@@ -194,3 +224,40 @@ and writes JSON to stdout. MCP tests consume the same committed bytes without re
 Python or .NET. The source manifest, independent cell/format matrix, licensing, schema
 validation and limits are in [RICH_VALUE_SOURCES.md](RICH_VALUE_SOURCES.md). None of these
 fixtures is presented as an Excel recalculation or a live linked-provider test.
+
+## Phase 1 writing acceptance
+
+Build the server, then run the isolated writing benchmark outside the repository:
+
+```sh
+pnpm turbo run build --filter=@sezzlee/excel-mcp
+node packages/lab/excel-lab/src/write-bench.ts --out /tmp/excel-write-evidence --rows 50000 --columns 20 --heap-mib 1024 --dataset sequence
+node packages/lab/excel-lab/src/write-bench.ts --out /tmp/excel-write-evidence --rows 50000 --columns 20 --heap-mib 1024 --dataset mixed
+```
+
+Each invocation creates a fresh write-* directory and starts one child process with a fixed V8 heap and a 180-second wall limit. It creates a million-cell block, corrects A1 from the exact selected version, repeats that correction against the same source and checks that the output version is reused while the original bytes remain unchanged. Results include call timings, serialized input and response sizes, output versions and sizes, platform, peak RSS, and hashes of the generator and built writing implementation. RSS includes native allocations and can exceed the V8 heap limit. These local measurements do not establish a service latency guarantee or other-platform support.
+
+The sequence dataset contains the integers 0 through 999999. The mixed dataset covers leading-zero text identifiers, exact quarter-unit numbers, booleans, blank cells, empty text, ISO dates, local datetimes, Unicode, XML metacharacters, literal SpreadsheetML escape sequences and CRLF. Blank cells are omitted, so the million input cells produce 950000 stored cells in the 20-column mixed dataset.
+
+The standard-library Python oracle verifies every stored value against independently specified coordinate-based answers, checks blank omission, package CRCs, sheet relationships and absence of formulas/external relationships. It performs no network access:
+
+```sh
+python3 packages/lab/excel-lab/scripts/verify-written-workbook.py /tmp/excel-write-evidence/write-REPLACE/out/CREATE-HASH.xlsx --sequence-rows 50000 --columns 20 --dataset mixed
+python3 packages/lab/excel-lab/scripts/verify-written-workbook.py /tmp/excel-write-evidence/write-REPLACE/out/EDIT-HASH.xlsx --sequence-rows 50000 --columns 20 --dataset mixed --edited
+```
+
+Use --dataset sequence for numeric runs. The generic --expected input accepts an independently authored JSON object containing sheets: [{ name, cells: { A1: { kind, value } } }]; blank entries are expected to be omitted. Oracle success is distinct from the benchmark's in-house MCP checks. Neither claims live Excel execution, recalculation or an Open XML XSD validation.
+
+## Phase 2 transfer acceptance
+
+Build the server, then generate and transfer a million-cell source through the real MCP tools:
+
+```sh
+pnpm turbo run build --filter=@sezzlee/excel-mcp
+node packages/lab/excel-lab/src/transfer-bench.ts --out /tmp/excel-transfer-evidence --rows 50000 --columns 20 --heap-mib 1024
+python3 packages/lab/excel-lab/scripts/transfer-oracle.py /tmp/excel-transfer-evidence/transfer-REPLACE
+```
+
+Each run creates a fresh transfer-* directory outside the repository. The source CSV contains the integers 0 through 999999; the transfer descriptor explicitly reads its columns as numbers. The benchmark prepares the complete source selection without returning its cells, transfers it, applies a one-cell transfer from a separate source to the selected output version and retries that continuation. It checks source preservation and version reuse, records implementation/generator digests, call sizes and timings, and runs in one child with the selected heap limit and a 180-second watchdog. The independent standard-library Python oracle verifies every source field and every stored cell in both outputs, numeric types, exact counts and sums, file hashes, ZIP CRCs and absence of formulas. Generated source and output bytes and reports remain outside the repository.
+
+The Excel package's transfer-data.spec.ts includes small raw-OOXML/CSV acceptance cases and three optional external-corpus transfers. Set SEZZLEE_CORPUS to run those external cases; they skip explicitly when it is absent. They compare values and types with an independent SheetJS reader. The [Phase 2 plan](../../servers/excel-mcp/docs/phase-2/implementation-plan.md) records the chosen behavior, limits, execution evidence and required Phase 3 formula/formatting copying.
