@@ -12,6 +12,7 @@ import {
   textResult,
   untilAbandoned,
   type DispatchDeadline,
+  type JsonSchemaObject,
   type MetaResponse,
   type ProviderSuccess,
   type ToolDefinition,
@@ -96,43 +97,80 @@ function schemaOf(schema: StandardJsonSchema, side: "input" | "output") {
   return reading.schema;
 }
 
-function assertJson(value: unknown): void {
+/** Guard: local references resolve from the envelope root, not from its nested body schema. */
+function outputEnvelope(schema: JsonSchemaObject): JsonSchemaObject {
+  const { $defs, ...body } = schema;
+  return {
+    type: "object",
+    required: ["body"],
+    properties: { body },
+    additionalProperties: false,
+    ...($defs === undefined ? {} : { $defs }),
+  };
+}
+
+/**
+ * Guard: budgets, storage and delivery must see the same data. Reading accessors or retaining the
+ * provider's objects lets later serialization differ from the value that passed validation.
+ */
+function snapshotJson(value: unknown): unknown {
   const ancestors = new Set<object>();
-  const visit = (node: unknown): void => {
+  const visit = (node: unknown): unknown => {
     if (
       node === null ||
       typeof node === "string" ||
       typeof node === "boolean"
     ) {
-      return;
+      return node;
     }
     if (typeof node === "number" && Number.isFinite(node)) {
-      return;
+      return node;
     }
     if (typeof node !== "object" || node === null || ancestors.has(node)) {
       throw new InvalidProviderOutput();
     }
+    const array = Array.isArray(node);
     const prototype: unknown = Object.getPrototypeOf(node);
     if (
-      Object.getOwnPropertySymbols(node).length > 0 ||
-      (Array.isArray(node) && Object.keys(node).length !== node.length)
+      prototype !== null &&
+      prototype !== (array ? Array.prototype : Object.prototype)
     ) {
       throw new InvalidProviderOutput();
     }
-    if (
-      !Array.isArray(node) &&
-      prototype !== Object.prototype &&
-      prototype !== null
-    ) {
+    const descriptors = Object.getOwnPropertyDescriptors(node);
+    const keys = Reflect.ownKeys(descriptors);
+    if (array && keys.length !== node.length + 1) {
       throw new InvalidProviderOutput();
     }
     ancestors.add(node);
-    for (const child of Object.values(node)) {
-      visit(child);
+    try {
+      const entries: [string, unknown][] = [];
+      for (const key of keys) {
+        if (array && key === "length") {
+          continue;
+        }
+        if (typeof key !== "string") {
+          throw new InvalidProviderOutput();
+        }
+        const descriptor = descriptors[key];
+        if (
+          descriptor === undefined ||
+          !descriptor.enumerable ||
+          !("value" in descriptor) ||
+          (array && key !== String(entries.length))
+        ) {
+          throw new InvalidProviderOutput();
+        }
+        entries.push([key, visit(descriptor.value)]);
+      }
+      return array
+        ? entries.map(([, child]) => child)
+        : Object.fromEntries(entries);
+    } finally {
+      ancestors.delete(node);
     }
-    ancestors.delete(node);
   };
-  visit(value);
+  return visit(value);
 }
 
 /** Registers a singleton Nest provider as an MCP tool without creating an HTTP route. */
@@ -219,14 +257,7 @@ export function defineProviderTool<Provider, Input, Output>(
           inputSchema,
           ...(outputSchema === undefined
             ? {}
-            : {
-                outputSchema: {
-                  type: "object",
-                  required: ["body"],
-                  properties: { body: outputSchema },
-                  additionalProperties: false,
-                },
-              }),
+            : { outputSchema: outputEnvelope(outputSchema) }),
           annotations: { readOnlyHint: false, ...definition.annotations },
           auth: {
             anonymous: access === "public" ? "yes" : "unknown",
@@ -242,21 +273,23 @@ export function defineProviderTool<Provider, Input, Output>(
         authorize: async (context) =>
           access === "public" || (await access(context)) === true,
         execute: async (argumentsValue, context) => {
+          context.signal.throwIfAborted();
           const parsed = await input["~standard"].validate(argumentsValue);
+          context.signal.throwIfAborted();
           if (parsed.issues !== undefined) {
             throw new InvalidProviderInput();
           }
-          context.signal.throwIfAborted();
           const value = await execute(instance, parsed.value, context);
+          context.signal.throwIfAborted();
           const result =
             output === undefined
               ? { value, issues: undefined }
               : await output["~standard"].validate(value);
+          context.signal.throwIfAborted();
           if (result.issues !== undefined) {
             throw new InvalidProviderOutput();
           }
-          assertJson(result.value);
-          return result.value;
+          return snapshotJson(result.value);
         },
       };
     },
@@ -288,6 +321,7 @@ export async function providerDecision(
       state.signal,
       state.reason,
     );
+    state.signal.throwIfAborted();
     return allowed ? "allow" : "deny";
   } catch {
     return "deny";
@@ -326,6 +360,7 @@ export async function invokeProvider(
       state.signal,
       state.reason,
     );
+    state.signal.throwIfAborted();
     const success: ProviderSuccess = { body: value };
     if (Buffer.byteLength(JSON.stringify(success), "utf8") > maxBufferedBytes) {
       return textResult(
