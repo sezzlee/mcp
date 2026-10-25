@@ -82,3 +82,9 @@ The independent Python standard-library oracle passed both million-cell outputs.
 No Phase 2 cross-platform/native CI, live Excel/LibreOffice run, live planning-model acceptance or Open XML XSD validation was performed. The existing native filesystem implementation was not changed. Local tool execution and independent file validation establish transfer behavior; they do not prove that a live model always chooses the intended source, scope or target.
 
 Change size excluding documentation: production +907/-3 lines; acceptance tests and lab verification support +1268/-0 lines. No dependency manifest, lockfile or shared reader fact/snapshot implementation changed.
+
+## Subsequent Phase 3 closure, 2026-10-25
+
+The earlier local-only limitations above are historical. Existing external .xlsx targets now use preservation editing, and required formula/formatting copying is implemented by Phase 3's explicit modes. The complete configured local Excel suite passed 6,370 tests before the additional union-schema regression; that regression failed before its fix and all 29 transfer tests then passed. The final four-tool transfer model profile passed three scripted and six Turkish/English live scenarios with independent saved-file grading. Its scenarios cover complete range values, filtered/reordered records and a summary result; it is not a claim that every transfer option was live-model tested.
+
+[Publish dry run 40225865141](https://github.com/sezzlee/mcp/actions/runs/40225865141) passed the combined main revision's full native and clean installed-package matrix, including typed transfer and retained-version restore. Selected Open XML SDK and real Calc evidence is recorded in the [Phase 3 ledger](../phase-3/implementation-plan.md). Actual registry publication and consumer image rollout have their own receipts.

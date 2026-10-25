@@ -1,6 +1,6 @@
 # Excel oluşturma ve düzenleme: araştırmaya dayalı faz planı
 
-Status: Phases 0–2 and Phase 3 P3-00–P3-09 are implemented. The [Phase 3 plan](phase-3/implementation-plan.md) records preserved-package editing, required formula/formatting copy, independent acceptance and the remaining final cross-platform/native CI gate. New formula/style authoring remains Phase 5 and calculation Phase 6. Later phases remain planned.
+Status: Phases 0–2 and Phase 3 P3-00–P3-09 are implemented. The [Phase 3 plan](phase-3/implementation-plan.md) records preserved-package editing, required formula/formatting copy, independent acceptance and the closed full native/installed-package gate and separate release/consumer boundary. New formula/style authoring remains Phase 5 and calculation Phase 6. Later phases remain planned.
 
 ## Hedef ve dayanak
 
@@ -133,4 +133,4 @@ Kullanıcının yanıtladığı kaynak koruma, ayrı hesaplama, aynı pakette ay
 
 İlk adım [Faz 0](phase-0/README.md): mevcut altyapı envanteri üzerinde kapsam kararlarını değer, işlem ve çıktı sözleşmesine dönüştürmek. Envanter, paket/mod kararı, açık tür sözleşmesi ve tek çıktı için güvenli sürüm hazırlama temeli uygulandı. İlk kullanıcıya görünür çalışan sonuç [Faz 1](phase-1/README.md) olacaktır.
 
-Phases 0–3 are implemented locally. Final cross-platform/native acceptance of the combined changes remains open before release. Phase 4 is the next planned capability phase; new formula/style authoring remains Phase 5.
+Phases 0–3 are implemented locally. The full native and clean installed-package gate passed on the combined main revision. Actual publication and consumer rollout are recorded separately. Phase 4 is the next planned capability phase; new formula/style authoring remains Phase 5.

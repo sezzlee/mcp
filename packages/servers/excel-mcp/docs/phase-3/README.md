@@ -1,6 +1,6 @@
 # Faz 3: mevcut Excel dosyasını düzenleme
 
-Durum: P3-00–P3-09 uygulandı. Dış .xlsx dosyasında hücre/sayfa/aralık ve satır/sütun düzenleme, mevcut formül/biçim kopyalama, atomik değişmez sürümler ve bağımsız yerel kabul tamamlandı. Destek sınırları, corpus/test kanıtları ve açık son platform CI kapısı [uygulama ve doğrulama planındadır](implementation-plan.md).
+Durum: P3-00–P3-09 uygulandı. Dış .xlsx dosyasında hücre/sayfa/aralık ve satır/sütun düzenleme, mevcut formül/biçim kopyalama, atomik değişmez sürümler ve bağımsız yerel kabul tamamlandı. Destek sınırları, corpus/test kanıtları ve kapanan tam native/paket kabulü ve ayrı yayın/entegrasyon sınırı [uygulama ve doğrulama planındadır](implementation-plan.md).
 
 ## Hedef
 
