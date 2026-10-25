@@ -24,7 +24,6 @@ import { buildColumnIndex, resolveColumn, type ColumnMode } from "./columns.js";
 import type { MergePolicy } from "./cursor.js";
 import { orderedPatternOf } from "./date-text.js";
 import { headerWarnings, type HeaderRowSource } from "./header.js";
-import { rowLimitWarnings } from "./row-limit.js";
 import { warning, type Warning } from "./warnings.js";
 import { asciiDecimalDigits } from "./locale-text.js";
 import { classify, compareWithin, type CellKind } from "./predicate.js";
@@ -676,7 +675,6 @@ export function profileSheet(
       options.range !== undefined || selected.table !== undefined,
       options.mergedCells,
     ),
-    ...rowLimitWarnings(sheet, bounds, headers),
   ];
   if (sampledRows < totalRows)
     warnings.push(

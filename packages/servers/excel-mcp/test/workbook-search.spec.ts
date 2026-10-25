@@ -17,23 +17,6 @@ function body(result: CallToolResult): Record<string, unknown> {
   return JSON.parse(content.text) as Record<string, unknown>;
 }
 
-function codesOf(result: CallToolResult): unknown[] {
-  const warnings = (body(result)["warnings"] ?? []) as { code: unknown }[];
-  return warnings.map((entry) => entry.code);
-}
-
-async function cutAt(row: number, name: string): Promise<void> {
-  const book = new ExcelJS.Workbook();
-  const sheet = book.addWorksheet("Data");
-  sheet.getCell("A1").value = "month";
-  sheet.getCell("B1").value = "amount";
-  sheet.getCell("A2").value = "2023-11";
-  sheet.getCell("B2").value = 5;
-  sheet.getCell(row, 1).value = "2023-12";
-  sheet.getCell(row, 2).value = 7;
-  await book.xlsx.writeFile(join(directory, name));
-}
-
 beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), "excel-workbook-search-"));
   handlers = createHandlers(await createWorkbookRoot(directory));
@@ -49,9 +32,6 @@ beforeAll(async () => {
   notes.getCell("B4").value = "Bluebell gauge moved in 2019";
   notes.state = "hidden";
   await book.xlsx.writeFile(join(directory, "stations.xlsx"));
-
-  await cutAt(1_048_576, "cut.xlsx");
-  await cutAt(1_048_575, "full.xlsx");
 });
 
 afterAll(async () => {
@@ -112,57 +92,5 @@ describe("find_in_sheet without a sheet", () => {
     );
     expect(found).toMatchObject({ sheet: "Notes", total: 1 });
     expect(found["scope"]).toBeUndefined();
-  });
-});
-
-describe("data that fills Excel's last row", () => {
-  it("is flagged by describe, read, aggregate and profile", async () => {
-    const described = body(
-      await handlers.describe_workbook({ filePath: "cut.xlsx" }),
-    );
-    expect(described["guidance"]).toContain('"Data" reaches row 1048576');
-
-    const input = { filePath: "cut.xlsx" };
-    expect(
-      codesOf(await handlers.read_sheet({ ...input, maxCells: 4 })),
-    ).toContain("row_limit_reached");
-    expect(
-      codesOf(
-        await handlers.aggregate_sheet({
-          ...input,
-          metrics: [{ column: "amount", fn: "sum" }],
-        }),
-      ),
-    ).toContain("row_limit_reached");
-    expect(codesOf(await handlers.profile_sheet(input))).toContain(
-      "row_limit_reached",
-    );
-  });
-
-  it("names the values of the row the data stops at", async () => {
-    const result = await handlers.aggregate_sheet({
-      filePath: "cut.xlsx",
-      groupBy: ["month"],
-      metrics: [{ column: "amount", fn: "sum" }],
-    });
-    const warnings = body(result)["warnings"] as { message: string }[];
-    expect(warnings[0]?.message).toContain(
-      "row 1048576 holds month=2023-12, amount=7",
-    );
-  });
-
-  it("is not flagged one row short of the limit", async () => {
-    const described = body(
-      await handlers.describe_workbook({ filePath: "full.xlsx" }),
-    );
-    expect(String(described["guidance"])).not.toContain("reaches row");
-    expect(
-      codesOf(
-        await handlers.aggregate_sheet({
-          filePath: "full.xlsx",
-          metrics: [{ column: "amount", fn: "sum" }],
-        }),
-      ),
-    ).not.toContain("row_limit_reached");
   });
 });

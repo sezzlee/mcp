@@ -1,5 +1,3 @@
-import { maxRow } from "./range.js";
-
 /**
  * Every warning a response can carry. A caller branches on the code; the
  * message is for a person and may change wording between releases.
@@ -32,7 +30,6 @@ export const warningCodes = [
   "identifier_cells",
   "unread_booleans",
   "derived_division_by_zero",
-  "row_limit_reached",
 ] as const;
 
 export type WarningCode = (typeof warningCodes)[number];
@@ -50,12 +47,6 @@ export function warning(
   column?: string,
 ): Warning {
   return column === undefined ? { code, message } : { code, message, column };
-}
-
-export function rowLimitGuidance(sheets: readonly string[]): string {
-  return sheets.length === 0
-    ? ""
-    : ` ${sheets.map((name) => JSON.stringify(name)).join(", ")} ${sheets.length === 1 ? "reaches" : "reach"} row ${maxRow}, the last row an Excel sheet holds, so the file was most likely cut there and every total over it is a lower bound.`;
 }
 
 /** The warnings in order, each code, column and message once. */

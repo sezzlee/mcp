@@ -2,8 +2,8 @@ import type { CellSnapshot } from "../grid/cell-value.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { limits } from "../platform/limits.js";
 import { previewHeader } from "../grid/header.js";
-import { rowLimitGuidance, warning, type Warning } from "../grid/warnings.js";
-import { columnToLetters, maxRow, type GridBounds } from "../grid/range.js";
+import { warning, type Warning } from "../grid/warnings.js";
+import { columnToLetters, type GridBounds } from "../grid/range.js";
 import { presentIndices, type RowView, type SheetView } from "../grid/sheet.js";
 import type {
   DocumentMeta,
@@ -567,7 +567,7 @@ export function describeCsv(
     ],
     ...(bounds !== undefined && bounds.bottom > limits.guidanceRowThreshold
       ? {
-          guidance: `The table has ${bounds.bottom} records. Use aggregate_sheet for totals and rankings, find_in_sheet to locate a value, or read_sheet with a narrow range.${rowLimitGuidance(bounds.bottom >= maxRow ? [csvSheetName] : [])}`,
+          guidance: `The table has ${bounds.bottom} records. Use aggregate_sheet for totals and rankings, find_in_sheet to locate a value, or read_sheet with a narrow range.`,
         }
       : {}),
   };

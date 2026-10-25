@@ -74,36 +74,35 @@ A response's `warnings` is a list of `{ code, message, column? }`. Branch on `co
 for a person and its wording may change. `column` is the letter a warning is about, when it is
 about one.
 
-| Code                        | Raised when                                                                  |
-| --------------------------- | ---------------------------------------------------------------------------- |
-| `csv_preamble_ignored`      | A `sep=` line names another delimiter than the one passed                    |
-| `csv_blank_first_record`    | The first CSV record is blank and stays the header                           |
-| `table_missing_names`       | A declared table has columns without names                                   |
-| `header_row_mismatch`       | `headerRow` differs from the row a table or the autofilter declares          |
-| `header_row_unnamed`        | `headerRow` names no column while another top row does                       |
-| `header_only_range`         | A `read_sheet` range holds only the header row                               |
-| `uncached_formulas`         | Formula cells carry no cached value                                          |
-| `ambiguous_decimal`         | Values read differently with a decimal point and a decimal comma             |
-| `locale_separator_conflict` | `locale` reads values as other numbers than the column's own marks           |
-| `ambiguous_day_order`       | Dates read either day first or month first                                   |
-| `mixed_date_order`          | Slash dates read month first while dotted dates read day first               |
-| `distinct_lower_bound`      | A profiled column has more distinct values than are counted                  |
-| `no_majority_type`          | No type holds a strict majority of a profiled column                         |
-| `identifier_text`           | A profiled column looks like identifiers and stays text                      |
-| `no_reusable_date_format`   | No single date format reads a profiled column's dates                        |
-| `prefix_sample`             | A profile describes only the first rows                                      |
-| `columns_not_profiled`      | Columns past `maxColumns` were not profiled                                  |
-| `mixed_units`               | A metric adds plain numbers, fractions or durations                          |
-| `mixed_currencies`          | A metric adds different or unlabelled currencies                             |
-| `case_variant_groups`       | Groups differ only by case or accent                                         |
-| `uncomparable_cells`        | `where` cells could not be compared with the operand                         |
-| `ungrouped_cells`           | Cells could not be read for a grouping key                                   |
-| `currencies_added`          | A column's amounts are written in more than one currency                     |
-| `unread_numbers`            | Text cells do not read as numbers and are left out of totals                 |
-| `identifier_cells`          | Cells look like identifiers and are left out of totals                       |
-| `unread_booleans`           | Cells do not read as booleans and are left out of boolean metrics            |
-| `derived_division_by_zero`  | A derived metric divided by zero in a group and is null there                |
-| `row_limit_reached`         | The data fills row 1,048,576, Excel's last row, so it was probably cut there |
+| Code                        | Raised when                                                         |
+| --------------------------- | ------------------------------------------------------------------- |
+| `csv_preamble_ignored`      | A `sep=` line names another delimiter than the one passed           |
+| `csv_blank_first_record`    | The first CSV record is blank and stays the header                  |
+| `table_missing_names`       | A declared table has columns without names                          |
+| `header_row_mismatch`       | `headerRow` differs from the row a table or the autofilter declares |
+| `header_row_unnamed`        | `headerRow` names no column while another top row does              |
+| `header_only_range`         | A `read_sheet` range holds only the header row                      |
+| `uncached_formulas`         | Formula cells carry no cached value                                 |
+| `ambiguous_decimal`         | Values read differently with a decimal point and a decimal comma    |
+| `locale_separator_conflict` | `locale` reads values as other numbers than the column's own marks  |
+| `ambiguous_day_order`       | Dates read either day first or month first                          |
+| `mixed_date_order`          | Slash dates read month first while dotted dates read day first      |
+| `distinct_lower_bound`      | A profiled column has more distinct values than are counted         |
+| `no_majority_type`          | No type holds a strict majority of a profiled column                |
+| `identifier_text`           | A profiled column looks like identifiers and stays text             |
+| `no_reusable_date_format`   | No single date format reads a profiled column's dates               |
+| `prefix_sample`             | A profile describes only the first rows                             |
+| `columns_not_profiled`      | Columns past `maxColumns` were not profiled                         |
+| `mixed_units`               | A metric adds plain numbers, fractions or durations                 |
+| `mixed_currencies`          | A metric adds different or unlabelled currencies                    |
+| `case_variant_groups`       | Groups differ only by case or accent                                |
+| `uncomparable_cells`        | `where` cells could not be compared with the operand                |
+| `ungrouped_cells`           | Cells could not be read for a grouping key                          |
+| `currencies_added`          | A column's amounts are written in more than one currency            |
+| `unread_numbers`            | Text cells do not read as numbers and are left out of totals        |
+| `identifier_cells`          | Cells look like identifiers and are left out of totals              |
+| `unread_booleans`           | Cells do not read as booleans and are left out of boolean metrics   |
+| `derived_division_by_zero`  | A derived metric divided by zero in a group and is null there       |
 
 ## Grouped analysis
 
