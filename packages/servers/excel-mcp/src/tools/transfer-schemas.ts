@@ -72,40 +72,43 @@ const tabular = {
     .optional(),
 };
 
-export const transferSelectionSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("range"), ...tabular }),
-  z.strictObject({
-    kind: z.literal("records"),
-    ...tabular,
-    where: conditions.optional(),
-    match: z.enum(["all", "any"]).default("all"),
-    scope: selectedRows.default({ kind: "all" }),
-    includeHeaders: z.boolean().default(true),
-  }),
-  z.strictObject({
-    kind: z.literal("aggregate"),
-    ...common,
-    ...readingHintsSchema,
-    ...toolDefinitions.aggregate_sheet.inputSchema.pick({
-      groupBy: true,
-      orderBy: true,
-      orderByMetric: true,
-      descending: true,
-    }).shape,
-    metrics: z
-      .array(
-        toolDefinitions.aggregate_sheet.inputSchema.shape.metrics.element.extend(
-          {
-            where: conditions.optional(),
-          },
-        ),
-      )
-      .min(1)
-      .max(limits.maxMetrics),
-    where: conditions.optional(),
-    match: z.enum(["all", "any"]).default("all"),
-  }),
-]);
+/** Guard: object-only unions must advertise their JSON type so tool decoders do not default nested arguments to strings. */
+export const transferSelectionSchema = z
+  .discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("range"), ...tabular }),
+    z.strictObject({
+      kind: z.literal("records"),
+      ...tabular,
+      where: conditions.optional(),
+      match: z.enum(["all", "any"]).default("all"),
+      scope: selectedRows.default({ kind: "all" }),
+      includeHeaders: z.boolean().default(true),
+    }),
+    z.strictObject({
+      kind: z.literal("aggregate"),
+      ...common,
+      ...readingHintsSchema,
+      ...toolDefinitions.aggregate_sheet.inputSchema.pick({
+        groupBy: true,
+        orderBy: true,
+        orderByMetric: true,
+        descending: true,
+      }).shape,
+      metrics: z
+        .array(
+          toolDefinitions.aggregate_sheet.inputSchema.shape.metrics.element.extend(
+            {
+              where: conditions.optional(),
+            },
+          ),
+        )
+        .min(1)
+        .max(limits.maxMetrics),
+      where: conditions.optional(),
+      match: z.enum(["all", "any"]).default("all"),
+    }),
+  ])
+  .meta({ type: "object" });
 
 export const transferReferenceSchema = z.strictObject({
   source: workbookVersionSchema,
@@ -148,35 +151,37 @@ export const transferReceiptSchema = mutationReceiptSchema.extend({
   transfer: transferSummarySchema,
 });
 
-export const transferTargetSchema = z.discriminatedUnion("kind", [
-  z.strictObject({
-    kind: z.literal("new"),
-    sheetName: sheetNameSchema,
-    startCell: valueBlockSchema.shape.startCell.default("A1"),
-  }),
-  z.strictObject({
-    kind: z.literal("add_sheet"),
-    source: workbookVersionSchema,
-    sheetName: sheetNameSchema,
-    startCell: valueBlockSchema.shape.startCell.default("A1"),
-  }),
-  z.strictObject({
-    kind: z.literal("sheet"),
-    source: workbookVersionSchema,
-    sheetName: sheetNameSchema,
-    startCell: valueBlockSchema.shape.startCell,
-    overwrite: z.boolean().default(false),
-    mapping: z
-      .discriminatedUnion("kind", [
-        z.strictObject({ kind: z.literal("position") }),
-        z.strictObject({
-          kind: z.literal("headers"),
-          headerRow: z.int().min(1).max(1_048_576),
-        }),
-      ])
-      .default({ kind: "position" }),
-  }),
-]);
+export const transferTargetSchema = z
+  .discriminatedUnion("kind", [
+    z.strictObject({
+      kind: z.literal("new"),
+      sheetName: sheetNameSchema,
+      startCell: valueBlockSchema.shape.startCell.default("A1"),
+    }),
+    z.strictObject({
+      kind: z.literal("add_sheet"),
+      source: workbookVersionSchema,
+      sheetName: sheetNameSchema,
+      startCell: valueBlockSchema.shape.startCell.default("A1"),
+    }),
+    z.strictObject({
+      kind: z.literal("sheet"),
+      source: workbookVersionSchema,
+      sheetName: sheetNameSchema,
+      startCell: valueBlockSchema.shape.startCell,
+      overwrite: z.boolean().default(false),
+      mapping: z
+        .discriminatedUnion("kind", [
+          z.strictObject({ kind: z.literal("position") }),
+          z.strictObject({
+            kind: z.literal("headers"),
+            headerRow: z.int().min(1).max(1_048_576),
+          }),
+        ])
+        .default({ kind: "position" }),
+    }),
+  ])
+  .meta({ type: "object" });
 
 export type TransferSelection = z.infer<typeof transferSelectionSchema>;
 export type TransferReference = z.infer<typeof transferReferenceSchema>;

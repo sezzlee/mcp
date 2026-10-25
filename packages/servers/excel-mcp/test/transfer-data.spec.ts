@@ -80,6 +80,35 @@ async function workspace(
   }
 }
 
+it("advertises transfer selections and targets as objects and rejects JSON-encoded strings", async () => {
+  await workspace(async (directory, client) => {
+    const tools = await client.listTools();
+    expect(
+      tools.tools.find((tool) => tool.name === "prepare_transfer")?.inputSchema,
+    ).toMatchObject({
+      properties: { selection: { type: "object" } },
+    });
+    expect(
+      tools.tools.find((tool) => tool.name === "transfer_data")?.inputSchema,
+    ).toMatchObject({
+      properties: {
+        transfer: {
+          type: "object",
+          properties: { selection: { type: "object" } },
+        },
+        target: { type: "object" },
+      },
+    });
+    await writeFile(join(directory, "source.csv"), "Amount\n10\n");
+    const rejected = await client.callTool({
+      name: "prepare_transfer",
+      arguments: { filePath: "source.csv", selection: '{"kind":"range"}' },
+    });
+    expect(rejected.isError).toBe(true);
+    expect(payload(rejected)).toMatchObject({ error: "invalid_argument" });
+  });
+});
+
 it("transfers every matching CSV record beyond a preview and preserves full text and identifiers", async () => {
   await workspace(async (directory, client) => {
     const longText = "Türkçe😀".repeat(1_000);
