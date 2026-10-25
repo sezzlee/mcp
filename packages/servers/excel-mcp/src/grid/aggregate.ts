@@ -3,12 +3,8 @@ import type { CellFacts, CellScalar } from "./cell-value.js";
 import { buildColumnIndex, resolveColumn, type ColumnMode } from "./columns.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { headerWarnings, type HeaderRowSource } from "./header.js";
-import {
-  distinctWarnings,
-  rowLimitWarnings,
-  warning,
-  type Warning,
-} from "./warnings.js";
+import { rowLimitWarnings } from "./row-limit.js";
+import { distinctWarnings, warning, type Warning } from "./warnings.js";
 import {
   computeDerived,
   roundTo,
@@ -827,7 +823,7 @@ export function aggregateSheet(
       options.range !== undefined || selected.table !== undefined,
       options.mergedCells,
     ),
-    ...rowLimitWarnings(bounds),
+    ...rowLimitWarnings(sheet, bounds, headers),
   ];
   const metricSlot = (options.orderByMetric ?? 1) - 1;
   const sortMetric = options.metrics[metricSlot] ?? firstMetric;

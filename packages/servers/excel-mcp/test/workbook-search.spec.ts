@@ -139,6 +139,18 @@ describe("data that fills Excel's last row", () => {
     );
   });
 
+  it("names the values of the row the data stops at", async () => {
+    const result = await handlers.aggregate_sheet({
+      filePath: "cut.xlsx",
+      groupBy: ["month"],
+      metrics: [{ column: "amount", fn: "sum" }],
+    });
+    const warnings = body(result)["warnings"] as { message: string }[];
+    expect(warnings[0]?.message).toContain(
+      "row 1048576 holds month=2023-12, amount=7",
+    );
+  });
+
   it("is not flagged one row short of the limit", async () => {
     const described = body(
       await handlers.describe_workbook({ filePath: "full.xlsx" }),

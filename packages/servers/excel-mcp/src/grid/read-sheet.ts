@@ -36,7 +36,8 @@ import {
 } from "./cursor.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { headerWarnings, type HeaderRowSource } from "./header.js";
-import { rowLimitWarnings, warning, type Warning } from "./warnings.js";
+import { rowLimitWarnings } from "./row-limit.js";
+import { warning, type Warning } from "./warnings.js";
 import {
   selectSheetRange,
   selectionHeaders,
@@ -278,6 +279,11 @@ export function readSheet(
           window.mergedCells,
         )
       : [];
+  const rowLimitNotices = rowLimitWarnings(
+    window.sheet,
+    window.bounds,
+    headers,
+  );
   const columnsFrom = (formats: readonly (string | null)[]): ColumnInfo[] => {
     const built: ColumnInfo[] = [];
     for (let offset = 0; offset < width; offset += 1) {
@@ -399,7 +405,7 @@ export function readSheet(
       warnings: [
         ...headerNotices,
         uncachedFormulaWarning(options.maxCells),
-        ...rowLimitWarnings(window.bounds),
+        ...rowLimitNotices,
       ],
     }) +
     (options.extraEnvelopeBytes ?? 0) +
@@ -546,7 +552,7 @@ export function readSheet(
         `The requested rows hold only header row ${window.headerRow}; its texts are in columns[].header and no data row was read.`,
       ),
     );
-  warnings.push(...headerNotices, ...rowLimitWarnings(window.bounds));
+  warnings.push(...headerNotices, ...rowLimitNotices);
 
   return {
     sheet: window.sheet.name,
