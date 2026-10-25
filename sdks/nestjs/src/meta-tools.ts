@@ -41,7 +41,7 @@ import {
   vocabularyOf,
   wrongArgumentType,
   defaultSearchLimit,
-  searchCatalog,
+  searchTools,
   describeRankerEvent,
   type CallerScope,
   type MetaResponse,
@@ -54,7 +54,8 @@ import {
 } from "@sezzlee/core";
 import { Logger } from "@nestjs/common";
 import { z } from "zod";
-import type { CatalogEntry, SezzleeCatalog } from "./catalog.js";
+import type { CallableEntry, SezzleeCatalog } from "./catalog.js";
+import { invokeProvider, providerDecision } from "./provider-tools.js";
 import {
   CarrierHashCallerScopeResolver,
   type CallerScopeResolver,
@@ -308,11 +309,16 @@ function callContextOf(
 ): McpCallContext {
   const request = outerFrom(ctx);
   const entry =
-    typeof call.name === "string" ? deps.catalog.find(call.name) : undefined;
+    typeof call.name === "string"
+      ? deps.catalog.findCallable(call.name)
+      : undefined;
   return {
     request,
     metaTool: call.metaTool,
-    target: entry === undefined ? undefined : toolInfoOf(entry),
+    target: entry?.kind === "http" ? toolInfoOf(entry.entry) : undefined,
+    ...(entry?.kind === "provider"
+      ? { providerTarget: { kind: "provider" as const, name: entry.tool.name } }
+      : {}),
     toolName: call.toolName,
     callerScope: scopeFor(deps, request).key,
   };
@@ -443,8 +449,9 @@ export function registerSezzleeTools(
         const visibility = deps.options.visibility;
         const signal = deadlineFrom(ctx)?.signal;
         const scope = scopeFor(deps, outer);
-        const response = await searchCatalog({
-          catalog: deps.catalog.current,
+        const response = await searchTools({
+          catalog: deps.catalog.callable,
+          tagsOf: (entry) => entry.tags,
           query,
           limit,
           detail,
@@ -458,12 +465,17 @@ export function registerSezzleeTools(
                 probe: {
                   maxProbes: visibility.maxProbesPerSearch,
                   concurrency: visibility.probeConcurrency,
-                  canProbe: (entry: CatalogEntry) =>
-                    deps.visibility.canProbe(entry),
-                  cached: (entry: CatalogEntry) =>
-                    deps.visibility.cachedProbe(scope, entry),
-                  run: (entry: CatalogEntry) =>
-                    deps.visibility.probe(scope, entry, outer, signal),
+                  canProbe: (entry: CallableEntry) =>
+                    entry.kind === "http" &&
+                    deps.visibility.canProbe(entry.entry),
+                  cached: (entry: CallableEntry) =>
+                    entry.kind === "http"
+                      ? deps.visibility.cachedProbe(scope, entry.entry)
+                      : Promise.resolve(undefined),
+                  run: (entry: CallableEntry) =>
+                    entry.kind === "http"
+                      ? deps.visibility.probe(scope, entry.entry, outer, signal)
+                      : Promise.resolve("deny" as const),
                   capReached: () => {
                     logger.warn(
                       `search_tools stopped probing at visibility.maxProbesPerSearch (${String(visibility.maxProbesPerSearch)}); the tools left unprobed follow visibility.onUnknown. Raise the cap or cover those tools with a toolAuthorizer.`,
@@ -499,7 +511,7 @@ export function registerSezzleeTools(
         }
         const started = performance.now();
         deps.catalog.ensureValid();
-        const entry = deps.catalog.find(name);
+        const entry = deps.catalog.findCallable(name);
         if (entry === undefined) {
           return unknownTool(name);
         }
@@ -554,7 +566,22 @@ export function registerSezzleeTools(
           return wrongArgumentType("invoke_tool", "name", name);
         }
         deps.catalog.ensureValid();
-        const entry = deps.catalog.find(name);
+        const callable = deps.catalog.findCallable(name);
+        const entry = callable?.kind === "http" ? callable.entry : undefined;
+        if (callable?.kind === "provider") {
+          const stale = checkPinnedVersion(callable.tool, version);
+          if (stale !== undefined) {
+            return stale;
+          }
+          const normalized = normalizeInvokeArguments(args);
+          return invokeProvider(
+            callable,
+            normalized.value,
+            outerFrom(ctx),
+            { ...deadlineFrom(ctx), timeoutMs: deps.options.invoke.timeoutMs },
+            deps.options.invoke.maxBufferedBytes,
+          );
+        }
         if (entry === undefined) {
           return unknownTool(name);
         }
@@ -712,7 +739,7 @@ export function registerSezzleeTools(
           },
           async (tool) => {
             deps.catalog.ensureValid();
-            const entry = deps.catalog.find(tool);
+            const entry = deps.catalog.findCallable(tool);
             return (
               entry !== undefined &&
               deps.visibility.visible(await decisionFor(deps, ctx, entry))
@@ -730,18 +757,29 @@ export function registerSezzleeTools(
 async function decisionFor(
   deps: MetaToolDependencies,
   ctx: unknown,
-  entry: CatalogEntry,
+  entry: CallableEntry,
 ): Promise<VisibilityDecision> {
   const outer = outerFrom(ctx);
   const signal = deadlineFrom(ctx)?.signal;
-  const decide = await decider(deps, outer, signal);
+  if (entry.kind === "provider") {
+    return providerDecision(entry, outer, {
+      signal,
+      timeoutMs: deps.options.invoke.timeoutMs,
+    });
+  }
+  const decide = await decider(deps, outer, signal, false);
   const decision = decide(entry);
   if (
     decision === "unknown" &&
     deps.options.visibility.tier === "probe" &&
-    deps.visibility.canProbe(entry)
+    deps.visibility.canProbe(entry.entry)
   ) {
-    return deps.visibility.probe(scopeFor(deps, outer), entry, outer, signal);
+    return deps.visibility.probe(
+      scopeFor(deps, outer),
+      entry.entry,
+      outer,
+      signal,
+    );
   }
   return decision;
 }
@@ -755,23 +793,46 @@ async function decider(
   deps: MetaToolDependencies,
   outer: OuterRequest | undefined,
   signal: AbortSignal | undefined,
-): Promise<(entry: CatalogEntry) => VisibilityDecision> {
+  includeProviders = true,
+): Promise<(entry: CallableEntry) => VisibilityDecision> {
   const snapshot = deps.catalog.current;
   const scope = scopeFor(deps, outer);
   const [facts, access] = await Promise.all([
     deps.visibility.facts(scope, outer, snapshot.policyNames),
     deps.visibility.access(scope, outer, signal),
   ]);
+  const providers = new Map<CallableEntry, VisibilityDecision>();
+  await Promise.all(
+    (includeProviders ? deps.catalog.callable.entries : []).map(
+      async (entry) => {
+        if (entry.kind === "provider") {
+          providers.set(
+            entry,
+            await providerDecision(entry, outer, {
+              signal,
+              timeoutMs: deps.options.invoke.timeoutMs,
+            }),
+          );
+        }
+      },
+    ),
+  );
   if (access === undefined) {
-    return (entry) => deps.visibility.decideFor(entry, facts, undefined);
+    return (entry) =>
+      entry.kind === "provider"
+        ? (providers.get(entry) ?? "deny")
+        : deps.visibility.decideFor(entry.entry, facts, undefined);
   }
-  const decided = new Map<CatalogEntry, VisibilityDecision>();
+  const decided = new Map<CallableEntry, VisibilityDecision>();
   return (entry) => {
+    if (entry.kind === "provider") {
+      return providers.get(entry) ?? "deny";
+    }
     const held = decided.get(entry);
     if (held !== undefined) {
       return held;
     }
-    const decision = deps.visibility.decideFor(entry, facts, access);
+    const decision = deps.visibility.decideFor(entry.entry, facts, access);
     decided.set(entry, decision);
     return decision;
   };

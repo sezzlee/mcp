@@ -8,8 +8,9 @@ export type McpMetaTool = "search" | "load" | "invoke" | "read" | "other";
  *
  * @param request the outer MCP request, absent on a transport that carries none; read the host's
  * own identity from it
- * @param target the catalog tool a `load_tool` or `invoke_tool` call names, looked up without
+ * @param target the HTTP catalog tool a `load_tool` or `invoke_tool` call names, looked up without
  * visibility; absent for other calls, and when `name` is missing, not a string or unknown
+ * @param providerTarget the provider tool named by the call, without HTTP metadata
  * @param toolName the MCP tool the client called
  * @param callerScope the caller scope key the SDK's `callerScopeResolver` derives
  */
@@ -17,6 +18,10 @@ export interface McpCallContext {
   readonly request: OuterRequest | undefined;
   readonly metaTool: McpMetaTool;
   readonly target: McpToolInfo | undefined;
+  readonly providerTarget?: {
+    readonly kind: "provider";
+    readonly name: string;
+  };
   readonly toolName: string;
   readonly callerScope: string;
 }

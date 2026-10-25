@@ -13,12 +13,16 @@ import type { VisibilityDecision } from "../visibility.js";
  * @param run sends one probe; it must not reject, an answer it cannot give is `unknown`
  * @param capReached called once, when a tool was left unprobed because of `maxProbes`
  */
-export interface ProbeOptions<Source extends object> {
+export type ProbeOptions<Source extends object> = EntryProbeOptions<
+  CatalogEntry<Source>
+>;
+
+export interface EntryProbeOptions<Entry> {
   readonly maxProbes: number;
   readonly concurrency: number;
-  canProbe(entry: CatalogEntry<Source>): boolean;
-  cached?(entry: CatalogEntry<Source>): Promise<VisibilityDecision | undefined>;
-  run(entry: CatalogEntry<Source>): Promise<VisibilityDecision>;
+  canProbe(entry: Entry): boolean;
+  cached?(entry: Entry): Promise<VisibilityDecision | undefined>;
+  run(entry: Entry): Promise<VisibilityDecision>;
   capReached?(): void;
 }
 
@@ -29,26 +33,17 @@ export interface ProbeOptions<Source extends object> {
  * flight when it fills are not awaited: they finish on their own and the next search finds their
  * verdicts cached.
  */
-export class ProbeWalk<Source extends object> {
-  private readonly verdicts = new Map<
-    CatalogEntry<Source>,
-    VisibilityDecision
-  >();
-  private readonly inFlight = new Map<
-    CatalogEntry<Source>,
-    Promise<VisibilityDecision>
-  >();
+export class ProbeWalk<Entry> {
+  private readonly verdicts = new Map<Entry, VisibilityDecision>();
+  private readonly inFlight = new Map<Entry, Promise<VisibilityDecision>>();
   private sent = 0;
-  private readonly unprobed = new Set<CatalogEntry<Source>>();
+  private readonly unprobed = new Set<Entry>();
   private reported = false;
 
   constructor(
-    private readonly probe: ProbeOptions<Source> | undefined,
-    private readonly candidates: readonly CatalogEntry<Source>[],
-    private readonly decisions: ReadonlyMap<
-      CatalogEntry<Source>,
-      VisibilityDecision
-    >,
+    private readonly probe: EntryProbeOptions<Entry> | undefined,
+    private readonly candidates: readonly Entry[],
+    private readonly decisions: ReadonlyMap<Entry, VisibilityDecision>,
     private readonly visible: (decision: VisibilityDecision) => boolean,
     private readonly pageSize: number,
     private readonly signal: AbortSignal | undefined,
@@ -62,7 +57,7 @@ export class ProbeWalk<Source extends object> {
     index: number,
     collected: number,
   ): Promise<VisibilityDecision> {
-    const entry = this.candidates[index] as CatalogEntry<Source>;
+    const entry = this.candidates[index] as Entry;
     const cheap = this.decisions.get(entry) ?? "unknown";
     const probe = this.probe;
     if (cheap !== "unknown" || probe === undefined || !probe.canProbe(entry)) {
@@ -79,7 +74,7 @@ export class ProbeWalk<Source extends object> {
   }
 
   private prefetch(
-    probe: ProbeOptions<Source>,
+    probe: EntryProbeOptions<Entry>,
     index: number,
     collected: number,
   ): void {
@@ -92,7 +87,7 @@ export class ProbeWalk<Source extends object> {
       ahead < this.candidates.length && potential < this.pageSize;
       ahead += 1
     ) {
-      const entry = this.candidates[ahead] as CatalogEntry<Source>;
+      const entry = this.candidates[ahead] as Entry;
       const cheap = this.decisions.get(entry) ?? "unknown";
       if (cheap !== "unknown" || !probe.canProbe(entry)) {
         potential += this.visible(cheap) ? 1 : 0;
@@ -115,7 +110,7 @@ export class ProbeWalk<Source extends object> {
     }
   }
 
-  private send(probe: ProbeOptions<Source>, entry: CatalogEntry<Source>): void {
+  private send(probe: EntryProbeOptions<Entry>, entry: Entry): void {
     const running = this.resolve(probe, entry).catch(() => "unknown" as const);
     this.inFlight.set(entry, running);
     void running.then((decision) => {
@@ -125,8 +120,8 @@ export class ProbeWalk<Source extends object> {
   }
 
   private async resolve(
-    probe: ProbeOptions<Source>,
-    entry: CatalogEntry<Source>,
+    probe: EntryProbeOptions<Entry>,
+    entry: Entry,
   ): Promise<VisibilityDecision> {
     const cached = await probe.cached?.(entry);
     if (cached !== undefined) {

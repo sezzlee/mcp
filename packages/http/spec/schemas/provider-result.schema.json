@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "provider-result.schema.json",
+  "title": "ProviderResult",
+  "oneOf": [
+    { "$ref": "#/$defs/ProviderSuccess" },
+    { "$ref": "#/$defs/ProviderStored" }
+  ],
+  "$defs": {
+    "ProviderSuccess": {
+      "title": "ProviderSuccess",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["body"],
+      "properties": { "body": {} }
+    },
+    "ProviderStored": {
+      "title": "ProviderStored",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stored", "message"],
+      "properties": {
+        "stored": { "$ref": "result-reading.schema.json#/$defs/StoredResult" },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

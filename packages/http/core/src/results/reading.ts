@@ -10,6 +10,10 @@ import type {
   StoredValueKind,
 } from "../generated/result-reading.js";
 import { sdkError } from "../invoke-guard.js";
+import type {
+  ProviderStored,
+  ProviderSuccess,
+} from "../generated/provider-result.js";
 
 const maxOutlineEntries = 16;
 const maxOutlineDepth = 3;
@@ -52,6 +56,14 @@ export interface StoredFacts {
   readonly expiresInSeconds: number;
   readonly applied?: boolean;
 }
+
+export type ProviderStoredFacts = Omit<StoredFacts, "success"> & {
+  readonly success: ProviderSuccess;
+};
+
+type AnyStoredFacts = Omit<StoredFacts, "success"> & {
+  readonly success: InvokeSuccess | ProviderSuccess;
+};
 
 /** The `read_result` arguments other than `handle`, after their types were checked. */
 export interface ReadRequest {
@@ -147,7 +159,14 @@ export function outlineOf(body: unknown): [OutlineEntry, ...OutlineEntry[]] {
 /**
  * The answer that replaces an over-budget success once a store kept its body.
  */
-export function storedAnswer(facts: StoredFacts): InvokeStored {
+export function storedAnswer(facts: StoredFacts): InvokeStored;
+export function storedAnswer(facts: ProviderStoredFacts): ProviderStored;
+export function storedAnswer(
+  facts: AnyStoredFacts,
+): InvokeStored | ProviderStored;
+export function storedAnswer(
+  facts: AnyStoredFacts,
+): InvokeStored | ProviderStored {
   const { success } = facts;
   const message = [
     `The response is ${facts.bytes} bytes; the limit is ${facts.limit} bytes.`,
@@ -160,11 +179,13 @@ export function storedAnswer(facts: StoredFacts): InvokeStored {
       : []),
   ].join(" ");
   return {
-    status: success.status,
-    ...(success.contentType === undefined
+    ...("status" in success ? { status: success.status } : {}),
+    ...(!("contentType" in success) || success.contentType === undefined
       ? {}
       : { contentType: success.contentType }),
-    ...(success.location === undefined ? {} : { location: success.location }),
+    ...(!("location" in success) || success.location === undefined
+      ? {}
+      : { location: success.location }),
     stored: {
       handle: facts.handle,
       bytes: facts.bytes,

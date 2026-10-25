@@ -25,6 +25,10 @@ import {
   SezzleeTemplateError,
   textMediaType,
   urlEncodedMediaType,
+  ToolIndex,
+  rankCatalogOf,
+  searchParameters,
+  type SearchDocument,
   type ArgumentCuration,
   type CatalogBuild,
   type CatalogEntry as CoreCatalogEntry,
@@ -82,6 +86,7 @@ import {
 import { extensionTokens } from "./extension-points.js";
 import { toolInfoOf, type ToolAuthorizer } from "./visibility/authorizer.js";
 import { protectedResourceMetadataPath } from "./transport/protected-resource-metadata.js";
+import type { ProviderToolEntry } from "./provider-tools.js";
 
 export { cleanTags } from "@sezzlee/core";
 
@@ -96,6 +101,22 @@ export interface NestSource {
 }
 
 export type CatalogEntry = CoreCatalogEntry<NestSource>;
+
+export type CallableEntry =
+  | {
+      readonly kind: "http";
+      readonly entry: CatalogEntry;
+      readonly tool: CatalogEntry["tool"];
+      readonly tags: readonly string[];
+    }
+  | ProviderToolEntry;
+
+export interface CallableCatalogSnapshot {
+  readonly entries: readonly CallableEntry[];
+  readonly byName: ReadonlyMap<string, CallableEntry>;
+  readonly index: ToolIndex;
+  readonly rankCatalog: CatalogBuild["rankCatalog"];
+}
 
 export interface CatalogSnapshot extends CatalogBuild<NestSource> {
   readonly discovered: number;
@@ -138,6 +159,10 @@ const uncoveredListed = 20;
 @Injectable()
 export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
   private snapshot: CatalogSnapshot | undefined;
+  private readonly callables = new WeakMap<
+    CatalogSnapshot,
+    CallableCatalogSnapshot
+  >();
   private currentGeneration = 0;
   private readonly listeners = new Set<() => void>();
   private readonly families: SourceChannel<readonly McpFamilyMember[]>;
@@ -219,6 +244,65 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
   get current(): CatalogSnapshot {
     this.snapshot ??= this.build();
     return this.snapshot;
+  }
+
+  get callable(): CallableCatalogSnapshot {
+    return this.callablesFor(this.current);
+  }
+
+  findCallable(name: string): CallableEntry | undefined {
+    return this.callable.byName.get(name);
+  }
+
+  private callablesFor(snapshot: CatalogSnapshot): CallableCatalogSnapshot {
+    const known = this.callables.get(snapshot);
+    if (known !== undefined) {
+      return known;
+    }
+    const entries: CallableEntry[] = snapshot.entries.map((entry) => ({
+      kind: "http",
+      entry,
+      tool: entry.tool,
+      tags: entry.descriptor.tags ?? [],
+    }));
+    const byName = new Map(entries.map((entry) => [entry.tool.name, entry]));
+    for (const registration of this.options.tools) {
+      const entry = registration.bind(this.discovery);
+      if (byName.has(entry.tool.name)) {
+        throw new SezzleeCatalogError(
+          "duplicate_tool_name",
+          `Tool '${entry.tool.name}' is registered more than once across HTTP and provider tools.`,
+        );
+      }
+      entries.push(entry);
+      byName.set(entry.tool.name, entry);
+    }
+    const documents: SearchDocument[] = [
+      ...snapshot.rankCatalog.documents,
+      ...entries
+        .filter((entry) => entry.kind === "provider")
+        .map((entry) => ({
+          name: entry.tool.name,
+          description: entry.tool.description,
+          tags: [...entry.tags],
+          parameters: searchParameters(entry.tool.inputSchema),
+          searchTerms: [...entry.searchTerms],
+        })),
+    ];
+    const built = {
+      entries,
+      byName,
+      index:
+        this.options.tools.length === 0
+          ? snapshot.index
+          : new ToolIndex(documents),
+      rankCatalog:
+        this.options.tools.length === 0
+          ? snapshot.rankCatalog
+          : rankCatalogOf(documents),
+    };
+    this.callables.set(snapshot, built);
+    return built;
   }
 
   onChange(listener: () => void): () => void {
@@ -353,6 +437,7 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
     let candidate: CatalogSnapshot;
     try {
       candidate = this.build();
+      this.callablesFor(candidate);
       if (candidate.fatal.length > 0 && before.fatal.length === 0) {
         assertCatalogValid(candidate.fatal);
       }
@@ -394,6 +479,7 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   private commit(snapshot: CatalogSnapshot): void {
+    this.callablesFor(snapshot);
     this.snapshot = snapshot;
     this.currentGeneration += 1;
     for (const listener of this.listeners) {
@@ -411,6 +497,7 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
 
   ensureValid(): void {
     assertCatalogValid(this.current.fatal);
+    this.callablesFor(this.current);
   }
 
   /**
@@ -418,6 +505,11 @@ export class SezzleeCatalog implements OnApplicationBootstrap, OnModuleDestroy {
    * them into a document with `annotateOpenApiDocument`.
    */
   openApiExtensions(): OpenApiExtensions {
+    if (this.options.tools.length > 0) {
+      logger.warn(
+        "Provider tools have no HTTP operations and are omitted from OpenAPI extensions.",
+      );
+    }
     return openApiExtensions(this.current.operations);
   }
 

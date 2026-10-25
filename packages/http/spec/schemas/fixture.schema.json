@@ -73,6 +73,9 @@
               "$ref": "result-reading.schema.json#/$defs/InvokeStored"
             },
             {
+              "$ref": "provider-result.schema.json#/$defs/ProviderStored"
+            },
+            {
               "$ref": "result-reading.schema.json#/$defs/ReadResult"
             },
             {
@@ -89,7 +92,10 @@
       "required": ["stored", "handle", "bytes", "limit", "expiresInSeconds"],
       "properties": {
         "stored": {
-          "$ref": "invoke-result.schema.json#/$defs/InvokeSuccess"
+          "oneOf": [
+            { "$ref": "invoke-result.schema.json#/$defs/InvokeSuccess" },
+            { "$ref": "provider-result.schema.json#/$defs/ProviderSuccess" }
+          ]
         },
         "handle": {
           "type": "string",

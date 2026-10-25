@@ -14,6 +14,7 @@ import type {
   SdkErrorCode,
 } from "../generated/invoke-result.js";
 import type { ToolDefinition } from "../generated/tool-definition.js";
+import type { ProviderSuccess } from "../generated/provider-result.js";
 import {
   describePayload,
   narrowingArguments,
@@ -35,7 +36,11 @@ import {
   type SearchRankerOptions,
 } from "../ranker.js";
 import { foldToken } from "../search.js";
-import { ProbeWalk, type ProbeOptions } from "./probe-walk.js";
+import {
+  ProbeWalk,
+  type EntryProbeOptions,
+  type ProbeOptions,
+} from "./probe-walk.js";
 import { createLoadedTool, toolVersion } from "../tool-version.js";
 import type { VisibilityDecision } from "../visibility.js";
 
@@ -98,7 +103,7 @@ export interface MetaResponse<Target = unknown> {
 
 export interface StorableAnswer {
   readonly tool: string;
-  readonly success: InvokeSuccess;
+  readonly success: InvokeSuccess | ProviderSuccess;
 }
 
 export interface WireResult {
@@ -303,8 +308,27 @@ type Ranking =
   | { readonly kind: "names"; readonly names: readonly string[] }
   | { readonly kind: "refused" };
 
-async function rank<Source extends object>(
-  request: SearchRequest<Source>,
+export interface ToolSearchRequest<
+  Entry extends { readonly tool: ToolDefinition },
+> {
+  readonly catalog: Pick<CatalogBuild, "index" | "rankCatalog"> & {
+    readonly entries: readonly Entry[];
+    readonly byName: ReadonlyMap<string, Entry>;
+  };
+  readonly query: string | undefined;
+  readonly limit: number | undefined;
+  readonly detail: "card" | "schema" | undefined;
+  readonly tags: readonly string[] | undefined;
+  readonly decide: (entry: Entry) => VisibilityDecision;
+  readonly visible: (decision: VisibilityDecision) => boolean;
+  readonly tagsOf: (entry: Entry) => readonly string[];
+  readonly probe?: EntryProbeOptions<Entry>;
+  readonly ranker?: SearchRankerOptions;
+  readonly signal?: AbortSignal;
+}
+
+async function rank<Entry extends { readonly tool: ToolDefinition }>(
+  request: ToolSearchRequest<Entry>,
 ): Promise<Ranking> {
   const { catalog, ranker } = request;
   const query = request.query ?? "";
@@ -359,6 +383,15 @@ async function rank<Source extends object>(
 export async function searchCatalog<Source extends object>(
   request: SearchRequest<Source>,
 ): Promise<MetaResponse<never>> {
+  return searchTools({
+    ...request,
+    tagsOf: (entry) => entry.descriptor.tags ?? [],
+  });
+}
+
+export async function searchTools<
+  Entry extends { readonly tool: ToolDefinition },
+>(request: ToolSearchRequest<Entry>): Promise<MetaResponse<never>> {
   const { catalog, decide, visible } = request;
   const capped = Math.min(
     Math.max(request.limit ?? defaultSearchLimit, 1),
@@ -371,8 +404,8 @@ export async function searchCatalog<Source extends object>(
   }
   const ranked = ranking.names;
 
-  const candidates: CatalogEntry<Source>[] = [];
-  const decisions = new Map<CatalogEntry<Source>, VisibilityDecision>();
+  const candidates: Entry[] = [];
+  const decisions = new Map<Entry, VisibilityDecision>();
   for (const name of ranked) {
     const entry = catalog.byName.get(name);
     if (entry !== undefined) {
@@ -391,7 +424,7 @@ export async function searchCatalog<Source extends object>(
   );
   const results: unknown[] = [];
   for (let index = 0; index < candidates.length; index += 1) {
-    const entry = candidates[index] as CatalogEntry<Source>;
+    const entry = candidates[index] as Entry;
     const decision = await walk.decisionAt(index, results.length);
     if (!visible(decision)) {
       continue;
@@ -413,7 +446,7 @@ export async function searchCatalog<Source extends object>(
       continue;
     }
     total += 1;
-    for (const tag of entry.descriptor.tags ?? []) {
+    for (const tag of request.tagsOf(entry)) {
       vocabulary.add(foldToken(tag));
     }
   }

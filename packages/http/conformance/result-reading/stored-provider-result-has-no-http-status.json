@@ -1,0 +1,24 @@
+{
+  "kind": "result-reading",
+  "description": "A provider tool stores its JSON body without inventing HTTP response metadata.",
+  "input": {
+    "stored": { "body": { "items": [1, 2] } },
+    "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+    "bytes": 300000,
+    "limit": 262144,
+    "expiresInSeconds": 120
+  },
+  "expected": {
+    "stored": {
+      "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+      "bytes": 300000,
+      "limit": 262144,
+      "expiresInSeconds": 120,
+      "outline": [
+        { "path": "", "kind": "object", "count": 1, "fields": ["items"] },
+        { "path": "/items", "kind": "array", "count": 2 }
+      ]
+    },
+    "message": "The response is 300000 bytes; the limit is 262144 bytes. It was stored, not returned: read it with read_result and the handle, choosing a path from the outline, the properties to select and a window with offset and limit. The stored result expires in 120 seconds."
+  }
+}

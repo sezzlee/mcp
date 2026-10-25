@@ -363,6 +363,7 @@ export {
   operationNameDescription,
   resolveDeferred,
   searchCatalog,
+  searchTools,
   searchDescription,
   searchDetailDescription,
   searchLimitDescription,
@@ -378,9 +379,14 @@ export type { ProbeOptions } from "./meta-tools/probe-walk.js";
 export type {
   MetaResponse,
   SearchRequest,
+  ToolSearchRequest,
   StorableAnswer,
   WireResult,
 } from "./meta-tools/meta-tools.js";
+export type {
+  ProviderSuccess,
+  ProviderStored,
+} from "./generated/provider-result.js";
 export { readStoredResult } from "./meta-tools/read-result.js";
 export type { ReadResultCall } from "./meta-tools/read-result.js";
 export {
@@ -396,7 +402,11 @@ export {
   selectFrom,
   storedAnswer,
 } from "./results/reading.js";
-export type { ReadRequest, StoredFacts } from "./results/reading.js";
+export type {
+  ReadRequest,
+  StoredFacts,
+  ProviderStoredFacts,
+} from "./results/reading.js";
 export {
   handlePattern,
   MemoryResultStore,

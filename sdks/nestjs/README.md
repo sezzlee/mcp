@@ -439,6 +439,45 @@ Of visibility, only `anonymous: true` travels, for an operation any caller may m
 declaring `anonymous: "yes"` with no policy); the gateway shows every other tool as uncertain, since
 a document cannot say which caller may make a call.
 
+## 3e. Provider tools without HTTP routes
+
+Use `defineProviderTool` from `@sezzlee/sdk-nestjs` to register an MCP-only operation. Bind a
+singleton provider, a unique name and description, a strict object input validator, an optional
+output validator, an explicit `access` policy, and an `execute` callback. Schemas implement both
+Standard Schema validation and Standard JSON Schema conversion; `z.strictObject` from zod 4.2+
+works. Add the provider to your Nest module and push the registration into `options.tools`.
+The complete, runnable example is [note-summary.ts](samples/demo-api/src/note-summary.ts), wired in
+[app.module.ts](samples/demo-api/src/app.module.ts).
+
+Provider and HTTP tools share `search_tools`, `load_tool`, `invoke_tool`, schema versions and
+`read_result`. A duplicate name fails catalog activation. A provider registration creates no
+HTTP route and does not require a synthetic HTTP request. `catalog.current` / `find` and OpenAPI
+extensions remain HTTP-only; `catalog.callable` / `findCallable` expose both kinds. OpenAPI export
+reports omitted providers. Custom rankers must handle a missing `route` on provider documents.
+
+The access policy is either `"public"` or a callback receiving `{ tool, caller, signal }`. A public
+policy still sits behind configured MCP transport authentication. Private policies must check the
+host's current permissions. Each invocation and stored-result read evaluates the policy again;
+HTTP visibility caches and probes do not authorize provider work. A handler receives its own
+context, so a singleton service need not store caller identity between requests. HTTP middleware,
+guards, pipes and interceptors do not run; required checks belong in the policy and service.
+Request/transient-scoped providers and request-scoped dependency trees are refused at startup.
+
+A successful provider call returns `{ body: value }`, without HTTP status or content type.
+A declared output schema is published as that envelope and validates the body at runtime. JSON
+compatibility, output byte limits, result storage, redaction and meta-tool rate limits still apply.
+Set identity carriers or a caller scope resolver that separates users before storing private
+results. Global timeout/byte limits apply; the HTTP-only per-target override hooks are unchanged.
+Custom rate-limit partitions receive `providerTarget` for provider calls and the existing `target`
+for HTTP calls. Deadlines include policy and validation work; the signal cancels cooperative work
+but cannot undo a write or preempt synchronous code. The buffered-result ceiling is checked after
+the provider has materialized its output.
+
+Unexpected exceptions and validation details are redacted. Throw `ProviderToolError` only for an
+intentional public business message; it still passes through the shared leak filter and response
+budget. See [the provider contract](../../packages/http/spec/provider-tools.md) and run the demo
+agent-client's `--scenario provider` acceptance scenario.
+
 ## 4. Visibility and guards
 
 This is the SDK's defining behaviour, and the thing most likely to surprise you.
