@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Reading fixes
+
+- `read_sheet` lists the merges of the rows a page returns, not of the whole requested range. A sheet with tens of thousands of merges, read without a range, failed with `resource_limit` because the merge list alone overran the response budget before the first row.
+
 ### Reading changes
 
 - `find_in_sheet` without `sheetName`, `range`, `table` or `columns` searches every worksheet that holds data, not only the first visible one. The answer has `scope: "workbook"`, a `sheets` list with each sheet's range, total and scanned cells, and a `sheet` on every match; `maxResults` and the response budget are shared across sheets. Naming a sheet keeps the one-sheet answer.

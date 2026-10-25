@@ -266,9 +266,6 @@ export function readSheet(
   let truncationReason: "maxCells" | "maxPayloadBytes" | undefined;
   let nextRow = window.startRow;
 
-  const merges = window.sheet.merges.filter((merge) =>
-    overlaps(merge, window.bounds),
-  );
   const headerNotices =
     options.cursor === undefined
       ? headerWarnings(
@@ -348,6 +345,15 @@ export function readSheet(
     window.bounds.bottom - window.startRow + 1,
     Math.max(1, Math.floor(options.maxCells / width)),
   );
+  let pageEnd = window.startRow - 1;
+  for (let kept = 0; kept < rowLimit && pageEnd < window.bounds.bottom;) {
+    pageEnd += 1;
+    if (options.visibleOnly !== true || !window.sheet.hiddenRows.has(pageEnd))
+      kept += 1;
+  }
+  const pageMerges = window.sheet.merges.filter((merge) =>
+    overlaps(merge, { ...window.bounds, bottom: pageEnd }),
+  );
   const parallelSeparators =
     Math.max(0, rowLimit - 1) * (1 + Number(options.includeTyped === true));
   const reserveBytes =
@@ -380,7 +386,7 @@ export function readSheet(
           }
         : {}),
       cellNotes: {},
-      merges,
+      merges: pageMerges,
       returnedRows: options.maxCells,
       returnedCells: options.maxCells,
       truncated: true,
@@ -519,6 +525,12 @@ export function readSheet(
   }
 
   const columns = columnsFrom(numberFormats);
+  const merges = pageMerges.filter((merge) =>
+    overlaps(merge, {
+      ...window.bounds,
+      bottom: Math.max(window.bounds.top, nextRow - 1),
+    }),
+  );
   const truncated = truncationReason !== undefined;
   const remaining = window.bounds.bottom - nextRow + 1;
 

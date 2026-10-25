@@ -117,6 +117,17 @@ describe("compact grid", () => {
     expect(repeated.values[repeated.values.length - 1]?.[1]).toBe("merged");
   });
 
+  it("lists only the merges of the rows a page returns", async () => {
+    const source = await open("q1/sample.xlsx");
+    const width = readSheet(source, base).columns.length;
+    const first = readSheet(source, { ...base, maxCells: width * 2 });
+    expect(first.rowNumbers).toEqual([2, 3]);
+    expect(first.merges).toBeUndefined();
+    expect(readSheet(source, { ...base, range: "10:10" }).merges).toEqual([
+      "A10:C10",
+    ]);
+  });
+
   it("preserves positional alignment on sparse rows", async () => {
     const result = readSheet(await open("q1/sample.xlsx"), base);
     for (const line of result.values) {
