@@ -40,7 +40,13 @@ import type {
   CellSnapshot,
 } from "../grid/cell-value.js";
 import { defaultHeaderRow, previewHeader } from "../grid/header.js";
-import { formatCellRef, formatRange, type GridBounds } from "../grid/range.js";
+import {
+  formatCellRef,
+  formatRange,
+  maxRow,
+  type GridBounds,
+} from "../grid/range.js";
+import { rowLimitGuidance } from "../grid/warnings.js";
 import {
   type DeclaredTable,
   type Populated,
@@ -587,6 +593,11 @@ export function describeOoxml(
     (largest, sheet) => Math.max(largest, sheet.rowCount),
     0,
   );
+  const cut = loaded.sheetNames.filter(
+    (name) =>
+      !loaded.opc.chartSheets.has(name) &&
+      (loaded.sheet(name).bounds?.bottom ?? 0) >= maxRow,
+  );
   return {
     filePath: meta.filePath,
     sizeBytes: meta.sizeBytes,
@@ -607,7 +618,7 @@ export function describeOoxml(
       : {}),
     ...(tallest > limits.guidanceRowThreshold
       ? {
-          guidance: `The largest sheet has ${tallest} rows. Use aggregate_sheet for totals and rankings, find_in_sheet to locate a value, or read_sheet with a narrow range.`,
+          guidance: `The largest sheet has ${tallest} rows. Use aggregate_sheet for totals and rankings, find_in_sheet to locate a value, or read_sheet with a narrow range.${rowLimitGuidance(cut)}`,
         }
       : {}),
   };

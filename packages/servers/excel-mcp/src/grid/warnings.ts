@@ -1,3 +1,5 @@
+import { maxRow, type GridBounds } from "./range.js";
+
 /**
  * Every warning a response can carry. A caller branches on the code; the
  * message is for a person and may change wording between releases.
@@ -30,6 +32,7 @@ export const warningCodes = [
   "identifier_cells",
   "unread_booleans",
   "derived_division_by_zero",
+  "row_limit_reached",
 ] as const;
 
 export type WarningCode = (typeof warningCodes)[number];
@@ -47,6 +50,23 @@ export function warning(
   column?: string,
 ): Warning {
   return column === undefined ? { code, message } : { code, message, column };
+}
+
+export function rowLimitWarnings(bounds: GridBounds): Warning[] {
+  return bounds.bottom < maxRow
+    ? []
+    : [
+        warning(
+          "row_limit_reached",
+          `The data reaches row ${maxRow}, the last row an Excel sheet holds. The file was probably cut there: rows after it are missing, so the last period or group can be incomplete.`,
+        ),
+      ];
+}
+
+export function rowLimitGuidance(sheets: readonly string[]): string {
+  return sheets.length === 0
+    ? ""
+    : ` ${sheets.map((name) => JSON.stringify(name)).join(", ")} ${sheets.length === 1 ? "reaches" : "reach"} row ${maxRow}, the last row an Excel sheet holds; the file was probably cut there, so the last period or group can be incomplete.`;
 }
 
 /** The warnings in order, each code, column and message once. */

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Reading changes
+
+- `find_in_sheet` without `sheetName`, `range`, `table` or `columns` searches every worksheet that holds data, not only the first visible one. The answer has `scope: "workbook"`, a `sheets` list with each sheet's range, total and scanned cells, and a `sheet` on every match; `maxResults` and the response budget are shared across sheets. Naming a sheet keeps the one-sheet answer.
+- Data that fills row 1,048,576, the last row an Excel sheet holds, is flagged: `read_sheet`, `aggregate_sheet` and `profile_sheet` warn with `row_limit_reached`, and `describe_workbook`'s guidance names the sheet. An export cut at that row loses everything after it, so the last period or group can be incomplete without any other sign.
+
 ## 0.10.2
 
 ### Reading fixes
