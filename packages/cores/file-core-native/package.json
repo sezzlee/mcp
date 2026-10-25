@@ -1,6 +1,6 @@
 {
   "name": "@sezzlee/file-core-native",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Handle-relative filesystem access for file-core (Node-API).",
   "keywords": [
     "node-api",
