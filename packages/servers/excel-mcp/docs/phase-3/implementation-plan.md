@@ -1,6 +1,6 @@
 # Phase 3 implementation and verification plan
 
-Status, 2026-10-25: P3-00–P3-09 implemented with local acceptance. The final cross-platform/native and installed-tarball CI gate for the combined Phase 2/3 revision remains open. Historical Phase 1 CI is not evidence for this revision. No release or version bump is included.
+Status, 2026-10-25: P3-00–P3-09 implemented and package acceptance closed. The full Publish dry run on main commit a5f0bba8820e7cdd931b415a3e30e93c641031ce passed, including all ten native legs and the all-platform installed-tarball gate. Published versions are Excel 0.11.0, file-core 0.3.4 and file-core-native/ooxml-core 0.3.0. Npm and MCP Registry receipts are recorded below; consumer rollout is a separate operation.
 
 ## Recorded decisions
 
@@ -115,12 +115,22 @@ The SDK validator uses Office 2019 validation and prints bounded failures; it is
 - Microsoft Open XML SDK: 14 selected source/output packages validated with zero errors: public source, 20,000-cell benchmark source/output, five scripted edits, plus an original table/chart/drawing source and five row/column/sheet-copy/rename/range-copy outputs. This is not whole-corpus XSD validation.
 - Real LibreOffice 26.8.1 Calc: six selected workbooks opened/converted successfully; five scripted scenarios passed the independent ODF typed-value/formula oracle (23 checks). The sixth is the 20,000-cell sequence smoke. No Microsoft Excel application acceptance is claimed.
 
-## Remaining release gate
+## Release and consumer boundary
 
-Local implementation and P3-09 acceptance do not close the final cross-platform/native, Linux final-image, installed-tarball and rollback acceptance of the combined revision. That gate must run against the actual proposed revision before merge/release. No commit, push, publication or product-runtime dependency update is part of this change. Phase 4 remains planned.
+The package gate is closed by [Publish dry run 40225865141](https://github.com/sezzlee/mcp/actions/runs/40225865141): build/lint/types/fixtures, both Nest compatibility legs, Linux x64/arm64, macOS x64/arm64 and Windows x64 on Node 22/24, platform-specific clean installs, merged prebuild inventory, clean all-platform package install and npm dry-run all passed. This supersedes the inherited Phase 2/3 package CI gap. Only the four intended new versions were publication candidates; unrelated published versions were skipped.
+
+[Publish 40226890188](https://github.com/sezzlee/mcp/actions/runs/40226890188) published the four versions using this green run through from_run on the same main commit. All four registry sha512 integrities match the downloaded CI tarballs. [Registry 40227129977](https://github.com/sezzlee/mcp/actions/runs/40227129977) published the Excel 0.11.0 MCP Registry entry. Host final-image acceptance belongs to the consumer integration and is not claimed by the package matrix. No source package test implies a consumer deployment or formula calculation.
 
 ## Final closure work, 2026-10-25
 
 The complete local Excel suite passed 75 files and 6,370 tests with the external corpus configured and no skips. The complete lab suite passed 13 files and 112 tests. The installed-tarball smoke now also exercises external structural editing, formula/formatting copy, source immutability, Phase 2 CSV transfer, deterministic retry, atomic refusal, retained-version branching and exact previous-version restore through the real stdio CLI. Formula-cache absence and unchanged styles are independently checked through Python ZIP/XML; cell/formula expectations use SheetJS. The full native CI must execute this strengthened smoke on the committed revision before its gate can close.
 
 The writing-aware model lab additionally covers transfer_range, transfer_records and transfer_aggregate. Each has a scripted baseline and an independent output oracle; live Turkish/English results are recorded separately from the earlier edit scenarios.
+
+## Final model and regression closure
+
+The additional object-union contract regression failed before the fix and the configured transfer selection then passed all 29 tests. Selection/target unions now explicitly advertise type: object; JSON-encoded strings remain invalid. Tool descriptions explain headerRow: 0, where arrays and one-based physical rows instead of coercing invalid requests.
+
+The final Phase 2 model profile passed three scripted baselines and all six live tasks (range values, filtered/reordered records and aggregate results, each in Turkish/English). It exposes prepare_transfer, transfer_data, describe_workbook and read_sheet; the five-tool editing profile remains separate. Both profiles, exact model/fixture/script/build identities and independent output grading are retained in external reports. Earlier diagnostic failures and timeouts remain recorded and are not counted as passes. The evaluator selects the requested mutation output rather than prematurely accepting a preparatory version receipt.
+
+All nine runnable Excel documentation pages passed against the workspace server. The generated 0.11.0 reference pages passed content validation and a production build. The three generated 0.11.0 reference pages were deployed to the existing documentation Worker and each returned HTTP 200 with version 0.11.0: [tools](https://docs.sezzlee.app/docs/excel-mcp/tools), [errors](https://docs.sezzlee.app/docs/excel-mcp/error-codes) and [limits](https://docs.sezzlee.app/docs/excel-mcp/limits).

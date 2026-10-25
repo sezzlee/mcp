@@ -1,6 +1,6 @@
 # Faz 0: mevcut altyapı üzerinde yazma sözleşmesi
 
-Durum: Faz 0'ın yazma modu, açık tür ve kaynak/sürüm/çıktı temeli uygulandı. Yerel doğrulama macOS arm64 üzerinde yapıldı. Yeni çalışma kitabı ve hücre yazma Faz 1; çok dosyalı iş grupları Faz 4 kapsamındadır. Diğer platformlarda native derleme ve çalışma doğrulaması bu oturumda yapılmadı.
+Status: implemented. The local-only results below describe the historical Phase 0 run. Phase 1 subsequently closed the native and boundaries gates; the combined Phase 0–3 package revision passed full native/installed-package acceptance in [Publish dry run 40225865141](https://github.com/sezzlee/mcp/actions/runs/40225865141). General multi-workbook orchestration remains Phase 4.
 
 [Ana plan](../README.md) ve [repo karşılaştırması](../research/repository-comparison.md) bu belgenin bağlamıdır.
 
