@@ -213,7 +213,8 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
       let last: z.infer<typeof version> | undefined;
       let completed = 0,
         calls = 0,
-        blocked = false;
+        blocked = false,
+        edited = false;
       const trace: unknown[] = [];
       async function call(
         name: string,
@@ -232,8 +233,14 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
         }
         const parsed = complete.safeParse(body);
         if (parsed.success) {
-          last = parsed.data.version;
           completed += 1;
+          if (name === "edit_workbook") edited = true;
+          const fulfills = scenario.startsWith("transfer_")
+            ? name === "transfer_data"
+            : scenario === "restore"
+              ? name === "create_workbook_version" && edited
+              : name === "edit_workbook";
+          if (fulfills) last = parsed.data.version;
         }
         const policy = z
           .object({
@@ -427,12 +434,7 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
                 content: text,
               });
             }
-            if (
-              scenario === "protected"
-                ? blocked
-                : completed >= (scenario === "restore" ? 2 : 1)
-            )
-              break;
+            if (scenario === "protected" ? blocked : last !== undefined) break;
           }
         }
         assert.equal(
