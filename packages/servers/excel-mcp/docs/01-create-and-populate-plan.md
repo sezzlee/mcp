@@ -1,6 +1,6 @@
 # Phase 1 implementation and verification plan
 
-Status: implemented and locally accepted on 2026-10-25 (macOS arm64). The collision, precision and scale decisions below were selected by the user. This plan implements F1-01 through F1-07 in [the phase scope](01-create-and-populate.md), using the completed Phase 0 publication capability.
+Status: implemented; local and full native CI acceptance passed on 2026-10-25. The collision, precision and scale decisions below were selected by the user. This plan implements F1-01 through F1-07 in [the phase scope](01-create-and-populate.md), using the completed Phase 0 publication capability.
 
 ## Accepted behavior
 
@@ -101,11 +101,11 @@ The independent Python ZIP/XML oracle passed both original and edited outputs fo
 
 Create receipts were 300 bytes and edit receipts 457 bytes on the million-cell runs. Retries returned the same output version and the original source digest stayed unchanged. Generated files, detailed reports and oracle JSON were retained outside the repository.
 
-Linux, Windows and macOS x64 native execution were not run locally. Their inherited platform gate remains open before claiming platform-wide release acceptance. No live Excel/LibreOffice session or XSD validation is claimed.
+Linux, Windows and macOS x64 native execution were not run locally. The inherited native platform gate was subsequently closed by the successful full CI run recorded below. No live Excel/LibreOffice session or XSD validation is claimed.
 
 Final focused rerun after adding the aggregate-text budget boundary: 4 Excel files / 73 tests passed; type checking and lint passed again for all three changed packages. Production changes: +637 / -16 lines. Tests and lab verification support: +1007 / -0 lines (documentation excluded).
 
-Formatting and git diff --check passed. The initially failing repo-wide pnpm boundaries check is now closed: apps/docs declares the existing root-pinned prettier 3.9.6 as a devDependency, and its lockfile importer is updated. A frozen installation and installed-version check passed. The final boundaries run checked 1552 files in 23 packages with no issues; package formatting and git diff --check also passed. Native cross-platform execution remains pending a workflow_dispatch CI run against the committed and pushed Phase 1 revision; the existing full=true native matrix covers five targets with Node 22 and 24. Normal pull-request runs intentionally skip that matrix.
+Formatting and git diff --check passed. The initially failing repo-wide pnpm boundaries check is now closed: apps/docs declares the existing root-pinned prettier 3.9.6 as a devDependency, and its lockfile importer is updated. A frozen installation and installed-version check passed. The final boundaries run checked 1552 files in 23 packages with no issues; package formatting and git diff --check also passed. Native cross-platform execution subsequently passed in the full workflow_dispatch run on 8a0e11c, recorded below. Normal pull-request runs intentionally skip that matrix.
 
 ## Native CI follow-up
 
@@ -114,3 +114,9 @@ The first full CI run on commit 0385075 ([run 40203076121](https://github.com/se
 The fix uses NtSetInformationFile with FileRenameInformation for the handle-relative, replace-disabled rename and maps STATUS_OBJECT_NAME_COLLISION to output_exists. The target remains relative to the retained directory handle; no pathname-based fallback or replacement is introduced. The [Microsoft NT rename contract](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_rename_information) and [user-mode NtSetInformationFile guidance](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwsetinformationfile) define the operation.
 
 After the change, the existing four native output tests, five native security tests and 34 focused Excel authoring/foundation tests pass locally. The security watchdog needed execution outside the sandbox because its Unix socket was denied inside it. Windows execution must be proven by CI on the fixed revision. The pre-fix Windows log is retained with the local acceptance artifacts.
+
+## Final CI acceptance
+
+[Full CI run 40203876886](https://github.com/sezzlee/mcp/actions/runs/40203876886) completed successfully on runtime commit 8a0e11c0b7cf19293298c1846727972b5b713391: all 15 jobs passed. The 10 native legs cover Linux x64/arm64, macOS x64/arm64 and Windows x64, each on Node 22 and Node 24. The build/lint/type/fixture job, both NestJS compatibility jobs and final package validation also passed.
+
+The Windows fix initially exposed an SDK-header omission: the user-mode headers do not name FileRenameInformation. The final implementation supplies its typed NT ABI value, 10. Both Windows legs then passed the unchanged native output/security tests, Excel tests and installed-tarball smoke checks. The inherited native acceptance gate and the earlier boundaries failure are closed. Live Excel/LibreOffice execution and Open XML XSD validation remain outside the claims.
