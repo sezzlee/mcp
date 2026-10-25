@@ -53,7 +53,7 @@ describe("provider result invariants", () => {
     await module?.close();
   });
 
-  it("rejects an accessor without reading it during validation or serialization", async () => {
+  it("rejects accessors without reading them", async () => {
     const get = vi.fn(() => "private-output-secret");
     const value: unknown = Object.defineProperty({}, "value", {
       enumerable: true,
@@ -68,14 +68,13 @@ describe("provider result invariants", () => {
     expect(JSON.stringify(result)).not.toContain("private-output-secret");
   });
 
-  it("rejects a hidden toJSON hook without executing it", async () => {
+  it("rejects hidden toJSON hooks without running them", async () => {
     const toJSON = vi.fn(() => ({ secret: "private-output-secret" }));
     const value: unknown = Object.defineProperty({ ok: true }, "toJSON", {
       value: toJSON,
     });
-    expect(
-      await invokeProvider(bind(() => value), {}, undefined, {}),
-    ).toMatchObject({
+    const result = await invokeProvider(bind(() => value), {}, undefined, {});
+    expect(result).toMatchObject({
       isError: true,
       payload: { error: "provider_invalid_output" },
     });
@@ -101,16 +100,15 @@ describe("provider result invariants", () => {
       name: "a non-enumerable field",
       create: () => Object.defineProperty({}, "hidden", { value: 1 }),
     },
-  ])("rejects $name rather than silently changing its data", async (test) => {
-    expect(
-      await invokeProvider(bind(test.create), {}, undefined, {}),
-    ).toMatchObject({
+  ])("rejects $name", async (test) => {
+    const result = await invokeProvider(bind(test.create), {}, undefined, {});
+    expect(result).toMatchObject({
       isError: true,
       payload: { error: "provider_invalid_output" },
     });
   });
 
-  it("detaches delivered and storable data from the provider's mutable state", async () => {
+  it("detaches delivered and stored data from provider state", async () => {
     const shared = { message: "original" };
     const value = { rows: [shared, shared] };
     const result = await invokeProvider(bind(() => value), {}, undefined, {});
@@ -125,7 +123,7 @@ describe("provider result invariants", () => {
     expect(result.storable?.success.body).not.toBe(value);
   });
 
-  it("preserves null-prototype records and own __proto__ keys as JSON data", async () => {
+  it("preserves null-prototype records and own __proto__ keys", async () => {
     const value: unknown = Object.assign(
       Object.create(null),
       Object.fromEntries([["__proto__", { harmless: true }]]),
@@ -135,19 +133,20 @@ describe("provider result invariants", () => {
     expect(JSON.stringify(result.payload)).toBe(
       '{"body":{"__proto__":{"harmless":true}}}',
     );
-    expect(Object.getPrototypeOf(result.storable?.success.body)).toBe(
-      Object.prototype,
-    );
+    const stored = result.storable?.success.body;
+    expect(Object.getPrototypeOf(stored)).toBe(Object.prototype);
     expect(Object.prototype).not.toHaveProperty("harmless");
   });
 
-  it.each([null, true, 17, "text"])("preserves scalar output %j", async (value) => {
-    expect(
-      await invokeProvider(bind(() => value), {}, undefined, {}),
-    ).toMatchObject({ payload: { body: value }, isError: false });
+  it.each([null, true, 17, "text"])("preserves %j", async (value) => {
+    const result = await invokeProvider(bind(() => value), {}, undefined, {});
+    expect(result).toMatchObject({
+      payload: { body: value },
+      isError: false,
+    });
   });
 
-  it("keeps local output references resolvable from the success envelope root", async () => {
+  it("keeps output references relative to the envelope root", async () => {
     const schema = {
       type: "object",
       required: ["value"],
@@ -184,7 +183,7 @@ describe("provider result invariants", () => {
     });
   });
 
-  it("does not start output validation after an abandoned handler settles", async () => {
+  it("skips output validation after an abandoned handler", async () => {
     const started = deferred<void>();
     const finished = deferred<unknown>();
     const validate = vi.fn((value: unknown) => ({ value }));
@@ -211,7 +210,7 @@ describe("provider result invariants", () => {
     expect(validate).not.toHaveBeenCalled();
   });
 
-  it("does not publish output validation that settles after cancellation", async () => {
+  it("rejects output validation that settles after cancellation", async () => {
     const started = deferred<void>();
     const finished = deferred<{ value: unknown }>();
     const output: ProviderToolSchema<unknown> = {
