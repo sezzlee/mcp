@@ -12,11 +12,36 @@ const localDateTime = z.iso
 
 export const writeCellSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("text"), value: text }),
-  z.strictObject({ kind: z.literal("number"), value: z.number().finite() }),
+  z.strictObject({
+    kind: z.literal("number"),
+    value: z
+      .number()
+      .finite()
+      .refine(
+        (value) =>
+          (!Number.isInteger(value) || Number.isSafeInteger(value)) &&
+          Number(value.toPrecision(15)) === value &&
+          (value === 0 || Math.abs(value) >= 2.2251e-308) &&
+          Math.abs(value) <= 9.99999999999999e307,
+        {
+          message:
+            "The number cannot be safely represented in Excel. Choose text for long identifiers.",
+        },
+      ),
+  }),
   z.strictObject({ kind: z.literal("boolean"), value: z.boolean() }),
   z.strictObject({ kind: z.literal("blank") }),
-  z.strictObject({ kind: z.literal("date"), value: z.iso.date() }),
-  z.strictObject({ kind: z.literal("datetime"), value: localDateTime }),
+  z.strictObject({
+    kind: z.literal("date"),
+    value: z.iso
+      .date()
+      .min(10)
+      .refine((value) => value >= "1900-01-01"),
+  }),
+  z.strictObject({
+    kind: z.literal("datetime"),
+    value: localDateTime.refine((value) => value >= "1900-01-01T00:00:00"),
+  }),
 ]);
 
 export type WriteCell = z.infer<typeof writeCellSchema>;

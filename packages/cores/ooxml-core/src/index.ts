@@ -3,6 +3,7 @@ export {
   type OoxmlEnvironment,
   type OoxmlReader,
 } from "./reader.js";
+export { createOoxmlWriter } from "./writer.js";
 export { classifyContainerMagic } from "./container/magic.js";
 export {
   extensionOf,

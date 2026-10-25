@@ -1,56 +1,35 @@
-# Faz 1: yeni Excel oluşturma ve temel yazma
+# Phase 1: create and populate workbooks
 
-Durum: kapsam önerisi. [Faz 0](00-write-foundation.md) temelini kullanır; kaynak koruma, ayrı hesaplama ve aynı pakette ayrıca etkinleştirilen yazma modu kararları [ana yol haritasında](README.md) kesindir.
+Status: implemented; final local acceptance evidence is recorded in [the implementation and verification plan](01-create-and-populate-plan.md). Builds on [Phase 0](00-write-foundation.md). The source-preservation, separate-calculation and explicit-writing-mode decisions in [the roadmap](README.md) remain binding.
 
-## Hedef
+## Goal and coverage
 
-Agent yeni bir dosya oluşturabilsin, doğrudan verdiği verileri toplu yazabilsin ve konuşmanın devamında bu dosyada temel değişiklikler yapabilsin.
+An agent can create an Excel workbook, write explicitly typed rectangular blocks, and continue the conversation by selecting an immutable output version for further edits.
 
-## Kapsam
+| ID    | Implemented behavior                                                                                                                                                                  |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1-01 | Create a new .xlsx through create_workbook.                                                                                                                                           |
+| F1-02 | Create multiple named sheets, preserving their order; add sheets in subsequent edit_workbook requests.                                                                                |
+| F1-03 | Create a blank workbook with at least one sheet, or a header-only workbook using an ordinary value block.                                                                             |
+| F1-04 | Write a cell, row or rectangle at an explicit A1 start cell. Ragged rows and out-of-bounds blocks are rejected.                                                                       |
+| F1-05 | Apply explicit text, number, boolean, blank, date and local datetime kinds. Literal text is never inferred as a formula, date or number.                                              |
+| F1-06 | Require the selected source path and SHA-256 version for continuation. Correct cells, write additional records and add sheets in one atomic request. Preserve every previous version. |
+| F1-07 | Return the completed version receipt and fixed-size counts of added sheets, applied blocks and written cells. Do not repeat the full input.                                           |
 
-| Kimlik | İhtiyaç                                                                                                                                  |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| F1-01  | Yeni çalışma kitabı oluşturmak; ilk biçim önerisi .xlsx.                                                                                 |
-| F1-02  | Bir veya birden fazla sayfa oluşturmak ve adlandırmak.                                                                                   |
-| F1-03  | En az bir sayfası bulunan boş dosya veya yalnızca başlıkları olan yapı oluşturmak.                                                       |
-| F1-04  | Belirli bir başlangıçtan itibaren tek hücre, satır veya dikdörtgen veri grubunu yazmak.                                                  |
-| F1-05  | Agent'ın açıkça seçtiği desteklenen hücre türünü ve kayıt sırasını korumak; metni kendiliğinden tarihe veya formüle dönüştürmemek.       |
-| F1-06  | Sonraki istekte seçilen çıktı sürümünü kaynak alarak hücre düzeltme, kayıt veya sayfa ekleme yapıp yeni sürüm üretmek.                   |
-| F1-07  | Güncel çıktı sürümünü, tamamlanma durumunu ve değişiklik kapsamını küçük bir sonuçla bildirmek; bütün yazılan veriyi tekrar döndürmemek. |
+## Accepted decisions
 
-Hücre türünü agent'ın belirleyip yazıcıya açıkça bildirmesi K1-08 ile kesindir. Tarih/saat, sayı, metin, mantıksal değer, boş hücre ve boş metin için ilk destek kapsamı birlikte belirlenecek. Başında sıfır bulunan kimlik ve uzun numara örnekleri, tür anlamının korunması açısından değerlendirilir.
+- Produce .xlsx only. General external workbook editing remains Phase 3. Phase 1 edits only its canonical generated package format, comparing the complete part inventory and original part contents before reconstructing it. Unsupported content is rejected rather than discarded. Preparing a source with create_workbook_version does not expand the editing scope.
+- Reject writes to populated cells by default, including empty text. A write_cells operation must explicitly choose overwrite: true to replace or clear them. Missing operations leave cells unchanged; blank explicitly clears a cell. Adding a duplicate sheet name, including a case-folded or normalized collision, fails.
+- Reject precision-losing numbers, unsafe JSON integers, non-finite numbers and unsupported Excel numeric magnitudes. The agent must explicitly choose text for long identifiers. Never silently round or convert to text.
+- Dates use real Gregorian days from 1900-01-01 through 9999-12-31. Datetime values are local wall-clock times with seconds and optional 1–3 fractional digits, without a zone. Date cells use explicit ISO encoding and fixed date/datetime formats; formula generation and calculation remain later phases.
+- A request is an ordered transaction over one workbook. Validate and apply all operations before publication. A late failure publishes no completed partial version. Multi-request and multi-workbook transaction execution remains Phase 4.
+- Appending means writing at an explicit start cell selected using the existing reader. It never inserts rows or moves totals, notes or other content.
+- Retry the same request against the same selected source. Deterministic part order, XML and ZIP metadata produce the same output bytes and content version. Distinct branches from an old source remain distinct immutable outputs.
 
-## Kodlama iş paketleri
+## Limits and acceptance
 
-1. Faz 0'ın kaynak/çıktı, değer, işlem sınırı ve bütçe kurallarını ilk çalışan oluşturma akışına bağlamak.
-2. Dosya/sayfa oluşturma ve doğrudan verilen veri grubunu yazma yeteneğini eklemek.
-3. Desteklenen türler, eksik alanlar, alan boyutu ve dolu hedef gibi durumları ele almak.
-4. Sonraki istekte seçilen sürümden basit değer düzeltme ve kayıt eklemeyle yeni çıktı üretme akışını tamamlamak.
-5. Çıktı üretme, hata durumları, yeniden okuma ve bağımsız dosya doğrulamasını tamamlamak.
+The requested scale target is 50,000 rows × 20 columns. The initial limits are 1,000,000 touched cells per request, 1,000,000 stored cells per workbook, 64 sheets, 128 blocks or changes, 32 MiB stored text and 64 MiB serialized request input. The existing 50 MiB compressed file ceiling and OOXML part, expanded-package, part-count and expansion-ratio limits also apply. These are separate ceilings; staying below one does not waive another. One writing job per server is admitted before source loading or package generation.
 
-## Bağımlılıklar ve sınırlar
+Acceptance covers blank/header-only and multi-sheet creation; explicitly positioned typed data; correction, new records and new sheets in one edit; preservation of source and previous versions; deterministic retry; strict rejection and atomic failure; independent ZIP/XML and spreadsheet-reader validation; a measured million-cell workload; and unchanged default reading behavior over the existing corpus.
 
-- Yazma aynı paketin ayrıca etkinleştirilen modunda sunulur; varsayılan okuma davranışı korunur.
-- Kaynak ve önceki çıktı sürümleri korunur; dosya adının aynı olması kaynak üzerine yazma izni değildir.
-- Başlangıçta başka Excel'den veri aktarımı gerekmez; bu Faz 2'dir.
-- Dışarıdan gelen karmaşık dosyayı koruyarak düzenleme Faz 3'tür.
-- Koşullu güncelleme ve anahtarla kayıt eşleştirme Faz 4'te tamamlanır. Agent mevcut okumayla bir hedef belirleyebilir; Faz 1'in yazma kapsamı açıkça hedeflenen değişikliklerle sınırlı önerilir.
-- Formül oluşturma ve görünüm özellikleri Faz 5'tedir. Desteklenmeyen içerik yanlışlıkla desteklenmiş gibi yazılmamalıdır.
-- Oluşturulan dosyada basit ekleme ile altında toplam/not bulunan karmaşık listeye yer açmak aynı kapsam değildir.
-
-## Kabul senaryoları
-
-- Agent Giderler sayfası, başlıklar ve örnek kayıt grubuyla dosya oluşturur.
-- Sonraki istekte yeni kayıt grubu ve Gelirler sayfası ekler; açıkça hedeflenen tutarı düzeltir. Yeni çıktı sürümünde sonuç görünür; kaynak ve önceki sürüm değişmez.
-- Dosya açılır; tekrar okunduğunda sayfalar, değerler, sıralama ve düzeltme beklenen durumdadır.
-- Boş ve yalnızca başlıklı çıktı istekleri doğru karşılanır.
-- Üzerinde uzlaşılan büyüklükte toplu yazma tamamlanır; aynı veri hücre hücre tarif edilmek zorunda kalmaz.
-- Hatalı veri veya dolu hedef örneğinde üzerinde uzlaşılan davranış gerçekleşir; başarısız iş tamamlanmış gibi gösterilmez.
-- Yazma sonucunun boyutu yazılan bütün veriyi tekrar etmeye dayanmaz; aynı ekleme isteğinin yeniden denenmesi kararlaştırılmış sonucu verir.
-- Mevcut okuma davranışları korunur.
-
-## Açık kararlar
-
-Ana belgedeki A-01–A-04 bu fazı ilgilendirir. Kaynağı koruyup yeni sürüm üretme kesindir. Aynı sayfa adı, hedef boyutu, eksik alan ve yeniden deneme ayrıntıları Faz 0 kurallarıyla tamamlanır. Formül yazma kapsamına Faz 5'te geçilir; literal = metnini koruyabilmek için o faz beklenmez.
-
-Önerilen tamamlanma ölçütü: doğrudan veriyle oluşturma → konuşmada devam etme → sonucu elde etme akışının, kabul edilmiş değer türleri ve ölçek üzerinde uçtan uca çalışması.
+The implementation sequence, owner tests, commands, benchmark reports and inherited native-platform validation limits are in [the execution plan](01-create-and-populate-plan.md).

@@ -194,3 +194,26 @@ and writes JSON to stdout. MCP tests consume the same committed bytes without re
 Python or .NET. The source manifest, independent cell/format matrix, licensing, schema
 validation and limits are in [RICH_VALUE_SOURCES.md](RICH_VALUE_SOURCES.md). None of these
 fixtures is presented as an Excel recalculation or a live linked-provider test.
+
+## Phase 1 writing acceptance
+
+Build the server, then run the isolated writing benchmark outside the repository:
+
+```sh
+pnpm turbo run build --filter=@sezzlee/excel-mcp
+node packages/lab/excel-lab/src/write-bench.ts --out /tmp/excel-write-evidence --rows 50000 --columns 20 --heap-mib 1024 --dataset sequence
+node packages/lab/excel-lab/src/write-bench.ts --out /tmp/excel-write-evidence --rows 50000 --columns 20 --heap-mib 1024 --dataset mixed
+```
+
+Each invocation creates a fresh write-* directory and starts one child process with a fixed V8 heap and a 180-second wall limit. It creates a million-cell block, corrects A1 from the exact selected version, repeats that correction against the same source and checks that the output version is reused while the original bytes remain unchanged. Results include call timings, serialized input and response sizes, output versions and sizes, platform, peak RSS, and hashes of the generator and built writing implementation. RSS includes native allocations and can exceed the V8 heap limit. These local measurements do not establish a service latency guarantee or other-platform support.
+
+The sequence dataset contains the integers 0 through 999999. The mixed dataset covers leading-zero text identifiers, exact quarter-unit numbers, booleans, blank cells, empty text, ISO dates, local datetimes, Unicode, XML metacharacters, literal SpreadsheetML escape sequences and CRLF. Blank cells are omitted, so the million input cells produce 950000 stored cells in the 20-column mixed dataset.
+
+The standard-library Python oracle verifies every stored value against independently specified coordinate-based answers, checks blank omission, package CRCs, sheet relationships and absence of formulas/external relationships. It performs no network access:
+
+```sh
+python3 packages/lab/excel-lab/scripts/verify-written-workbook.py /tmp/excel-write-evidence/write-REPLACE/out/CREATE-HASH.xlsx --sequence-rows 50000 --columns 20 --dataset mixed
+python3 packages/lab/excel-lab/scripts/verify-written-workbook.py /tmp/excel-write-evidence/write-REPLACE/out/EDIT-HASH.xlsx --sequence-rows 50000 --columns 20 --dataset mixed --edited
+```
+
+Use --dataset sequence for numeric runs. The generic --expected input accepts an independently authored JSON object containing sheets: [{ name, cells: { A1: { kind, value } } }]; blank entries are expected to be omitted. Oracle success is distinct from the benchmark's in-house MCP checks. Neither claims live Excel execution, recalculation or an Open XML XSD validation.

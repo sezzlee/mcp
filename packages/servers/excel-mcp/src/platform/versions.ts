@@ -24,6 +24,14 @@ export const versionReceiptSchema = z.strictObject({
   sizeBytes: z.int().nonnegative().max(limits.maxFileBytes),
 });
 
+export const mutationReceiptSchema = versionReceiptSchema.extend({
+  changes: z.strictObject({
+    sheetsAdded: z.int().nonnegative(),
+    blocksWritten: z.int().nonnegative(),
+    cellsWritten: z.int().nonnegative(),
+  }),
+});
+
 export type WorkbookVersionId = z.infer<typeof workbookVersionIdSchema>;
 export type WorkbookVersion = z.infer<typeof workbookVersionSchema>;
 export type VersionReceipt = z.infer<typeof versionReceiptSchema>;

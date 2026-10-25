@@ -1,6 +1,6 @@
 # Excel oluşturma ve düzenleme: araştırmaya dayalı faz planı
 
-Durum: ihtiyaç ve geliştirme planı. K1-01–K1-09 kararları kayıtlıdır. Faz 0'ın yazma modu, açık tür ve güvenli çıktı/sürüm temeli uygulandı; kapsam ve yerel doğrulama sınırları Faz 0 belgesindedir. Faz 1 ve sonrası henüz uygulanmadı.
+Durum: ihtiyaç ve geliştirme planı. K1-01–K1-09 kararları kayıtlıdır. Faz 0'ın yazma modu, açık tür ve güvenli çıktı/sürüm temeli uygulandı; kapsam ve yerel doğrulama sınırları Faz 0 belgesindedir. Faz 1 uygulandı; geliştirme/test planı ve yerel kabul kanıtları [Faz 1 uygulama planında](01-create-and-populate-plan.md) tutulur. Faz 2 ve sonrası henüz uygulanmadı.
 
 ## Hedef ve dayanak
 

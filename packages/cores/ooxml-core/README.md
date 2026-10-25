@@ -132,3 +132,7 @@ entry fails as a corrupt part instead.
 pnpm turbo run build check-types lint --filter=@sezzlee/ooxml-core
 pnpm turbo run test --filter=@sezzlee/ooxml-core
 ```
+
+## Deterministic archive creation
+
+`createOoxmlWriter({ fail, limits? })` provides `zip(parts, maxBytes)`, where `parts` is an ordered map of canonical package names to UTF-8 or binary bytes. The writer fixes ZIP timestamps and uses deterministic level-1 deflate. It applies part-count, individual-part, expanded-byte, compressed-byte and expansion-ratio budgets before returning an archive. Errors use the injected factory. Consumers retain responsibility for format-specific markup and for publishing the completed bytes through their own output capability.

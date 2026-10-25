@@ -116,6 +116,22 @@ describe("explicit write cell contract K1-08", () => {
       issue: { code: "invalid_type", path: ["value"] },
     },
     {
+      input: { kind: "number", value: 9_007_199_254_740_992 },
+      issue: { code: "custom", path: ["value"] },
+    },
+    {
+      input: { kind: "number", value: 1.234567890123456 },
+      issue: { code: "custom", path: ["value"] },
+    },
+    {
+      input: { kind: "number", value: 1e-310 },
+      issue: { code: "custom", path: ["value"] },
+    },
+    {
+      input: { kind: "date", value: "1899-12-31" },
+      issue: { code: "custom", path: ["value"] },
+    },
+    {
       input: { kind: "text", value: "\ud800" },
       issue: { code: "custom", path: ["value"] },
     },
@@ -168,6 +184,11 @@ it("keeps writing unavailable in the default server and declares output writes t
     const root = await createWorkbookRoot(directory);
     await connected(createExcelMcpServer(root), async (client) => {
       expect(
+        (await client.listTools()).tools.every(
+          (tool) => tool.annotations?.readOnlyHint === true,
+        ),
+      ).toBe(true);
+      expect(
         (await client.listTools()).tools.find(
           (tool) => tool.name === "create_workbook_version",
         ),
@@ -177,6 +198,15 @@ it("keeps writing unavailable in the default server and declares output writes t
           name: "create_workbook_version",
           arguments: { filePath: "source.xlsx" },
         }),
+      ).rejects.toMatchObject({ code: -32602 });
+      await expect(
+        client.callTool({
+          name: "create_workbook",
+          arguments: { sheets: [{ name: "No" }] },
+        }),
+      ).rejects.toMatchObject({ code: -32602 });
+      await expect(
+        client.callTool({ name: "edit_workbook", arguments: {} }),
       ).rejects.toMatchObject({ code: -32602 });
     });
     const output = await createWorkbookOutput(root, "out");

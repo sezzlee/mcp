@@ -352,18 +352,81 @@ Run tests through Turbo, not `pnpm --filter @sezzlee/excel-mcp test`: the bare f
 
 A change to a tool's arguments, an error code or a limit changes the generated reference in `apps/docs`; run `pnpm --filter @sezzlee/docs gen` and commit the result, or `pnpm turbo run validate --filter=@sezzlee/docs` fails.
 
-## İsteğe bağlı yazma modu
+## Optional writing mode
 
-Faz 0 yazma temeli aynı pakette ayrıca etkinleştirilir. Çıktı dizini önceden oluşturulmuş olmalı ve çalışma kitabı kökünün altında bulunmalıdır:
+Reading remains the default. Enable writing explicitly with an existing output directory below the workbook root:
 
-```bash
+```sh
+mkdir -p /absolute/workbooks/out
 sezzlee-excel /absolute/workbooks --write out
 ```
 
-Bu mod mevcut okuma araçlarına `create_workbook_version` aracını ekler. `filePath` bir `.xlsx` kaynağıdır; isteğe bağlı `expectedVersion` kaynağın beklenen SHA-256 sürümüdür. Kaynak doğrulanır ve sunucunun seçtiği SHA-256 dosya adıyla çıktı dizinine kopyalanır. Sonuç `kind`, `version`, `source` ve `sizeBytes` alanlarından oluşur. Aynı içerik için tekrar çağrı mevcut çıktı sürümünü kullanır; farklı içerikle dolu hedefin üzerine yazılmaz. Sunucu başına bir hazırlama işi çalışır; eşzamanlı ikinci istek `resource_limit` alır ve sonra yeniden denenebilir. Kaynak ve önceki sürümler korunur.
+This adds three own-output tools. They never overwrite a source or an existing output. The output name is chosen by the server from its SHA-256 content version; identical content reuses an existing output after verifying its bytes. All writing tools share one admission slot per server.
 
-`create_workbook_version` mevcut bir dosyadan sürüm hazırlar; sıfırdan çalışma kitabı oluşturmaz veya hücre değiştirmez. Bunlar Faz 1 kapsamındadır. Varsayılan başlatma biçimi ve salt okunur araç kataloğu değişmez.
+| Tool                    | Behavior                                                                                                                                                                                                                          |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| create_workbook         | Create an immutable .xlsx from a non-empty ordered list of named sheets. Each sheet may contain rectangular blocks with an explicit A1 startCell. Omit blocks for an empty sheet.                                                 |
+| edit_workbook           | Apply an ordered atomic list of add_sheet and write_cells changes to an exact selected source version. Phase 1 accepts only its canonical generated format; unsupported package content is rejected.                              |
+| create_workbook_version | Validate and prepare an immutable copy of an existing .xlsx, without changing sheets or cells. Its optional expectedVersion rejects a changed source. Copying an external workbook does not make it eligible for Phase 1 editing. |
 
-`writeCellSchema` açık tür sözleşmesidir: `text`, `number`, `boolean`, `blank`, `date`, `datetime`. Metin kendiliğinden tarihe veya formüle dönüşmez. Tarih `YYYY-MM-DD`; tarih-saat, saat dilimi olmadan saniye ve isteğe bağlı 1–3 basamak kesir içeren yerel biçimdedir. Bu sözleşme henüz bir hücre yazma aracı sunmaz. Formül yazma ve hesaplama sonraki fazlardır.
+A create_workbook input:
 
-Kaynaklar native sınırlı okuma üzerinden alınır; çıktı yayını ayrı native yetenekten geçer. Çok adımlı/çok dosyalı iş grupları Faz 4'te genişletilecektir. Uygulama ve doğrulama kapsamı [Faz 0 belgesinde](docs/00-write-foundation.md) kayıtlıdır.
+```json
+{
+  "sheets": [
+    {
+      "name": "Expenses",
+      "blocks": [
+        {
+          "startCell": "A1",
+          "values": [
+            [
+              { "kind": "text", "value": "Item" },
+              { "kind": "text", "value": "Amount" }
+            ],
+            [
+              { "kind": "text", "value": "00123" },
+              { "kind": "number", "value": 12.25 }
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+The result carries kind: complete, version: { filePath, versionId }, source and sizeBytes. Create/edit results also carry changes: { sheetsAdded, blocksWritten, cellsWritten }. They never echo all cells. For edit_workbook, pass the returned version as source, then a changes array, for example:
+
+```json
+{
+  "source": { "filePath": "out/<sha256>.xlsx", "versionId": "<sha256>" },
+  "changes": [
+    { "kind": "add_sheet", "name": "Income" },
+    {
+      "kind": "write_cells",
+      "sheetName": "Expenses",
+      "startCell": "B2",
+      "overwrite": true,
+      "values": [[{ "kind": "number", "value": 20 }]]
+    },
+    {
+      "kind": "write_cells",
+      "sheetName": "Expenses",
+      "startCell": "A3",
+      "values": [
+        [
+          { "kind": "text", "value": "Next" },
+          { "kind": "number", "value": 30 }
+        ]
+      ]
+    }
+  ]
+}
+```
+
+Every operation in that request must succeed before a version is published. Without overwrite: true, populated target cells, including empty text, cause failure. blank explicitly clears a cell when replacement is authorized; it is distinct from text with an empty value. Duplicate sheet names are rejected. Appending writes to an explicit start cell; it does not insert rows or move totals. Retry an identical edit against the same source version for the same output. There is no implicit latest-version lookup.
+
+Cell kinds are text, number, boolean, blank, date and datetime. Text stays literal, including leading zeroes and formula-looking strings. Numbers that would lose Excel precision, unsafe integers, non-finite values and unsupported magnitudes are rejected; choose text explicitly for long identifiers. Dates span 1900-01-01 through 9999-12-31. Datetimes are local wall-clock values with seconds and optional millisecond precision, without a timezone. ISO date cells require Office 2010 or later. Formulas, user-controlled formatting and recalculation are outside this phase.
+
+Initial limits are 1,000,000 touched cells per request, 1,000,000 stored cells per workbook, 64 sheets, 128 blocks/changes, 32 MiB stored text and 64 MiB serialized input. The existing 50 MiB file ceiling and OOXML package budgets also apply. Writing uses the separate native output capability and source reads retain their existing native sandbox. Details and verification evidence: [Phase 1](docs/01-create-and-populate.md), [execution plan](docs/01-create-and-populate-plan.md), [Phase 0](docs/00-write-foundation.md).
