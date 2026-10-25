@@ -15,7 +15,8 @@ choice, independent of MCP transport authentication. The input schema MUST descr
 object. The first Nest implementation accepts Standard Schema validators that also implement
 Standard JSON Schema conversion to draft 2020-12. A declared output validator MUST run before
 success is published. The published output schema describes the success envelope containing
-`body`, rather than the body alone.
+`body`, rather than the body alone. Local output-schema references MUST remain resolvable from
+that envelope's root; the Nest SDK places the body's root `$defs` on the envelope.
 
 A provider binding MUST NOT register a route, fabricate an HTTP method/path, or pass through an
 HTTP adapter. Provider and HTTP tool names occupy one namespace. A collision MUST fail catalog
@@ -47,24 +48,32 @@ tools; hosts MUST express the required access checks in the tool policy and busi
 
 The deadline covers access, input validation, handler work and output validation. A cancelled or
 expired invocation MUST NOT enter a handler that has not started. Cancellation propagates to the
-handler's signal. A deadline bounds the awaited asynchronous work; it does not preempt synchronous
-JavaScript, undo side effects, or provide process isolation. The invocation retains the existing
-meta-tool admission/rate limits. In the Nest limiter context, HTTP `target` remains unchanged;
-`providerTarget` identifies a provider tool without HTTP fields. Global invoke timeout and byte
-limits apply to providers; the existing HTTP-specific per-target override hooks do not run for them.
+handler's signal. If an abandoned handler later settles, the SDK MUST NOT start output validation;
+an output validator settling after abandonment MUST NOT publish a success. A deadline bounds the
+awaited asynchronous work; it does not preempt synchronous JavaScript, undo side effects, or provide
+process isolation. The invocation retains the existing meta-tool admission/rate limits. In the Nest
+limiter context, HTTP `target` remains unchanged; `providerTarget` identifies a provider tool without
+HTTP fields. Global invoke timeout and byte limits apply to providers; the existing HTTP-specific
+per-target override hooks do not run for them.
 
 ## Results and errors
 
 `schemas/provider-result.schema.json` defines provider success and stored-result envelopes.
 Success is `{ "body": <JSON value> }`, with no HTTP status, content type or location. Results MUST
 contain finite numbers and JSON-compatible values; cycles, `undefined`, bigint and class instances
-are rejected. A declared output schema validates the returned body before delivery. The shared
-UTF-8 response budget, narrowing guidance, result store and `read_result` selection apply. A result
-over the buffered-result ceiling is refused rather than stored. For provider results this ceiling
-is checked after materialization/serialization; it cannot limit allocations inside host code.
-Stored provider envelopes omit HTTP metadata; stored HTTP envelopes remain unchanged. Result
-partitions MUST identify callers through the configured identity carriers or scope resolver when
-using identity-dependent results.
+are rejected. A declared output schema validates the returned body before delivery. The Nest SDK
+then captures a detached JSON data snapshot for budgeting, storage and delivery. Accessors, symbol
+keys, non-enumerable fields, sparse arrays and arrays with extra properties or custom prototypes
+are rejected rather than executed or silently discarded; the built-in array `length` is exempt.
+Plain objects with a null prototype and repeated non-cyclic references are accepted. Mutating the
+provider's original objects after the snapshot MUST NOT change the answer or its stored result.
+
+The shared UTF-8 response budget, narrowing guidance, result store and `read_result` selection
+apply. A result over the buffered-result ceiling is refused rather than stored. For provider
+results this ceiling is checked after materialization/serialization; it cannot limit allocations
+inside host code. Stored provider envelopes omit HTTP metadata; stored HTTP envelopes remain
+unchanged. Result partitions MUST identify callers through the configured identity carriers or
+scope resolver when using identity-dependent results.
 
 Provider failures use the existing SDK error envelope with these additive codes:
 
