@@ -59,7 +59,12 @@ describe("provider result invariants", () => {
       enumerable: true,
       get,
     });
-    const result = await invokeProvider(bind(() => value), {}, undefined, {});
+    const result = await invokeProvider(
+      bind(() => value),
+      {},
+      undefined,
+      {},
+    );
     expect(result).toMatchObject({
       isError: true,
       payload: { error: "provider_invalid_output" },
@@ -73,7 +78,12 @@ describe("provider result invariants", () => {
     const value: unknown = Object.defineProperty({ ok: true }, "toJSON", {
       value: toJSON,
     });
-    const result = await invokeProvider(bind(() => value), {}, undefined, {});
+    const result = await invokeProvider(
+      bind(() => value),
+      {},
+      undefined,
+      {},
+    );
     expect(result).toMatchObject({
       isError: true,
       payload: { error: "provider_invalid_output" },
@@ -111,7 +121,12 @@ describe("provider result invariants", () => {
   it("detaches delivered and stored data from provider state", async () => {
     const shared = { message: "original" };
     const value = { rows: [shared, shared] };
-    const result = await invokeProvider(bind(() => value), {}, undefined, {});
+    const result = await invokeProvider(
+      bind(() => value),
+      {},
+      undefined,
+      {},
+    );
     shared.message = "changed";
     value.rows.push({ message: "added" });
     const expected = {
@@ -128,7 +143,12 @@ describe("provider result invariants", () => {
       Object.create(null),
       Object.fromEntries([["__proto__", { harmless: true }]]),
     );
-    const result = await invokeProvider(bind(() => value), {}, undefined, {});
+    const result = await invokeProvider(
+      bind(() => value),
+      {},
+      undefined,
+      {},
+    );
     expect(result.isError).toBe(false);
     expect(JSON.stringify(result.payload)).toBe(
       '{"body":{"__proto__":{"harmless":true}}}',
@@ -139,7 +159,12 @@ describe("provider result invariants", () => {
   });
 
   it.each([null, true, 17, "text"])("preserves %j", async (value) => {
-    const result = await invokeProvider(bind(() => value), {}, undefined, {});
+    const result = await invokeProvider(
+      bind(() => value),
+      {},
+      undefined,
+      {},
+    );
     expect(result).toMatchObject({
       payload: { body: value },
       isError: false,
