@@ -602,6 +602,12 @@ importers:
       '@sezzlee/file-core':
         specifier: workspace:^
         version: link:../../cores/file-core
+      '@sezzlee/file-core-native':
+        specifier: workspace:^
+        version: link:../../cores/file-core-native
+      '@sezzlee/mcp-core':
+        specifier: workspace:^
+        version: link:../../cores/mcp-core
       '@sezzlee/ooxml-core':
         specifier: workspace:^
         version: link:../../cores/ooxml-core

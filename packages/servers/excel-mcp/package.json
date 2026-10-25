@@ -63,6 +63,8 @@
   "dependencies": {
     "@modelcontextprotocol/server": "^2.0.0",
     "@sezzlee/file-core": "workspace:^",
+    "@sezzlee/file-core-native": "workspace:^",
+    "@sezzlee/mcp-core": "workspace:^",
     "@sezzlee/ooxml-core": "workspace:^",
     "zod": "^4.5.4"
   },

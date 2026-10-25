@@ -174,6 +174,7 @@ bool absolute(const std::string& path) {
 struct Root {
   Handle handle;
   std::string path;
+  bool outputOnly = false;
 #ifdef _WIN32
   std::deque<std::string> shortNames;
 #endif
@@ -196,6 +197,7 @@ struct Root {
     if (length > 0 && length < spelling.size()) shortNames = parts(utf8(std::wstring(spelling.data(), length)));
 #endif
   }
+  Root(Handle value, std::string raw) : handle(std::move(value)), path(std::move(raw)), outputOnly(true) {}
   std::string relativeTarget(std::string target) const {
     target = slash(std::move(target));
 #ifdef _WIN32
@@ -527,7 +529,7 @@ struct Entry { std::string path; Info info; };
 struct Job {
   napi_env env{}; napi_async_work work{}; napi_deferred deferred{};
   std::shared_ptr<Root> root;
-  std::string operation, path, error, reason;
+  std::string operation, path, error, reason, temporary;
   int nativeError = 0;
   uint32_t budget = 0, depth = 0, ms = 0, visited = 0, unreadable = 0, offset = 0, length = 0;
   std::vector<unsigned char> bytes;
@@ -646,9 +648,99 @@ void scan(Job& job, Resolved base) {
     }
   }
 }
+bool outputName(const std::string& name) {
+  if (name.empty() || name.size() > 120 || !((name[0] >= 'a' && name[0] <= 'z') ||
+      (name[0] >= 'A' && name[0] <= 'Z') || (name[0] >= '0' && name[0] <= '9'))) return false;
+  return std::all_of(name.begin(), name.end(), [](unsigned char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-';
+  });
+}
+void publishOutput(Job& job) {
+  if (!job.root->outputOnly || !outputName(job.path) || job.temporary.size() != 32 ||
+      !std::all_of(job.temporary.begin(), job.temporary.end(), [](unsigned char c) {
+        return (c >= 'a' && c <= 'f') || (c >= '0' && c <= '9');
+      })) throw Failure("invalid_argument");
+  const auto temporary = ".pending-" + job.temporary;
+#ifdef _WIN32
+  auto name = wide(temporary);
+  UNICODE_STRING us{static_cast<USHORT>(name.size() * sizeof(wchar_t)), static_cast<USHORT>(name.size() * sizeof(wchar_t)), name.data()};
+  OBJECT_ATTRIBUTES attributes{};
+  attributes.Length = sizeof(attributes); attributes.RootDirectory = job.root->handle.value;
+  attributes.ObjectName = &us; attributes.Attributes = 0x40;
+  IO_STATUS_BLOCK status{};
+  HANDLE raw = invalid;
+  using Create = NTSTATUS(NTAPI*)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, PIO_STATUS_BLOCK, PLARGE_INTEGER, ULONG, ULONG, ULONG, ULONG, PVOID, ULONG);
+  auto create = reinterpret_cast<Create>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtCreateFile"));
+  if (!create) throw Failure("unsupported_platform");
+  const auto created = create(&raw, FILE_WRITE_DATA | FILE_READ_ATTRIBUTES | DELETE | SYNCHRONIZE,
+    &attributes, &status, nullptr, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, 2,
+    0x00200000 | 0x00000020 | 0x00000040, nullptr, 0);
+  if (created < 0) throw Failure("internal_error", static_cast<int>(created));
+  Handle file(raw);
+  bool published = false;
+  try {
+    size_t done = 0;
+    while (done < job.bytes.size()) {
+      DWORD written = 0;
+      const auto amount = static_cast<DWORD>(std::min<size_t>(65536, job.bytes.size() - done));
+      if (!WriteFile(file.value, job.bytes.data() + done, amount, &written, nullptr) || written == 0) osFailure();
+      done += written;
+    }
+    if (!FlushFileBuffers(file.value)) osFailure();
+    auto finalName = wide(job.path);
+    std::vector<unsigned char> storage(sizeof(FILE_RENAME_INFO) + finalName.size() * sizeof(wchar_t));
+    auto* rename = reinterpret_cast<FILE_RENAME_INFO*>(storage.data());
+    rename->ReplaceIfExists = FALSE; rename->RootDirectory = job.root->handle.value;
+    rename->FileNameLength = static_cast<DWORD>(finalName.size() * sizeof(wchar_t));
+    std::memcpy(rename->FileName, finalName.data(), rename->FileNameLength);
+    if (!SetFileInformationByHandle(file.value, FileRenameInfo, rename, static_cast<DWORD>(storage.size()))) {
+      const auto error = GetLastError();
+      if (error == ERROR_ALREADY_EXISTS || error == ERROR_FILE_EXISTS) throw Failure("output_exists");
+      throw Failure("internal_error", static_cast<int>(error));
+    }
+    published = true;
+  } catch (...) {
+    if (!published) { FILE_DISPOSITION_INFO dispose{TRUE}; SetFileInformationByHandle(file.value, FileDispositionInfo, &dispose, sizeof(dispose)); }
+    throw;
+  }
+#else
+  Handle file(openat(job.root->handle.value, temporary.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600));
+  if (file.value == invalid) osFailure();
+  try {
+    size_t done = 0;
+    while (done < job.bytes.size()) {
+      const auto amount = std::min<size_t>(65536, job.bytes.size() - done);
+      const auto written = write(file.value, job.bytes.data() + done, amount);
+      if (written < 0) { if (errno == EINTR) continue; osFailure(); }
+      if (written == 0) throw Failure("internal_error");
+      done += static_cast<size_t>(written);
+    }
+    if (fsync(file.value) != 0) osFailure();
+    const auto written = infoOf(file.value);
+    struct stat staged;
+    if (fstatat(job.root->handle.value, temporary.c_str(), &staged, AT_SYMLINK_NOFOLLOW) != 0 ||
+        !S_ISREG(staged.st_mode) || static_cast<uint64_t>(staged.st_dev) != written.device ||
+        static_cast<uint64_t>(staged.st_ino) != written.identity) throw Failure("file_changed");
+    if (linkat(job.root->handle.value, temporary.c_str(), job.root->handle.value, job.path.c_str(), 0) != 0) {
+      if (errno == EEXIST) throw Failure("output_exists");
+      osFailure();
+    }
+    struct stat published;
+    if (fstatat(job.root->handle.value, job.path.c_str(), &published, AT_SYMLINK_NOFOLLOW) != 0 ||
+        !S_ISREG(published.st_mode) || static_cast<uint64_t>(published.st_dev) != written.device ||
+        static_cast<uint64_t>(published.st_ino) != written.identity) throw Failure("file_changed");
+  } catch (...) {
+    unlinkat(job.root->handle.value, temporary.c_str(), 0);
+    throw;
+  }
+  unlinkat(job.root->handle.value, temporary.c_str(), 0);
+#endif
+}
 void execute(napi_env, void* data) {
   auto& job = *static_cast<Job*>(data);
   try {
+    if (job.operation == "publish") { publishOutput(job); return; }
+    if (job.root->outputOnly) throw Failure("invalid_argument");
     auto opened = resolve(*job.root, job.path);
     if (job.operation == "read") readSnapshot(job, opened.handle.value);
     else if (job.operation == "readRange") readWindow(job, opened.handle.value);
@@ -700,7 +792,7 @@ void complete(napi_env env, napi_status status, void* data) {
   }
   else {
     napi_value result;
-    if (job->operation == "resolve") result = string(env, job->path);
+    if (job->operation == "resolve" || job->operation == "publish") result = string(env, job->path);
     else {
       napi_create_object(env, &result);
       if (job->operation == "read" || job->operation == "readRange") {
@@ -768,10 +860,56 @@ napi_value run(napi_env env, napi_callback_info info) {
   catch (...) { napi_throw(env, errorValue(env, "internal_error")); }
   return nullptr;
 }
+napi_value openOutputRoot(napi_env env, napi_callback_info info) {
+  try {
+    size_t argc = 2; napi_value argv[2]; napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+    if (argc != 2) throw Failure("invalid_argument");
+    void* pointer;
+    if (napi_get_value_external(env, argv[0], &pointer) != napi_ok || !pointer) throw Failure("invalid_argument");
+    const auto root = *static_cast<std::shared_ptr<Root>*>(pointer);
+    if (root->outputOnly) throw Failure("invalid_argument");
+    const auto path = argument(env, argv[1]);
+    if (path.empty() || absolute(path)) throw Failure("invalid_argument");
+    auto opened = resolve(*root, path);
+    if (!infoOf(opened.handle.value).directory) throw Failure("not_a_file");
+    auto output = std::make_shared<Root>(std::move(opened.handle), root->path + "/" + opened.path);
+    auto owned = std::make_unique<std::shared_ptr<Root>>(std::move(output));
+    napi_value out;
+    napi_create_external(env, owned.get(), [](napi_env, void* data, void*) { delete static_cast<std::shared_ptr<Root>*>(data); }, nullptr, &out);
+    owned.release(); return out;
+  } catch (const Failure& error) { napi_throw(env, errorValue(env, error.code)); }
+  catch (...) { napi_throw(env, errorValue(env, "internal_error")); }
+  return nullptr;
+}
+napi_value publish(napi_env env, napi_callback_info info) {
+  try {
+    size_t argc = 5; napi_value argv[5]; napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+    if (argc != 5) throw Failure("invalid_argument");
+    void* root; void* bytes; size_t length;
+    bool buffer = false;
+    if (napi_get_value_external(env, argv[0], &root) != napi_ok || !root ||
+        napi_is_buffer(env, argv[3], &buffer) != napi_ok || !buffer ||
+        napi_get_buffer_info(env, argv[3], &bytes, &length) != napi_ok) throw Failure("invalid_argument");
+    auto job = std::make_unique<Job>();
+    job->env = env; job->root = *static_cast<std::shared_ptr<Root>*>(root);
+    if (!job->root->outputOnly || napi_get_value_uint32(env, argv[4], &job->budget) != napi_ok ||
+        job->budget > maxBudgetBytes) throw Failure("invalid_argument");
+    if (length > job->budget) throw Failure("file_too_large");
+    job->operation = "publish"; job->path = argument(env, argv[1]); job->temporary = argument(env, argv[2]);
+    if (length != 0) job->bytes.assign(static_cast<unsigned char*>(bytes), static_cast<unsigned char*>(bytes) + length);
+    napi_value promise; napi_create_promise(env, &job->deferred, &promise);
+    napi_create_async_work(env, nullptr, string(env, "secure-output"), execute, complete, job.get(), &job->work);
+    napi_queue_async_work(env, job->work); job.release(); return promise;
+  } catch (const Failure& error) { napi_throw(env, errorValue(env, error.code)); }
+  catch (...) { napi_throw(env, errorValue(env, "internal_error")); }
+  return nullptr;
+}
 napi_value init(napi_env env, napi_value exports) {
   napi_value fn;
   napi_create_function(env, "openRoot", NAPI_AUTO_LENGTH, openRoot, nullptr, &fn); prop(env, exports, "openRoot", fn);
   napi_create_function(env, "run", NAPI_AUTO_LENGTH, run, nullptr, &fn); prop(env, exports, "run", fn);
+  napi_create_function(env, "openOutputRoot", NAPI_AUTO_LENGTH, openOutputRoot, nullptr, &fn); prop(env, exports, "openOutputRoot", fn);
+  napi_create_function(env, "publish", NAPI_AUTO_LENGTH, publish, nullptr, &fn); prop(env, exports, "publish", fn);
   return exports;
 }
 }  // namespace secure

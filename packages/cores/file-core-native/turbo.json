@@ -13,6 +13,8 @@
       ],
       "outputs": ["prebuilds/**"]
     },
-    "test": { "dependsOn": ["build"] }
+    "test": { "dependsOn": ["build"] },
+    "test:output": { "dependsOn": ["build"] },
+    "test:security": { "dependsOn": ["build"] }
   }
 }

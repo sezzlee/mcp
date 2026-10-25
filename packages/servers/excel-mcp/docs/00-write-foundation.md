@@ -1,6 +1,6 @@
 # Faz 0: mevcut altyapı üzerinde yazma sözleşmesi
 
-Durum: mevcut kod envanteri ve K1-01–K1-09 kararları üzerine kurulu Faz 0 uygulama planı. Kabul senaryoları kodlamanın hedefidir; uygulama sonucu olarak sunulmaz.
+Durum: Faz 0'ın yazma modu, açık tür ve kaynak/sürüm/çıktı temeli uygulandı. Yerel doğrulama macOS arm64 üzerinde yapıldı. Yeni çalışma kitabı ve hücre yazma Faz 1; çok dosyalı iş grupları Faz 4 kapsamındadır. Diğer platformlarda native derleme ve çalışma doğrulaması bu oturumda yapılmadı.
 
 [Ana plan](README.md) ve [repo karşılaştırması](research/repository-comparison.md) bu belgenin bağlamıdır.
 
@@ -116,7 +116,7 @@ Kaynaklar: [Excel sınırları](../src/platform/limits.ts), [OOXML sınırları]
 4. Mevcut ZIP temelini kullanarak Faz 1'in çalışma kitabı üretimini hazırlamak; Excel'e özgü üretimi kendi katmanında tutmak.
 5. Bağımsız kabul örnekleri ve ölçülebilir bütçelerle bu temeli doğrulamak.
 
-Bu iş paketleri Faz 0 uygulamasının kapsamıdır. Excel parçalarını sıfırdan üretme ve hücrelere veri yazma Faz 1 kapsamındadır.
+Bu temel uygulandı. Excel parçalarını sıfırdan üretme ve hücrelere veri yazma bu fazın tamamlanmış yeteneği olarak sunulmaz.
 
 ## Bağımlılıklar ve sınırlar
 
@@ -139,11 +139,54 @@ Bu iş paketleri Faz 0 uygulamasının kapsamıdır. Excel parçalarını sıfı
 - Üretilen .xlsx, mevcut paket sınırları içinde yeniden açılır; bağımsız paket/içerik kontrolüyle de doğrulanır.
 - Kaynak ve çıktı dosya yetkileri ile yanıt bütçeleri gerçek işlem sırasında uygulanır.
 
-Bu senaryolar Faz 0 için hedeflenen kabul ölçütleridir. Literal değerlerin gerçek Excel hücresine yazılması Faz 1'de; bağlı/bağımsız çok adımlı iş örneklerinin yürütülmesi Faz 4'te doğrulanacaktır.
+Varsayılan mod, açık tür doğrulaması, sürüm hazırlama/tekrar kullanma, kaynak değişikliği ve geçersiz girdi kontrolleri hedefli testlerle doğrulandı. Literal değerlerin gerçek Excel hücresine yazılması Faz 1'de; bağlı/bağımsız çok adımlı iş örneklerinin yürütülmesi Faz 4'te doğrulanacaktır.
+
+## Görüşmede netleşenler ve kalanlar
+
+| Başlık                                                                      | Durum                                                                                                                                                            |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mevcut temelin ve gerçek boşlukların envanteri                              | Kod üzerinden doğrulandı.                                                                                                                                        |
+| Kaynağı koruyup yeni çıktı sürümü üretme                                    | Kullanıcı kararı kesin.                                                                                                                                          |
+| Aynı paket, ayrıca etkinleştirilen yazma modu                               | Kullanıcı kararı kesin.                                                                                                                                          |
+| Formül yazma ve hesaplamanın ayrı faz olması                                | Kullanıcı kararı kesin.                                                                                                                                          |
+| Mevcut ZIP/OOXML temeli üzerine kendi yazma katmanımızla başlama            | Yeni harici motor eklenmedi. Kaynak doğrulama ve çıktı temeli mevcut altyapıyla uygulandı; XML üretimi Faz 1.                                                    |
+| Agent'ın açık hücre türü bildirmesi; yazıcının örtük tür dönüşümü yapmaması | Kullanıcı kararı kesin.                                                                                                                                          |
+| Bağlı işte bütünlük; bağımsız işte açıkça belirtilen kısmi başarı           | Kullanıcı kararı kesin; gruplama ve bildirim ayrıntıları tamamlanacak.                                                                                           |
+| Desteklenen türler                                                          | Katı `kind` ayrımıyla text, number, boolean, blank, date ve yerel datetime sözleşmesi uygulandı; hücre yazma Faz 1.                                              |
+| Çıktı erişimi, sürüm ve yeniden denemenin uygulama sözleşmesi               | Ayrı native çıktı yeteneği ve SHA-256 içerik sürümü uygulandı; aynı içerik tekrar kullanılır. Genel değişiklik işlerinin yeniden denemesi Faz 4'te genişletilir. |
+| Bütçeler ve uygulama doğrulaması                                            | Çıktı mevcut maxFileBytes ve paket sınırlarıyla bağlıdır; metin sözleşmesi 32.767 UTF-16 kod birimiyle sınırlıdır. Genel hücre yazma ölçeği Faz 1'de ölçülecek.  |
+
+## Uygulanan temel
+
+- `--write out` varsayılan okuma kataloğuna `create_workbook_version` aracını ekler. Kaynak .xlsx doğrulanır; hücre veya sayfa değiştirilmez.
+- Kaynak ve önceki sürümler korunur. Sürüm kimliği dosya baytlarının SHA-256 özetidir; çıktı adı sunucu tarafından seçilir. Aynı içerik aynı çıktıyı kullanır. Bu, genel bir işlem kimliği veya bütün gelecek mutasyonlar için yeniden deneme garantisi değildir.
+- `expectedVersion` verilirse kaynak özeti eşleşmediğinde yayımlama yapılmaz. Yanıt küçük bir sürüm makbuzudur; hücreler tekrar döndürülmez.
+- `NativeRoot` okuma yüzeyi değişmez. Ayrı `openOutputRoot` yeteneği sabitlenmiş kökün altındaki çıktı dizinine yalnızca yeni girdi yayımlar; var olan hedefin üzerine yazmaz.
+- Çıktı önce geçici dosyada tamamlanır. POSIX üzerinde no-replace hard-link yayını, Windows üzerinde handle üzerinden replace-disabled rename yolu kullanılır. Windows/Linux çalışma doğrulaması bu oturumda yapılmadı.
+- Girdi baytları native asenkron işe geçmeden kopyalanır. Yayımdan sonra içerik özeti tekrar kontrol edilir; aynı adı farklı içerik işgal ediyorsa bu dosya değiştirilmez.
+- `writeCellSchema` kullanıcıdan değil agent'tan açık tür alır. Metin, boş metin ve blank ayrıdır; bozuk Unicode reddedilir. Tarih ISO takvim tarihidir; datetime saat dilimi olmayan, saniye ve isteğe bağlı 1–3 basamak kesir içeren yerel biçimdir. Formül türü bu fazda kabul edilmez.
+- K1-09'un çok dosyalı/çok adımlı gruplama yürütücüsü bu fazda eklenmedi. Bu fazın yayımlama sınırı tek bir tamamlanmış çıktı dosyasıdır.
+
+## Uygulama sınırları ve doğrulama devri
+
+- Sunucu başına aynı anda bir sürüm hazırlama işi kabul edilir. İkinci çağrı kaynak baytları yüklenmeden `resource_limit` alır; ilk iş tamamlandıktan sonra güvenle yeniden denenebilir. Bu başlangıç bellek sınırıdır; bağımsız işlerin paralellik ölçeği Faz 4'te ölçümle genişletilebilir.
+- Çıktı dosyası mevcut dosya bayt sınırına tabidir; bu oturumda büyük veri yazma kapasitesi ölçülmedi. Hücre yazma henüz uygulanmadığı için sözleşmedeki türlerin gerçek Excel hücresine kodlanması doğrulanmış sayılmaz.
+- `isWellFormed()` yerine mevcut TypeScript hedefinde Unicode regex kontrolü kullanılır; geçerli emoji kabulü ve yalnız surrogate reddi ayrı örneklerle doğrulanır. Proje `lib` hedefi değiştirilmedi.
+- Doğrulama komutları: `pnpm turbo run build check-types lint --filter=@sezzlee/excel-mcp --env-mode=loose`; `pnpm turbo run test --filter=@sezzlee/excel-mcp --env-mode=loose -- test/write-foundation.spec.ts test/tools.spec.ts test/tool-schema.spec.ts`; `pnpm turbo run test:output --filter=@sezzlee/file-core-native --env-mode=loose`; `pnpm turbo run test:security --filter=@sezzlee/file-core-native --env-mode=loose`.
+- Güvenlik dosyasındaki watchdog Unix soketi açtığı için sandbox dışında çalıştırıldı. Yeni çıktı testleri, kökün adının değiştirilmesi/symlink yapılması, hedefin önceden var olması, eşzamanlı yayımlama, girdi baytlarının değişmesi ve boyut aşımını kapsar.
+- Native çalışma doğrulaması macOS arm64 ile sınırlıdır; Linux, Windows ve macOS x64 bu oturumda çalıştırılmadı.
+
+## Son doğrulama sonucu
+
+- Derleme, TypeScript kontrolü ve lint geçti. Gerçek derlenmiş CLI/stdio akışı dahil 62 hedefli Excel testi, dört yeni native çıktı testi ve beş mevcut native güvenlik testi geçti. Watchdog 800 yarış koşulu okumasında sıfır kök dışı gizli okuma bildirdi.
+- Değişen kaynaklar için Prettier ve `git diff --check` geçti.
+- Repo-genel `pnpm boundaries`, `apps/docs/scripts/gen-reference.mjs` dosyasının `prettier` importunu kendi paketinde bağımlılık olarak bildirmemesi nedeniyle başarısız. Aynı import ve eksik bağımlılık HEAD üzerinde de mevcut; Faz 0 değişikliği değil. İlgisiz paket bağımlılığı bu çalışmada değiştirilmedi.
+- Kaynak kodu farkı: +619 / -13 satır. Test ve test desteği farkı: +518 / -0 satır. Belge, yapılandırma ve kilit dosyası değişiklikleri bu sayılara dahil değil.
+- Bütün monorepo testleri çalıştırılmadı. Native platform doğrulaması macOS arm64 ile sınırlı.
 
 ## Açık kararlar
 
-A-03'ün aynı paket/ayrı mod kaydı ve güvenli çıktı yetkisi bu fazda uygulanacak. A-01'in hücre kodlama ayrıntıları ve A-04'ün genel yazma ölçeği Faz 1'de; A-02 ve A-11'in genel değişiklik işi/geri alma ayrıntıları sonraki fazlarda genişletilecek. K1-09'un iş bütünlüğü ilkesi kesindir; iş gruplama ve sonuç ayrıntıları bu fazda tanımlanıp Faz 4'te genişletilir. Faz 6'nın hesaplama yaklaşımı bu fazda seçilmez.
+A-03'ün aynı paket/ayrı mod kaydı ve güvenli çıktı yetkisi bu fazda uygulandı. A-01'in hücre kodlama ayrıntıları ve A-04'ün genel yazma ölçeği Faz 1'de; A-02 ve A-11'in genel değişiklik işi/geri alma ayrıntıları sonraki fazlarda genişletilecek. K1-09'un iş bütünlüğü ilkesi kesindir; iş gruplama ve sonuç ayrıntıları bu fazda tanımlanıp Faz 4'te genişletilir. Faz 6'nın hesaplama yaklaşımı bu fazda seçilmez.
 
 ## Çıkış ölçütü
 

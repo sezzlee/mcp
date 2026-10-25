@@ -1,6 +1,6 @@
 # Excel oluşturma ve düzenleme: araştırmaya dayalı faz planı
 
-Durum: ihtiyaç ve geliştirme planı. K1-01–K1-09 kararları kayıtlıdır. Fazların kapsamı, bağımlılıkları ve kabul ölçütleri uygulamayı yönlendirmek için tanımlanmıştır.
+Durum: ihtiyaç ve geliştirme planı. K1-01–K1-09 kararları kayıtlıdır. Faz 0'ın yazma modu, açık tür ve güvenli çıktı/sürüm temeli uygulandı; kapsam ve yerel doğrulama sınırları Faz 0 belgesindedir. Faz 1 ve sonrası henüz uygulanmadı.
 
 ## Hedef ve dayanak
 
@@ -127,6 +127,6 @@ Kullanıcının yanıtladığı kaynak koruma, ayrı hesaplama, aynı pakette ay
 
 ## Kodlamaya başlangıç
 
-İlk adım [Faz 0](00-write-foundation.md): mevcut altyapı envanteri üzerinde kapsam kararlarını değer, işlem ve çıktı sözleşmesine dönüştürmek. Envanter ve paket/mod kararı, açık tür ve tek çıktı için güvenli sürüm hazırlama sözleşmesine dönüştürülecek. İlk kullanıcıya görünür çalışan sonuç [Faz 1](01-create-and-populate.md) olacaktır.
+İlk adım [Faz 0](00-write-foundation.md): mevcut altyapı envanteri üzerinde kapsam kararlarını değer, işlem ve çıktı sözleşmesine dönüştürmek. Envanter, paket/mod kararı, açık tür sözleşmesi ve tek çıktı için güvenli sürüm hazırlama temeli uygulandı. İlk kullanıcıya görünür çalışan sonuç [Faz 1](01-create-and-populate.md) olacaktır.
 
-Bütün fazlar planlanmıştır. Kodlarken yalnızca ilgili fazın uygulama kararları netleştirilir; uzman fazlarının bütün ayrıntılarını ilk teslimden önce çözme zorunluluğu yoktur. Kodlamaya Faz 0 temelinden başlanacak; ardından Faz 1'in çalışma kitabı ve hücre üretimine geçilecek.
+Bütün fazlar planlanmıştır. Kodlarken yalnızca ilgili fazın uygulama kararları netleştirilir; uzman fazlarının bütün ayrıntılarını ilk teslimden önce çözme zorunluluğu yoktur. Faz 0 uygulaması eklendi. Sonraki geliştirme hedefi Faz 1'in çalışma kitabı ve hücre üretimidir.

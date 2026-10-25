@@ -39,7 +39,9 @@
   "scripts": {
     "build": "node build.mjs",
     "check-types": "node --check index.js",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "test:output": "node --test test/output.test.mjs",
+    "test:security": "node --test test/security.test.mjs"
   },
   "publishConfig": {
     "access": "public"

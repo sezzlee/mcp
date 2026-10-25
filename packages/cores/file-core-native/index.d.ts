@@ -44,3 +44,11 @@ export interface NativeRoot {
   ): Promise<NativeScan>;
 }
 export function openRoot(path: string): NativeRoot;
+
+export interface NativeOutputRoot {
+  publish(name: string, content: Buffer, maxBytes: number): Promise<string>;
+}
+export function openOutputRoot(
+  root: NativeRoot,
+  directory: string,
+): NativeOutputRoot;

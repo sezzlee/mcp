@@ -165,3 +165,22 @@ export { createHandlers } from "./tools/handlers.js";
 export { createExcelMcpServer } from "./server.js";
 export { metadataLimitations } from "./metadata/support.js";
 export type { MetadataLimitation } from "./metadata/support.js";
+export { parseExcelArgv } from "./platform/argv.js";
+export type { ExcelArgv } from "./platform/argv.js";
+export { writeCellSchema } from "./authoring/values.js";
+export type { WriteCell } from "./authoring/values.js";
+export {
+  createWorkbookOutput,
+  workbookVersionIdSchema,
+  workbookVersionSchema,
+  versionReceiptSchema,
+} from "./platform/versions.js";
+export type {
+  WorkbookOutput,
+  WorkbookOrigin,
+  WorkbookVersion,
+  WorkbookVersionId,
+  VersionReceipt,
+} from "./platform/versions.js";
+export type { ExcelMcpServerOptions } from "./server.js";
+export { writingToolDefinitions } from "./tools/writing.js";

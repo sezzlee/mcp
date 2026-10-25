@@ -5,6 +5,12 @@ import type { WorkbookRoot } from "./platform/paths.js";
 import { toolDefinitions } from "./tools/definitions.js";
 import { createHandlers } from "./tools/handlers.js";
 import { closeRegexWorkers } from "./platform/regex.js";
+import { createMcpOutputServer } from "./platform/writing.js";
+import type { WorkbookOutput } from "./platform/versions.js";
+import {
+  createWritingHandlers,
+  writingToolDefinitions,
+} from "./tools/writing.js";
 
 /**
  * Guard: the specifier is relative to the package root. This file stays at the
@@ -16,12 +22,24 @@ const manifest = createRequire(import.meta.url)("../package.json") as {
   version: string;
 };
 
-export function createExcelMcpServer(root: WorkbookRoot): McpServer {
-  const server = createFileSourceServer(
-    { name: "sezzlee-excel", version: manifest.version },
-    toolDefinitions,
-    createHandlers(root),
-  );
+export type ExcelMcpServerOptions =
+  | { readonly mode: "read" }
+  | { readonly mode: "write"; readonly output: WorkbookOutput };
+
+export function createExcelMcpServer(
+  root: WorkbookRoot,
+  options: ExcelMcpServerOptions = { mode: "read" },
+): McpServer {
+  const identity = { name: "sezzlee-excel", version: manifest.version };
+  const handlers = createHandlers(root);
+  const server =
+    options.mode === "read"
+      ? createFileSourceServer(identity, toolDefinitions, handlers)
+      : createMcpOutputServer(
+          identity,
+          { ...toolDefinitions, ...writingToolDefinitions },
+          { ...handlers, ...createWritingHandlers(root, options.output) },
+        );
   const close = server.close.bind(server);
   server.close = async () => {
     await closeRegexWorkers();

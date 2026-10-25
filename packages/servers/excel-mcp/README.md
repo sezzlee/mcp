@@ -1,6 +1,6 @@
 # @sezzlee/excel-mcp
 
-A standalone MCP server that **reads** local Excel files for an agent. There is no write path.
+Varsayılan olarak yerel Excel dosyalarını **yalnızca okuyan** bağımsız MCP sunucusu. Ayrıca etkinleştirilen yazma modu, kaynak dosyayı değiştirmeden çıktı sürümü hazırlayabilir.
 
 Reads `.xlsx`, `.xlsm` and `.csv`, sandboxed to one folder. Sandboxing, the document cache, the error envelope, the cursor codec and the tool registration layer come from [@sezzlee/file-core](../../cores/file-core).
 
@@ -351,3 +351,19 @@ pnpm turbo run check-types --filter=@sezzlee/excel-mcp
 Run tests through Turbo, not `pnpm --filter @sezzlee/excel-mcp test`: the bare filter skips `dependsOn: ["^build"]`, and this package resolves `@sezzlee/file-core` through `exports.default → ./dist/index.js`, so a bare filter can test against a stale `dist`.
 
 A change to a tool's arguments, an error code or a limit changes the generated reference in `apps/docs`; run `pnpm --filter @sezzlee/docs gen` and commit the result, or `pnpm turbo run validate --filter=@sezzlee/docs` fails.
+
+## İsteğe bağlı yazma modu
+
+Faz 0 yazma temeli aynı pakette ayrıca etkinleştirilir. Çıktı dizini önceden oluşturulmuş olmalı ve çalışma kitabı kökünün altında bulunmalıdır:
+
+```bash
+sezzlee-excel /absolute/workbooks --write out
+```
+
+Bu mod mevcut okuma araçlarına `create_workbook_version` aracını ekler. `filePath` bir `.xlsx` kaynağıdır; isteğe bağlı `expectedVersion` kaynağın beklenen SHA-256 sürümüdür. Kaynak doğrulanır ve sunucunun seçtiği SHA-256 dosya adıyla çıktı dizinine kopyalanır. Sonuç `kind`, `version`, `source` ve `sizeBytes` alanlarından oluşur. Aynı içerik için tekrar çağrı mevcut çıktı sürümünü kullanır; farklı içerikle dolu hedefin üzerine yazılmaz. Sunucu başına bir hazırlama işi çalışır; eşzamanlı ikinci istek `resource_limit` alır ve sonra yeniden denenebilir. Kaynak ve önceki sürümler korunur.
+
+`create_workbook_version` mevcut bir dosyadan sürüm hazırlar; sıfırdan çalışma kitabı oluşturmaz veya hücre değiştirmez. Bunlar Faz 1 kapsamındadır. Varsayılan başlatma biçimi ve salt okunur araç kataloğu değişmez.
+
+`writeCellSchema` açık tür sözleşmesidir: `text`, `number`, `boolean`, `blank`, `date`, `datetime`. Metin kendiliğinden tarihe veya formüle dönüşmez. Tarih `YYYY-MM-DD`; tarih-saat, saat dilimi olmadan saniye ve isteğe bağlı 1–3 basamak kesir içeren yerel biçimdedir. Bu sözleşme henüz bir hücre yazma aracı sunmaz. Formül yazma ve hesaplama sonraki fazlardır.
+
+Kaynaklar native sınırlı okuma üzerinden alınır; çıktı yayını ayrı native yetenekten geçer. Çok adımlı/çok dosyalı iş grupları Faz 4'te genişletilecektir. Uygulama ve doğrulama kapsamı [Faz 0 belgesinde](docs/00-write-foundation.md) kayıtlıdır.
