@@ -217,3 +217,17 @@ python3 packages/lab/excel-lab/scripts/verify-written-workbook.py /tmp/excel-wri
 ```
 
 Use --dataset sequence for numeric runs. The generic --expected input accepts an independently authored JSON object containing sheets: [{ name, cells: { A1: { kind, value } } }]; blank entries are expected to be omitted. Oracle success is distinct from the benchmark's in-house MCP checks. Neither claims live Excel execution, recalculation or an Open XML XSD validation.
+
+## Phase 2 transfer acceptance
+
+Build the server, then generate and transfer a million-cell source through the real MCP tools:
+
+```sh
+pnpm turbo run build --filter=@sezzlee/excel-mcp
+node packages/lab/excel-lab/src/transfer-bench.ts --out /tmp/excel-transfer-evidence --rows 50000 --columns 20 --heap-mib 1024
+python3 packages/lab/excel-lab/scripts/transfer-oracle.py /tmp/excel-transfer-evidence/transfer-REPLACE
+```
+
+Each run creates a fresh transfer-* directory outside the repository. The source CSV contains the integers 0 through 999999; the transfer descriptor explicitly reads its columns as numbers. The benchmark prepares the complete source selection without returning its cells, transfers it, applies a one-cell transfer from a separate source to the selected output version and retries that continuation. It checks source preservation and version reuse, records implementation/generator digests, call sizes and timings, and runs in one child with the selected heap limit and a 180-second watchdog. The independent standard-library Python oracle verifies every source field and every stored cell in both outputs, numeric types, exact counts and sums, file hashes, ZIP CRCs and absence of formulas. Generated source and output bytes and reports remain outside the repository.
+
+The Excel package's transfer-data.spec.ts includes small raw-OOXML/CSV acceptance cases and three optional external-corpus transfers. Set SEZZLEE_CORPUS to run those external cases; they skip explicitly when it is absent. They compare values and types with an independent SheetJS reader. The [Phase 2 plan](../../servers/excel-mcp/docs/phase-2/implementation-plan.md) records the chosen behavior, limits, execution evidence and required Phase 3 formula/formatting copying.

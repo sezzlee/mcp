@@ -1,6 +1,6 @@
 # Faz 6: sunucuda formül hesaplama
 
-Durum: kullanıcı kararıyla ayrı geliştirme fazı. Formül yazma Faz 5'tedir; [ana planda](README.md) K1-06 ile kayıtlıdır.
+Durum: kullanıcı kararıyla ayrı geliştirme fazı. Formül yazma Faz 5'tedir; [ana planda](../README.md) K1-06 ile kayıtlıdır.
 
 ## Hedef
 

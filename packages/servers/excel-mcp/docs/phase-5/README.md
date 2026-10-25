@@ -1,6 +1,6 @@
 # Faz 5: biçimlendirme, tablolar ve formüller
 
-Durum: kapsam önerisi. Oluşturma ve düzenleme temeline dayanır; ortak ihtiyaçlar [ana yol haritasındadır](README.md).
+Durum: kapsam önerisi. Oluşturma ve düzenleme temeline dayanır; ortak ihtiyaçlar [ana yol haritasındadır](../README.md).
 
 ## Hedef
 
@@ -30,12 +30,12 @@ Agent, veriyi kullanıma uygun görünümde sunabilsin ve istenen hesaplama ili�
 
 - Tarihi doğru değer olarak yazmak için Faz 5'i beklemek gerekmez; ilk tarih desteğinin veri anlamı Faz 1'de belirlenir.
 - Var olan formülü veya tabloyu korumak, Faz 3'teki düzenlemelerin gereksinimidir.
-- Kullanıcı kararıyla bu faz formül yazmaya odaklanır; Excel kurulmadan sunucuda hesaplama ayrı [Faz 6](06-formula-calculation.md) kapsamıdır.
+- Kullanıcı kararıyla bu faz formül yazmaya odaklanır; Excel kurulmadan sunucuda hesaplama ayrı [Faz 6](../phase-6/README.md) kapsamıdır.
 - Yeni formül yazabilmek, bütün Excel işlevlerini hesaplayabilmek anlamına gelmez.
 - = ile başlayan literal metin ve gerçek formül ayrı niyetlerle yazılabilmelidir.
 - Mevcut okuyucunun önbellekteki sonucu okuyabilmesi, son yazılan formülün hesaplandığını kanıtlamaz.
 - Taşınan/kopyalanan formülde hangi başvuruların değişeceği ayrı bir davranıştır.
-- Grafik, özet tablo ve koşullu biçimlendirme gibi ileri özellikler [Faz 7](07-expert-workflows.md) kapsamındadır.
+- Grafik, özet tablo ve koşullu biçimlendirme gibi ileri özellikler [Faz 7](../phase-7/README.md) kapsamındadır.
 
 ## Kabul senaryoları
 

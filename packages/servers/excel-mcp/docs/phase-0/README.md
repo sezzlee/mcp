@@ -2,7 +2,7 @@
 
 Durum: Faz 0'ın yazma modu, açık tür ve kaynak/sürüm/çıktı temeli uygulandı. Yerel doğrulama macOS arm64 üzerinde yapıldı. Yeni çalışma kitabı ve hücre yazma Faz 1; çok dosyalı iş grupları Faz 4 kapsamındadır. Diğer platformlarda native derleme ve çalışma doğrulaması bu oturumda yapılmadı.
 
-[Ana plan](README.md) ve [repo karşılaştırması](research/repository-comparison.md) bu belgenin bağlamıdır.
+[Ana plan](../README.md) ve [repo karşılaştırması](../research/repository-comparison.md) bu belgenin bağlamıdır.
 
 ## Hedef
 
@@ -36,7 +36,7 @@ Bu kararlar ana belgedeki K1-01–K1-09 ile birlikte ele alınır. Yazma modu `s
 | Yanıt bütçesi        | Ortak hata/yanıt sınırı ve strict girdi doğrulaması mevcut.                                                                                      | Bunları kopyalamak yerine yazma yüzeyinde de kullanma yönü değerlendirilebilir.                      |
 | Sunum ve veri ayrımı | Okuma sunumu uzun metni kısaltabiliyor; ham/sorgulanabilir değer ayrı tutuluyor.                                                                 | Agent'a gösterilen sonucu geri yazarak tam veri aktarımı yapılamaz; kaynak değer kullanılmalı.       |
 
-Kaynaklar: [OOXML yüzeyi](../../../cores/ooxml-core/src/reader.ts), [paket modeli](../../../cores/ooxml-core/src/model/package.ts), [ZIP bağımlılığı](../../../cores/ooxml-core/package.json), [Excel paket bilgisi](../src/metadata/spreadsheetml/package.ts), [native erişim yüzeyi](../../../cores/file-core-native/index.d.ts), [araç sözleşmeleri](../../../cores/mcp-core/src/tools.ts), [mevcut Excel sunucusu](../src/server.ts), [okuma sunumu](../src/grid/cell-value.ts).
+Kaynaklar: [OOXML yüzeyi](../../../../cores/ooxml-core/src/reader.ts), [paket modeli](../../../../cores/ooxml-core/src/model/package.ts), [ZIP bağımlılığı](../../../../cores/ooxml-core/package.json), [Excel paket bilgisi](../../src/metadata/spreadsheetml/package.ts), [native erişim yüzeyi](../../../../cores/file-core-native/index.d.ts), [araç sözleşmeleri](../../../../cores/mcp-core/src/tools.ts), [mevcut Excel sunucusu](../../src/server.ts), [okuma sunumu](../../src/grid/cell-value.ts).
 
 Kurulu ZIP bağımlılığının yazma yüzeyinin bulunması bir performans veya uyumluluk testi değildir. Sıkıştırma seçimi ve bellek sınırları uygulamada ayrıca doğrulanacak.
 
@@ -106,7 +106,7 @@ Mevcut sınırlar başlangıç kanıtıdır; doğrudan tüm yazma sınırları o
 
 Sayısal yazma limitleri henüz belirlenmedi. Önerilen doğrulama örnekleri küçük dosya, binlerce satırlık blok ve büyük dosyada sınırlı değişikliktir; bunlar ölçülmüş kapasite vaadi değildir.
 
-Kaynaklar: [Excel sınırları](../src/platform/limits.ts), [OOXML sınırları](../../../cores/ooxml-core/src/limits.ts), [ortak yanıt sınırı](../../../cores/mcp-core/src/limits.ts).
+Kaynaklar: [Excel sınırları](../../src/platform/limits.ts), [OOXML sınırları](../../../../cores/ooxml-core/src/limits.ts), [ortak yanıt sınırı](../../../../cores/mcp-core/src/limits.ts).
 
 ## Kodlama iş paketleri
 

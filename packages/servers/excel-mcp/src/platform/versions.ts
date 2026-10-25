@@ -6,6 +6,7 @@ import { z } from "zod";
 import { SezzleeExcelError, asExcelError } from "./errors.js";
 import { limits } from "./limits.js";
 import { resolveWorkbookPath, type WorkbookRoot } from "./paths.js";
+import { formats } from "./formats.js";
 
 export const workbookVersionIdSchema = z
   .string()
@@ -108,15 +109,36 @@ export async function readWorkbookSnapshot(
   filePath: string,
   expectedVersion?: WorkbookVersionId,
 ): Promise<WorkbookSnapshot> {
+  return readSnapshot(root, filePath, expectedVersion, true);
+}
+
+export async function readSourceSnapshot(
+  root: WorkbookRoot,
+  filePath: string,
+  expectedVersion?: WorkbookVersionId,
+): Promise<WorkbookSnapshot> {
+  return readSnapshot(root, filePath, expectedVersion, false);
+}
+
+async function readSnapshot(
+  root: WorkbookRoot,
+  filePath: string,
+  expectedVersion: WorkbookVersionId | undefined,
+  workbookOnly: boolean,
+): Promise<WorkbookSnapshot> {
   try {
     const path = await resolveWorkbookPath(root, filePath);
-    if (asciiLower(extname(path)) !== ".xlsx")
+    if (workbookOnly && asciiLower(extname(path)) !== ".xlsx")
       throw new SezzleeExcelError(
         "invalid_argument",
         "Version preparation currently accepts .xlsx sources only.",
       );
+    const format = formats.formatFor(path);
     const canonical = relative(root.real, path).split("\\").join("/");
-    const snapshot = await root.access.read(canonical, limits.maxFileBytes);
+    const snapshot = await root.access.read(
+      canonical,
+      format === "csv" ? limits.maxCsvBytes : limits.maxFileBytes,
+    );
     const id = versionId(snapshot.bytes);
     if (expectedVersion !== undefined && id !== expectedVersion)
       throw new SezzleeExcelError(

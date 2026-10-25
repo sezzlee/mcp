@@ -1,6 +1,6 @@
 # Faz 7: uzman seviye Excel iş akışları
 
-Durum: uzman ihtiyaçları için kapsam önerisi. İlgili önceki fazlara dayanır; ortak ilkeler [ana yol haritasındadır](README.md). Kaynağı koruyan yeni sürüm kararı geçerlidir.
+Durum: uzman ihtiyaçları için kapsam önerisi. İlgili önceki fazlara dayanır; ortak ilkeler [ana yol haritasındadır](../README.md). Kaynağı koruyan yeni sürüm kararı geçerlidir.
 
 ## Hedef
 

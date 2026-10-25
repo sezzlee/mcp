@@ -1,6 +1,6 @@
 # Phase 1: create and populate workbooks
 
-Status: implemented; final local acceptance evidence is recorded in [the implementation and verification plan](01-create-and-populate-plan.md). Builds on [Phase 0](00-write-foundation.md). The source-preservation, separate-calculation and explicit-writing-mode decisions in [the roadmap](README.md) remain binding.
+Status: implemented; final local acceptance evidence is recorded in [the implementation and verification plan](implementation-plan.md). Builds on [Phase 0](../phase-0/README.md). The source-preservation, separate-calculation and explicit-writing-mode decisions in [the roadmap](../README.md) remain binding.
 
 ## Goal and coverage
 
@@ -32,4 +32,4 @@ The requested scale target is 50,000 rows × 20 columns. The initial limits are 
 
 Acceptance covers blank/header-only and multi-sheet creation; explicitly positioned typed data; correction, new records and new sheets in one edit; preservation of source and previous versions; deterministic retry; strict rejection and atomic failure; independent ZIP/XML and spreadsheet-reader validation; a measured million-cell workload; and unchanged default reading behavior over the existing corpus.
 
-The implementation sequence, owner tests, commands, benchmark reports and inherited native-platform validation limits are in [the execution plan](01-create-and-populate-plan.md).
+The implementation sequence, owner tests, commands, benchmark reports and inherited native-platform validation limits are in [the execution plan](implementation-plan.md).

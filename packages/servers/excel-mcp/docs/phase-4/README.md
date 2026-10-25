@@ -1,6 +1,6 @@
 # Faz 4: gelişmiş toplu veri işlemleri
 
-Durum: kapsam önerisi. Faz 2 ve Faz 3'e dayanır; ortak ihtiyaçlar [ana yol haritasındadır](README.md).
+Durum: kapsam önerisi. Faz 2 ve Faz 3'e dayanır; ortak ihtiyaçlar [ana yol haritasındadır](../README.md).
 
 ## Hedef
 

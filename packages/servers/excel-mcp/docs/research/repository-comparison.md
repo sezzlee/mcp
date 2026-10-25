@@ -134,4 +134,4 @@ Haris'ten küçük sonuç, işlem sınırı, paket koruma, yapıştırma anlamla
 
 Kaynağın üzerine doğrudan kaydetmeyi, işlem sonunda bütün veriyi tekrar döndürmeyi, literal metni mecburen formüle/tarihe dönüştürmeyi ve masaüstü oturumuna örtük geçişi başlangıç davranışımız yapmamak önerilir. Kullanıcının kabul ettiği kaynak koruma kararı ayrıca bağlayıcıdır.
 
-Bu değerlendirme, mevcut okuma altyapısını bu iki projeden biriyle değiştirme önerisi değildir. Devamında yapılan [Faz 0 mevcut kod incelemesi](../00-write-foundation.md), yeni bir Excel motorunu zorunlu başlangıç olarak görmez; mevcut parçaların üzerine eklenecek yazma katmanını ve açık sözleşmeleri tanımlar.
+Bu değerlendirme, mevcut okuma altyapısını bu iki projeden biriyle değiştirme önerisi değildir. Devamında yapılan [Faz 0 mevcut kod incelemesi](../phase-0/README.md), yeni bir Excel motorunu zorunlu başlangıç olarak görmez; mevcut parçaların üzerine eklenecek yazma katmanını ve açık sözleşmeleri tanımlar.

@@ -1,6 +1,6 @@
 # Faz 2: okunan Excel verisini aktarma
 
-Durum: kapsam önerisi. Faz 1'e dayanır; açık kararlar [ana yol haritasındadır](README.md).
+Status: Phase 2 value transfer is implemented; local acceptance evidence and the A-05 decisions are recorded in the [implementation plan](implementation-plan.md). Formula and formatting copying is required in Phase 3 as F3-09.
 
 ## Hedef
 
@@ -19,11 +19,11 @@ Agent, daha önce okunan Excel'den istenen veriyi kendi cevabında yeniden üret
 | F2-07  | Kaynak ile hedefteki değerlerin anlamını, sıra ve kayıt kapsamını doğrulayabilmek.                      |
 | F2-08  | Kaynak dosyayı ve seçilen hedef sürümünü koruyup aktarılmış veriyi yeni çıktı sürümünde sunmak.         |
 
-İlk aktarım kapsamı için yalnızca değerler önerilir. Formül ve biçimin de taşınması ayrı ihtiyaçtır; değer/formül/biçim/hepsi ayrımı bütün planda görünür tutulur. Transpoz ve boş kaynak hücresinin hedefi temizleyip temizlememesi ayrıca ele alınır. Excel'de görünür metin, alttaki değer ve okuma sırasında yorumlanan değer birbirinden ayrılmalıdır.
+Phase 2 transfers values only. Formula and formatting copying is required in Phase 3; values/formulas/formatting/all modes remain explicit in that phase. Transpose is deferred. Blank source cells clear occupied targets only with explicit overwrite. Formatted display text, stored values and explicitly interpreted text remain distinct.
 
 ## Kodlama iş paketleri
 
-1. Aktarılacak kaynağın ve seçimin nasıl kesin olarak tarif edileceği ihtiyacını çözmek. Bir kaynak referansı veya teknik taşıma yöntemi seçilmiş değildir.
+1. Pin the source path, SHA-256 and normalized selection in the replayable transfer reference returned by prepare_transfer; transfer_data materializes it internally without model-generated cell data.
 2. Aralık, seçilmiş kayıt kümesi ve analiz sonucunun birbirinden farklı kapsamlarını ele almak.
 3. İstenen verinin tamamını, önizleme ve sayfalama sınırlarına takılıp eksiltmeden aktarabilmek.
 4. Kolon eşleştirme ve hedef yerleşimini Faz 1'in yazma yetenekleriyle tamamlamak.
@@ -52,4 +52,4 @@ Agent, daha önce okunan Excel'den istenen veriyi kendi cevabında yeniden üret
 
 ## Açık kararlar
 
-A-05: kaynak sürümü, örnek/tam veri ayrımı ve değer/formül/biçim taşıma kapsamı. Birden fazla kaynağın art arda eklenmesi burada basit aktarım olarak ele alınabilir; anahtarlı birleştirme Faz 4'e aittir.
+A-05 was resolved on 2026-10-25: transfer values in Phase 2, copy formulas and formatting in Phase 3, reject changed source versions, transfer all matching rows unless a subset is explicit, and require explicit overwrite for occupied targets. The full behavior and support limits are in the [implementation plan](implementation-plan.md). Sequential simple transfers are supported; keyed joins remain Phase 4.

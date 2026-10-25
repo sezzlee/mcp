@@ -1,6 +1,6 @@
 # Phase 1 implementation and verification plan
 
-Status: implemented; local and full native CI acceptance passed on 2026-10-25. The collision, precision and scale decisions below were selected by the user. This plan implements F1-01 through F1-07 in [the phase scope](01-create-and-populate.md), using the completed Phase 0 publication capability.
+Status: implemented; local and full native CI acceptance passed on 2026-10-25. The collision, precision and scale decisions below were selected by the user. This plan implements F1-01 through F1-07 in [the phase scope](README.md), using the completed Phase 0 publication capability.
 
 ## Accepted behavior
 

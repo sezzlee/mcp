@@ -1,4 +1,4 @@
-import { json } from "@sezzlee/file-core";
+import { json, readOnly } from "@sezzlee/file-core";
 import { z } from "zod";
 import {
   guardWriting,
@@ -11,6 +11,7 @@ import {
   workbookVersionSchema,
   mutationReceiptSchema,
   readWorkbookSnapshot,
+  readSourceSnapshot,
   type WorkbookOutput,
 } from "../platform/versions.js";
 import type { WorkbookRoot } from "../platform/paths.js";
@@ -26,9 +27,35 @@ import {
   editAuthoredWorkbook,
   readAuthoredWorkbook,
   serializeAuthoredWorkbook,
+  type AuthoredWorkbook,
 } from "../format/authoring.js";
+import {
+  transferSelectionSchema,
+  transferReferenceSchema,
+  transferTargetSchema,
+  transferReceiptSchema,
+} from "./transfer-schemas.js";
+import { materializeTransfer, transferChanges } from "./transfer.js";
 
 export const writingToolDefinitions = {
+  prepare_transfer: {
+    description:
+      "Prepare a complete version-pinned value selection from an .xlsx, .xlsm or CSV without returning its cells. Returns transfer {source, selection} and exact scope/counts; pass transfer unchanged to transfer_data. range preserves its rectangle; records filters complete data rows and can project/reorder selectColumns, includeHeaders or select explicit physical rows with scope {kind: rows, rows: [...]}. Default scope all includes every matching record even if a previous read showed only a preview. aggregate exports a complete grouped summary with headers. Columns are interpreted only when explicit columns specifications request it. Values only: formulas contribute saved results, never recalculated; missing formula caches and unsupported/lossy values fail. No formula/style copying. Available only in explicit writing mode. The source is unchanged.",
+    inputSchema: z.strictObject({
+      filePath: z.string().min(1).max(32_768),
+      selection: transferSelectionSchema,
+    }),
+    annotations: readOnly,
+  },
+  transfer_data: {
+    description:
+      "Transfer the complete value selection returned by prepare_transfer directly into an immutable .xlsx without regenerating cell data through the model. Pass transfer unchanged. Rejects changed source content. target new creates a workbook; add_sheet adds to an exact selected Phase 1 output; sheet writes at startCell in a selected output. Occupied cells, including empty text, require explicit overwrite true; blank cells then clear the target. Optional sheet mapping {kind: headers, headerRow} matches source headers to unique target headers, using startCell's row; column order can differ. Choose includeHeaders false when appending records under existing headers. Arbitrary external targets, formula/style copying and joins are unsupported. The entire operation succeeds or no completed output is published; identical inputs reuse the output. Returns compact provenance/counts and cached-formula status, never the dataset.",
+    inputSchema: z.strictObject({
+      transfer: transferReferenceSchema,
+      target: transferTargetSchema,
+    }),
+    annotations: ownOutput,
+  },
   create_workbook: {
     description:
       "Create a new immutable .xlsx from explicitly named sheets and rectangular value blocks at A1 start cells. Provide every cell's kind: text, number, boolean, blank, date or local datetime. Text is literal; formulas are unsupported. At least one sheet is required; omit its blocks for a blank sheet. Rejects duplicate names and overlapping populated targets. Up to 1,000,000 cells per request/workbook, 64 sheets and 128 blocks, with separate byte budgets. Returns a compact version receipt. Identical requests produce the same output version.",
@@ -92,6 +119,13 @@ export function createWritingHandlers(
         "The request exceeds its input byte budget.",
       );
   }
+  function checkSelection(input: unknown): void {
+    if (Buffer.byteLength(JSON.stringify(input)) > 64 * 1024)
+      throw new SezzleeExcelError(
+        "resource_limit",
+        "The transfer selection exceeds its 64 KiB descriptor budget.",
+      );
+  }
   async function checkpoint(signal?: AbortSignal): Promise<void> {
     await new Promise<void>((resolve) => setImmediate(resolve));
     if (signal?.aborted)
@@ -101,6 +135,94 @@ export function createWritingHandlers(
       );
   }
   return {
+    prepare_transfer: guardWriting<
+      typeof writingToolDefinitions,
+      "prepare_transfer"
+    >(root, "prepare_transfer", (args, _name, signal) =>
+      admitted(async () => {
+        checkSelection(args);
+        await checkpoint(signal);
+        const snapshot = await readSourceSnapshot(root, args.filePath);
+        const data = await materializeTransfer(snapshot, args.selection);
+        await checkpoint(signal);
+        return json({
+          kind: "ready",
+          transfer: { source: snapshot.version, selection: args.selection },
+          selection: data.summary,
+        });
+      }),
+    ),
+    transfer_data: guardWriting<typeof writingToolDefinitions, "transfer_data">(
+      root,
+      "transfer_data",
+      (args, _name, signal) =>
+        admitted(async () => {
+          checkSelection(args);
+          await checkpoint(signal);
+          const snapshot = await readSourceSnapshot(
+            root,
+            args.transfer.source.filePath,
+            args.transfer.source.versionId,
+          );
+          const data = await materializeTransfer(
+            snapshot,
+            args.transfer.selection,
+          );
+          const target = args.target;
+          const selectedTarget =
+            target.kind === "new"
+              ? undefined
+              : await readWorkbookSnapshot(
+                  root,
+                  target.source.filePath,
+                  target.source.versionId,
+                );
+          let workbook: AuthoredWorkbook;
+          let sheetsAdded = 0;
+          if (selectedTarget === undefined) {
+            const created = createAuthoredWorkbook([
+              { name: target.sheetName, blocks: [] },
+            ]);
+            workbook = created.workbook;
+            sheetsAdded = created.changes.sheetsAdded;
+          } else {
+            workbook = readAuthoredWorkbook(selectedTarget.bytes);
+          }
+          const changes = editAuthoredWorkbook(
+            workbook,
+            transferChanges(workbook, data, target),
+          );
+          changes.sheetsAdded += sheetsAdded;
+          const bytes = serializeAuthoredWorkbook(workbook);
+          await checkpoint(signal);
+          await readSourceSnapshot(
+            root,
+            snapshot.version.filePath,
+            snapshot.version.versionId,
+          );
+          if (selectedTarget !== undefined)
+            await readWorkbookSnapshot(
+              root,
+              selectedTarget.version.filePath,
+              selectedTarget.version.versionId,
+            );
+          await checkpoint(signal);
+          const receipt = await output.publish(
+            bytes,
+            selectedTarget === undefined
+              ? { kind: "new" }
+              : { kind: "source", version: selectedTarget.version },
+          );
+          return json(
+            transferReceiptSchema.parse({
+              ...receipt,
+              changes,
+              transferSource: snapshot.version,
+              transfer: data.summary,
+            }),
+          );
+        }),
+    ),
     create_workbook: guardWriting<
       typeof writingToolDefinitions,
       "create_workbook"
