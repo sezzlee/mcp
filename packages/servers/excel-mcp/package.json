@@ -2,7 +2,7 @@
   "name": "@sezzlee/excel-mcp",
   "version": "0.10.2",
   "mcpName": "io.github.sezzlee/excel",
-  "description": "Read-only MCP server that lets AI agents read local Excel workbooks (.xlsx, .xlsm, .csv): cells, formulas, tables and defined names, sandboxed to one folder.",
+  "description": "Read local Excel workbooks (.xlsx, .xlsm, .csv), with optional sandboxed creation, value transfer and lossless supported edits to immutable .xlsx versions.",
   "keywords": [
     "mcp",
     "mcp-server",
@@ -17,7 +17,7 @@
     "csv",
     "spreadsheet",
     "workbook",
-    "read-only",
+    "excel-editing",
     "sandbox"
   ],
   "license": "MIT",

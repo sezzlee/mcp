@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.sezzlee/excel",
   "title": "Sezzlee Excel",
-  "description": "Read local Excel workbooks (.xlsx, .xlsm, .csv): cells, formulas, tables. Read-only, sandboxed.",
+  "description": "Read spreadsheets; optionally create, transfer and edit immutable .xlsx versions in a sandbox.",
   "websiteUrl": "https://docs.sezzlee.app/docs/excel-mcp/quickstart",
   "repository": {
     "url": "https://github.com/sezzlee/mcp",
