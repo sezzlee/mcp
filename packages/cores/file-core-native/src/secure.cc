@@ -698,8 +698,10 @@ void publishOutput(Job& job) {
     /**
      * Guard: NtSetInformationFile resolves the simple target name against the
      * retained directory handle; publication must never re-open its pathname.
+     * The user-mode SDK omits FileRenameInformation; its NT ABI value is 10.
      */
-    const auto renamed = set(file.value, &status, rename, static_cast<ULONG>(storage.size()), FileRenameInformation);
+    constexpr auto renameClass = static_cast<FILE_INFORMATION_CLASS>(10);
+    const auto renamed = set(file.value, &status, rename, static_cast<ULONG>(storage.size()), renameClass);
     if (renamed < 0) {
       if (static_cast<ULONG>(renamed) == 0xC0000035) throw Failure("output_exists");
       throw Failure("internal_error", static_cast<int>(renamed));
