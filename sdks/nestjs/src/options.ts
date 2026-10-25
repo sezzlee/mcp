@@ -23,6 +23,7 @@ import {
 import type { SezzleeFileOptions } from "./files.js";
 import type { OuterConnection } from "./outer-connection.js";
 import type { SezzleeRateLimitingOptions } from "./rate-limiting/types.js";
+import type { ProviderToolRegistration } from "./provider-tools.js";
 
 export interface OuterRequest {
   readonly headers: IncomingHttpHeaders;
@@ -355,6 +356,7 @@ export interface SezzleeVisibilityOptions {
 }
 
 export class SezzleeOptions {
+  readonly tools: ProviderToolRegistration[] = [];
   readonly identity = new IdentityForwardingOptions();
   readonly synthetic: SyntheticRequestOptions = { accept: "application/json" };
   readonly cache: SezzleeCacheOptions = { lifetimeMs: 30_000, maxCallers: 128 };

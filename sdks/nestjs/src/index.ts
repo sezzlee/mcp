@@ -1,4 +1,12 @@
 export { SezzleeModule } from "./sezzlee.module.js";
+export { defineProviderTool, ProviderToolError } from "./provider-tools.js";
+export type {
+  ProviderToolContext,
+  ProviderToolSchema,
+  ProviderToolDefinition,
+  ProviderToolRegistration,
+} from "./provider-tools.js";
+export type { CallableEntry, CallableCatalogSnapshot } from "./catalog.js";
 export type { SezzleeModuleAsyncOptions } from "./sezzlee.module.js";
 export { SezzleeDispatcher } from "./dispatcher.js";
 export { SezzleeCatalog } from "./catalog.js";

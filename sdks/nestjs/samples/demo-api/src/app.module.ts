@@ -19,6 +19,7 @@ import {
   DemoOAuthProvider,
 } from "./oauth-provider.js";
 import { OrdersController } from "./orders.controller.js";
+import { NoteSummaryService, noteSummaryTool } from "./note-summary.js";
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { OrdersController } from "./orders.controller.js";
         verifier: demoVerifier,
       };
       options.visibility.tier = "probe";
+      options.tools.push(noteSummaryTool);
       options.files.resolver = new DemoAttachmentResolver();
       options.families.provide(dynamicMethodsSource, () => dynamicMethods);
       if (process.env["DEMOAPI_QUERY_GROUPING"] === "group") {
@@ -45,6 +47,7 @@ import { OrdersController } from "./orders.controller.js";
     McpController,
   ],
   providers: [
+    NoteSummaryService,
     DemoOAuthProvider,
     AdminRoleGuard,
     BusinessHoursGuard,

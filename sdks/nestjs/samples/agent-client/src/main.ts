@@ -26,6 +26,7 @@ const scenarioNames: ReadonlySet<string> = new Set<ScenarioName>([
   "error-envelope",
   "upload",
   "family",
+  "provider",
 ]);
 
 function isScenarioName(value: string): value is ScenarioName {
@@ -144,6 +145,7 @@ async function main(): Promise<number> {
   try {
     const run = scenarios[args.scenario];
     await run(session.client, {
+      baseUrl: env.base,
       tool: args.tool,
       query: args.query,
       argumentsJson: args.argumentsJson,

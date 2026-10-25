@@ -3,7 +3,7 @@ export interface SearchDocument {
   readonly description?: string;
   readonly tags?: readonly string[];
   readonly searchTerms?: readonly string[];
-  readonly route: string;
+  readonly route?: string;
   readonly alternateRoutes?: readonly string[];
   readonly parameters?: readonly string[];
 }

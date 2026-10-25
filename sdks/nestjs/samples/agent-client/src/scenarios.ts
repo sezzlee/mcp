@@ -3,13 +3,20 @@ import type {
   BackendErrorCode,
   InvokeSuccess,
   MappedError,
+  ProviderSuccess,
 } from "@sezzlee/core";
 import { callTool } from "./mcp.js";
 
 export type ScenarioName =
-  "smoke" | "validation-retry" | "error-envelope" | "upload" | "family";
+  | "smoke"
+  | "validation-retry"
+  | "error-envelope"
+  | "upload"
+  | "family"
+  | "provider";
 
 export interface ScenarioOptions {
+  readonly baseUrl?: string;
   readonly tool?: string;
   readonly query?: string;
   readonly argumentsJson: string;
@@ -194,16 +201,20 @@ export async function runSmoke(
     detail: JSON.stringify(loaded.parsed.inputSchema),
   });
 
-  const invoked = await callTool<InvokeResult>(client, "invoke_tool", {
-    name: chosen,
-    arguments: fillMissingRequired(
-      loaded.parsed.inputSchema,
-      parseArguments(options.argumentsJson),
-    ),
-  });
+  const invoked = await callTool<InvokeResult | ProviderSuccess>(
+    client,
+    "invoke_tool",
+    {
+      name: chosen,
+      arguments: fillMissingRequired(
+        loaded.parsed.inputSchema,
+        parseArguments(options.argumentsJson),
+      ),
+    },
+  );
   let invokedOk = false;
   if (!invoked.isError && !isErrorEnvelope(invoked.parsed)) {
-    invokedOk = invoked.parsed.status < 400;
+    invokedOk = !("status" in invoked.parsed) || invoked.parsed.status < 400;
   }
   rows.push({
     step: `invoke_tool ${chosen}`,
@@ -693,6 +704,44 @@ export async function runFamily(
   }
 }
 
+export async function runProvider(
+  client: Client,
+  options: ScenarioOptions,
+): Promise<void> {
+  const loaded = await callTool<LoadResult>(client, "load_tool", {
+    name: "summarize_note",
+  });
+  const invoked = await callTool<ProviderSuccess>(client, "invoke_tool", {
+    name: "summarize_note",
+    arguments: { text: "hello world" },
+  });
+  const rows: ChecklistRow[] = [
+    { step: "load provider", ok: !loaded.isError, detail: "summarize_note" },
+    {
+      step: "invoke provider",
+      ok:
+        !invoked.isError &&
+        JSON.stringify(invoked.parsed.body) ===
+          JSON.stringify({ characters: 11, words: 2 }) &&
+        !("status" in invoked.parsed),
+      detail: JSON.stringify(invoked.parsed),
+    },
+  ];
+  if (options.baseUrl === undefined)
+    throw new SetupFailure("provider scenario needs a base URL");
+  const direct = await fetch(`${options.baseUrl}/summarize_note`, {
+    method: "POST",
+  });
+  rows.push({
+    step: "no HTTP route",
+    ok: direct.status === 404,
+    detail: String(direct.status),
+  });
+  printChecklist(rows);
+  if (!rows.every((row) => row.ok))
+    throw new AssertionFailure("provider scenario failed");
+}
+
 export const scenarios: Readonly<
   Record<
     ScenarioName,
@@ -704,4 +753,5 @@ export const scenarios: Readonly<
   "error-envelope": runErrorEnvelope,
   upload: runUpload,
   family: runFamily,
+  provider: runProvider,
 };

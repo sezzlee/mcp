@@ -11,6 +11,11 @@ export type BackendErrorCode =
   | "backend_unavailable";
 export type SdkErrorCode =
   | "unknown_tool"
+  | "provider_invalid_input"
+  | "provider_forbidden"
+  | "provider_failed"
+  | "provider_invalid_output"
+  | "provider_business_error"
   | "not_invocable"
   | "unknown_argument"
   | "invalid_path_type"

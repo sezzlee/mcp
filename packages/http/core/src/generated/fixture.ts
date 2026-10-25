@@ -123,6 +123,11 @@ export type ExpectedFile1 =
     };
 export type SdkErrorCode =
   | "unknown_tool"
+  | "provider_invalid_input"
+  | "provider_forbidden"
+  | "provider_failed"
+  | "provider_invalid_output"
+  | "provider_business_error"
   | "not_invocable"
   | "unknown_argument"
   | "invalid_path_type"
@@ -664,15 +669,18 @@ export interface ResultReadingFixture {
   kind: "result-reading";
   description: string;
   input: StoreSpec | ReadSpec;
-  expected: InvokeStored | ReadResult | SdkError;
+  expected: InvokeStored | ProviderStored | ReadResult | SdkError;
 }
 export interface StoreSpec {
-  stored: InvokeSuccess;
+  stored: InvokeSuccess | ProviderSuccess;
   handle: string;
   bytes: number;
   limit: number;
   expiresInSeconds: number;
   applied?: boolean;
+}
+export interface ProviderSuccess {
+  body: unknown;
 }
 export interface ReadSpec {
   body: unknown;
@@ -702,6 +710,10 @@ export interface OutlineEntry {
   kind: StoredValueKind;
   count?: number;
   fields?: [string, ...string[]];
+}
+export interface ProviderStored {
+  stored: StoredResult;
+  message: string;
 }
 export interface ReadResult {
   path: string;

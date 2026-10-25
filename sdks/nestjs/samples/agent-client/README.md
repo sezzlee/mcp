@@ -44,6 +44,11 @@ so on) the process exits with **code 3**.
 
 ## Scenarios
 
+`--scenario provider` loads and invokes the demo's `summarize_note` provider tool, verifies its
+JSON result without HTTP status metadata, and checks that `POST /summarize_note` returns 404.
+Build the demo and agent-client through Turbo, start the demo API, then run
+`SEZZLEE_AUTH=token node sdks/nestjs/samples/agent-client/dist/main.js --scenario provider`.
+
 ```sh
 node dist/main.js --scenario <smoke|validation-retry|error-envelope|upload|family> [--tool <name>] [--query <q>] [--arguments <json>]
 ```
