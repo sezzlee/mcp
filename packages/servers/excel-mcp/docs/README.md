@@ -1,6 +1,6 @@
 # Excel oluşturma ve düzenleme: araştırmaya dayalı faz planı
 
-Status: K1-01–K1-09 remain recorded. Phase 0 provides the explicit writing mode, value contract and safe immutable output foundation. Phase 1 is implemented with evidence in its [implementation plan](phase-1/implementation-plan.md). Phase 2 value transfer is implemented; decisions, support boundaries and local acceptance evidence are recorded in the [Phase 2 plan](phase-2/implementation-plan.md). Phases 3 and later remain planned. Copying existing formulas and formatting is required in Phase 3 as F3-09.
+Status: Phases 0–2 and Phase 3 P3-00–P3-09 are implemented. The [Phase 3 plan](phase-3/implementation-plan.md) records preserved-package editing, required formula/formatting copy, independent acceptance and the remaining final cross-platform/native CI gate. New formula/style authoring remains Phase 5 and calculation Phase 6. Later phases remain planned.
 
 ## Hedef ve dayanak
 
@@ -98,6 +98,8 @@ Mevcut okuyucu sayfalama, örnekleme, veri yorumlama ve analiz yapabilir; seçil
 
 A-05 was resolved with the user on 2026-10-25: Phase 2 transfers values; Phase 3 must copy existing formulas and formatting. Changed sources require a new preparation, all matching records are transferred unless a subset is explicit, and replacing occupied targets requires explicit overwrite. See the [Phase 2 implementation plan](phase-2/implementation-plan.md).
 
+Phase 3 A-06/A-11 decisions were recorded with the user on 2026-10-25: start with .xlsx editing, exclude macro-enabled/encrypted/protected workbooks, reject operations that cannot preserve required content, and restore by selecting a retained immutable version with the combined request as the transaction boundary. Operation-specific A-07 reference/support rules and verification steps are in the [Phase 3 implementation plan](phase-3/implementation-plan.md).
+
 Kullanıcının yanıtladığı kaynak koruma, ayrı hesaplama, aynı pakette ayrıca etkinleştirilen yazma modu, açık hücre türü ve bağlı/bağımsız işlerin tamamlanma ilkesi yeniden sorulmayacak. Aşağıdakiler uygulama ayrıntılarını ve kalan kapsamı gösterir.
 
 | Kimlik | Karar alanı                                                                                                                                                                                                      | Ne zaman gerekli?                           |
@@ -131,4 +133,4 @@ Kullanıcının yanıtladığı kaynak koruma, ayrı hesaplama, aynı pakette ay
 
 İlk adım [Faz 0](phase-0/README.md): mevcut altyapı envanteri üzerinde kapsam kararlarını değer, işlem ve çıktı sözleşmesine dönüştürmek. Envanter, paket/mod kararı, açık tür sözleşmesi ve tek çıktı için güvenli sürüm hazırlama temeli uygulandı. İlk kullanıcıya görünür çalışan sonuç [Faz 1](phase-1/README.md) olacaktır.
 
-All phases remain planned as a sequence. Phase 0–1 foundations and Phase 2 value transfer are implemented. The next development target is Phase 3's preservation contract and targeted editing, including the required copying of existing formulas and formatting; new formula/style authoring remains Phase 5.
+Phases 0–3 are implemented locally. Final cross-platform/native acceptance of the combined changes remains open before release. Phase 4 is the next planned capability phase; new formula/style authoring remains Phase 5.

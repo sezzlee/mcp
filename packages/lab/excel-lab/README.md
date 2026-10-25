@@ -74,6 +74,36 @@ SEZZLEE_CORPUS=/path/to/corpus pnpm turbo run corpus --filter=@sezzlee/excel-lab
 The `corpus` task builds `@sezzlee/excel-mcp` first, so the run always uses the current source.
 `--help` lists every option.
 
+## Phase 3 editing acceptance
+
+The [Phase 3 plan](../../servers/excel-mcp/docs/phase-3/implementation-plan.md) records the supported editing profile and measured acceptance. Run these from the vendor repository root, keeping corpus originals unchanged and all generated files outside the repository:
+
+```sh
+pnpm turbo run build check-types lint --filter=@sezzlee/excel-mcp --filter=@sezzlee/excel-lab
+python3 -I packages/lab/excel-lab/scripts/test-inspect-edit-corpus.py
+python3 -I packages/lab/excel-lab/scripts/inspect-edit-corpus.py --corpus /path/to/corpus --out /tmp/excel-edit-inventory
+node packages/lab/excel-lab/src/edit-bench.ts --out /tmp/excel-edit-scale --rows 50000 --columns 20 --operation write --heap-mib 1024
+python3 -I packages/lab/excel-lab/scripts/edit-oracle.py /tmp/excel-edit-scale/edit-REPLACE
+node packages/lab/excel-lab/src/edit-agent-cli.ts --out /tmp/excel-edit-scripted --corpus /path/to/corpus
+SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab/src/edit-agent-cli.ts --out /tmp/excel-edit-live --corpus /path/to/corpus --model MODEL --languages tr,en
+```
+
+Inventory uses Python standard-library ZIP/XML parsing, manifest hashes, containment and archive budgets. Content types select noncanonical XML part paths too. summary.json pins manifests/script and representative features; inventory.jsonl retains failures and budget outcomes. Feature/protection-markup counts are not editing or enabled-protection claims.
+
+The edit benchmark accepts operation write, rows, columns or copy. Defaults produce 1,000,000 numeric sequence cells (50000 by 20); copy requires at least 1024 rows for destination A1000 and its 25-row block. A fresh child uses a fixed heap and 180-second watchdog, executes/retries through actual MCP and checks unchanged originals. edit-results.json records exact source/output hashes, call/request/receipt sizes, timings, peak RSS and generator/build digests. The independent edit-oracle.py checks every expected coordinate/value, types, ZIP CRCs, relationships, stale-cache policy and retained opaque XML. Heap and RSS are different measurements.
+
+The writing-aware agent harness preserves the existing read-agent lab. It runs scripted baselines before optional actual-model trials in Turkish and English: correction, copy, clear, row insertion, restore, protected refusal, complete range-value transfer, filtered/reordered record transfer and aggregate-result transfer. --only transfer_range,transfer_records,transfer_aggregate selects the Phase 2 acceptance set. Public Apache fixtures are pinned by hash; isolated retained outputs are graded by edit-agent-oracle.py, not by model prose. traces, results.jsonl and summary.json retain model identity, build/script hashes and actual calls. Network runs require authorization for their fixture data and target.
+
+Optional independent validation:
+
+```sh
+dotnet build packages/lab/excel-lab/scripts/openxml-validate/Validate.csproj -o /tmp/excel-openxml-validator
+dotnet /tmp/excel-openxml-validator/Validate.dll /path/to/source.xlsx /path/to/output.xlsx
+python3 -I packages/lab/excel-lab/scripts/edit-lo-oracle.py /tmp/excel-edit-scripted /tmp/calc-ods-output
+```
+
+The .NET 8 validator uses Microsoft Open XML SDK 2.16.0 Office 2019 validation and emits bounded failures. The ODF oracle requires converting the five scripted output workbooks to ODS with an actual isolated headless LibreOffice instance first, then verifies typed values/formulas after application calculation. These are optional lab dependencies, never production readers/calculation fallbacks. Exact fixture scope matters; a selected successful validation is not whole-corpus acceptance.
+
 ## Typed aggregate benchmark
 
 `src/aggregate-bench.ts` generates an original, MIT-licensed CSV outside the repository:

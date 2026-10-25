@@ -1,4 +1,4 @@
-import { json, readOnly } from "@sezzlee/file-core";
+import { contentFingerprint, json, readOnly } from "@sezzlee/file-core";
 import { z } from "zod";
 import {
   guardWriting,
@@ -14,18 +14,13 @@ import {
   readSourceSnapshot,
   type WorkbookOutput,
 } from "../platform/versions.js";
-import type { WorkbookRoot } from "../platform/paths.js";
+import { assertReadableFormat, type WorkbookRoot } from "../platform/paths.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { prepareWorkbookVersion } from "../format/version.js";
-import {
-  authoringLimits,
-  newSheetSchema,
-  workbookChangeSchema,
-} from "../authoring/workbook.js";
+import { authoringLimits, newSheetSchema } from "../authoring/workbook.js";
 import {
   createAuthoredWorkbook,
   editAuthoredWorkbook,
-  readAuthoredWorkbook,
   serializeAuthoredWorkbook,
   type AuthoredWorkbook,
 } from "../format/authoring.js";
@@ -36,8 +31,24 @@ import {
   transferReceiptSchema,
 } from "./transfer-schemas.js";
 import { materializeTransfer, transferChanges } from "./transfer.js";
+import { PreservedWorkbook } from "../format/preserved-workbook.js";
+import { applyWorkbookChanges } from "../format/edit-workbook.js";
+import { inspectWorkbookEdit } from "../format/edit-inspection.js";
+import {
+  prepareEditSchema,
+  editPreparationSchema,
+  editWireChangesSchema,
+  type EditWireChange,
+} from "./edit-schemas.js";
+import { limits } from "../platform/limits.js";
 
 export const writingToolDefinitions = {
+  prepare_edit: {
+    description:
+      "Inspect an ordered edit request without publishing an output. Accept .xlsx filePath, optional expectedVersion, and changes. Returns exact source {filePath, versionId}, a fingerprint binding normalized changes, source feature counts, and ready or blocked with policy reasons. Pass source and the same changes to edit_workbook. Canonical and preservation-supported external workbooks can be ready. Supports write_cells, clear_contents, add/rename/reorder/copy/delete_sheet, copy_range, move_range and row/column insert/delete. Copy requires explicit values/formulas/formatting/all mode. No source file is changed. Enabled protection, macros, signatures, Strict markup or unsupported affected dependencies refuse editing. Preparation is not permission to edit changed bytes. No recalculation occurs.",
+    inputSchema: prepareEditSchema,
+    annotations: readOnly,
+  },
   prepare_transfer: {
     description:
       "Prepare a complete version-pinned value selection from an .xlsx, .xlsm or CSV without returning its cells. Returns transfer {source, selection} and exact scope/counts; pass transfer unchanged to transfer_data. range preserves its rectangle; records filters complete data rows and can project/reorder selectColumns, includeHeaders or select explicit physical rows with scope {kind: rows, rows: [...]}. Default scope all includes every matching record even if a previous read showed only a preview. aggregate exports a complete grouped summary with headers. Columns are interpreted only when explicit columns specifications request it. Values only: formulas contribute saved results, never recalculated; missing formula caches and unsupported/lossy values fail. No formula/style copying. Available only in explicit writing mode. The source is unchanged.",
@@ -49,7 +60,7 @@ export const writingToolDefinitions = {
   },
   transfer_data: {
     description:
-      "Transfer the complete value selection returned by prepare_transfer directly into an immutable .xlsx without regenerating cell data through the model. Pass transfer unchanged. Rejects changed source content. target new creates a workbook; add_sheet adds to an exact selected Phase 1 output; sheet writes at startCell in a selected output. Occupied cells, including empty text, require explicit overwrite true; blank cells then clear the target. Optional sheet mapping {kind: headers, headerRow} matches source headers to unique target headers, using startCell's row; column order can differ. Choose includeHeaders false when appending records under existing headers. Arbitrary external targets, formula/style copying and joins are unsupported. The entire operation succeeds or no completed output is published; identical inputs reuse the output. Returns compact provenance/counts and cached-formula status, never the dataset.",
+      "Transfer the complete version-pinned value selection from prepare_transfer into a new immutable .xlsx or an existing selected .xlsx target, preserving supported unrelated package content. target new creates a workbook; add_sheet or sheet requires source {filePath,versionId}. sheet uses startCell and optional mapping {kind:headers,headerRow}; choose includeHeaders false when appending. Occupied targets require overwrite true; blank source cells then clear contents. All matching records are transferred, not just an earlier preview. Source and target version changes, unsupported values or preservation failures stop the whole operation. Values only; use explicit edit copy operations for existing formulas and formatting. Nothing is recalculated. Returns provenance/counts, not cell data.",
     inputSchema: z.strictObject({
       transfer: transferReferenceSchema,
       target: transferTargetSchema,
@@ -66,13 +77,10 @@ export const writingToolDefinitions = {
   },
   edit_workbook: {
     description:
-      "Apply an ordered atomic change list to a selected Phase 1 output version, producing a new immutable .xlsx. source must carry its relative filePath and exact versionId from the receipt. add_sheet adds a new uniquely named sheet; write_cells writes a rectangular typed block at startCell. Occupied cells, including empty text, are rejected unless overwrite is explicitly true; blank then clears a cell. Select an explicit startCell to append records; rows are never inserted. Extra external workbook features are rejected. Retry the identical request against the same source for the same output; never substitute an implicit latest source. All changes succeed together or no completed output is published.",
+      "Apply an ordered atomic changes list to an exact selected .xlsx source {filePath, versionId}, producing one immutable output. Obtain source from prepare_edit or a prior receipt. write_cells uses explicit typed values and requires overwrite true for occupied targets; clear_contents clears a closed A1 range without shifting or removing styles. add_sheet uses name; rename_sheet uses sheetName/name; reorder_sheet uses one-based position; delete_sheet retains at least one visible sheet; copy_sheet requires name and mode. copy_sheet/copy_range optionally accept from {filePath, versionId} for another workbook; source styles/theme and numeric calendar systems must match, and unsupported external bindings fail. copy_range/move_range use sheetName, range, targetSheet and startCell; copy requires mode values/formulas/formatting/all, and occupied targets require overwrite true. insert_rows/delete_rows/insert_columns/delete_columns use sheetName, at and count. Existing formulas, styles and supported dependent references are preserved or transformed; no new formulas are authored and nothing is calculated. Unsupported impacted references/groups/extensions fail the whole request. Retry identical source and changes for identical output. Select an earlier retained source version to undo or branch. Source and prior outputs remain unchanged.",
     inputSchema: z.strictObject({
       source: workbookVersionSchema,
-      changes: z
-        .array(workbookChangeSchema)
-        .min(1)
-        .max(authoringLimits.maxOperations),
+      changes: editWireChangesSchema,
     }),
     annotations: ownOutput,
   },
@@ -134,7 +142,112 @@ export function createWritingHandlers(
         "The write request was cancelled before publication.",
       );
   }
+  async function copySources(changes: readonly EditWireChange[]) {
+    const snapshots: Awaited<ReturnType<typeof readWorkbookSnapshot>>[] = [];
+    const buffers = new Map<number, Buffer>();
+    let bytes = 0;
+    for (const [index, change] of changes.entries()) {
+      if (
+        (change.kind !== "copy_range" && change.kind !== "copy_sheet") ||
+        !("from" in change) ||
+        change.from === undefined
+      )
+        continue;
+      const selected = workbookVersionSchema.parse(change.from);
+      const snapshot = await readWorkbookSnapshot(
+        root,
+        selected.filePath,
+        selected.versionId,
+      );
+      assertReadableFormat(snapshot.bytes, snapshot.version.filePath);
+      const existing = snapshots.find(
+        (prior) =>
+          prior.version.filePath === snapshot.version.filePath &&
+          prior.version.versionId === snapshot.version.versionId,
+      );
+      if (existing !== undefined) {
+        buffers.set(index, existing.bytes);
+        continue;
+      }
+      bytes += snapshot.bytes.length;
+      if (bytes > limits.maxFileBytes)
+        throw new SezzleeExcelError(
+          "resource_limit",
+          "Copy source snapshots exceed the combined byte budget.",
+        );
+      snapshots.push(snapshot);
+      buffers.set(index, snapshot.bytes);
+    }
+    return { snapshots, buffers };
+  }
   return {
+    prepare_edit: guardWriting<typeof writingToolDefinitions, "prepare_edit">(
+      root,
+      "prepare_edit",
+      (args, _name, signal) =>
+        admitted(async () => {
+          checkInput(args);
+          await checkpoint(signal);
+          const snapshot = await readWorkbookSnapshot(
+            root,
+            args.filePath,
+            args.expectedVersion,
+          );
+          assertReadableFormat(snapshot.bytes, snapshot.version.filePath);
+          const inspection = inspectWorkbookEdit(snapshot.bytes, args.changes);
+          const copies =
+            inspection.blockers.length === 0
+              ? await copySources(args.changes)
+              : { snapshots: [], buffers: new Map<number, Buffer>() };
+          const prepared =
+            inspection.blockers.length === 0
+              ? applyWorkbookChanges(
+                  snapshot.bytes,
+                  args.changes,
+                  copies.buffers,
+                )
+              : undefined;
+          await checkpoint(signal);
+          await readWorkbookSnapshot(
+            root,
+            snapshot.version.filePath,
+            snapshot.version.versionId,
+          );
+          for (const source of copies.snapshots)
+            await readWorkbookSnapshot(
+              root,
+              source.version.filePath,
+              source.version.versionId,
+            );
+          await checkpoint(signal);
+          const common = {
+            source: snapshot.version,
+            requestFingerprint: contentFingerprint(
+              snapshot.version.filePath,
+              snapshot.bytes,
+              JSON.stringify(args.changes),
+            ),
+            operations: args.changes.length,
+            cellsRequested: inspection.cellsRequested,
+            features: inspection.features,
+            recalculated: false,
+          };
+          return json(
+            editPreparationSchema.parse(
+              inspection.blockers.length === 0
+                ? {
+                    kind: "ready",
+                    ...common,
+                    profile:
+                      prepared?.editing === undefined
+                        ? "canonical_values"
+                        : "preserved_package",
+                  }
+                : { kind: "blocked", ...common, blockers: inspection.blockers },
+            ),
+          );
+        }),
+    ),
     prepare_transfer: guardWriting<
       typeof writingToolDefinitions,
       "prepare_transfer"
@@ -186,14 +299,24 @@ export function createWritingHandlers(
             workbook = created.workbook;
             sheetsAdded = created.changes.sheetsAdded;
           } else {
-            workbook = readAuthoredWorkbook(selectedTarget.bytes);
+            workbook = new PreservedWorkbook(
+              selectedTarget.bytes,
+            ).transferShape(
+              target.kind === "sheet" ? target.sheetName : undefined,
+              target.kind === "sheet" && target.mapping.kind === "headers"
+                ? target.mapping.headerRow
+                : undefined,
+            );
           }
-          const changes = editAuthoredWorkbook(
-            workbook,
-            transferChanges(workbook, data, target),
-          );
+          const planned = transferChanges(workbook, data, target);
+          const applied =
+            selectedTarget === undefined
+              ? undefined
+              : applyWorkbookChanges(selectedTarget.bytes, planned);
+          const changes =
+            applied?.changes ?? editAuthoredWorkbook(workbook, planned);
           changes.sheetsAdded += sheetsAdded;
-          const bytes = serializeAuthoredWorkbook(workbook);
+          const bytes = applied?.bytes ?? serializeAuthoredWorkbook(workbook);
           await checkpoint(signal);
           await readSourceSnapshot(
             root,
@@ -217,6 +340,9 @@ export function createWritingHandlers(
             transferReceiptSchema.parse({
               ...receipt,
               changes,
+              ...(applied?.editing === undefined
+                ? {}
+                : { editing: applied.editing }),
               transferSource: snapshot.version,
               transfer: data.summary,
             }),
@@ -249,15 +375,39 @@ export function createWritingHandlers(
             args.source.filePath,
             args.source.versionId,
           );
-          const workbook = readAuthoredWorkbook(snapshot.bytes);
-          const changes = editAuthoredWorkbook(workbook, args.changes);
-          const bytes = serializeAuthoredWorkbook(workbook);
+          const copies = await copySources(args.changes);
+          const applied = applyWorkbookChanges(
+            snapshot.bytes,
+            args.changes,
+            copies.buffers,
+          );
+          const { changes, bytes } = applied;
+          await checkpoint(signal);
+          await readWorkbookSnapshot(
+            root,
+            snapshot.version.filePath,
+            snapshot.version.versionId,
+          );
+          for (const source of copies.snapshots)
+            await readWorkbookSnapshot(
+              root,
+              source.version.filePath,
+              source.version.versionId,
+            );
           await checkpoint(signal);
           const receipt = await output.publish(bytes, {
             kind: "source",
             version: snapshot.version,
           });
-          return json(mutationReceiptSchema.parse({ ...receipt, changes }));
+          return json(
+            mutationReceiptSchema.parse({
+              ...receipt,
+              changes,
+              ...(applied.editing === undefined
+                ? {}
+                : { editing: applied.editing }),
+            }),
+          );
         }),
     ),
     create_workbook_version: guardWriting<

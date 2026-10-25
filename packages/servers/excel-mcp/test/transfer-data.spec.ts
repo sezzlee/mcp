@@ -655,7 +655,7 @@ it("refuses an explicit subset excluded by its condition and incomparable filter
   });
 });
 
-it("rejects an external-feature target and target overflow without changing either source", async () => {
+it("rejects a target without a spreadsheet content type and target overflow without changing either source", async () => {
   await workspace(async (directory, client) => {
     await writeFile(join(directory, "source.csv"), "ID\n001\n002\n");
     const transfer = await prepare(client, "source.csv", {
@@ -682,7 +682,7 @@ it("rejects an external-feature target and target overflow without changing eith
         },
       },
     });
-    expect(payload(blocked)).toMatchObject({ error: "invalid_argument" });
+    expect(payload(blocked)).toMatchObject({ error: "not_a_workbook" });
     const overflow = await client.callTool({
       name: "transfer_data",
       arguments: {

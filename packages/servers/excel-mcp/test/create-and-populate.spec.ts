@@ -449,7 +449,7 @@ it("rejects invalid wire data and late transaction failures without publishing a
   });
 });
 
-it("refuses unsupported source parts instead of silently dropping them", async () => {
+it("preserves opaque source parts instead of silently dropping them", async () => {
   await workspace(async (directory, client) => {
     const original = mutationReceiptSchema.parse(
       payload(
@@ -475,10 +475,16 @@ it("refuses unsupported source parts instead of silently dropping them", async (
         changes: [{ kind: "add_sheet", name: "No" }],
       },
     });
-    expect(result.isError).toBe(true);
-    expect(payload(result)).toMatchObject({ error: "invalid_argument" });
+    expect(result.isError).not.toBe(true);
+    const receipt = mutationReceiptSchema.parse(payload(result));
+    const output = await JSZip.loadAsync(
+      await readFile(join(directory, receipt.version.filePath)),
+    );
+    expect(await output.file("custom/important.xml")?.async("string")).toBe(
+      "<important>retain me</important>",
+    );
     expect(await readFile(join(directory, "external.xlsx"))).toEqual(bytes);
-    expect((await readdir(join(directory, "out"))).length).toBe(1);
+    expect((await readdir(join(directory, "out"))).length).toBe(2);
   });
 });
 

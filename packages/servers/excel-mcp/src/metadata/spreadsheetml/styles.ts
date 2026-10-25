@@ -106,7 +106,9 @@ export interface NumberFormats {
  * styles part. A workbook without the part, or a style index past the table,
  * displays as `General`.
  */
-export function readNumberFormats(opc: WorkbookPackage): NumberFormats {
+export function readNumberFormats(
+  opc: Pick<WorkbookPackage, "stylesPart" | "scanPart">,
+): NumberFormats {
   const custom = new Map<number, string>();
   const formatIds: number[] = [];
   const path = opc.stylesPart;

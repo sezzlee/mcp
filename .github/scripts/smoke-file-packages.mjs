@@ -44,6 +44,7 @@ try {
       type: "module",
       dependencies: {
         "@modelcontextprotocol/client": "^2.0.0",
+        "@e965/xlsx": "0.20.3",
         "@sezzlee/file-core-native": archive("sezzlee-file-core-native"),
         "@sezzlee/mcp-core": archive("sezzlee-mcp-core"),
         "@sezzlee/llm-mcp": archive("sezzlee-llm-mcp"),
@@ -161,6 +162,21 @@ try {
   });
   if (smoke.status !== 0)
     throw new Error(`Installed MCP smoke failed: ${smoke.stderr}`);
+  const writingScript = join(directory, "smoke-excel-writing.mjs");
+  await writeFile(
+    writingScript,
+    await readFile(new URL("./smoke-excel-writing.mjs", import.meta.url)),
+  );
+  const writingSmoke = spawnSync(process.execPath, [writingScript, data], {
+    cwd: directory,
+    encoding: "utf8",
+    timeout: 30000,
+  });
+  if (writingSmoke.status !== 0)
+    throw new Error(
+      `Installed Excel writing smoke failed: ${writingSmoke.stderr}`,
+    );
+  process.stdout.write(writingSmoke.stdout);
   const xmlSmoke = spawnSync(
     process.execPath,
     [join(directory, "smoke-xml.mjs")],

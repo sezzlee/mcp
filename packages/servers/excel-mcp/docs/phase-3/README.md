@@ -1,6 +1,6 @@
 # Faz 3: mevcut Excel dosyasını düzenleme
 
-Durum: kapsam önerisi. Faz 1'in temel yazmasına dayanır; kaynak aktarımı gereken işlerde Faz 2 kullanılır. Açık kararlar [ana yol haritasındadır](../README.md).
+Durum: P3-00–P3-09 uygulandı. Dış .xlsx dosyasında hücre/sayfa/aralık ve satır/sütun düzenleme, mevcut formül/biçim kopyalama, atomik değişmez sürümler ve bağımsız yerel kabul tamamlandı. Destek sınırları, corpus/test kanıtları ve açık son platform CI kapısı [uygulama ve doğrulama planındadır](implementation-plan.md).
 
 ## Hedef
 
@@ -61,4 +61,4 @@ Bu ayrım, yalnızca bir değeri değiştirebilmek için bütün yapısal Excel 
 
 ## Açık kararlar
 
-A-06, A-07 ve A-11: biçimler, koruma kapsamı, referans davranışı ve geri alma sınırı. Kaynak dosyanın korunup yeni sürüm üretilmesi kesin karardır. Aynı adlı sayfa, çakışan taşıma alanı, gizli alanlar, birleştirilmiş hücreler ve son sayfanın silinmesi gibi durumlar ayrıca kararlaştırılır.
+A-06 ve A-11 için 2026-10-25 kullanıcı kararları: düzenleme önce .xlsx ile başlar; makrolu, şifreli ve korumalı dosyalar dışarıda kalır. Koruma garantisi verilemiyorsa işlemin tamamı reddedilir; kayıplı çıktı modu bulunmaz. Geri alma önceki değişmez çıktı sürümünden devam eder; birleşik çağrı bir bütündür. A-07'nin işlem ve referans ailelerine göre teknik destek sınırları uygulama planında tamamlanır. Aynı adlı sayfa, çakışan taşıma alanı, gizli alanlar, birleştirilmiş hücreler ve son görünür sayfanın silinmesi için önerilen davranışlar da bu plandadır.

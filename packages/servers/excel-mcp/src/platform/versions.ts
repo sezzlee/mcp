@@ -7,12 +7,10 @@ import { SezzleeExcelError, asExcelError } from "./errors.js";
 import { limits } from "./limits.js";
 import { resolveWorkbookPath, type WorkbookRoot } from "./paths.js";
 import { formats } from "./formats.js";
-
 export const workbookVersionIdSchema = z
   .string()
   .regex(/^[a-f0-9]{64}$/)
   .brand<"WorkbookVersionId">();
-
 export const workbookVersionSchema = z.strictObject({
   filePath: z.string().min(1).max(32_768),
   versionId: workbookVersionIdSchema,
@@ -26,6 +24,19 @@ export const versionReceiptSchema = z.strictObject({
 });
 
 export const mutationReceiptSchema = versionReceiptSchema.extend({
+  editing: z
+    .strictObject({
+      operations: z.int().nonnegative(),
+      partsChanged: z.int().nonnegative(),
+      cellsCleared: z.int().nonnegative(),
+      recalculated: z.literal(false),
+      recalculationRequired: z.boolean(),
+      cachedFormulaValues: z.int().nonnegative().optional(),
+      refreshRequired: z
+        .array(z.enum(["formulas", "charts", "pivots"]))
+        .optional(),
+    })
+    .optional(),
   changes: z.strictObject({
     sheetsAdded: z.int().nonnegative(),
     blocksWritten: z.int().nonnegative(),
