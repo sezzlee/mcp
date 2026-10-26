@@ -17,6 +17,8 @@ bulk-bench accepts update, replace, upsert, append, join, sort, deduplicate, ato
 
 bulk-agent-cli runs scripted baselines before optional actual-model trials. Public fixture creation and grading live in bulk-agent-oracle.py; five known-answer tests pin correct values, typed output, source immutability and protected refusal. Scenarios are update, join, replace, retry and blocked, selectable with --only. The retry scenario requires two identical execution identities and a durable status read. Model prose and preparation alone are not accepted as output. Traces and result logs remain outside the repository; manifests retain model identity, exact build/native source hashes, generation controls and the limited tool catalog. Existing network/data authorization rules still apply: use only these public fixtures and the selected model host, never private product inputs.
 
+After a successful bulk-bench run, run `python3 scripts/bulk-application-oracle.py <run-directory>` from this package. It first checks the independent bulk oracle, then opens every unique selected output in actual LibreOffice Calc, converts it to ODS and compares all scalar coordinates, types, values and order with the independently checked OOXML. It verifies that application opening leaves original workbook bytes unchanged and writes application-oracle.json. The soffice executable must be on PATH. This is selected application acceptance, not a whole-corpus compatibility claim.
+
 The corpus harness for `@sezzlee/excel-mcp`. It runs the built server over a local corpus of
 real-world workbooks and records, per file, what every tool call answered, how long it took and
 how much memory the process needed.

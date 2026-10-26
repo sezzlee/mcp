@@ -181,6 +181,16 @@ Local verification so far:
 
 Generated workbooks, full traces, local paths and reports stay outside the public repository. Public documentation records commands and scope. Default read-server reference pages are unchanged; optional writing tools are documented in the package README. Release/public consumer rollout remain separate from implementation and validation.
 
+## Combined acceptance, 2026-10-26
+
+The local combined run passed 6,790 Vitest tests without failures or skips: excel-mcp 6,444 across 78 files, excel-lab 112 across 13 files, ooxml-core 139 across ten files and file-core 95 across 11 files. The native suite passed 14 tests without skips; the independent bulk oracle known-answer suite passed five. Tests used the configured external public corpus, not a reduced synthetic substitute. Each package ran sequentially with one Vitest worker. Final receipt compaction after replacing retained failures with current-attempt diagnostics additionally passed all 70 focused bulk MCP tests and 13 build/type/lint tasks.
+
+All nine bulk benchmark operations passed again at 10,000 records/ten columns. Update and sort additionally passed exactly 1,000,000 output cells each (49,999 data records and a header, 20 columns), with run calls of approximately 8.5/8.2 seconds and peak RSS approximately 879/799 MiB under the 1,024 MiB heap setting. These are observed local measurements, not general throughput guarantees. Independent Python checks compare every output coordinate, type, value, order, hash and size and recheck immutable inputs; retries retain the same completed identity.
+
+Selected application acceptance passed five outputs from update, replacement, join and a two-output dependent group. Actual LibreOfficeDev 26.8.0.0.alpha0 produced ODS files; bulk-application-oracle.py compared 340,036 scalar coordinates/types/values against independently verified expected results and checked unchanged input bytes. Open XML SDK 2.16.0 with Office2019 validation passed all 21 selected scale outputs with zero errors. This does not imply application or schema validation of the whole external corpus.
+
+Actual Qwen acceptance uses public deterministic fixtures and qwen3.8:latest, with its exact model digest and implementation hashes recorded in the isolated manifests. The final configuration allows 12,288 generated tokens per call and a 360-second request deadline; earlier 4,096-token runs exhausted the generation budget in reasoning and are retained as failures. TR passed all five model tasks: conditional update, join with explicit CSV numeric readings, complete replacement, identical retry plus durable status and protected-workbook refusal. EN final results and the full native/installed-tarball CI gate are recorded when complete.
+
 ## Completion checklist
 
 - Every F4-01–F4-09 requirement has implemented behavior and independent acceptance; unsupported preservation is an explicit refusal, not silent data loss.

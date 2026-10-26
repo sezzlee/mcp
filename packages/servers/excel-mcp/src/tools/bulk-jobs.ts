@@ -515,18 +515,20 @@ export async function runBulkJob(
   });
   const complete = jobs.filter((child) => child.kind === "complete").length,
     failed = jobs.filter((child) => child.kind === "failed").length;
-  return bulkBatchReceiptSchema.parse({
-    ...status,
-    jobs,
-    kind:
-      complete === jobs.length
-        ? "complete"
-        : complete > 0
-          ? "partial"
-          : failed === jobs.length
-            ? "failed"
-            : "pending",
-  });
+  return compactBatch(
+    bulkBatchReceiptSchema.parse({
+      ...status,
+      jobs,
+      kind:
+        complete === jobs.length
+          ? "complete"
+          : complete > 0
+            ? "partial"
+            : failed === jobs.length
+              ? "failed"
+              : "pending",
+    }),
+  );
 }
 
 export async function getBulkJob(

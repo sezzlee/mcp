@@ -672,7 +672,7 @@ void publishDirectory(Job& job) {
   auto create = reinterpret_cast<Create>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtCreateFile"));
   auto set = reinterpret_cast<Set>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtSetInformationFile"));
   if (!create || !set) throw Failure("unsupported_platform");
-  auto child = [&](HANDLE parent, const std::string& value, bool directory) {
+  auto child = [&](HANDLE parent, const std::string& value, bool directory, ULONG disposition = 2) {
     auto name = wide(value);
     UNICODE_STRING us{static_cast<USHORT>(name.size() * sizeof(wchar_t)), static_cast<USHORT>(name.size() * sizeof(wchar_t)), name.data()};
     OBJECT_ATTRIBUTES attributes{};
@@ -681,7 +681,7 @@ void publishDirectory(Job& job) {
     IO_STATUS_BLOCK status{}; HANDLE raw = invalid;
     const auto created = create(&raw, FILE_WRITE_DATA | FILE_READ_ATTRIBUTES | DELETE | SYNCHRONIZE,
       &attributes, &status, nullptr, directory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL,
-      FILE_SHARE_READ | FILE_SHARE_DELETE, 2,
+      FILE_SHARE_READ | FILE_SHARE_DELETE, disposition,
       0x00200000 | 0x00000020 | (directory ? 0x00000001 : 0x00000040), nullptr, 0);
     if (created < 0) throw Failure("internal_error", static_cast<int>(created));
     return Handle(raw);
@@ -724,6 +724,7 @@ void publishDirectory(Job& job) {
 #endif
     }
 #ifdef _WIN32
+    files.clear();
     auto name = wide(job.path);
     std::vector<unsigned char> storage(sizeof(FILE_RENAME_INFO) + name.size() * sizeof(wchar_t));
     auto* rename = reinterpret_cast<FILE_RENAME_INFO*>(storage.data());
@@ -768,8 +769,14 @@ void publishDirectory(Job& job) {
   } catch (...) {
     if (!published) {
 #ifdef _WIN32
-      for (auto& file : files) { FILE_DISPOSITION_INFO dispose{TRUE}; SetFileInformationByHandle(file.value, FileDispositionInfo, &dispose, sizeof(dispose)); }
       files.clear();
+      for (const auto& entry : job.outputs) {
+        try {
+          auto file = child(stage.value, entry.name, false, 1);
+          FILE_DISPOSITION_INFO dispose{TRUE};
+          SetFileInformationByHandle(file.value, FileDispositionInfo, &dispose, sizeof(dispose));
+        } catch (const Failure&) {}
+      }
       FILE_DISPOSITION_INFO dispose{TRUE}; SetFileInformationByHandle(stage.value, FileDispositionInfo, &dispose, sizeof(dispose));
 #else
       for (const auto& entry : job.outputs) unlinkat(stage.value, entry.name.c_str(), 0);
