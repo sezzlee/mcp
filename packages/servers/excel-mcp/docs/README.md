@@ -1,6 +1,6 @@
 # Excel oluşturma ve düzenleme: araştırmaya dayalı faz planı
 
-Status: Phases 0–2 and Phase 3 P3-00–P3-09 are implemented. The [Phase 3 plan](phase-3/implementation-plan.md) records preserved-package editing, required formula/formatting copy and closed platform/package acceptance. [Phase 4](phase-4/implementation-plan.md) now implements ordered bulk operations, atomic dependent groups and independent-job recovery; its final combined/model/platform acceptance is in progress. Publication and consumer rollout are separate. New formula/style authoring remains Phase 5 and calculation Phase 6.
+Status: Phases 0–4 are implemented with closed acceptance gates. The [Phase 3 plan](phase-3/implementation-plan.md) records preserved-package editing and required formula/formatting copy. The [Phase 4 plan](phase-4/implementation-plan.md) records ordered bulk operations, atomic dependent groups, independent-job recovery and completed corpus/model/platform/installed-package acceptance. Publication and consumer rollout are separate. New formula/style authoring remains Phase 5 and calculation Phase 6.
 
 ## Hedef ve dayanak
 
@@ -133,4 +133,4 @@ Kullanıcının yanıtladığı kaynak koruma, ayrı hesaplama, aynı pakette ay
 
 İlk adım [Faz 0](phase-0/README.md): mevcut altyapı envanteri üzerinde kapsam kararlarını değer, işlem ve çıktı sözleşmesine dönüştürmek. Envanter, paket/mod kararı, açık tür sözleşmesi ve tek çıktı için güvenli sürüm hazırlama temeli uygulandı. İlk kullanıcıya görünür çalışan sonuç [Faz 1](phase-1/README.md) olacaktır.
 
-Phases 0–3 are implemented locally. The full native and clean installed-package gate passed on the combined main revision. Actual publication and consumer rollout are recorded separately. Phase 4 is the next planned capability phase; new formula/style authoring remains Phase 5.
+Phases 0–4 are implemented. The [Phase 4 acceptance record](phase-4/implementation-plan.md) closes the combined regression, actual-model, native and clean installed-package gates on the final bulk runtime. Actual publication and consumer rollout are recorded separately. New formula/style authoring remains the next capability phase, Phase 5.

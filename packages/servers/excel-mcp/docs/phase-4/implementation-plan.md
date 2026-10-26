@@ -1,6 +1,6 @@
 # Phase 4 implementation and verification plan
 
-Status, 2026-10-26: P4-00–P4-08 runtime work and the P4-09 lab are implemented locally; final P4-09/P4-10 acceptance is in progress. prepare_bulk_job, run_bulk_job and get_bulk_job now validate, execute, atomically publish and recover complete groups or independent batches. The original prepare_bulk remains focused key analysis. Full platform/installed-package and actual-model gates must pass before Phase 4 is marked complete. The starting vendor revision is `2dd2a37464dab05d66a4e3c9d8f90b3a78724e76`.
+Status, 2026-10-26: P4-00–P4-10 are complete. F4-01–F4-09 have executable behavior, independent acceptance and closed regression/model/platform/package gates. prepare_bulk_job, run_bulk_job and get_bulk_job validate, execute, atomically publish and recover complete groups or independent batches. The original prepare_bulk remains focused key analysis. The final runtime revision is `424015b7708e53303ce6b0654c761a582b2b375a`; the [full CI gate](https://github.com/sezzlee/mcp/actions/runs/40314833068) passed all 15 jobs. The starting vendor revision was `2dd2a37464dab05d66a4e3c9d8f90b3a78724e76`. Publication and consumer rollout remain separate.
 
 ## Recorded user decisions
 
@@ -189,7 +189,17 @@ All nine bulk benchmark operations passed again at 10,000 records/ten columns. U
 
 Selected application acceptance passed five outputs from update, replacement, join and a two-output dependent group. Actual LibreOfficeDev 26.8.0.0.alpha0 produced ODS files; bulk-application-oracle.py compared 340,036 scalar coordinates/types/values against independently verified expected results and checked unchanged input bytes. Open XML SDK 2.16.0 with Office2019 validation passed all 21 selected scale outputs with zero errors. This does not imply application or schema validation of the whole external corpus.
 
-Actual Qwen acceptance uses public deterministic fixtures and qwen3.8:latest, with its exact model digest and implementation hashes recorded in the isolated manifests. The final configuration allows 12,288 generated tokens per call and a 360-second request deadline; earlier 4,096-token runs exhausted the generation budget in reasoning and are retained as failures. TR passed all five model tasks: conditional update, join with explicit CSV numeric readings, complete replacement, identical retry plus durable status and protected-workbook refusal. EN final results and the full native/installed-tarball CI gate are recorded when complete.
+Actual Qwen acceptance uses public deterministic fixtures and qwen3.8:latest, digest 22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643 (qwen3.8:27b-q4_K_M). The isolated manifests retain exact model, implementation, controller and oracle hashes. The final configuration allows 12,288 generated tokens per call, a 360-second request deadline and 16 calls/turns. Two generic incomplete-task reminders are allowed, but none was needed in the ten verified scenarios below. Output values/types/order, source immutability, preserved package content, identical retry/status and actual protected-workbook refusal are independently graded. Preparation or model prose never counts as a completed report.
+
+| Scenario                                     | TR verified calls | EN verified calls | Evidence batch |
+| -------------------------------------------- | ----------------- | ----------------- | -------------- |
+| Conditional update                           | 4                 | 4                 | v7             |
+| Left join with numeric CSV readings          | 8                 | 9                 | v7             |
+| Whole-list replacement and old-tail clearing | 6                 | 8                 | TR v7; EN v9   |
+| Identical retry and durable status           | 4                 | 5                 | TR v7; EN v9   |
+| Protected-workbook refusal without output    | 3                 | 3                 | TR v7; EN v9   |
+
+This table records successful scenario coverage, not a 100% first-attempt model success rate. Both joins and the EN replacement corrected one real tool argument error within the unchanged call budget. Earlier runs exhausted reasoning budgets, returned no tool call or were interrupted during contract clarification; they remain failed or interrupted observations and are excluded from successful counts. The v7 catalog exposes direct job properties through the strict canonical union; observed initial model input increased from about 3,000 to 30,000 tokens, consistent with the provider finally including nested fields. The v9 description additionally names replace.input as the target dataset and replace.source as the replacement dataset; the engine contract is unchanged. An optional duplicate TR replacement attempt on the other host was interrupted after the required coverage had completed; it is not counted as a pass. These observations do not promise deterministic model behavior.
 
 A local macOS arm64 process-kill acceptance check interrupted the actual native publisher once while a staging directory existed and once after confirmed completion. Both children exited via SIGKILL. The first exposed no completed group (one ignored staging directory); retry after process restart published a complete group. The second retained one complete group and rejected a duplicate publication. All four 8 MiB payload hashes, the completion manifest and an unrelated source sentinel were checked after recovery. This is selected process-crash evidence, not a power-loss guarantee.
 
@@ -199,12 +209,16 @@ The corrected runtime revision d08eb986476ebf88b0fa5acfdec5309715a1a428 passed t
 
 Selected preserved-output application checks additionally passed an actual-model update and replacement workbook against the independent agent oracle, raw OOXML and real Calc-produced ODF values/types/order: 21 scalar coordinates, unchanged source/output hashes and zero Open XML SDK errors. The earlier five-output scale application check remains separate evidence.
 
+After catalog normalization changed, the final server also recovered all 20 previously committed scale groups and their complete ten-child independent batch through actual get_bulk_job calls, verified the retained output inventories/hashes and left the output directories unchanged. The final configured corpus regression repeated excel-mcp's 6,444 tests and excel-lab's 112 tests without failures or skips. The final replacement-description clarification additionally passed all 39 bulk-job MCP tests, including direct schema publication, strict kind-specific validation and the 40,000-byte catalog cap, plus all 13 build/type/lint tasks.
+
+The [final full CI run](https://github.com/sezzlee/mcp/actions/runs/40314833068) passed on 424015b7708e53303ce6b0654c761a582b2b375a: all ten native platform/Node legs, both NestJS host generations, combined build/lint/type/fixture checks and the installed-tarball pack/smoke gate (15 jobs total). Linux x64/arm64, macOS x64/arm64 and Windows x64 were checked on Node 22 and 24. Local selected Open XML SDK acceptance covers 23 outputs with zero errors; actual Calc acceptance covers seven outputs and 340,057 scalar coordinates/types/values. All 11 scale cases passed. The completion update changes documentation only; it introduces no further runtime change. Generated workbooks and failed/interrupted model traces remain outside the repository.
+
 ## Completion checklist
 
-- Every F4-01–F4-09 requirement has implemented behavior and independent acceptance; unsupported preservation is an explicit refusal, not silent data loss.
-- User decisions above hold through actual MCP requests and retries.
-- Complete selections, list-tail clearing, source immutability and exact record outcomes are verified.
-- Dependent and independent jobs have distinct, crash-safe completion/retry evidence; a per-file receipt is never mistaken for a completed group.
-- Receipts and diagnostic retrieval stay bounded; large joins/intermediates fail safely within measured resource bounds.
-- The final implementation passes existing reader/writer/corpus regression, scripted and actual-model acceptance, selected independent application/schema validation and the required native/installed-package gate.
-- Documentation is generated from actual registered contracts where required. Publication and private consumer rollout are tracked separately from local implementation completion.
+- [x] Every F4-01–F4-09 requirement has implemented behavior and independent acceptance; unsupported preservation is an explicit refusal, not silent data loss.
+- [x] User decisions above hold through actual MCP requests and retries.
+- [x] Complete selections, list-tail clearing, source immutability and exact record outcomes are verified.
+- [x] Dependent and independent jobs have distinct, crash-safe completion/retry evidence; a per-file receipt is never mistaken for a completed group.
+- [x] Receipts and diagnostic retrieval stay bounded; large joins/intermediates fail safely within measured resource bounds.
+- [x] The final implementation passes existing reader/writer/corpus regression, scripted and actual-model acceptance, selected independent application/schema validation and the required native/installed-package gate.
+- [x] Documentation is generated from actual registered contracts where required. Publication and private consumer rollout are tracked separately from local implementation completion.

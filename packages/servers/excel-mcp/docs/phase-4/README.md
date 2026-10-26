@@ -1,6 +1,6 @@
 # Faz 4: gelişmiş toplu veri işlemleri
 
-Status, 2026-10-26: P4-00–P4-08 runtime work and the P4-09 lab are implemented locally; final actual-model, combined regression and platform/package gates are running. Ordered bulk jobs, atomic dependent output groups and independent-job recovery are available in explicit writing mode. The [implementation and verification plan](implementation-plan.md) records carryovers, user decisions and evidence. Phase 4 is not marked complete before the final gates pass. Common requirements remain in the [main roadmap](../README.md).
+Status, 2026-10-26: P4-00–P4-10 and F4-01–F4-09 are complete. Ordered bulk jobs, atomic dependent output groups and independent-job recovery are available in explicit writing mode. Configured corpus regression, independent oracles, selected Open XML SDK/Calc checks, TR/EN actual-model scenarios and the [full native/installed-package CI gate](https://github.com/sezzlee/mcp/actions/runs/40314833068) passed. The [implementation and verification plan](implementation-plan.md) records carryovers, user decisions, exact scope and failed/interrupted model observations. Publication and consumer rollout remain separate. Common requirements remain in the [main roadmap](../README.md).
 
 ## Hedef
 
