@@ -1,6 +1,6 @@
 # Phase 5 implementation and verification plan
 
-Status, 2026-10-26: F5-01–F5-07 implementation and local acceptance are complete. The [implementation status](implementation-status.md) records the final evidence and the remaining remote native gate before release. Starting vendor revision: `71066444b21c514d80e3e9188317d18c0d2ad17d`. Retain unrelated workspace changes.
+Status, 2026-10-26: F5-01–F5-07 implementation and acceptance are complete. The [implementation status](implementation-status.md) records the local evidence and the [green full CI run](https://github.com/sezzlee/mcp/actions/runs/40398948588), including all ten native legs and packed-package acceptance. Starting vendor revision: `71066444b21c514d80e3e9188317d18c0d2ad17d`. Publication and consumer rollout remain separate.
 
 Phase 5 lets an agent deliver a formatted workbook containing real Excel tables and formulas. It extends the current writing mode and immutable editor. Server-side calculation remains [Phase 6](../phase-6/README.md); charts, pivots and conditional-format authoring remain [Phase 7](../phase-7/README.md).
 
@@ -244,5 +244,5 @@ The other completed commands are the lab, scanner and bulk-oracle commands above
 - [x] F5-07: independent files, reads, receipts and reviewed final model answers pass across all 18 TR/EN cases, with exact replay evidence for unchanged editing observations.
 - [x] Scripted and model multi-call continuation and data+appearance+formula group atomicity/recovery pass; unsuccessful trials remain retained.
 - [x] Final local regression, configured corpus, independent oracles, application/visual, model/replay, resource and installed-package gates have explicit results and immutable evidence identities.
-- [ ] The remaining remote native platform matrix on Node 22/24 passes before release.
+- [x] The remote native platform matrix passed all ten Node 22/24 legs; merged-prebuild packing and clean installed-package acceptance also passed in full CI on revision `6c53eb1`.
 - [x] Documentation describes actual support and refusals; publication and consumer rollout remain separately tracked.

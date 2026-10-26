@@ -1,6 +1,6 @@
 # Phase 5 implementation status
 
-Status, 2026-10-26: capability implementation and local acceptance are complete. The remote native matrix remains open before release. The [plan](implementation-plan.md) and [sanitized acceptance record](acceptance-record.json) separate completed evidence from that remaining gate.
+Status, 2026-10-26: capability implementation and acceptance are complete. The [full CI run](https://github.com/sezzlee/mcp/actions/runs/40398948588) passed on revision `6c53eb15988e7e86113bf95b31d9622c450ccfce`, including all ten native Node 22/24 legs and the final packed-package installation gate. The [plan](implementation-plan.md) and [sanitized acceptance record](acceptance-record.json) retain the evidence. Publication and private consumer rollout remain separate.
 
 ## Implemented surface
 
@@ -16,7 +16,7 @@ The initial table appearance profile is the explicitly defined custom `SezzleeBl
 - SDK checks first caught font-child ordering and date lexical compatibility. SDK 2.16 uses an exact millisecond pattern for date cells; date/local-datetime serialization pads local millisecond precision without adding a timezone. Its [official implementation](https://github.com/dotnet/Open-XML-SDK/blob/v2.16.0/src/DocumentFormat.OpenXml/Schema/Spreadsheet/CellValue.cs) is the independent source for that compatibility choice. LibreOffice then exposed shorthand row-reference interoperability: authored references now save the full table name with `#This Row`, which calculated correctly in the application.
 - A public-API probe reproduced and then passed the finishing-descriptor round-trip regression. Parsing retains root-level finishing; the executor resolves it internally. The MCP regression test also passes the parsed public descriptor back through the advertised wire contract.
 - One-million-cell format, formula-fill and table benchmarks passed on the final runtime, including independent coordinate/value/package oracles, immutable source checks and identical retry outputs. At 50,000 rows by 20 columns with a 1,536 MiB heap limit, first calls took approximately 40.30 s, 11.28 s and 19.87 s; peak RSS was 1,180,656, 1,033,104 and 1,199,472 KiB. Requests were 248, 244 and 996 bytes; receipts were 639, 650 and 643 bytes. These are local measurements, not cross-platform guarantees.
-- Clean installed-tarball smoke passed on macOS arm64, Node 24.12.0, including CLI authoring, table formulas, layout, editing, transfer, retry, atomic refusal and restore. The existing native CI smoke now exercises authoring on its configured platform matrix. Other native targets and Node 22 have not run locally.
+- Clean installed-tarball smoke passed locally on macOS arm64, Node 24.12.0, including CLI authoring, table formulas, layout, editing, transfer, retry, atomic refusal and restore. The full remote native matrix then passed Linux x64/arm64, macOS x64/arm64 and Windows x64 on both Node 22 and 24, followed by merged-prebuild packing and clean package installation. Native CI uses the checked-in suites; the external configured corpus remains the separate local 6,474-test checkpoint.
 - The generated public reference now interrogates both read and write profiles. Writing-only tools expose their complete registered JSON Schema; read-profile argument-description checks remain enforced. The report recipe, generator check, content validation, docs build, types and lint passed. The source documentation is not a deployed site.
 - The last SDK correction changed one of 117 compiled modules. The existing replay utility ran 19 earlier editing trials, including all 14 editing scenario/language cases, against the final runtime: all 126 tool responses, tool catalogs and every retained output hash matched. Only the utility's established volatile root/time/cursor fields were masked. The four bulk scenario/language cases and an additional atomic-report repeat were inferred again against the final runtime because their font output bytes changed. The acceptance record distinguishes direct model execution from exact recorded-call replay and retains both build identities.
 - Actual-model table trials exposed a structural integration defect: inserting a worksheet row before totals expanded the table but left its filter range short. The shared structural editor now synchronizes only the affected tables' filter ranges, excluding totals and retaining criteria/dropdown attributes. Independent insertion/deletion regression controls pass.
@@ -27,7 +27,7 @@ The initial table appearance profile is the explicitly defined custom `SezzleeBl
 
 Generated workbooks, corpus paths, model endpoints and complete traces remain in external local evidence directories. No private product inputs or licensed corpus outputs are committed.
 
-The review separates runtime changes (22 files, 4,035 added / 130 removed lines) from tests and test support (19 files, 2,914 added / 68 removed lines). Documentation and the generated reference are counted separately. These figures include new untracked source files; they do not include unrelated private-workspace changes.
+The initial feature review separated runtime changes (22 files, 4,035 added / 130 removed lines) from tests and test support (19 files, 2,914 added / 68 removed lines). Documentation and the generated reference were counted separately. The later CI-stability commits changed only two test files. Unrelated private-workspace changes are excluded.
 
 ## Contract refinements
 
@@ -37,6 +37,10 @@ The review separates runtime changes (22 files, 4,035 added / 130 removed lines)
 - Pure appearance preserves ordinary saved results and errors when there are no affected format-dependent formulas. Visibility changes require recalculation; a format/layout change in a workbook containing `CELL` conservatively invalidates the workbook's formula caches. Saved errors and uncached formulas remain distinct in reads.
 - Expansion is checked against the stored-cell budget before allocating additional cells. Empty style/table requests and unsafe header changes refuse explicitly.
 
-## Remaining gate
+## Acceptance closure
 
-Run the remote native matrix on Node 22/24 before release. Local macOS arm64 installed-package acceptance does not establish the other platforms. The generic native publication primitive was not changed; no new crash/concurrency implementation was introduced. Publication and private consumer rollout remain separate and were not performed at this checkpoint.
+All planned gates are closed by the [green full CI run](https://github.com/sezzlee/mcp/actions/runs/40398948588) and the local evidence above. The generic native publication primitive was not changed; no new crash/concurrency implementation was introduced.
+
+The preceding [CI run](https://github.com/sezzlee/mcp/actions/runs/40395807311) and its failed-jobs-only retry reproduced two Intel Mac fixture-budget failures: the 16,384-style test exceeded its 30-second test deadline, and XML paging semantics hit the default two-second parse budget under contention. Separate test-only commits gave the large style fixture 120 seconds and configured the existing paging test pool budget. Input sizes, assertions, production limits, matrix coverage and parallelism are unchanged. Thirty authoring cases and nineteen paging/deadline cases passed locally before the green full run. No runner-minute savings are claimed.
+
+CI validated revision `6c53eb1`, including both test corrections. This closing evidence update changes documentation only; the 117 validated runtime modules remain unchanged. Publication and private consumer rollout were not performed.

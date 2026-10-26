@@ -1,6 +1,6 @@
 {
   "recordedAt": "2026-10-26T20:01:09.545Z",
-  "status": "local-acceptance-passed-remote-native-pending",
+  "status": "acceptance-passed",
   "baseRevision": "71066444b21c514d80e3e9188317d18c0d2ad17d",
   "serverSourceSha256": "b3ff3254878e834674c1c19e29dddd7712d895bdcb3fd8818f18635c30f5761f",
   "runtimeModules": 117,
@@ -750,21 +750,219 @@
     "scriptedFiles": "093b4a592361b8f4a41f8cc403cd65ec51589d8c02e984aea27b0544f678e331",
     "exactTraceReplay": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af"
   },
-  "openGates": [
-    {
-      "name": "remote-native-matrix",
-      "status": "not_run",
-      "targets": [
-        "linux-x64",
-        "linux-arm64",
-        "darwin-x64",
-        "darwin-arm64",
-        "win32-x64"
-      ],
-      "nodeMajors": [22, 24],
-      "reason": "Requires a committed and pushed revision plus CI dispatch."
-    }
-  ],
+  "openGates": [],
   "publication": "not_performed",
-  "privateConsumerRollout": "not_performed"
+  "privateConsumerRollout": "not_performed",
+  "remoteCI": {
+    "runId": 40398948588,
+    "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588",
+    "testedRevision": "6c53eb15988e7e86113bf95b31d9622c450ccfce",
+    "full": true,
+    "corpusProvenance": "Native CI uses the checked-in suites. The configured external corpus was validated separately in the local 6,474-test checkpoint.",
+    "conclusion": "success",
+    "updatedAt": "2026-10-26T20:55:48Z",
+    "nativeLegs": [
+      {
+        "name": "secure files (win32-x64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606527"
+      },
+      {
+        "name": "secure files (win32-x64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606531"
+      },
+      {
+        "name": "secure files (darwin-x64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606577"
+      },
+      {
+        "name": "secure files (darwin-arm64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606585"
+      },
+      {
+        "name": "secure files (linux-arm64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606606"
+      },
+      {
+        "name": "secure files (darwin-x64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606620"
+      },
+      {
+        "name": "secure files (linux-x64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606621"
+      },
+      {
+        "name": "secure files (darwin-arm64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606645"
+      },
+      {
+        "name": "secure files (linux-arm64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606654"
+      },
+      {
+        "name": "secure files (linux-x64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839607383"
+      }
+    ],
+    "jobs": [
+      {
+        "name": "plan",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839354452"
+      },
+      {
+        "name": "NestJS host (nest12-express5)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606334"
+      },
+      {
+        "name": "build, lint, types, fixtures",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606416"
+      },
+      {
+        "name": "NestJS host (nest10-express4)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606464"
+      },
+      {
+        "name": "secure files (win32-x64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606527"
+      },
+      {
+        "name": "secure files (win32-x64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606531"
+      },
+      {
+        "name": "secure files (darwin-x64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606577"
+      },
+      {
+        "name": "secure files (darwin-arm64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606585"
+      },
+      {
+        "name": "secure files (linux-arm64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606606"
+      },
+      {
+        "name": "secure files (darwin-x64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606620"
+      },
+      {
+        "name": "secure files (linux-x64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606621"
+      },
+      {
+        "name": "secure files (darwin-arm64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606645"
+      },
+      {
+        "name": "secure files (linux-arm64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606654"
+      },
+      {
+        "name": "secure files (linux-x64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839607383"
+      },
+      {
+        "name": "pack",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121842496797"
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12688815576,
+        "name": "npm-tarballs",
+        "sizeInBytes": 1152253,
+        "digest": "sha256:17d32e2f40ea78af7473c8a5bf5d5122e27d7e0981ab6577c86618e62c5d51c7",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/artifacts/12688815576"
+      },
+      {
+        "id": 12687896902,
+        "name": "native-linux-arm64",
+        "sizeInBytes": 49777,
+        "digest": "sha256:91e6e80e83a153981c854017e109a0bed1036d53cd11ca932a96cc01058c08a1",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/artifacts/12687896902"
+      },
+      {
+        "id": 12687882199,
+        "name": "native-darwin-arm64",
+        "sizeInBytes": 42499,
+        "digest": "sha256:9386726267e83e3c2c3dc8495fa4f60959044888f6658d50d6ed88be6b4256b9",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/artifacts/12687882199"
+      },
+      {
+        "id": 12687777270,
+        "name": "native-linux-x64",
+        "sizeInBytes": 54766,
+        "digest": "sha256:fa344f9c2324d5fe2e8e4611dbf5d71e35c29304e06043fb7b3c94cc30a2a36a",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/artifacts/12687777270"
+      },
+      {
+        "id": 12687613177,
+        "name": "native-darwin-x64",
+        "sizeInBytes": 44383,
+        "digest": "sha256:65deb296ab552c456b335f67c80d54fb153d56ae3f4d45987b039e39de6a60fb",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/artifacts/12687613177"
+      },
+      {
+        "id": 12686954841,
+        "name": "native-win32-x64",
+        "sizeInBytes": 255202,
+        "digest": "sha256:f49ed9cd3a2d7de415cd00c7ee5537cde39d0b4607d5bb3bdc44f2d01fc35ae2",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/artifacts/12686954841"
+      }
+    ],
+    "rawRunReportSha256": "8c2ded21ba09e236b86884adf8171db800b0051cb551b290e65633191ea92706",
+    "previousRuns": [
+      {
+        "runId": 40395807311,
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40395807311",
+        "conclusion": "failure",
+        "attempts": 2,
+        "reason": "Both Intel Mac jobs reproduced test-fixture deadline failures. Only failed jobs were retried before the test-only corrections."
+      }
+    ],
+    "stabilityCorrections": {
+      "wasteSource": "Repeated Intel Mac failures came from fixture wall-clock budgets rather than assertion failures.",
+      "fixes": [
+        {
+          "commit": "d79cbe9",
+          "change": "The full 16,384-style fixture has a 120-second test deadline; its data and assertions are unchanged."
+        },
+        {
+          "commit": "6c53eb1",
+          "change": "Paging semantics use the existing test pool budget option; the production 2-second parse limit and separate deadline tests are unchanged."
+        }
+      ],
+      "localValidation": {
+        "excelAuthoringCases": 30,
+        "xmlPagingAndDeadlineCases": 19,
+        "typesAndLint": "passed"
+      },
+      "impact": "The matrix, checks and parallelism are unchanged. No runner-minute savings are claimed; the live full run validates the corrected test revision."
+    },
+    "note": "CI validated revision 6c53eb1, including both test-budget corrections. The subsequent evidence-only commit changes documentation; it does not change the validated runtime sources."
+  }
 }

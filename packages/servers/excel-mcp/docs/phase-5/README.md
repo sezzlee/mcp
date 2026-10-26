@@ -1,6 +1,6 @@
 # Faz 5: biçimlendirme, tablolar ve formüller
 
-Status, 2026-10-26: F5-01–F5-07 implementation and local acceptance are complete. The remote native matrix on Node 22/24 remains open before release. The [implementation and verification plan](implementation-plan.md) records Phase 0–4 carryovers, confirmed merge/table/structured-formula decisions, concrete owners and ordered gates. The [implementation status](implementation-status.md) links the sanitized evidence and distinguishes direct model execution from exact recorded-call replay. Common requirements remain in the [main roadmap](../README.md).
+Status, 2026-10-26: F5-01–F5-07 implementation and acceptance are complete. The [full CI run](https://github.com/sezzlee/mcp/actions/runs/40398948588) passed all ten native Node 22/24 legs and packed-package acceptance. The [implementation and verification plan](implementation-plan.md) records Phase 0–4 carryovers, confirmed merge/table/structured-formula decisions, concrete owners and ordered gates. The [implementation status](implementation-status.md) links the sanitized evidence and distinguishes direct model execution from exact recorded-call replay. Publication and consumer rollout remain separate. Common requirements remain in the [main roadmap](../README.md).
 
 ## Hedef
 

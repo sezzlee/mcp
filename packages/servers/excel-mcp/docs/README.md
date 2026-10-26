@@ -2,7 +2,7 @@
 
 Status: Phases 0–4 are implemented with closed acceptance gates. The [Phase 3 plan](phase-3/implementation-plan.md) records preserved-package editing and required formula/formatting copy. The [Phase 4 plan](phase-4/implementation-plan.md) records ordered bulk operations, atomic dependent groups, independent-job recovery and completed corpus/model/platform/installed-package acceptance. Publication and consumer rollout are separate. New formula/style authoring remains Phase 5 and calculation Phase 6.
 
-Phase 5 implementation, 2026-10-26: formats, layout, safe merge, the full table lifecycle and ordinary/structured formula authoring are implemented. The [implementation and verification plan](phase-5/implementation-plan.md) includes previous-phase integration work; the [acceptance status](phase-5/implementation-status.md) records completed local regression, model/replay, independent package/application/scale checks and the remaining remote native matrix before release.
+Phase 5, 2026-10-26: formats, layout, safe merge, the full table lifecycle and ordinary/structured formula authoring are implemented and accepted. The [implementation and verification plan](phase-5/implementation-plan.md) includes previous-phase integration work; the [acceptance status](phase-5/implementation-status.md) records local regression, model/replay, independent package/application/scale checks and the green full native/packed-package CI run. Publication and consumer rollout remain separate.
 
 ## Hedef ve dayanak
 
