@@ -148,6 +148,7 @@ await writeFile(
         numPredict: 12288,
         timeoutMs: 360000,
         callBudget: 16,
+        incompleteReplyReminders: 2,
       },
     },
     null,
@@ -400,6 +401,7 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
                 "\nsource.xlsx headers: Id, Status, Amount; right.csv: Id, Price; replacement.csv: Id, Status, Amount. First row is the header.",
             },
           ];
+          let reminders = 0;
           for (let turn = 0; turn < 16; turn++) {
             const reply = await host.chat({
               messages,
@@ -420,7 +422,15 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
                 policy: "product",
               }),
             );
-            if (!reply.toolCalls?.length) break;
+            if (!reply.toolCalls?.length) {
+              if (reminders++ >= 2) break;
+              messages.push({
+                role: "user",
+                content:
+                  "The requested task has no verified completed result yet. Use one available tool now to execute or inspect the actual result. Preparation and reasoning alone do not complete the task. Follow the supplied argument schema and exact source versions; do not repeat analysis or claim success without an output. If preservation is blocked, obtain and report the actual tool refusal.",
+              });
+              continue;
+            }
             for (const tool of reply.toolCalls)
               messages.push({
                 role: "tool",

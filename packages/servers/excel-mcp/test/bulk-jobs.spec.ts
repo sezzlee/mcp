@@ -1507,6 +1507,31 @@ it("bounds the advertised job catalog while keeping kind-specific argument valid
         expect(Buffer.byteLength(JSON.stringify(tool))).toBeLessThanOrEqual(
           40_000,
         );
+        expect(tool?.inputSchema).toMatchObject({
+          properties: {
+            job: {
+              type: "object",
+              properties: {
+                kind: { enum: ["dependent", "independent"] },
+                group: {
+                  properties: {
+                    steps: {
+                      items: {
+                        properties: {
+                          where: {
+                            type: "array",
+                            items: { required: ["column", "op"] },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+                jobs: { type: "array" },
+              },
+            },
+          },
+        });
       }
       const read = await readStep(directory);
       const response = await invoke(client, {
@@ -1525,6 +1550,26 @@ it("bounds the advertised job catalog while keeping kind-specific argument valid
       });
       expect(extra.isError).toBe(true);
       expect(payload(extra)).toMatchObject({ error: "invalid_argument" });
+      for (const job of [
+        { kind: "dependent" },
+        {
+          kind: "dependent",
+          group: { steps: [read], outputs: [newOutput("orders")] },
+          jobs: [],
+        },
+        {
+          kind: "independent",
+          group: { steps: [read], outputs: [newOutput("orders")] },
+        },
+      ]) {
+        const invalid = await client.callTool({
+          name: "run_bulk_job",
+          arguments: { job },
+        });
+        expect(invalid.isError).toBe(true);
+        expect(payload(invalid)).toMatchObject({ error: "invalid_argument" });
+      }
+      expect(await readdir(join(directory, "out"))).toEqual([]);
     }),
   );
 });

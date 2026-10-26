@@ -300,7 +300,7 @@ export const bulkGroupSchema = z.strictObject({
   steps: z.array(bulkStepSchema).min(1).max(bulkJobLimits.maxSteps),
   outputs: z.array(output).min(1).max(bulkJobLimits.maxOutputs),
 });
-export const bulkJobSchema = z
+const bulkJobVariants = z
   .discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("dependent"), group: bulkGroupSchema }),
     z.strictObject({
@@ -312,6 +312,25 @@ export const bulkJobSchema = z
     }),
   ])
   .meta({ type: "object" });
+export const bulkJobSchema = z
+  .strictObject({
+    kind: z.enum(["dependent", "independent"]),
+    group: bulkGroupSchema.optional(),
+    jobs: bulkJobVariants.options[1].shape.jobs.optional(),
+  })
+  .transform((value, context) => {
+    const parsed = bulkJobVariants.safeParse(value);
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues)
+        context.addIssue({
+          code: "custom",
+          message: issue.message,
+          path: issue.path,
+        });
+      return z.NEVER;
+    }
+    return parsed.data;
+  });
 export const bulkJobInputSchema = z.strictObject({ job: bulkJobSchema });
 export const bulkJobStatusInputSchema = z.strictObject({
   jobId: workbookVersionIdSchema,
@@ -389,7 +408,7 @@ export const bulkStoredManifestSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     kind: z.literal("batch"),
-    request: bulkJobSchema.options[1],
+    request: bulkJobVariants.options[1],
     jobId: workbookVersionIdSchema,
   }),
   z.strictObject({
