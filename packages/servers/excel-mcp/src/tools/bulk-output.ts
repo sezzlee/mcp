@@ -4,6 +4,8 @@ import {
 } from "../format/authoring.js";
 import { applyWorkbookChanges } from "../format/edit-workbook.js";
 import { resizeBulkTable } from "../format/bulk-table.js";
+import { PreservedWorkbook } from "../format/preserved-workbook.js";
+import { selectedTable } from "../format/table-model.js";
 import { parseOoxml, ooxmlSheetView } from "../format/ooxml-workbook.js";
 import { parseCellRef, formatCellRef, maxRow } from "../grid/range.js";
 import { sameWriteValue } from "../authoring/bulk-key.js";
@@ -153,6 +155,14 @@ export function renderBulkOutput(
     end = parseCellRef(last ?? first ?? "");
   const headerRow = selection.headerRow;
   const changes: EditChange[] = [];
+  const selectedTargetTable =
+    selection.table === undefined
+      ? undefined
+      : selectedTable(
+          new PreservedWorkbook(target.snapshot.bytes),
+          view.name,
+          selection.table,
+        );
   let tableResize: number | undefined;
   const originalRows = new Map(
     original.rows.flatMap((row) =>
@@ -160,6 +170,13 @@ export function renderBulkOutput(
     ),
   );
   function occupied(row: number, column: number): boolean {
+    if (
+      selectedTargetTable?.totalsRows === 1 &&
+      row === selectedTargetTable.bounds.bottom &&
+      column >= selectedTargetTable.bounds.left &&
+      column <= selectedTargetTable.bounds.right
+    )
+      return false;
     const value = view.rowAt(row)?.cellAt(column);
     return (
       value !== undefined &&
@@ -385,7 +402,24 @@ export function renderBulkOutput(
       recalculationRequired: false,
       refreshRequired: [],
     };
-  const edited = applyWorkbookChanges(target.snapshot.bytes, changes);
+  let base = target.snapshot.bytes;
+  if (tableResize !== undefined && selectedTargetTable?.totalsRows === 1) {
+    const totalRow = selectedTargetTable.bounds.top + tableResize + 1;
+    if (totalRow > selectedTargetTable.bounds.bottom)
+      for (let col = start.column; col <= end.column; col++)
+        if (occupied(totalRow, col))
+          bulkInvalid(
+            "The moved totals row collides with content outside the target table.",
+          );
+    if (!changes.some((change) => change.kind === "delete_rows"))
+      base = resizeBulkTable(
+        base,
+        view.name,
+        selection.table ?? "",
+        tableResize,
+      );
+  }
+  const edited = applyWorkbookChanges(base, changes);
   const bytes =
     tableResize === undefined
       ? edited.bytes

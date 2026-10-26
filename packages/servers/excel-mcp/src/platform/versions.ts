@@ -29,6 +29,10 @@ export const mutationReceiptSchema = versionReceiptSchema.extend({
       operations: z.int().nonnegative(),
       partsChanged: z.int().nonnegative(),
       cellsCleared: z.int().nonnegative(),
+      cellsFormatted: z.int().nonnegative().optional(),
+      formulasWritten: z.int().nonnegative().optional(),
+      mergedValuesCleared: z.int().nonnegative().optional(),
+      tablesChanged: z.int().nonnegative().optional(),
       recalculated: z.literal(false),
       recalculationRequired: z.boolean(),
       cachedFormulaValues: z.int().nonnegative().optional(),
@@ -47,6 +51,7 @@ export const mutationReceiptSchema = versionReceiptSchema.extend({
 export type WorkbookVersionId = z.infer<typeof workbookVersionIdSchema>;
 export type WorkbookVersion = z.infer<typeof workbookVersionSchema>;
 export type VersionReceipt = z.infer<typeof versionReceiptSchema>;
+export type MutationReceipt = z.infer<typeof mutationReceiptSchema>;
 
 export type WorkbookOrigin =
   | { readonly kind: "new" }

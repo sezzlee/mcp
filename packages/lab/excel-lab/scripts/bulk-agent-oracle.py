@@ -46,7 +46,7 @@ def prepare(root, protected=False):
     return hashes
 
 
-def cells(path):
+def cells(path, report=False):
     result = {}
     with zipfile.ZipFile(path) as archive:
         assert archive.testzip() is None
@@ -57,7 +57,12 @@ def cells(path):
         sheet = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
         for cell in sheet.iter(MAIN + 'c'):
             key, kind = cell.attrib['r'], cell.attrib.get('t')
-            assert cell.find(MAIN + 'f') is None
+            formula = cell.find(MAIN + 'f')
+            if formula is not None:
+                assert report and key == 'E1'
+                assert (formula.text or '').replace("'S'!", '').replace('S!', '').replace('$', '').replace(' ', '').upper() == 'SUM(C2:C4)'
+                assert cell.find(MAIN + 'v') is None, 'fabricated formula cache'
+                continue
             value = cell.find(MAIN + 'v')
             if kind == 'inlineStr':
                 result[key] = ('text', ''.join(node.text or '' for node in cell.iter(MAIN + 't')))
@@ -77,7 +82,8 @@ def verify(root, scenario, output=None):
         assert output is None
         assert not list((root / 'out').iterdir())
         return {'passed': True, 'scenario': scenario}
-    if scenario in ('update', 'retry'):
+    report = scenario in ('report', 'independent_report')
+    if scenario in ('update', 'retry', 'report', 'independent_report'):
         expected = [['Id', 'Status', 'Amount'], ['a', 'pending', 99], ['b', 'done', 20], ['c', 'pending', 99]]
     elif scenario == 'replace':
         expected = [['Id', 'Status', 'Amount'], ['a', 'new', 100], ['b', 'new', 200]]
@@ -86,7 +92,33 @@ def verify(root, scenario, output=None):
     else:
         raise AssertionError(('unknown scenario', scenario))
     wanted = {f'{chr(65+c)}{r+1}': ('text' if isinstance(value, str) else 'number', value) for r, row in enumerate(expected) for c, value in enumerate(row) if value is not None}
-    assert cells(output) == wanted, ('unexpected complete output', scenario)
+    assert cells(output, report) == wanted, ('unexpected complete output', scenario)
+    if report:
+        with zipfile.ZipFile(output) as archive:
+            sheet = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
+            styles = ET.fromstring(archive.read('xl/styles.xml'))
+            items = {cell.attrib['r']: cell for cell in sheet.iter(MAIN+'c')}
+            assert items['E1'].find(MAIN+'f') is not None
+            xfs = list(styles.find(MAIN+'cellXfs'))
+            fonts = list(styles.find(MAIN+'fonts'))
+            fills = list(styles.find(MAIN+'fills'))
+            for coordinate in ['A1','B1','C1']:
+                xf=xfs[int(items[coordinate].attrib.get('s','0'))]
+                font=fonts[int(xf.attrib.get('fontId','0'))]
+                fill=fills[int(xf.attrib.get('fillId','0'))]
+                bold = font.find(MAIN+'b')
+                assert bold is not None and bold.attrib.get('val','1') not in ('0','false','off')
+                assert font.find(MAIN+'color').attrib['rgb'][-6:]=='FFFFFF'
+                pattern = fill.find(MAIN+'patternFill')
+                assert pattern.attrib.get('patternType') == 'solid'
+                rgb = pattern.find(MAIN+'fgColor').attrib['rgb'][-6:]
+                red, green, blue = [int(rgb[i:i+2],16) for i in (0,2,4)]
+                assert red < 80 and green < 120 and red < blue < 160, ('expected dark blue',rgb)
+            formats={int(node.attrib['numFmtId']):node.attrib['formatCode'] for node in styles.findall(MAIN+'numFmts/'+MAIN+'numFmt')}
+            for coordinate in ['C2','C3','C4']:
+                xf=xfs[int(items[coordinate].attrib.get('s','0'))]
+                fmt=int(xf.attrib.get('numFmtId','0'))
+                assert fmt==2 or formats.get(fmt)=='0.00'
     if scenario != 'join':
         with zipfile.ZipFile(output) as archive, zipfile.ZipFile(root / 'source.xlsx') as original:
             assert archive.read('customXml/retained.xml') == original.read('customXml/retained.xml')

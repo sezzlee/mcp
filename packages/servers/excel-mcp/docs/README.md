@@ -2,6 +2,8 @@
 
 Status: Phases 0–4 are implemented with closed acceptance gates. The [Phase 3 plan](phase-3/implementation-plan.md) records preserved-package editing and required formula/formatting copy. The [Phase 4 plan](phase-4/implementation-plan.md) records ordered bulk operations, atomic dependent groups, independent-job recovery and completed corpus/model/platform/installed-package acceptance. Publication and consumer rollout are separate. New formula/style authoring remains Phase 5 and calculation Phase 6.
 
+Phase 5 implementation, 2026-10-26: formats, layout, safe merge, the full table lifecycle and ordinary/structured formula authoring are implemented. The [implementation and verification plan](phase-5/implementation-plan.md) includes previous-phase integration work; the [acceptance status](phase-5/implementation-status.md) records completed local regression, model/replay, independent package/application/scale checks and the remaining remote native matrix before release.
+
 ## Hedef ve dayanak
 
 Agent yeni Excel oluşturabilmeli, doğrudan verilen veya önceden okunan verilerle doldurabilmeli, konuşma boyunca düzenlemeye devam edebilmeli ve basitten uzman seviyesine kadar toplu işlemler yapabilmeli.
@@ -133,4 +135,4 @@ Kullanıcının yanıtladığı kaynak koruma, ayrı hesaplama, aynı pakette ay
 
 İlk adım [Faz 0](phase-0/README.md): mevcut altyapı envanteri üzerinde kapsam kararlarını değer, işlem ve çıktı sözleşmesine dönüştürmek. Envanter, paket/mod kararı, açık tür sözleşmesi ve tek çıktı için güvenli sürüm hazırlama temeli uygulandı. İlk kullanıcıya görünür çalışan sonuç [Faz 1](phase-1/README.md) olacaktır.
 
-Phases 0–4 are implemented. The [Phase 4 acceptance record](phase-4/implementation-plan.md) closes the combined regression, actual-model, native and clean installed-package gates on the final bulk runtime. Actual publication and consumer rollout are recorded separately. New formula/style authoring remains the next capability phase, Phase 5.
+Phases 0–4 are implemented. The [Phase 4 acceptance record](phase-4/implementation-plan.md) closes their combined regression, actual-model, native and clean installed-package gates. Phase 5 authoring is implemented with its [own acceptance record](phase-5/implementation-status.md). Actual publication and consumer rollout are recorded separately.

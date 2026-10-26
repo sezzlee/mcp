@@ -8,6 +8,7 @@ import {
   type WorkbookChange,
 } from "../authoring/workbook.js";
 import { writeCellSchema, type WriteCell } from "../authoring/values.js";
+import { isoWrite } from "./iso-write.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { limits } from "../platform/limits.js";
 import {
@@ -202,9 +203,9 @@ function cellXml(reference: string, cell: WriteCell): string {
     case "boolean":
       return `<c r="${reference}" t="b"><v>${cell.value ? 1 : 0}</v></c>`;
     case "date":
-      return `<c r="${reference}" s="1" t="d"><v>${cell.value}</v></c>`;
+      return `<c r="${reference}" s="1" t="d"><v>${isoWrite(cell)}</v></c>`;
     case "datetime":
-      return `<c r="${reference}" s="2" t="d"><v>${cell.value}</v></c>`;
+      return `<c r="${reference}" s="2" t="d"><v>${isoWrite(cell)}</v></c>`;
     case "blank":
       return "";
     default: {
@@ -330,7 +331,13 @@ export function readAuthoredWorkbook(bytes: Buffer): AuthoredWorkbook {
             input = { kind: "boolean", value: text === "1" };
             break;
           case "d":
-            input = { kind: style === "1" ? "date" : "datetime", value: text };
+            input = {
+              kind: style === "1" ? "date" : "datetime",
+              value:
+                style === "1" && text.endsWith("T00:00:00.000")
+                  ? text.slice(0, 10)
+                  : text,
+            };
             break;
           default:
             invalid(

@@ -8,6 +8,23 @@ import { authoringLimits } from "../authoring/workbook.js";
 import type { EditChange } from "../authoring/edit.js";
 import type { WriteCell } from "../authoring/values.js";
 import {
+  isPresentationChange,
+  applyPresentationChange,
+} from "./presentation-workbook.js";
+import type { PresentationChange } from "../authoring/presentation.js";
+import type { MutationReceipt } from "../platform/versions.js";
+import { isoWrite } from "./iso-write.js";
+import {
+  mapStructuredFormula,
+  renderStructuredReference,
+} from "./structured-reference.js";
+import {
+  deleteSheetTableReferences,
+  deleteTableColumnReferences,
+  syncTableFilterRanges,
+} from "./table-authoring.js";
+import { resolveStructuredReference } from "./formula-authoring.js";
+import {
   parseCellRef,
   formatCellRef,
   maxColumn,
@@ -45,10 +62,10 @@ import {
 const main = namespaces.spreadsheetml;
 const office = namespaces.officeRelationships;
 const writer = createOoxmlWriter({ fail: failOoxml });
-const keyOf = (row: number, column: number): number =>
+export const keyOf = (row: number, column: number): number =>
   (row - 1) * maxColumn + column - 1;
-const rowOf = (key: number): number => Math.floor(key / maxColumn) + 1;
-const columnOf = (key: number): number => (key % maxColumn) + 1;
+export const rowOf = (key: number): number => Math.floor(key / maxColumn) + 1;
+export const columnOf = (key: number): number => (key % maxColumn) + 1;
 const inside = (bounds: GridBounds, row: number, column: number): boolean =>
   row >= bounds.top &&
   row <= bounds.bottom &&
@@ -61,7 +78,7 @@ function refuse(message: string): never {
 function budget(message: string): never {
   throw new SezzleeExcelError("resource_limit", message);
 }
-function boundsOf(range: string): GridBounds {
+export function boundsOf(range: string): GridBounds {
   const [first, last] = range.split(":");
   const start = parseCellRef(first ?? "");
   const end = last === undefined ? start : parseCellRef(last);
@@ -125,7 +142,7 @@ interface Grid {
   readonly groups: readonly { bounds: GridBounds; kind: string }[];
 }
 
-function gridOf(xml: string, part: string): Grid {
+export function gridOf(xml: string, part: string): Grid {
   const rows = new Map<number, Row>();
   const cells = new Map<number, Cell>();
   const groups: { bounds: GridBounds; kind: string }[] = [];
@@ -243,7 +260,7 @@ function gridOf(xml: string, part: string): Grid {
   return { xml, root, data, rows, cells, groups };
 }
 
-function renderGrid(grid: Grid): string {
+export function renderGrid(grid: Grid): string {
   const grouped = new Map<number, [number, Cell][]>();
   for (const [key, cell] of grid.cells) {
     const row = rowOf(key);
@@ -339,7 +356,7 @@ function renderGrid(grid: Grid): string {
   return applyXmlPatches(grid.xml, patches);
 }
 
-function rewriteCell(
+export function rewriteCell(
   cell: Cell | undefined,
   reference: string,
   content: string,
@@ -379,20 +396,8 @@ function rewriteCell(
 
 export interface PreservedEditResult {
   readonly bytes: Buffer;
-  readonly changes: {
-    sheetsAdded: number;
-    blocksWritten: number;
-    cellsWritten: number;
-  };
-  readonly editing: {
-    operations: number;
-    partsChanged: number;
-    recalculated: false;
-    recalculationRequired: boolean;
-    cellsCleared: number;
-    cachedFormulaValues: number;
-    refreshRequired: ("formulas" | "charts" | "pivots")[];
-  };
+  readonly changes: MutationReceipt["changes"];
+  readonly editing: Required<NonNullable<MutationReceipt["editing"]>>;
 }
 
 export class PreservedWorkbook {
@@ -401,7 +406,14 @@ export class PreservedWorkbook {
   private cleared = 0;
   private touched = 0;
   private needsCalculation = false;
+  private formattingChanged = false;
   private cachedFormulaValues = 0;
+  private readonly presentation = {
+    cellsFormatted: 0,
+    formulasWritten: 0,
+    mergedValuesCleared: 0,
+    tablesChanged: 0,
+  };
   private sequence = 0;
   private readonly styleCache = new Map<string, string>();
   private formats: ReturnType<typeof readNumberFormats> | undefined;
@@ -526,6 +538,52 @@ export class PreservedWorkbook {
     this.touched += count;
     if (this.touched > authoringLimits.maxCells)
       budget("The transaction exceeds 1,000,000 touched cells.");
+  }
+  presentationEffect(
+    kind: "format" | "formula" | "merge" | "table" | "layout" | "visibility",
+    cells: number,
+    cleared = 0,
+  ): void {
+    this.touch(cells);
+    if (kind === "format" || kind === "layout") this.formattingChanged = true;
+    if (kind === "visibility") this.needsCalculation = true;
+    if (kind === "format") {
+      this.presentation.cellsFormatted += cells;
+      this.formats = undefined;
+      this.calendarStyles.clear();
+      this.styleCache.clear();
+    } else if (kind === "formula") {
+      this.presentation.formulasWritten += cells;
+      this.changes.cellsWritten += cells;
+      this.changes.blocksWritten += 1;
+      this.needsCalculation = true;
+    } else if (kind === "merge") {
+      this.presentation.mergedValuesCleared += cleared;
+      this.cleared += cleared;
+      if (cleared > 0) this.needsCalculation = true;
+    } else if (kind === "table") {
+      this.presentation.tablesChanged += 1;
+      this.needsCalculation = true;
+    }
+  }
+  guardPresentation(sheetName: string, bounds: GridBounds): void {
+    const part = this.sheet(sheetName).part;
+    this.guarded(gridOf(this.xml(part), part), bounds);
+  }
+  reservePresentationCells(additional: number): void {
+    if (additional <= 0) return;
+    let stored = additional;
+    for (const sheet of this.sheets())
+      scanXml(this.xml(sheet.part), sheet.part, (node) => {
+        if (
+          node.uri === main &&
+          node.local === "c" &&
+          ++stored > authoringLimits.maxCells
+        )
+          budget("The proposed expansion exceeds 1,000,000 stored cells.");
+      });
+    if (stored > authoringLimits.maxCells)
+      budget("The proposed expansion exceeds 1,000,000 stored cells.");
   }
   private uniqueName(name: string): void {
     if (
@@ -868,6 +926,41 @@ export class PreservedWorkbook {
     this.calendarStyles.set(String(xfs.length), kind !== "number");
     return String(xfs.length);
   }
+  private tableHeaders(sheetName: string): Map<number, string> {
+    const sheet = this.sheet(sheetName),
+      headers = new Map<number, string>();
+    for (const relation of this.opc().relationshipsFor(sheet.part).values()) {
+      if (relation.kind !== "internal" || relation.type !== `${office}/table`)
+        continue;
+      const xml = this.xml(relation.target);
+      let bounds: GridBounds | undefined,
+        headerRows = 1;
+      scanXml(xml, relation.target, (node) => {
+        if (node.uri === main && node.local === "table") {
+          bounds = boundsOf(node.attributes.get("ref") ?? "");
+          headerRows = Number(node.attributes.get("headerRowCount") ?? 1);
+        }
+      });
+      if (bounds === undefined || headerRows !== 1) continue;
+      const top = bounds.top,
+        left = bounds.left;
+      let column = 0;
+      scanXml(xml, relation.target, (node) => {
+        if (
+          node.uri === main &&
+          node.local === "tableColumn" &&
+          node.parent === "tableColumns"
+        ) {
+          const name = node.attributes.get("name"),
+            key = keyOf(top, left + column++);
+          if (name === undefined || headers.has(key))
+            refuse("The table header identity is invalid or overlapping.");
+          headers.set(key, name);
+        }
+      });
+    }
+    return headers;
+  }
   private write(
     sheetName: string,
     startCell: string,
@@ -887,11 +980,26 @@ export class PreservedWorkbook {
     checked(bounds.bottom, bounds.right);
     this.touch(values.length * width);
     this.guarded(grid, bounds);
+    const tableHeaders = this.tableHeaders(sheetName);
+    this.reservePresentationCells(
+      values.length * width -
+        [...grid.cells.keys()].filter((key) =>
+          inside(bounds, rowOf(key), columnOf(key)),
+        ).length,
+    );
     const merges = this.merges(grid);
     for (const [row, entries] of values.entries())
       for (const [column, value] of entries.entries()) {
         const key = keyOf(start.row + row, start.column + column);
         const cell = grid.cells.get(key);
+        const header = tableHeaders.get(key);
+        if (
+          header !== undefined &&
+          (value.kind !== "text" || value.value !== header)
+        )
+          refuse(
+            "Use edit_table columns to rename an Excel table header; scalar writes cannot desynchronize its column identity.",
+          );
         if (
           value.kind !== "blank" &&
           merges.some(
@@ -936,7 +1044,7 @@ export class PreservedWorkbook {
           case "datetime":
             type = "d";
             style = this.valueStyle(value.kind, style);
-            body = `<${prefix}v>${value.value}</${prefix}v>`;
+            body = `<${prefix}v>${isoWrite(value)}</${prefix}v>`;
             break;
           default: {
             const exhaustive: never = value;
@@ -972,6 +1080,15 @@ export class PreservedWorkbook {
     this.needsCalculation = true;
   }
   private clear(sheetName: string, range: string): void {
+    const clearBounds = boundsOf(range);
+    if (
+      [...this.tableHeaders(sheetName).keys()].some((key) =>
+        inside(clearBounds, rowOf(key), columnOf(key)),
+      )
+    )
+      refuse(
+        "Clearing table headers would invalidate column identities; convert the table or rename its columns explicitly.",
+      );
     const part = this.sheet(sheetName).part;
     const grid = gridOf(this.xml(part), part);
     const bounds = boundsOf(range);
@@ -1004,6 +1121,10 @@ export class PreservedWorkbook {
     sources: ReadonlyMap<number, Buffer> = new Map(),
   ): void {
     for (const [index, change] of changes.entries()) {
+      if (isPresentationChange(change)) {
+        applyPresentationChange(this, change);
+        continue;
+      }
       const external = sources.get(index);
       if (
         external !== undefined &&
@@ -1036,7 +1157,13 @@ export class PreservedWorkbook {
   private structural(
     change: Exclude<
       EditChange,
-      { kind: "add_sheet" | "write_cells" | "clear_contents" }
+      {
+        kind:
+          | "add_sheet"
+          | "write_cells"
+          | "clear_contents"
+          | PresentationChange["kind"];
+      }
     >,
   ): void {
     switch (change.kind) {
@@ -1385,12 +1512,15 @@ export class PreservedWorkbook {
         "The inserted/deleted interval exceeds worksheet bounds.",
       );
     this.guardDependencies(true);
+    if (deleting && axis === "column")
+      deleteTableColumnReferences(this, sheet.name, at, count);
     const tableUpdates: {
       part: string;
       columns: string;
       count: number;
       headers: { column: number; row: number; name: string }[];
     }[] = [];
+    const affectedTables = new Set<string>();
     for (const relation of this.opc().relationshipsFor(sheet.part).values()) {
       if (relation.kind !== "internal" || relation.type !== `${office}/table`)
         continue;
@@ -1430,6 +1560,7 @@ export class PreservedWorkbook {
           "The table header, totals or column identity profile is unsupported.",
         );
       if (axis === "row") {
+        if (at <= bounds.bottom) affectedTables.add(relation.target);
         if (
           deleting &&
           ((headerRows > 0 && at <= bounds.top && at + count > bounds.top) ||
@@ -1441,6 +1572,7 @@ export class PreservedWorkbook {
         continue;
       }
       const tableBounds = bounds;
+      if (at <= bounds.right) affectedTables.add(relation.target);
       const first = tableBounds.left,
         last = tableBounds.right;
       const headers: { column: number; row: number; name: string }[] = [];
@@ -1617,6 +1749,7 @@ export class PreservedWorkbook {
       }
     });
     if (patches.length) this.put(sheet.part, applyXmlPatches(current, patches));
+    syncTableFilterRanges(this, sheet.name, affectedTables);
     this.needsCalculation = true;
   }
 
@@ -1702,6 +1835,37 @@ export class PreservedWorkbook {
         inside(bounds, rowOf(key), columnOf(key)),
       ),
     );
+    if (!moving)
+      this.reservePresentationCells(
+        [...selected.keys()].filter(
+          (key) =>
+            !targetGrid.cells.has(
+              keyOf(rowOf(key) + rowDelta, columnOf(key) + columnDelta),
+            ),
+        ).length,
+      );
+    if (mode === "formulas" || mode === "all")
+      for (const [key, cell] of selected)
+        if (cell.formula !== undefined)
+          mapStructuredFormula(cell.formula, (ref) => {
+            if (ref.rowContext) {
+              resolveStructuredReference(
+                this,
+                ref,
+                source.name,
+                rowOf(key),
+                columnOf(key),
+              );
+              resolveStructuredReference(
+                this,
+                ref,
+                target.name,
+                rowOf(key) + rowDelta,
+                columnOf(key) + columnDelta,
+              );
+            }
+            return ref.raw;
+          });
     const strings = this.sharedStrings();
     for (let row = bounds.top; row <= bounds.bottom; row += 1)
       for (let column = bounds.left; column <= bounds.right; column += 1) {
@@ -2079,6 +2243,11 @@ export class PreservedWorkbook {
         });
     });
     const remap = (formula: string): string => {
+      mapStructuredFormula(formula, () =>
+        refuse(
+          "Cross-workbook formula copying requires an explicit table dependency mapping.",
+        ),
+      );
       const identifiers =
         formula
           .replace(/"(?:[^"]|"")*"/g, "")
@@ -2346,6 +2515,7 @@ export class PreservedWorkbook {
         "Sheet copying cannot relocate an unsupported formula family or rich cell metadata.",
       );
     this.touch(sourceGrid.cells.size);
+    this.reservePresentationCells(sourceGrid.cells.size);
     if (mode !== "all" && this.opc().relationshipsFor(source.part).size > 0)
       refuse(
         "Partial-mode sheet copying with dependent parts is unsupported; use all mode.",
@@ -2392,14 +2562,37 @@ export class PreservedWorkbook {
         }
       });
     }
+    const copiedTables = new Map<string, { name: string; id: number }>();
+    for (const targetPart of copied.values())
+      scanXml(this.xml(targetPart), targetPart, (node) => {
+        if (node.uri !== main || node.local !== "table") return;
+        let table = `CopiedTable${++largestTable}`;
+        while (tableNames.has(table)) table = `CopiedTable${++largestTable}`;
+        tableNames.add(table);
+        copiedTables.set(fold(node.attributes.get("name") ?? ""), {
+          name: table,
+          id: largestTable,
+        });
+      });
+    const remapTableNames = (formula: string) =>
+      mapStructuredFormula(formula, (ref) => {
+        const table =
+          ref.name === undefined ? undefined : copiedTables.get(fold(ref.name));
+        return table === undefined
+          ? ref.raw
+          : renderStructuredReference(ref, ref.columns, table.name);
+      });
     for (const targetPart of copied.values()) {
       let xml = this.xml(targetPart);
       const patches: XmlPatch[] = [];
       scanXml(xml, targetPart, (node) => {
         if (node.local === "table" && node.uri === main) {
-          let table = `CopiedTable${++largestTable}`;
-          while (tableNames.has(table)) table = `CopiedTable${++largestTable}`;
-          tableNames.add(table);
+          const mapped = copiedTables.get(
+            fold(node.attributes.get("name") ?? ""),
+          );
+          if (mapped === undefined)
+            refuse("A cloned table has no identity mapping.");
+          const table = mapped.name;
           patches.push({
             start: node.start,
             end: node.openEnd,
@@ -2408,7 +2601,7 @@ export class PreservedWorkbook {
                 attribute(
                   xml.slice(node.start, node.openEnd),
                   "id",
-                  String(largestTable),
+                  String(mapped.id),
                 ),
                 "name",
                 table,
@@ -2426,7 +2619,9 @@ export class PreservedWorkbook {
           (node.uri === namespaces.chart && node.local === "f")
         ) {
           const transformed = transformFormula(
-            xmlUnescape(xml.slice(node.openEnd, node.closeStart)),
+            remapTableNames(
+              xmlUnescape(xml.slice(node.openEnd, node.closeStart)),
+            ),
             newName,
             (ref) =>
               canonical(ref.sheet ?? "") === canonical(source.name)
@@ -2498,7 +2693,9 @@ export class PreservedWorkbook {
             !node.attributes.get("name")?.startsWith("_xlnm.")))
       ) {
         const formula = transformFormula(
-          xmlUnescape(xml.slice(node.openEnd, node.closeStart)),
+          remapTableNames(
+            xmlUnescape(xml.slice(node.openEnd, node.closeStart)),
+          ),
           source.name,
           (ref) =>
             canonical(ref.sheet ?? "") === canonical(source.name)
@@ -2527,6 +2724,7 @@ export class PreservedWorkbook {
     )
       refuse("The last visible sheet cannot be deleted.");
     this.guardDependencies(false);
+    deleteSheetTableReferences(this, sheet.name);
     const owned = new Set<string>();
     const originalOpc = this.opc();
     const pending = [sheet.part];
@@ -2625,13 +2823,26 @@ export class PreservedWorkbook {
   }
 
   finish(operations: number): PreservedEditResult {
-    if (this.needsCalculation) this.invalidateCalculations();
     let stored = 0;
     for (const sheet of this.sheets()) {
-      scanXml(this.xml(sheet.part), sheet.part, (node) => {
+      const xml = this.xml(sheet.part);
+      scanXml(xml, sheet.part, (node) => {
         if (node.uri === main && node.local === "c") stored += 1;
+        if (
+          this.formattingChanged &&
+          node.uri === main &&
+          node.local === "f" &&
+          /\bCELL\s*\(/i.test(
+            xmlUnescape(xml.slice(node.openEnd, node.closeStart)).replace(
+              /"(?:[^"]|"")*"/g,
+              "",
+            ),
+          )
+        )
+          this.needsCalculation = true;
       });
     }
+    if (this.needsCalculation) this.invalidateCalculations();
     if (stored > authoringLimits.maxCells)
       budget("The workbook exceeds 1,000,000 stored cells.");
     let changed = 0;
@@ -2671,6 +2882,7 @@ export class PreservedWorkbook {
         recalculationRequired: this.needsCalculation,
         cachedFormulaValues: this.cachedFormulaValues,
         refreshRequired,
+        ...this.presentation,
       },
     };
   }

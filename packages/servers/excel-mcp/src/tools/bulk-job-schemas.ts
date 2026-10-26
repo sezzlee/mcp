@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { presentationWireChangeSchema } from "../authoring/presentation.js";
 import { bulkOperationSchema } from "../authoring/bulk.js";
 import { writeCellSchema } from "../authoring/values.js";
 import { sheetNameSchema } from "../authoring/workbook.js";
@@ -299,26 +300,72 @@ const output = z
 export const bulkGroupSchema = z.strictObject({
   steps: z.array(bulkStepSchema).min(1).max(bulkJobLimits.maxSteps),
   outputs: z.array(output).min(1).max(bulkJobLimits.maxOutputs),
+  finish: z
+    .array(
+      z.strictObject({
+        output: id,
+        changes: z.array(presentationWireChangeSchema).min(1).max(128),
+      }),
+    )
+    .max(bulkJobLimits.maxOutputs)
+    .optional(),
 });
+const bulkGroupWireSchema = bulkGroupSchema.omit({ finish: true });
+const finishingSchema = z
+  .array(
+    z.strictObject({
+      job: id.optional(),
+      output: id,
+      changes: z.array(presentationWireChangeSchema).min(1).max(128),
+    }),
+  )
+  .max(bulkJobLimits.maxOutputs * bulkJobLimits.maxJobs)
+  .optional();
 const bulkJobVariants = z
   .discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("dependent"), group: bulkGroupSchema }),
+    z.strictObject({
+      kind: z.literal("dependent"),
+      group: bulkGroupWireSchema,
+      finish: finishingSchema,
+    }),
     z.strictObject({
       kind: z.literal("independent"),
       jobs: z
-        .array(z.strictObject({ id, group: bulkGroupSchema }))
+        .array(z.strictObject({ id, group: bulkGroupWireSchema }))
         .min(1)
         .max(bulkJobLimits.maxJobs),
+      finish: finishingSchema,
     }),
   ])
   .meta({ type: "object" });
 export const bulkJobSchema = z
   .strictObject({
     kind: z.enum(["dependent", "independent"]),
-    group: bulkGroupSchema.optional(),
-    jobs: bulkJobVariants.options[1].shape.jobs.optional(),
+    group: bulkGroupWireSchema.optional(),
+    jobs: z
+      .array(z.strictObject({ id, group: bulkGroupWireSchema }))
+      .min(1)
+      .max(bulkJobLimits.maxJobs)
+      .optional(),
+    finish: finishingSchema,
   })
   .transform((value, context) => {
+    const { finish } = value;
+    if (
+      finish?.some((item) =>
+        value.kind === "dependent"
+          ? item.job !== undefined
+          : item.job === undefined ||
+            !value.jobs?.some((child) => child.id === item.job),
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Dependent finish entries omit job; independent finish entries must name an existing job.",
+      });
+      return z.NEVER;
+    }
     const parsed = bulkJobVariants.safeParse(value);
     if (!parsed.success) {
       for (const issue of parsed.error.issues)

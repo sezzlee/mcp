@@ -11,6 +11,7 @@ import {
   type WorkbookSnapshot,
 } from "../platform/versions.js";
 import { materializeTransfer } from "./transfer.js";
+import { applyWorkbookChanges } from "../format/edit-workbook.js";
 import {
   applyBulkDatasetStep,
   BulkDatasetBudget,
@@ -199,6 +200,17 @@ async function prepareGroup(
   }
   const ids = new Set<string>();
   const artifacts: BulkRenderedOutput[] = [];
+  const finishIds = new Set<string>();
+  for (const finish of group.finish ?? []) {
+    if (
+      finishIds.has(finish.output) ||
+      !group.outputs.some((o) => o.id === finish.output)
+    )
+      bulkInvalid(
+        "Finishing changes must name each selected output at most once.",
+      );
+    finishIds.add(finish.output);
+  }
   let totalBytes = 0;
   for (const output of group.outputs) {
     await checkpoint();
@@ -217,7 +229,24 @@ async function prepareGroup(
           );
       }
     }
-    const artifact = renderBulkOutput(output, datasets, reads);
+    let artifact = renderBulkOutput(output, datasets, reads);
+    const finish = group.finish?.find((f) => f.output === output.id);
+    if (finish !== undefined) {
+      const applied = applyWorkbookChanges(artifact.bytes, finish.changes);
+      artifact = {
+        ...artifact,
+        bytes: applied.bytes,
+        recalculationRequired:
+          artifact.recalculationRequired ||
+          (applied.editing?.recalculationRequired ?? false),
+        refreshRequired: [
+          ...new Set([
+            ...artifact.refreshRequired,
+            ...(applied.editing?.refreshRequired ?? []),
+          ]),
+        ],
+      };
+    }
     totalBytes += artifact.bytes.length;
     if (totalBytes > bulkJobLimits.maxOutputBytes - 256 * 1024)
       bulkBudget("Bulk outputs exceed their combined publication budget.");
@@ -306,6 +335,13 @@ function checkDescriptor(job: BulkJob): void {
     bulkInvalid("Independent job identifiers must be unique.");
 }
 
+function finishedGroup(job: BulkJob, group: BulkGroup, id?: string): BulkGroup {
+  const finish = job.finish
+    ?.filter((item) => item.job === id)
+    .map(({ output, changes }) => ({ output, changes }));
+  return finish?.length ? { ...group, finish } : group;
+}
+
 export async function prepareBulkJob(
   root: WorkbookRoot,
   output: WorkbookOutput,
@@ -313,9 +349,16 @@ export async function prepareBulkJob(
   checkpoint: () => Promise<void>,
 ) {
   checkDescriptor(job);
-  const jobId = bulkIdentity(job.kind === "dependent" ? job.group : job);
+  const jobId = bulkIdentity(
+    job.kind === "dependent" ? finishedGroup(job, job.group) : job,
+  );
   const groups =
-    job.kind === "dependent" ? [{ id: "job", group: job.group }] : job.jobs;
+    job.kind === "dependent"
+      ? [{ id: "job", group: finishedGroup(job, job.group) }]
+      : job.jobs.map((child) => ({
+          ...child,
+          group: finishedGroup(job, child.group, child.id),
+        }));
   const results = [];
   for (const child of groups) {
     try {
@@ -357,7 +400,7 @@ async function batchStatus(
 ): Promise<BulkBatchReceipt> {
   const results: BulkBatchReceipt["jobs"] = [];
   for (const child of job.jobs) {
-    const id = bulkIdentity(child.group);
+    const id = bulkIdentity(finishedGroup(job, child.group, child.id));
     try {
       const existing = await retainedGroup(output, id);
       if (existing !== undefined) {
@@ -444,7 +487,7 @@ export async function runBulkJob(
   checkDescriptor(job);
   const store = jobStore(output);
   if (job.kind === "dependent")
-    return runGroup(root, output, job.group, checkpoint);
+    return runGroup(root, output, finishedGroup(job, job.group), checkpoint);
   const jobId = bulkIdentity(job);
   await checkpoint();
   await store.publish(`batch-${jobId}`, [
@@ -465,9 +508,14 @@ export async function runBulkJob(
   for (const child of job.jobs) {
     await checkpoint();
     try {
-      await runGroup(root, output, child.group, checkpoint);
+      await runGroup(
+        root,
+        output,
+        finishedGroup(job, child.group, child.id),
+        checkpoint,
+      );
     } catch (error) {
-      const id = bulkIdentity(child.group),
+      const id = bulkIdentity(finishedGroup(job, child.group, child.id)),
         current = failureOf(root, error);
       let diagnosticRetained = false;
       try {

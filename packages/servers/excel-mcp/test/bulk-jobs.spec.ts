@@ -503,7 +503,9 @@ it.each(["clear", "delete_rows"])(
           outputs: [editOutput("removed")],
         };
         const response = await invoke(client, group);
-        expect(response.isError).not.toBe(true);
+        expect(response.isError, JSON.stringify(payload(response))).not.toBe(
+          true,
+        );
         const receipt = bulkGroupReceiptSchema.parse(payload(response)),
           output = receipt.outputs[0];
         if (output === undefined) throw new Error("Missing output");
@@ -670,7 +672,9 @@ it.each([false, true])(
           outputs: [editOutput("replaced", "replace_values")],
         };
         const response = await invoke(client, group);
-        expect(response.isError).not.toBe(true);
+        expect(response.isError, JSON.stringify(payload(response))).not.toBe(
+          true,
+        );
         const receipt = bulkGroupReceiptSchema.parse(payload(response)),
           output = receipt.outputs[0];
         if (output === undefined) throw new Error("Missing output");
@@ -1505,7 +1509,7 @@ it("bounds the advertised job catalog while keeping kind-specific argument valid
         const tool = tools.find((item) => item.name === name);
         expect(tool).toBeDefined();
         expect(Buffer.byteLength(JSON.stringify(tool))).toBeLessThanOrEqual(
-          40_000,
+          50_000,
         );
         expect(tool?.inputSchema).toMatchObject({
           properties: {

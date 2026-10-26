@@ -69,6 +69,30 @@ function requestedCells(changes: readonly EditChange[]): number {
         total += (end.row - start.row + 1) * (end.column - start.column + 1);
         break;
       }
+      case "format_cells":
+      case "fill_formula":
+      case "merge_cells":
+      case "unmerge_cells":
+      case "create_table": {
+        const [first, last] = change.range.split(":");
+        const start = parseCellRef(first ?? ""),
+          end = parseCellRef(last ?? first ?? "");
+        if (end.row < start.row || end.column < start.column)
+          throw new SezzleeExcelError(
+            "invalid_range",
+            "The operation range ends before it starts.",
+          );
+        total += (end.row - start.row + 1) * (end.column - start.column + 1);
+        break;
+      }
+      case "write_formula":
+        parseCellRef(change.cell);
+        total += 1;
+        break;
+      case "set_rows":
+      case "set_columns":
+        total += change.last - change.first + 1;
+        break;
       default:
         break;
     }

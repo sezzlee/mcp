@@ -18,12 +18,14 @@ import {
   createWorkbookOutput,
   bulkJobSchema,
   bulkGroupReceiptSchema,
+  bulkBatchReceiptSchema,
 } from "@sezzlee/excel-mcp";
 import { z } from "zod";
 import { prepareOutRoot } from "./run.ts";
 import { OllamaHost } from "./agent/ollama.ts";
 import { assistantMessage, type ChatMessage } from "./agent/host.ts";
 import { toolSpecsOf } from "./agent/agent-run.ts";
+import { assertAdditionClaims } from "./agent/answer-claims.ts";
 
 const { values } = parseArgs({
   options: {
@@ -31,6 +33,7 @@ const { values } = parseArgs({
     model: { type: "string" },
     languages: { type: "string" },
     only: { type: "string" },
+    think: { type: "string" },
   },
 });
 const options = z
@@ -39,6 +42,14 @@ const options = z
     model: z.string().optional(),
     languages: z.string().default("tr,en"),
     only: z.string().optional(),
+    think: z
+      .string()
+      .min(1)
+      .max(32)
+      .optional()
+      .transform((value) =>
+        value === "true" ? true : value === "false" ? false : value,
+      ),
     baseUrl: z.url().optional(),
   })
   .parse({ ...values, baseUrl: process.env["SEZZLEE_AGENT_LAB_OLLAMA_URL"] });
@@ -48,6 +59,8 @@ const scenarioSchema = z.enum([
   "replace",
   "retry",
   "blocked",
+  "report",
+  "independent_report",
 ]);
 const scenarios =
   options.only === undefined
@@ -65,8 +78,16 @@ const catalog = [
   "describe_workbook",
 ];
 const system =
-  "Complete the requested spreadsheet task through real tools. Nested tool arguments are JSON objects, never JSON-encoded strings. Read-only preparation is not a completed output. Reuse exact supplied source versions. Do not recalculate formulas, invent success, alter originals or replace errors with a different task. On a tool error correct the descriptor and retry within the call budget. Use the bulk job contracts for complete selections and explicit output modes.";
+  "Complete the requested spreadsheet task through real tools. Nested tool arguments are JSON objects, never JSON-encoded strings. Read-only preparation is not a completed output. Reuse exact supplied source versions. Do not recalculate formulas, invent success, alter originals or replace errors with a different task. If formulas were authored, report that the server did not calculate them and a spreadsheet application must recalculate. Never report a computed formula result, even as a prediction or a value calculated by you. In the final answer state the selected output path, each job's complete/refused status and whether recalculation is required. Report only facts from tool results. Report independent partial success explicitly. On a tool error correct the descriptor and retry within the call budget. Use the bulk job contracts for complete selections and explicit output modes.";
 const prompts = {
+  report: {
+    en: "In source.xlsx S!A1:C4 update numeric Amount to 99 only where Status is pending. In the SAME atomic bulk job finish the edited report with bold white headers on dark blue, Amount C2:C4 formatted 0.00 and E1 containing real formula SUM(C2:C4). Publish only the finished report, never an intermediate data-only version. Preserve originals and unrelated package content. Do not invent formula results.",
+    tr: "source.xlsx S!A1:C4 içinde yalnız Status pending olan Amount sayılarını 99 yap. AYNI atomik bulk işinde son işlemlerle başlıkları koyu mavi üzerine beyaz kalın yap, C2:C4 tutarlarını 0.00 biçimlendir ve E1'e gerçek SUM(C2:C4) formülü yaz. Yalnız tamamlanmış raporu yayınla; ara veri sürümü üretme. Kaynakları ve ilgisiz paket içeriğini koru. Formül sonucu uydurma.",
+  },
+  independent_report: {
+    en: "Run two INDEPENDENT bulk reports from source.xlsx S!A1:C4. Each report must edit a preserved copy of the source workbook, retaining unrelated package content. Both update Amount to 99 only where Status is pending. Finish good with bold white headers on dark blue, C2:C4 number format 0.00 and E1 real formula SUM(C2:C4). Finish bad with E1 dynamic spilling formula FILTER(C2:C4,C2:C4>0), deliberately unsupported. Expect partial batch success: retain good fully finished, refuse bad without publishing it. Do not replace the bad formula or silently turn this into overall success. Preserve originals; no fabricated formula results.",
+    tr: "source.xlsx S!A1:C4 kaynağından iki BAĞIMSIZ bulk raporu çalıştır. Her rapor, kaynak çalışma kitabının ilgisiz paket içeriğini de koruyan bir kopyasını düzenlesin. İkisi de yalnız Status pending olan Amount sayılarını 99 yapsın. good raporunu koyu mavi üzerine beyaz kalın başlık, C2:C4 için 0.00 biçimi ve E1'de gerçek SUM(C2:C4) formülüyle tamamla. bad raporunun son işleminde E1'e bilerek desteklenmeyen dinamik taşan FILTER(C2:C4,C2:C4>0) formülü iste. Beklenen kısmi başarı: good tamamlanmış kalsın, bad yayınlanmadan reddedilsin. Hatalı formülü değiştirme veya tüm işlem başarılı deme. Kaynaklar korunsun; hesap sonucu uydurma.",
+  },
   update: {
     en: "In source.xlsx S!A1:C4, change numeric Amount to 99 only where Status is exactly pending. Preserve every other value and unrelated package content. Produce a new immutable edited workbook.",
     tr: "source.xlsx S!A1:C4 içinde yalnız Status değeri tam olarak pending olan kayıtların sayısal Amount değerini 99 yap. Diğer değerleri ve dosyanın ilgisiz içeriğini koru. Yeni ve değişmez bir düzenlenmiş dosya üret.",
@@ -99,6 +120,7 @@ if (options.model !== undefined) {
     baseUrl: options.baseUrl,
     model: options.model,
     keepAlive: "10m",
+    think: options.think,
     apiKey: process.env["SEZZLEE_AGENT_LAB_OLLAMA_KEY"],
   });
 }
@@ -123,6 +145,17 @@ for (const path of [
   "servers/excel-mcp/dist/authoring/bulk-key.js",
   "servers/excel-mcp/dist/platform/versions.js",
   "servers/excel-mcp/dist/format/bulk-table.js",
+  "servers/excel-mcp/dist/authoring/presentation.js",
+  "servers/excel-mcp/dist/format/presentation-workbook.js",
+  "servers/excel-mcp/dist/format/presentation-xml.js",
+  "servers/excel-mcp/dist/format/style-authoring.js",
+  "servers/excel-mcp/dist/format/layout-authoring.js",
+  "servers/excel-mcp/dist/format/formula-authoring.js",
+  "servers/excel-mcp/dist/format/structured-reference.js",
+  "servers/excel-mcp/dist/format/table-authoring.js",
+  "servers/excel-mcp/dist/format/table-model.js",
+  "servers/excel-mcp/dist/format/iso-write.js",
+  "servers/excel-mcp/dist/format/preserved-workbook.js",
   "cores/file-core-native/index.js",
   "cores/file-core-native/src/secure.cc",
   "cores/file-core-native/build.mjs",
@@ -138,11 +171,19 @@ await writeFile(
       catalog,
       system,
       host: host === undefined ? null : await host.identity(),
+      endpoint: options.baseUrl ?? null,
       implementationSha256: implementation.digest("hex"),
       scriptSha256: digest(await readFile(fileURLToPath(import.meta.url))),
+      hostClientSha256: digest(
+        await readFile(new URL("./agent/ollama.ts", import.meta.url)),
+      ),
+      answerClaimsSha256: digest(
+        await readFile(new URL("./agent/answer-claims.ts", import.meta.url)),
+      ),
       oracleSha256: digest(await readFile(oracle)),
       scenarios,
       generation: {
+        requestedThink: options.think ?? "model-default",
         window: 65536,
         temperature: 0,
         numPredict: 12288,
@@ -202,12 +243,38 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
         [a, b] = InMemoryTransport.createLinkedPair();
       await Promise.all([client.connect(a), server.connect(b)]);
       const trace: unknown[] = [];
+      async function traceEvent(event: unknown) {
+        trace.push(event);
+        await appendFile(
+          join(directory, "trace.jsonl"),
+          JSON.stringify(event) + "\n",
+        );
+      }
       let calls = 0,
         blocked = false,
         last: ReturnType<typeof bulkGroupReceiptSchema.parse> | undefined;
       const runIds: string[] = [];
       let statusRead = false,
         failure: string | null = null;
+      let partial = false;
+      const needsFinishedAnswer =
+        scenario === "report" || scenario === "independent_report";
+      let artifactComplete = false,
+        finalAnswer = "";
+      function verifyOutput(outputPath?: string) {
+        return spawnSync(
+          "python3",
+          [
+            "-I",
+            oracle,
+            "verify",
+            directory,
+            scenario,
+            ...(outputPath === undefined ? [] : [outputPath]),
+          ],
+          { encoding: "utf8", timeout: 30000 },
+        );
+      }
       async function call(
         name: string,
         args: Record<string, unknown>,
@@ -231,8 +298,25 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
           if (name === "run_bulk_job") runIds.push(last.jobId);
           if (name === "get_bulk_job") statusRead = true;
         }
+        const batch = bulkBatchReceiptSchema.safeParse(body);
+        if (batch.success) {
+          partial =
+            batch.data.kind === "partial" &&
+            batch.data.jobs.filter((job) => job.kind === "complete").length ===
+              1 &&
+            /dynamic|array|spilling|Phase 5/i.test(
+              JSON.stringify(
+                batch.data.jobs.filter((job) => job.kind === "failed"),
+              ),
+            );
+          for (const child of batch.data.jobs)
+            if (child.kind === "complete" && child.details === "full") {
+              last = child.result;
+              if (name === "run_bulk_job") runIds.push(last.jobId);
+            }
+        }
         if (/protected_sheet|protected_workbook/.test(text)) blocked = true;
-        trace.push({
+        await traceEvent({
           tool: name,
           args,
           result: body,
@@ -375,7 +459,59 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
                 ],
               },
             };
-          const parsed = bulkJobSchema.parse(job);
+          let parsed = bulkJobSchema.parse(job);
+          if (scenario === "report" || scenario === "independent_report") {
+            assert(parsed.kind === "dependent");
+            const finish = [
+              {
+                kind: "format_cells",
+                sheetName: "S",
+                range: "A1:C1",
+                style: {
+                  font: { bold: true, color: "FFFFFF" },
+                  fill: "1F4E78",
+                },
+              },
+              {
+                kind: "format_cells",
+                sheetName: "S",
+                range: "C2:C4",
+                style: { numberFormat: "0.00" },
+              },
+              {
+                kind: "write_formula",
+                sheetName: "S",
+                cell: "E1",
+                formula: "SUM(C2:C4)",
+              },
+            ];
+            parsed = bulkJobSchema.parse(
+              scenario === "report"
+                ? { ...parsed, finish: [{ output: "report", changes: finish }] }
+                : {
+                    kind: "independent",
+                    jobs: [
+                      { id: "good", group: parsed.group },
+                      { id: "bad", group: parsed.group },
+                    ],
+                    finish: [
+                      { job: "good", output: "report", changes: finish },
+                      {
+                        job: "bad",
+                        output: "report",
+                        changes: [
+                          {
+                            kind: "write_formula",
+                            sheetName: "S",
+                            cell: "E1",
+                            formula: "FILTER(C2:C4,C2:C4>0)",
+                          },
+                        ],
+                      },
+                    ],
+                  },
+            );
+          }
           await call("prepare_bulk_job", { job: parsed });
           if (scenario !== "blocked") {
             await call("run_bulk_job", { job: parsed });
@@ -389,6 +525,10 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
           if (host === undefined) throw new Error("Missing model host.");
           const tools = (await toolSpecsOf(client)).filter((tool) =>
             catalog.includes(tool.function.name),
+          );
+          await writeFile(
+            join(directory, "tools.json"),
+            JSON.stringify(tools, null, 2) + "\n",
           );
           const messages: ChatMessage[] = [
             { role: "system", content: system },
@@ -411,7 +551,7 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
               timeoutMs: 360000,
               numPredict: 12288,
             });
-            trace.push({ turn, reply });
+            await traceEvent({ turn, reply });
             if (reply.kind !== "reply")
               throw new Error("Model preflight refused.");
             messages.push(
@@ -423,6 +563,8 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
               }),
             );
             if (!reply.toolCalls?.length) {
+              finalAnswer = reply.content ?? "";
+              if (needsFinishedAnswer && artifactComplete) break;
               if (reminders++ >= 2) break;
               messages.push({
                 role: "user",
@@ -440,12 +582,22 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
                   tool.function.arguments,
                 ),
               });
+            if (needsFinishedAnswer && last !== undefined) {
+              const output = last.outputs[0];
+              if (output !== undefined)
+                artifactComplete =
+                  verifyOutput(output.version.filePath).status === 0 &&
+                  (scenario !== "independent_report" || partial);
+              continue;
+            }
             if (
               scenario === "blocked"
                 ? blocked
                 : scenario === "retry"
                   ? runIds.length >= 2 && statusRead
-                  : last !== undefined
+                  : scenario === "independent_report"
+                    ? partial
+                    : last !== undefined
             )
               break;
           }
@@ -468,24 +620,38 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
             "Retry changed the request identity.",
           );
         }
+        if (scenario === "independent_report")
+          assert(
+            partial,
+            "Expected exactly one finished group and a genuine dynamic-array failure",
+          );
+        if (scenario === "report" || scenario === "independent_report")
+          assert.equal(
+            new Set(runIds).size,
+            1,
+            "An atomic report must not publish a preliminary data-only group",
+          );
         const output = last?.outputs[0];
-        const verified = spawnSync(
-          "python3",
-          [
-            "-I",
-            oracle,
-            "verify",
-            directory,
-            scenario,
-            ...(output === undefined ? [] : [output.version.filePath]),
-          ],
-          { encoding: "utf8", timeout: 30000 },
-        );
+        const verified = verifyOutput(output?.version.filePath);
         await writeFile(
           join(directory, "oracle.log"),
           verified.stdout + verified.stderr,
         );
         assert.equal(verified.status, 0, verified.stdout + verified.stderr);
+        if (mode === "model" && needsFinishedAnswer) {
+          assertAdditionClaims(finalAnswer);
+          assert.match(
+            finalAnswer,
+            /not (?:re)?calculated|not calculate|requires? (?:re)?calculation|(?:re)?calculation (?:is )?required|(?:Excel|spreadsheet)[\s\S]*(?:calculat|evaluat)|(?:calculat|evaluat)[\s\S]*(?:Excel|spreadsheet)|hesaplanmad|yeniden hesap|henüz hesap|Excel[\s\S]*hesap|hesap[\s\S]*Excel/i,
+            "Final answer must disclose pending formula calculation.",
+          );
+          if (scenario === "independent_report")
+            assert.match(
+              finalAnswer,
+              /partial|k[ıiİ]sm/iu,
+              "Final answer must disclose independent partial success.",
+            );
+        }
       } catch (error) {
         failure = error instanceof Error ? error.message : String(error);
       } finally {
@@ -504,6 +670,8 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
         passed: failure === null,
         failure,
         calls,
+        selectedVersion: last?.outputs[0]?.version,
+        finalAnswer: mode === "model" ? finalAnswer : undefined,
       };
       records.push(result);
       await appendFile(

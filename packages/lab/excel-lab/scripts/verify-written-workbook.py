@@ -75,6 +75,9 @@ def verify(filename, expected, rows, columns, edited, dataset):
                         cell = {"kind": "boolean", "value": value == "1"}
                     elif kind == "d":
                         cell = {"kind": "date" if element.attrib.get("s") == "1" else "datetime", "value": value}
+                        if cell["kind"] == "date":
+                            assert value.endswith("T00:00:00.000"), "date cell must have canonical local midnight"
+                            cell["value"] = value[:10]
                     else:
                         raise AssertionError(f"unsupported cell type {kind}")
                     if rows and sheet_index == 0:

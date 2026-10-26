@@ -168,9 +168,95 @@ try {
   assert.equal(output.B2.v, 1);
   assert.equal(output.A3.v, "b");
   assert.equal(output.B3.v, 2);
+  const authored = await call("create_workbook", {
+    sheets: [
+      {
+        name: "Report",
+        blocks: [
+          {
+            startCell: "A1",
+            values: [
+              [
+                { kind: "text", value: "Item" },
+                { kind: "text", value: "Qty" },
+                { kind: "text", value: "Price" },
+                { kind: "text", value: "Amount" },
+              ],
+              [
+                { kind: "text", value: "A" },
+                { kind: "number", value: 2 },
+                { kind: "number", value: 10 },
+                { kind: "blank" },
+              ],
+            ],
+          },
+        ],
+      },
+    ],
+    changes: [
+      {
+        kind: "create_table",
+        sheetName: "Report",
+        range: "A1:D3",
+        name: "Orders",
+        calculatedColumns: [{ column: "Amount", formula: "[@Qty]*[@Price]" }],
+        totals: [
+          { kind: "label", column: "Item", text: "Total" },
+          { kind: "function", column: "Amount", function: "sum" },
+        ],
+      },
+      {
+        kind: "format_cells",
+        sheetName: "Report",
+        range: "C2:D3",
+        style: { numberFormat: "0.00" },
+      },
+      { kind: "freeze_panes", sheetName: "Report", rows: 1, columns: 0 },
+      {
+        kind: "set_print_layout",
+        sheetName: "Report",
+        orientation: "landscape",
+        fitWidth: 1,
+        printArea: "A1:F3",
+      },
+      {
+        kind: "write_formula",
+        sheetName: "Report",
+        cell: "F1",
+        formula: "SUM(Orders[Amount])",
+      },
+      { kind: "merge_cells", sheetName: "Report", range: "G1:H1" },
+    ],
+  });
+  assert.equal(authored.editing.recalculated, false);
+  assert.equal(authored.editing.recalculationRequired, true);
+  const authoringCheck = spawnSync(
+    "python3",
+    [
+      "-I",
+      "-c",
+      [
+        "import sys,zipfile,xml.etree.ElementTree as E",
+        "p=zipfile.ZipFile(sys.argv[1]); n={'s':'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}",
+        "s=E.fromstring(p.read('xl/worksheets/sheet1.xml')); cells={c.attrib['r']:c for c in s.findall('.//s:c',n)}",
+        "assert cells['D2'].find('s:f',n).text=='Orders[[#This Row],[Qty]]*Orders[[#This Row],[Price]]'",
+        "assert cells['F1'].find('s:f',n).text=='SUM(Orders[Amount])'",
+        "assert all(c.find('s:v',n) is None for c in cells.values() if c.find('s:f',n) is not None)",
+        "assert s.find('s:sheetViews/s:sheetView/s:pane',n).attrib['ySplit']=='1'",
+        "assert s.find('s:pageSetup',n).attrib['orientation']=='landscape'",
+        "assert s.find('s:mergeCells/s:mergeCell',n).attrib['ref']=='G1:H1'",
+        "table=E.fromstring(p.read('xl/tables/table1.xml'))",
+        "assert table.attrib['ref']=='A1:D3'",
+        "assert table.findall('s:tableColumns/s:tableColumn',n)[3].find('s:calculatedColumnFormula',n).text=='Orders[[#This Row],[Qty]]*Orders[[#This Row],[Price]]'",
+      ].join(";"),
+      join(directory, authored.version.filePath),
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(authoringCheck.status, 0, authoringCheck.stderr);
   assert.deepEqual(await readFile(join(directory, "external.xlsx")), bytes);
   process.stdout.write(
-    "Installed Excel editing, transfer, retry, atomic refusal and previous-version restore passed.\n",
+    "Installed Excel editing, transfer, authoring, table formulas, layout, retry, atomic refusal and previous-version restore passed.\n",
   );
 } finally {
   await client.close();

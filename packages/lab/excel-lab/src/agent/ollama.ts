@@ -93,12 +93,14 @@ export class OllamaHost implements ModelHost {
   readonly #model: string;
   readonly #apiKey: string | undefined;
   readonly #keepAlive: string;
+  readonly #think: boolean | string | undefined;
 
   constructor(options: {
     readonly baseUrl: string;
     readonly model: string;
     readonly apiKey?: string;
     readonly keepAlive?: string;
+    readonly think?: boolean | string;
   }) {
     this.#baseUrl = options.baseUrl.endsWith("/")
       ? options.baseUrl
@@ -106,6 +108,7 @@ export class OllamaHost implements ModelHost {
     this.#model = options.model;
     this.#apiKey = options.apiKey;
     this.#keepAlive = options.keepAlive ?? "10m";
+    this.#think = options.think;
   }
 
   get model(): string {
@@ -170,6 +173,7 @@ export class OllamaHost implements ModelHost {
       tools: request.tools,
       stream: true,
       keep_alive: this.#keepAlive,
+      ...(this.#think === undefined ? {} : { think: this.#think }),
       options: {
         num_ctx: request.window,
         temperature: request.temperature,

@@ -1,6 +1,6 @@
 # @sezzlee/excel-mcp
 
-Varsayılan olarak yerel Excel dosyalarını **yalnızca okuyan** bağımsız MCP sunucusu. Ayrıca etkinleştirilen yazma modu, kaynak dosyayı değiştirmeden çıktı sürümü hazırlayabilir.
+A standalone MCP server that reads local Excel files by default. Opt-in writing creates immutable output versions without changing the source.
 
 Reads `.xlsx`, `.xlsm` and `.csv`, sandboxed to one folder. Sandboxing, the document cache, the error envelope, the cursor codec and the tool registration layer come from [@sezzlee/file-core](../../cores/file-core).
 
@@ -28,6 +28,20 @@ claude mcp add excel -- npx -y @sezzlee/excel-mcp /Users/me/sheets
 ```
 
 Requires Node.js 22 or 24 on macOS (x64, arm64), glibc Linux (x64, arm64) or Windows x64; file access goes through a native module with no JavaScript fallback.
+
+## Author reports
+
+Append `--write <relative-output-directory>` to enable writing inside the workbook root. Select a source with `prepare_edit`, then use the exact version in `edit_workbook`. `create_workbook` can publish values and ordered presentation changes together. Continue from a returned version or branch from an older retained one.
+
+Authoring supports composable number/date/time/currency/percentage formats, font/fill/border/alignment changes, dimensions, frozen panes, visibility, basic print layout and safe merge/unmerge. Merging rejects non-anchor contents unless discarding them is explicitly requested. Scalar writes remain typed; formula-looking text stays text.
+
+Explicit formula write/fill supports ordinary A1, mixed/absolute, sheet and structured table references. Table operations cover creation, renaming, header changes, growth/shrink, calculated columns, totals, filters and conversion to a range. New table styles are `SezzleeBlue` or `none`; conversion refuses unsupported affected styles and dependencies. Shrink preserves excluded values unless clearing is explicitly requested.
+
+Table range resizing changes the row extent while retaining header position and width. Structural width changes use the explicit worksheet column operations first. Saved filter/sort criteria that need an unsupported transformation cause a refusal.
+
+Bulk jobs can finish each selected output with ordered presentation/formula changes before atomic publication. A failed group leaves no partially finished report. Independent groups retain their successful outputs and report partial status; identical retries reuse durable results.
+
+Formulas are written without fabricated cached results. The server does not calculate them; receipts report required recalculation. Dynamic spilling arrays and new external workbook formula links remain outside this authoring profile. See [Phase 5 acceptance](docs/phase-5/implementation-status.md) for measured results and remaining platform gates.
 
 ## Tools
 

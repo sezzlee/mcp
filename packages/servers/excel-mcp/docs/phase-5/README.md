@@ -1,6 +1,6 @@
 # Faz 5: biçimlendirme, tablolar ve formüller
 
-Durum: kapsam önerisi. Oluşturma ve düzenleme temeline dayanır; ortak ihtiyaçlar [ana yol haritasındadır](../README.md).
+Status, 2026-10-26: F5-01–F5-07 implementation and local acceptance are complete. The remote native matrix on Node 22/24 remains open before release. The [implementation and verification plan](implementation-plan.md) records Phase 0–4 carryovers, confirmed merge/table/structured-formula decisions, concrete owners and ordered gates. The [implementation status](implementation-status.md) links the sanitized evidence and distinguishes direct model execution from exact recorded-call replay. Common requirements remain in the [main roadmap](../README.md).
 
 ## Hedef
 
@@ -48,4 +48,4 @@ Agent, veriyi kullanıma uygun görünümde sunabilsin ve istenen hesaplama ili�
 
 ## Açık kararlar
 
-A-09: ilk biçimler, tablo işlemleri, formül sınıfları ve hesaplanmamış sonucun gösterimi. Ayrı hesaplama fazı K1-06 ile kesinleşmiştir; motor ve hesaplama kapsamı A-12 kapsamında Faz 6'da belirlenir. Dinamik diziler, taşan sonuçlar, dış çalışma kitabı başvuruları ve karmaşık işlevler için destek ayrıca belirlenir; tamamı kendiliğinden kapsama girmez.
+A-09 scope is recorded in the [implementation plan](implementation-plan.md): basic formats/layout, safe merge with explicitly requested loss, the full table lifecycle and formula authoring including structured table/column references. New dynamic arrays and external-workbook links are excluded. Formula result-state reporting is part of Phase 5; server-side calculation remains Phase 6 under K1-06/A-12. Exact schemas, supported syntax and measured limits are finalized in P5-01.
