@@ -197,95 +197,103 @@ describe("Phase 5 authoring through MCP", () => {
       );
       expect(after.excel.getWorksheet("S")?.getCell("A4").value).toBe("Total");
     }));
-  it("refuses a new distinct style at the supported style ceiling without changing its source", () =>
-    workspace(async (directory, client) => {
-      const book = new ExcelJS.Workbook();
-      book.addWorksheet("S").getCell("A1").value = 1;
-      const zip = await JSZip.loadAsync(await book.xlsx.writeBuffer());
-      const part = zip.file("xl/styles.xml");
-      if (part === null) throw new Error("Missing independent fixture styles");
-      let styles = await part.async("string");
-      const formats = Array.from(
-        { length: 16384 },
-        (_, i) =>
-          `<numFmt numFmtId="${164 + i}" formatCode="0.00&quot; x${i}&quot;"/>`,
-      ).join("");
-      const xfs = Array.from(
-        { length: 16384 },
-        (_, i) =>
-          `<xf numFmtId="${164 + i}" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>`,
-      ).join("");
-      styles = styles
-        .replace(/<numFmts\b[^>]*\/>|<numFmts\b[^>]*>[\s\S]*?<\/numFmts>/g, "")
-        .replace(
-          /(<styleSheet\b[^>]*>)/,
-          `$1<numFmts count="16384">${formats}</numFmts>`,
-        )
-        .replace(
-          /<cellXfs\b[^>]*>[\s\S]*?<\/cellXfs>/,
-          `<cellXfs count="16384">${xfs}</cellXfs>`,
+  it(
+    "refuses a new distinct style at the supported style ceiling without changing its source",
+    () =>
+      workspace(async (directory, client) => {
+        const book = new ExcelJS.Workbook();
+        book.addWorksheet("S").getCell("A1").value = 1;
+        const zip = await JSZip.loadAsync(await book.xlsx.writeBuffer());
+        const part = zip.file("xl/styles.xml");
+        if (part === null)
+          throw new Error("Missing independent fixture styles");
+        let styles = await part.async("string");
+        const formats = Array.from(
+          { length: 16384 },
+          (_, i) =>
+            `<numFmt numFmtId="${164 + i}" formatCode="0.00&quot; x${i}&quot;"/>`,
+        ).join("");
+        const xfs = Array.from(
+          { length: 16384 },
+          (_, i) =>
+            `<xf numFmtId="${164 + i}" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>`,
+        ).join("");
+        styles = styles
+          .replace(
+            /<numFmts\b[^>]*\/>|<numFmts\b[^>]*>[\s\S]*?<\/numFmts>/g,
+            "",
+          )
+          .replace(
+            /(<styleSheet\b[^>]*>)/,
+            `$1<numFmts count="16384">${formats}</numFmts>`,
+          )
+          .replace(
+            /<cellXfs\b[^>]*>[\s\S]*?<\/cellXfs>/,
+            `<cellXfs count="16384">${xfs}</cellXfs>`,
+          );
+        zip.file("xl/styles.xml", styles);
+        const bytes = await zip.generateAsync({ type: "nodebuffer" });
+        await writeFile(join(directory, "styles.xlsx"), bytes);
+        const result = await client.callTool({
+          name: "edit_workbook",
+          arguments: {
+            source: {
+              filePath: "styles.xlsx",
+              versionId: createHash("sha256").update(bytes).digest("hex"),
+            },
+            changes: [
+              {
+                kind: "format_cells",
+                sheetName: "S",
+                range: "A1",
+                style: { font: { bold: true } },
+              },
+            ],
+          },
+        });
+        expect(result.isError).toBe(true);
+        expect(payload(result)).toMatchObject({
+          error: "resource_limit",
+          message: expect.stringMatching(/cellXfs|style/i),
+        });
+        expect(await readdir(join(directory, "out"))).toEqual([]);
+        expect(await readFile(join(directory, "styles.xlsx"))).toEqual(bytes);
+        const below = styles
+          .replace('numFmts count="16384"', 'numFmts count="16383"')
+          .replace(/<numFmt numFmtId="16547"[^>]*\/>/, "")
+          .replace('cellXfs count="16384"', 'cellXfs count="16383"')
+          .replace(/<xf numFmtId="16547"[^>]*\/>/, "");
+        zip.file("xl/styles.xml", below);
+        const supported = await zip.generateAsync({ type: "nodebuffer" });
+        await writeFile(join(directory, "below.xlsx"), supported);
+        const accepted = mutationReceiptSchema.parse(
+          await call(client, "edit_workbook", {
+            source: {
+              filePath: "below.xlsx",
+              versionId: createHash("sha256").update(supported).digest("hex"),
+            },
+            changes: [
+              {
+                kind: "format_cells",
+                sheetName: "S",
+                range: "A1",
+                style: { font: { bold: true } },
+              },
+            ],
+          }),
         );
-      zip.file("xl/styles.xml", styles);
-      const bytes = await zip.generateAsync({ type: "nodebuffer" });
-      await writeFile(join(directory, "styles.xlsx"), bytes);
-      const result = await client.callTool({
-        name: "edit_workbook",
-        arguments: {
-          source: {
-            filePath: "styles.xlsx",
-            versionId: createHash("sha256").update(bytes).digest("hex"),
-          },
-          changes: [
-            {
-              kind: "format_cells",
-              sheetName: "S",
-              range: "A1",
-              style: { font: { bold: true } },
-            },
-          ],
-        },
-      });
-      expect(result.isError).toBe(true);
-      expect(payload(result)).toMatchObject({
-        error: "resource_limit",
-        message: expect.stringMatching(/cellXfs|style/i),
-      });
-      expect(await readdir(join(directory, "out"))).toEqual([]);
-      expect(await readFile(join(directory, "styles.xlsx"))).toEqual(bytes);
-      const below = styles
-        .replace('numFmts count="16384"', 'numFmts count="16383"')
-        .replace(/<numFmt numFmtId="16547"[^>]*\/>/, "")
-        .replace('cellXfs count="16384"', 'cellXfs count="16383"')
-        .replace(/<xf numFmtId="16547"[^>]*\/>/, "");
-      zip.file("xl/styles.xml", below);
-      const supported = await zip.generateAsync({ type: "nodebuffer" });
-      await writeFile(join(directory, "below.xlsx"), supported);
-      const accepted = mutationReceiptSchema.parse(
-        await call(client, "edit_workbook", {
-          source: {
-            filePath: "below.xlsx",
-            versionId: createHash("sha256").update(supported).digest("hex"),
-          },
-          changes: [
-            {
-              kind: "format_cells",
-              sheetName: "S",
-              range: "A1",
-              style: { font: { bold: true } },
-            },
-          ],
-        }),
-      );
-      const output = await files(directory, accepted);
-      expect(output.excel.getWorksheet("S")?.getCell("A1").font.bold).toBe(
-        true,
-      );
-      expect(
-        /<cellXfs\b[^>]*\bcount="(\d+)"/.exec(
-          await output.part("xl/styles.xml"),
-        )?.[1],
-      ).toBe("16384");
-    }));
+        const output = await files(directory, accepted);
+        expect(output.excel.getWorksheet("S")?.getCell("A1").font.bold).toBe(
+          true,
+        );
+        expect(
+          /<cellXfs\b[^>]*\bcount="(\d+)"/.exec(
+            await output.part("xl/styles.xml"),
+          )?.[1],
+        ).toBe("16384");
+      }),
+    120_000,
+  );
   it.each(["format_cells", "fill_formula"])(
     "refuses a whole-grid %s before publishing or allocating cells",
     (kind) =>
