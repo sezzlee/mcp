@@ -41,8 +41,39 @@ import {
   type EditWireChange,
 } from "./edit-schemas.js";
 import { limits } from "../platform/limits.js";
+import { prepareBulkSchema } from "./bulk-schemas.js";
+import { prepareBulk } from "./bulk.js";
+import {
+  bulkJobInputSchema,
+  bulkJobStatusInputSchema,
+} from "./bulk-job-schemas.js";
+import { prepareBulkJob, runBulkJob, getBulkJob } from "./bulk-jobs.js";
 
 export const writingToolDefinitions = {
+  prepare_bulk_job: {
+    description:
+      'Every step and output uses kind, never op or type. A read step is {kind:read,id:rows,source:{filePath,versionId},selection:{kind:records,sheetName,range,headerRow:1}}; selection is a nested object, never flattened onto the step. update.set is [{column:Flag,value:{kind:boolean,value:true}}], never a bare scalar or a {type:...} cell. CSV fields stay text unless selection.columns explicitly requests reading, e.g. [{column:Total,type:number,decimal:"."}]. keys is an array of {sourceColumn,targetColumn}. A join uses join:left and columns:[{side:left,column:Ticket,as:Ticket}], never joinType or from. For editing an existing workbook choose output kind edit; kind new creates a data-only report and does not preserve unrelated source package parts. Dry-run a complete dependent group or independent batch without writing files. job kind dependent has group {steps,outputs}; independent has jobs [{id,group}]. Steps have unique IDs and reference only earlier IDs. read pins source {filePath,versionId} and a complete records selection with positive headerRow and closed range or table. Operators: update/remove/filter with transfer-style where; keyed_update/upsert with source/target step IDs, keys/set column mappings and explicit duplicates/missingKeys policies; replace; append; join inner/left/full with explicit output column mappings and bounded manyToMany; deduplicate with keep policy; stable sort with directions, blanks and mixedTypes; project; transform constants/trim/locale case/explicit typed conversions. Output new uses sheets [{name,input}]; edit uses target read ID, input dataset ID, mode changed_values or replace_values and overwrite; edit_workbook combines distinct-sheet changes from one exact source. changed_values preserves untouched formulas and row identities; sorting/replacement needs explicit replace_values. Physical delete_rows refuses other content in the same rows. Full editor preservation, budgets, expansion and every ordered step/output are checked. Ready is not publication or authorization. No calculation. Writing mode only.',
+    inputSchema: bulkJobInputSchema,
+    annotations: readOnly,
+  },
+  run_bulk_job: {
+    description:
+      "Execute the same job descriptor used by prepare_bulk_job. All dependent outputs are fully validated in memory, then their files and completion manifest are atomically published as one immutable job directory. Original files and earlier versions never change. Independent jobs commit separately and report complete/partial/failed/pending with per-job status; retry the same descriptor to reuse completed jobs and attempt only unfinished ones. Exact source versions and normalized operations identify each group. A retained result is verified and returned before source rereads, allowing recovery after a lost response or process restart even if an original later changed. Stale sources before first commit refuse. Outputs have exact readable .xlsx versions. Dependent failure publishes no completed group. No formula calculation; explicit value pipelines report saved-cache use. Use get_bulk_job with returned jobId for durable status. Read the prepare_bulk_job description for step/output syntax.",
+    inputSchema: bulkJobInputSchema,
+    annotations: ownOutput,
+  },
+  get_bulk_job: {
+    description:
+      "Read durable bulk completion by jobId without rerunning operations. Verifies the retained manifest and every completed output hash. Returns a complete dependent result, independent batch statuses, or not_found. Missing/changed retained output bytes are an error rather than a successful replay. Writing mode only; no source writes or recalculation.",
+    inputSchema: bulkJobStatusInputSchema,
+    annotations: readOnly,
+  },
+  prepare_bulk: {
+    description:
+      "Analyze complete version-pinned record selections for keyed_update or upsert without writing files. source and target contain filePath, versionId and selection {kind:records, sheetName, range or table, headerRow}; obtain versions from prepare_transfer or prior receipts. Select exactly one closed A1 range or named table, with an explicit positive headerRow. Target is an unfiltered complete .xlsx list; source can be .xlsx, .xlsm or CSV and use record filters/projection. operation has kind, keys and set arrays of {sourceColumn,targetColumn} using exact selected header names. Keys preserve types and case; no implicit trim/coercion. Empty or duplicate keys block; conflictPolicy currently only error. Key columns cannot be reassigned. Set overwrite:true to replace occupied target values. Upsert requires mapping every target column when inserting. Returns bounded counts/conflicts, exact versions and requestFingerprint, never records. Conflict record numbers are one-based positions in the selected records, not worksheet rows. Validation covers keys and target package policy only; executionAvailable:false describes this focused analysis. Use prepare_bulk_job/run_bulk_job for fully validated execution. Preparation never means a completed update or grants permission for changed sources. Writing mode only; no recalculation.",
+    inputSchema: prepareBulkSchema,
+    annotations: readOnly,
+  },
   prepare_edit: {
     description:
       "Inspect an ordered edit request without publishing an output. Accept .xlsx filePath, optional expectedVersion, and changes. Returns exact source {filePath, versionId}, a fingerprint binding normalized changes, source feature counts, and ready or blocked with policy reasons. Pass source and the same changes to edit_workbook. Canonical and preservation-supported external workbooks can be ready. Supports write_cells, clear_contents, add/rename/reorder/copy/delete_sheet, copy_range, move_range and row/column insert/delete. Copy requires explicit values/formulas/formatting/all mode. No source file is changed. Enabled protection, macros, signatures, Strict markup or unsupported affected dependencies refuse editing. Preparation is not permission to edit changed bytes. No recalculation occurs.",
@@ -181,6 +212,42 @@ export function createWritingHandlers(
     return { snapshots, buffers };
   }
   return {
+    prepare_bulk_job: guardWriting<
+      typeof writingToolDefinitions,
+      "prepare_bulk_job"
+    >(root, "prepare_bulk_job", (args, _name, signal) =>
+      admitted(async () =>
+        json(
+          await prepareBulkJob(root, output, args.job, () =>
+            checkpoint(signal),
+          ),
+        ),
+      ),
+    ),
+    run_bulk_job: guardWriting<typeof writingToolDefinitions, "run_bulk_job">(
+      root,
+      "run_bulk_job",
+      (args, _name, signal) =>
+        admitted(async () =>
+          json(
+            await runBulkJob(root, output, args.job, () => checkpoint(signal)),
+          ),
+        ),
+    ),
+    get_bulk_job: guardWriting<typeof writingToolDefinitions, "get_bulk_job">(
+      root,
+      "get_bulk_job",
+      (args) =>
+        admitted(async () => json(await getBulkJob(root, output, args.jobId))),
+    ),
+    prepare_bulk: guardWriting<typeof writingToolDefinitions, "prepare_bulk">(
+      root,
+      "prepare_bulk",
+      (args, _name, signal) =>
+        admitted(async () =>
+          json(await prepareBulk(root, args, () => checkpoint(signal))),
+        ),
+    ),
     prepare_edit: guardWriting<typeof writingToolDefinitions, "prepare_edit">(
       root,
       "prepare_edit",

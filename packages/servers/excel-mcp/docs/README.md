@@ -1,6 +1,6 @@
 # Excel oluşturma ve düzenleme: araştırmaya dayalı faz planı
 
-Status: Phases 0–2 and Phase 3 P3-00–P3-09 are implemented. The [Phase 3 plan](phase-3/implementation-plan.md) records preserved-package editing, required formula/formatting copy, independent acceptance and the closed full native/installed-package gate and separate release/consumer boundary. New formula/style authoring remains Phase 5 and calculation Phase 6. Later phases remain planned.
+Status: Phases 0–2 and Phase 3 P3-00–P3-09 are implemented. The [Phase 3 plan](phase-3/implementation-plan.md) records preserved-package editing, required formula/formatting copy and closed platform/package acceptance. [Phase 4](phase-4/implementation-plan.md) now implements ordered bulk operations, atomic dependent groups and independent-job recovery; its final combined/model/platform acceptance is in progress. Publication and consumer rollout are separate. New formula/style authoring remains Phase 5 and calculation Phase 6.
 
 ## Hedef ve dayanak
 

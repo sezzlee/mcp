@@ -11,6 +11,9 @@
 #include <string>
 #include <utility>
 #include <vector>
+#ifdef __APPLE__
+#include <stdio.h>
+#endif
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
@@ -526,6 +529,7 @@ public:
 };
 
 struct Entry { std::string path; Info info; };
+struct OutputEntry { std::string name; std::vector<unsigned char> bytes; };
 struct Job {
   napi_env env{}; napi_async_work work{}; napi_deferred deferred{};
   std::shared_ptr<Root> root;
@@ -534,6 +538,7 @@ struct Job {
   uint32_t budget = 0, depth = 0, ms = 0, visited = 0, unreadable = 0, offset = 0, length = 0;
   std::vector<unsigned char> bytes;
   std::vector<Entry> entries;
+  std::vector<OutputEntry> outputs;
   Info info;
   unsigned char hash[32] = {};
 };
@@ -655,6 +660,129 @@ bool outputName(const std::string& name) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-';
   });
 }
+void publishDirectory(Job& job) {
+  if (!job.root->outputOnly || !outputName(job.path) || job.temporary.size() != 32 ||
+      !std::all_of(job.temporary.begin(), job.temporary.end(), [](unsigned char c) {
+        return (c >= 'a' && c <= 'f') || (c >= '0' && c <= '9');
+      }) || job.outputs.empty() || job.outputs.size() > 128) throw Failure("invalid_argument");
+  const auto temporary = ".pending-" + job.temporary;
+#ifdef _WIN32
+  using Create = NTSTATUS(NTAPI*)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, PIO_STATUS_BLOCK, PLARGE_INTEGER, ULONG, ULONG, ULONG, ULONG, PVOID, ULONG);
+  using Set = NTSTATUS(NTAPI*)(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, FILE_INFORMATION_CLASS);
+  auto create = reinterpret_cast<Create>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtCreateFile"));
+  auto set = reinterpret_cast<Set>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtSetInformationFile"));
+  if (!create || !set) throw Failure("unsupported_platform");
+  auto child = [&](HANDLE parent, const std::string& value, bool directory) {
+    auto name = wide(value);
+    UNICODE_STRING us{static_cast<USHORT>(name.size() * sizeof(wchar_t)), static_cast<USHORT>(name.size() * sizeof(wchar_t)), name.data()};
+    OBJECT_ATTRIBUTES attributes{};
+    attributes.Length = sizeof(attributes); attributes.RootDirectory = parent;
+    attributes.ObjectName = &us; attributes.Attributes = 0x40;
+    IO_STATUS_BLOCK status{}; HANDLE raw = invalid;
+    const auto created = create(&raw, FILE_WRITE_DATA | FILE_READ_ATTRIBUTES | DELETE | SYNCHRONIZE,
+      &attributes, &status, nullptr, directory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL,
+      FILE_SHARE_READ | FILE_SHARE_DELETE, 2,
+      0x00200000 | 0x00000020 | (directory ? 0x00000001 : 0x00000040), nullptr, 0);
+    if (created < 0) throw Failure("internal_error", static_cast<int>(created));
+    return Handle(raw);
+  };
+  auto stage = child(job.root->handle.value, temporary, true);
+#else
+  if (mkdirat(job.root->handle.value, temporary.c_str(), 0700) != 0) osFailure();
+  Handle stage(openat(job.root->handle.value, temporary.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+  if (stage.value == invalid) osFailure();
+#endif
+  std::vector<Handle> files;
+  bool published = false;
+  try {
+    for (const auto& entry : job.outputs) {
+#ifdef _WIN32
+      auto file = child(stage.value, entry.name, false);
+#else
+      Handle file(openat(stage.value, entry.name.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600));
+      if (file.value == invalid) osFailure();
+#endif
+      const auto fileHandle = file.value;
+      files.push_back(std::move(file));
+      size_t done = 0;
+      while (done < entry.bytes.size()) {
+        const auto amount = std::min<size_t>(65536, entry.bytes.size() - done);
+#ifdef _WIN32
+        DWORD written = 0;
+        if (!WriteFile(fileHandle, entry.bytes.data() + done, static_cast<DWORD>(amount), &written, nullptr) || written == 0) osFailure();
+#else
+        const auto written = write(fileHandle, entry.bytes.data() + done, amount);
+        if (written < 0) { if (errno == EINTR) continue; osFailure(); }
+        if (written == 0) throw Failure("internal_error");
+#endif
+        done += static_cast<size_t>(written);
+      }
+#ifdef _WIN32
+      if (!FlushFileBuffers(fileHandle)) osFailure();
+#else
+      if (fsync(fileHandle) != 0) osFailure();
+#endif
+    }
+#ifdef _WIN32
+    auto name = wide(job.path);
+    std::vector<unsigned char> storage(sizeof(FILE_RENAME_INFO) + name.size() * sizeof(wchar_t));
+    auto* rename = reinterpret_cast<FILE_RENAME_INFO*>(storage.data());
+    rename->ReplaceIfExists = FALSE; rename->RootDirectory = job.root->handle.value;
+    rename->FileNameLength = static_cast<DWORD>(name.size() * sizeof(wchar_t));
+    std::memcpy(rename->FileName, name.data(), rename->FileNameLength);
+    IO_STATUS_BLOCK status{};
+    const auto renamed = set(stage.value, &status, rename, static_cast<ULONG>(storage.size()), static_cast<FILE_INFORMATION_CLASS>(10));
+    if (renamed < 0) {
+      if (static_cast<ULONG>(renamed) == 0xC0000035) throw Failure("output_exists");
+      throw Failure("internal_error", static_cast<int>(renamed));
+    }
+#else
+    if (fsync(stage.value) != 0) osFailure();
+    const auto own = infoOf(stage.value);
+    struct stat current;
+    if (fstatat(job.root->handle.value, temporary.c_str(), &current, AT_SYMLINK_NOFOLLOW) != 0 ||
+        !S_ISDIR(current.st_mode) || static_cast<uint64_t>(current.st_dev) != own.device ||
+        static_cast<uint64_t>(current.st_ino) != own.identity) throw Failure("file_changed");
+#ifdef __linux__
+    const auto renamed = syscall(SYS_renameat2, job.root->handle.value, temporary.c_str(), job.root->handle.value, job.path.c_str(), 1);
+#elif defined(__APPLE__)
+    const auto renamed = renameatx_np(job.root->handle.value, temporary.c_str(), job.root->handle.value, job.path.c_str(), RENAME_EXCL);
+#else
+    throw Failure("unsupported_platform");
+    const auto renamed = -1;
+#endif
+    if (renamed != 0) {
+      if (errno == EEXIST || errno == ENOTEMPTY) throw Failure("output_exists");
+      if (errno == ENOSYS || errno == ENOTSUP) throw Failure("unsupported_platform");
+      osFailure();
+    }
+    struct stat finalEntry;
+    if (fstatat(job.root->handle.value, job.path.c_str(), &finalEntry, AT_SYMLINK_NOFOLLOW) != 0 ||
+        !S_ISDIR(finalEntry.st_mode) || static_cast<uint64_t>(finalEntry.st_dev) != own.device ||
+        static_cast<uint64_t>(finalEntry.st_ino) != own.identity) throw Failure("file_changed");
+#endif
+    published = true;
+#ifndef _WIN32
+    if (fsync(job.root->handle.value) != 0) osFailure();
+#endif
+  } catch (...) {
+    if (!published) {
+#ifdef _WIN32
+      for (auto& file : files) { FILE_DISPOSITION_INFO dispose{TRUE}; SetFileInformationByHandle(file.value, FileDispositionInfo, &dispose, sizeof(dispose)); }
+      files.clear();
+      FILE_DISPOSITION_INFO dispose{TRUE}; SetFileInformationByHandle(stage.value, FileDispositionInfo, &dispose, sizeof(dispose));
+#else
+      for (const auto& entry : job.outputs) unlinkat(stage.value, entry.name.c_str(), 0);
+      const auto own = infoOf(stage.value);
+      struct stat current;
+      if (fstatat(job.root->handle.value, temporary.c_str(), &current, AT_SYMLINK_NOFOLLOW) == 0 &&
+          static_cast<uint64_t>(current.st_dev) == own.device && static_cast<uint64_t>(current.st_ino) == own.identity)
+        unlinkat(job.root->handle.value, temporary.c_str(), AT_REMOVEDIR);
+#endif
+    }
+    throw;
+  }
+}
 void publishOutput(Job& job) {
   if (!job.root->outputOnly || !outputName(job.path) || job.temporary.size() != 32 ||
       !std::all_of(job.temporary.begin(), job.temporary.end(), [](unsigned char c) {
@@ -748,6 +876,7 @@ void execute(napi_env, void* data) {
   auto& job = *static_cast<Job*>(data);
   try {
     if (job.operation == "publish") { publishOutput(job); return; }
+    if (job.operation == "publishDirectory") { publishDirectory(job); return; }
     if (job.root->outputOnly) throw Failure("invalid_argument");
     auto opened = resolve(*job.root, job.path);
     if (job.operation == "read") readSnapshot(job, opened.handle.value);
@@ -800,7 +929,7 @@ void complete(napi_env env, napi_status status, void* data) {
   }
   else {
     napi_value result;
-    if (job->operation == "resolve" || job->operation == "publish") result = string(env, job->path);
+    if (job->operation == "resolve" || job->operation == "publish" || job->operation == "publishDirectory") result = string(env, job->path);
     else {
       napi_create_object(env, &result);
       if (job->operation == "read" || job->operation == "readRange") {
@@ -912,12 +1041,51 @@ napi_value publish(napi_env env, napi_callback_info info) {
   catch (...) { napi_throw(env, errorValue(env, "internal_error")); }
   return nullptr;
 }
+napi_value publishDirectoryEntry(napi_env env, napi_callback_info info) {
+  try {
+    size_t argc = 5; napi_value argv[5]; napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+    if (argc != 5) throw Failure("invalid_argument");
+    void* root; bool array = false; uint32_t count = 0;
+    if (napi_get_value_external(env, argv[0], &root) != napi_ok || !root ||
+        napi_is_array(env, argv[3], &array) != napi_ok || !array ||
+        napi_get_array_length(env, argv[3], &count) != napi_ok || count == 0 || count > 128) throw Failure("invalid_argument");
+    auto job = std::make_unique<Job>(); job->env = env;
+    job->root = *static_cast<std::shared_ptr<Root>*>(root);
+    if (!job->root->outputOnly || napi_get_value_uint32(env, argv[4], &job->budget) != napi_ok || job->budget > maxBudgetBytes) throw Failure("invalid_argument");
+    uint64_t total = 0; std::vector<std::string> names;
+    for (uint32_t i = 0; i < count; ++i) {
+      napi_value entry, name, content; void* bytes; size_t length; bool buffer = false;
+      if (napi_get_element(env, argv[3], i, &entry) != napi_ok ||
+          napi_get_named_property(env, entry, "name", &name) != napi_ok ||
+          napi_get_named_property(env, entry, "content", &content) != napi_ok ||
+          napi_is_buffer(env, content, &buffer) != napi_ok || !buffer ||
+          napi_get_buffer_info(env, content, &bytes, &length) != napi_ok) throw Failure("invalid_argument");
+      auto value = argument(env, name);
+      if (!outputName(value)) throw Failure("invalid_argument");
+      auto folded = value;
+      std::transform(folded.begin(), folded.end(), folded.begin(), [](unsigned char c) { return c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c; });
+      if (std::find(names.begin(), names.end(), folded) != names.end()) throw Failure("invalid_argument");
+      names.push_back(folded); total += length;
+      if (total > job->budget) throw Failure("file_too_large");
+      OutputEntry item; item.name = std::move(value);
+      if (length != 0) item.bytes.assign(static_cast<unsigned char*>(bytes), static_cast<unsigned char*>(bytes) + length);
+      job->outputs.push_back(std::move(item));
+    }
+    job->operation = "publishDirectory"; job->path = argument(env, argv[1]); job->temporary = argument(env, argv[2]);
+    napi_value promise; napi_create_promise(env, &job->deferred, &promise);
+    napi_create_async_work(env, nullptr, string(env, "secure-output-directory"), execute, complete, job.get(), &job->work);
+    napi_queue_async_work(env, job->work); job.release(); return promise;
+  } catch (const Failure& error) { napi_throw(env, errorValue(env, error.code)); }
+  catch (...) { napi_throw(env, errorValue(env, "internal_error")); }
+  return nullptr;
+}
 napi_value init(napi_env env, napi_value exports) {
   napi_value fn;
   napi_create_function(env, "openRoot", NAPI_AUTO_LENGTH, openRoot, nullptr, &fn); prop(env, exports, "openRoot", fn);
   napi_create_function(env, "run", NAPI_AUTO_LENGTH, run, nullptr, &fn); prop(env, exports, "run", fn);
   napi_create_function(env, "openOutputRoot", NAPI_AUTO_LENGTH, openOutputRoot, nullptr, &fn); prop(env, exports, "openOutputRoot", fn);
   napi_create_function(env, "publish", NAPI_AUTO_LENGTH, publish, nullptr, &fn); prop(env, exports, "publish", fn);
+  napi_create_function(env, "publishDirectory", NAPI_AUTO_LENGTH, publishDirectoryEntry, nullptr, &fn); prop(env, exports, "publishDirectory", fn);
   return exports;
 }
 }  // namespace secure

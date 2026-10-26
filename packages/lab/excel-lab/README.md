@@ -1,5 +1,22 @@
 # @sezzlee/excel-lab
 
+## Phase 4 bulk acceptance
+
+The [Phase 4 plan](../../servers/excel-mcp/docs/phase-4/implementation-plan.md) binds the typed key policies, ordered pipelines, atomic group publication and independent-job retry. Use the existing corpus via SEZZLEE_CORPUS for complete reader/transfer regression; original corpus files never become output targets. The bulk lab complements that coverage with public deterministic synthetic fixtures whose whole outputs are independently graded.
+
+```sh
+pnpm turbo run build check-types lint --filter=@sezzlee/excel-mcp --filter=@sezzlee/excel-lab
+python3 -I packages/lab/excel-lab/scripts/test-bulk-oracles.py
+node packages/lab/excel-lab/src/bulk-bench.ts --out /tmp/excel-bulk-scale --operation update --rows 49999 --columns 20 --heap-mib 1024
+python3 -I packages/lab/excel-lab/scripts/bulk-oracle.py /tmp/excel-bulk-scale/bulk-REPLACE
+node packages/lab/excel-lab/src/bulk-agent-cli.ts --out /tmp/excel-bulk-scripted
+SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab/src/bulk-agent-cli.ts --out /tmp/excel-bulk-model --model MODEL --languages tr,en
+```
+
+bulk-bench accepts update, replace, upsert, append, join, sort, deduplicate, atomic or independent. A child with fixed heap and a 180-second watchdog exercises actual MCP calls, preparation, execution and replay. It records exact input hashes, generation/runtime/native source digests, source immutability, request/response sizes, per-call timings and peak RSS. The independent Python standard-library oracle verifies every expected coordinate, scalar type, order, count, source hash, output hash and ZIP CRC. The independent scenario first requires nine distinct completed reports and one failure, restores the missing source, then verifies all ten reports without duplicating the first nine. Use 10,000 rows and ten columns for the complete operator matrix; larger cases must fit each operation's intermediate/expansion guard. 49,999 data records plus a header at 20 columns are exactly one million cells. Heap and RSS are different measurements; failures or refusals are not throughput measurements.
+
+bulk-agent-cli runs scripted baselines before optional actual-model trials. Public fixture creation and grading live in bulk-agent-oracle.py; five known-answer tests pin correct values, typed output, source immutability and protected refusal. Scenarios are update, join, replace, retry and blocked, selectable with --only. The retry scenario requires two identical execution identities and a durable status read. Model prose and preparation alone are not accepted as output. Traces and result logs remain outside the repository; manifests retain model identity, exact build/native source hashes, generation controls and the limited tool catalog. Existing network/data authorization rules still apply: use only these public fixtures and the selected model host, never private product inputs.
+
 The corpus harness for `@sezzlee/excel-mcp`. It runs the built server over a local corpus of
 real-world workbooks and records, per file, what every tool call answered, how long it took and
 how much memory the process needed.

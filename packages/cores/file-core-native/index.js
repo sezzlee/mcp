@@ -213,6 +213,56 @@ export function openOutputRoot(source, directory) {
     );
   const root = api.openOutputRoot(sourceHandle, directory);
   return Object.freeze({
+    async publishDirectory(name, files, maxBytes) {
+      if (typeof api.publishDirectory !== "function")
+        throw fail(
+          "The secure filesystem binary does not support directory publication.",
+        );
+      if (
+        typeof name !== "string" ||
+        !/^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/.test(name)
+      )
+        throw new TypeError(
+          "Expected a bounded output name without path components.",
+        );
+      if (!Array.isArray(files) || files.length === 0 || files.length > 128)
+        throw new TypeError("Expected one to 128 output entries.");
+      budget(maxBytes, 50 * 1024 * 1024);
+      const names = new Set();
+      let bytes = 0;
+      const entries = files.map((entry) => {
+        if (
+          entry === null ||
+          typeof entry !== "object" ||
+          typeof entry.name !== "string" ||
+          !/^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/.test(entry.name) ||
+          !Buffer.isBuffer(entry.content)
+        )
+          throw new TypeError("Expected bounded output entries.");
+        const folded = entry.name.toLowerCase();
+        if (names.has(folded))
+          throw new TypeError(
+            "Output entry names must be unique ignoring ASCII case.",
+          );
+        names.add(folded);
+        bytes += entry.content.length;
+        return { name: entry.name, content: entry.content };
+      });
+      if (bytes > maxBytes)
+        throw Object.assign(
+          new Error("Output entries exceed the byte budget."),
+          { code: "file_too_large" },
+        );
+      const result = await api.publishDirectory(
+        root,
+        name,
+        randomBytes(16).toString("hex"),
+        entries,
+        maxBytes,
+      );
+      if (result !== name) invalidResult();
+      return result;
+    },
     async publish(name, content, maxBytes) {
       if (
         typeof name !== "string" ||

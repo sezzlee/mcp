@@ -1,6 +1,6 @@
 # Faz 4: gelişmiş toplu veri işlemleri
 
-Durum: kapsam önerisi. Faz 2 ve Faz 3'e dayanır; ortak ihtiyaçlar [ana yol haritasındadır](../README.md).
+Status, 2026-10-26: P4-00–P4-08 runtime work and the P4-09 lab are implemented locally; final actual-model, combined regression and platform/package gates are running. Ordered bulk jobs, atomic dependent output groups and independent-job recovery are available in explicit writing mode. The [implementation and verification plan](implementation-plan.md) records carryovers, user decisions and evidence. Phase 4 is not marked complete before the final gates pass. Common requirements remain in the [main roadmap](../README.md).
 
 ## Hedef
 
@@ -55,4 +55,4 @@ Filtreleme ile kayıtları kalıcı olarak kaldırmak; satır görünürlüğü 
 
 ## Açık kararlar
 
-A-08 ve iş geri alma açısından A-11: anahtar ve karşılaştırma kuralları, büyük/küçük harf, boş değer, çakışma, sıra, iş gruplama, sonuç bildirimi ve yeniden deneme. Bağlı işte bütünlük ve bağımsız işte açık kısmi başarı ilkesi K1-09 ile kesindir. Sayısal ölçek ve süre hedefleri gerçek iş örnekleriyle belirlenir; bu belgede ölçülmemiş kapasite vaadi yoktur.
+A-08 key identity and conflict defaults were resolved with the user on 2026-10-26: type-sensitive and case-sensitive keys; missing/duplicate keys block unless an explicit resolution rule is chosen. Whole-list replacement clears old tail values while preserving formatting and surrounding content. The [implementation plan](implementation-plan.md) records these decisions, operation-specific semantics and the ordered verification gates. Dependent-job integrity and explicit independent-job partial success remain fixed by K1-09; A-11 undo continues to select retained immutable versions. Throughput and duration targets require measurement, not an unmeasured capacity promise.

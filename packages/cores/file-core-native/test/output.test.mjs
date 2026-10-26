@@ -29,6 +29,161 @@ async function workspace(run) {
   }
 }
 
+test("publishes a complete directory once and retains every prior entry on collision", async () => {
+  await workspace(async (_directory, rootPath) => {
+    const source = openRoot(rootPath);
+    assert.equal("publishDirectory" in source, false);
+    const output = openOutputRoot(source, "out");
+    const files = [
+      { name: "a.xlsx", content: Buffer.from("first") },
+      { name: "b.xlsx", content: Buffer.from("second") },
+      { name: "manifest.json", content: Buffer.from('{"complete":true}') },
+    ];
+    await output.publishDirectory("job", files, 100);
+    assert.deepEqual((await readdir(join(rootPath, "out", "job"))).sort(), [
+      "a.xlsx",
+      "b.xlsx",
+      "manifest.json",
+    ]);
+    for (const file of files)
+      assert.deepEqual(
+        await readFile(join(rootPath, "out", "job", file.name)),
+        file.content,
+      );
+    await assert.rejects(
+      output.publishDirectory(
+        "job",
+        [{ name: "other", content: Buffer.from("new") }],
+        100,
+      ),
+      { code: "output_exists" },
+    );
+    assert.deepEqual(await readdir(join(rootPath, "out")), ["job"]);
+    assert.deepEqual(
+      await readFile(join(rootPath, "out", "job", "a.xlsx")),
+      Buffer.from("first"),
+    );
+  });
+});
+
+test("concurrent directory publication has exactly one complete winner", async () => {
+  await workspace(async (_directory, rootPath) => {
+    const output = openOutputRoot(openRoot(rootPath), "out");
+    const results = await Promise.allSettled(
+      ["left", "right"].map((value) =>
+        output.publishDirectory(
+          "job",
+          [
+            { name: "a", content: Buffer.from(value) },
+            { name: "b", content: Buffer.from(value) },
+          ],
+          100,
+        ),
+      ),
+    );
+    assert.equal(
+      results.filter((result) => result.status === "fulfilled").length,
+      1,
+    );
+    const failure = results.find((result) => result.status === "rejected");
+    assert.equal(failure.reason.code, "output_exists");
+    const a = await readFile(join(rootPath, "out", "job", "a"), "utf8");
+    assert.ok(a === "left" || a === "right");
+    assert.equal(await readFile(join(rootPath, "out", "job", "b"), "utf8"), a);
+    assert.deepEqual(await readdir(join(rootPath, "out")), ["job"]);
+  });
+});
+
+test("directory publication validates all names, collisions and budgets before visibility", async () => {
+  await workspace(async (directory, rootPath) => {
+    const output = openOutputRoot(openRoot(rootPath), "out");
+    for (const name of ["../escape", "/escape", ".", "nested/file"])
+      await assert.rejects(
+        output.publishDirectory(
+          "job",
+          [{ name, content: Buffer.from("x") }],
+          100,
+        ),
+        TypeError,
+      );
+    await assert.rejects(
+      output.publishDirectory(
+        "job",
+        [
+          { name: "A", content: Buffer.from("x") },
+          { name: "a", content: Buffer.from("y") },
+        ],
+        100,
+      ),
+      TypeError,
+    );
+    await assert.rejects(
+      output.publishDirectory(
+        "job",
+        [{ name: "a", content: Buffer.from("123") }],
+        2,
+      ),
+      { code: "file_too_large" },
+    );
+    assert.deepEqual(await readdir(join(rootPath, "out")), []);
+    await symlink(
+      join(directory, "outside"),
+      join(rootPath, "out", "job"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    await assert.rejects(
+      output.publishDirectory(
+        "job",
+        [{ name: "a", content: Buffer.from("secret") }],
+        100,
+      ),
+      { code: "output_exists" },
+    );
+    assert.deepEqual(await readdir(join(directory, "outside")), []);
+    assert.deepEqual(await readdir(join(rootPath, "out")), ["job"]);
+  });
+});
+
+test("directory publication uses its pinned parent after the path is replaced", async () => {
+  await workspace(async (directory, rootPath) => {
+    const output = openOutputRoot(openRoot(rootPath), "out");
+    await rename(join(rootPath, "out"), join(rootPath, "retained"));
+    await symlink(
+      join(directory, "outside"),
+      join(rootPath, "out"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    await output.publishDirectory(
+      "job",
+      [{ name: "a", content: Buffer.from("complete") }],
+      100,
+    );
+    assert.equal(
+      await readFile(join(rootPath, "retained", "job", "a"), "utf8"),
+      "complete",
+    );
+    assert.deepEqual(await readdir(join(directory, "outside")), []);
+  });
+});
+
+test("directory publication snapshots every buffer before asynchronous work", async () => {
+  await workspace(async (_directory, rootPath) => {
+    const output = openOutputRoot(openRoot(rootPath), "out");
+    const content = Buffer.from("original");
+    const pending = output.publishDirectory(
+      "job",
+      [{ name: "data", content }],
+      100,
+    );
+    content.fill(0);
+    await pending;
+    assert.equal(
+      await readFile(join(rootPath, "out", "job", "data"), "utf8"),
+      "original",
+    );
+  });
+});
+
 test("output capability is separate from source reads and never replaces an existing file", async () => {
   await workspace(async (_directory, rootPath) => {
     const source = openRoot(rootPath);
