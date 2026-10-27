@@ -1,10 +1,11 @@
 import { z } from "zod";
 import {
   editBlockerSchema,
-  editChangeSchema,
   editFeaturesSchema,
+  sourceEditChangeSchema,
 } from "../authoring/edit.js";
 import {
+  editPlacementSchema,
   workbookVersionIdSchema,
   workbookVersionSchema,
   mutationReceiptSchema,
@@ -14,8 +15,8 @@ import { authoringLimits } from "../authoring/workbook.js";
 export const editWireChangesSchema = z
   .array(
     z.discriminatedUnion("kind", [
-      editChangeSchema.options[0],
-      ...editChangeSchema.options
+      sourceEditChangeSchema.options[0],
+      ...sourceEditChangeSchema.options
         .slice(1)
         .map((option) =>
           option.shape.kind.value === "copy_range" ||
@@ -46,6 +47,7 @@ const common = {
   features: editFeaturesSchema,
   recalculated: z.literal(false),
   effects: mutationReceiptSchema.shape.editing,
+  placements: z.array(editPlacementSchema).min(1).optional(),
 };
 
 export const editPreparationSchema = z.discriminatedUnion("kind", [

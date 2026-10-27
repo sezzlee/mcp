@@ -101,6 +101,7 @@ describe("images no longer need the ExcelJS metadata reader", () => {
       expect(body["images"]).toEqual([
         {
           imageId: 0,
+          name: "Resim",
           anchor: "twoCell",
           range: "D2:E6",
           extension: "png",
@@ -111,6 +112,7 @@ describe("images no longer need the ExcelJS metadata reader", () => {
         },
         {
           imageId: 0,
+          name: "Mutlak",
           anchor: "absolute",
           extension: "png",
           sizeBytes: 67,

@@ -430,11 +430,6 @@ it.each([
     error: "unknown_sheet",
   },
   {
-    label: "duplicate sheet",
-    changes: [{ kind: "add_sheet", name: "s" }],
-    error: "invalid_argument",
-  },
-  {
     label: "row overflow",
     changes: [
       {

@@ -115,7 +115,7 @@ describe("handlers", () => {
     const result = await handlers.get_data_validations({
       filePath: "validations.xlsx",
     });
-    expect(payload(result)["count"]).toBe(2);
+    expect(payload(result)["count"]).toBe(3);
   });
 
   it("returns declared tables", async () => {

@@ -10,6 +10,7 @@ export type SheetState = "visible" | "hidden" | "veryHidden";
 export interface DefinedName {
   readonly name: string;
   readonly ref: string;
+  readonly localSheetId?: number;
 }
 
 interface WorkbookFacts {
@@ -54,6 +55,7 @@ function readWorkbookPart(opc: OpcPackage): WorkbookFacts {
   if (workbookXml === undefined) return { ...facts, date1904 };
   const rels = opc.relationshipsFor(workbookPath);
   let definedName: string | undefined;
+  let localSheetId: number | undefined;
   let text = "";
   readXmlPart(workbookXml, workbookPath, {
     onOpen(node) {
@@ -65,6 +67,11 @@ function readWorkbookPart(opc: OpcPackage): WorkbookFacts {
       }
       if (node.local === "definedName") {
         definedName = node.attr("name");
+        const local = node.attr("localSheetId");
+        localSheetId =
+          local !== undefined && /^\d+$/.test(local)
+            ? Number(local)
+            : undefined;
         text = "";
         return;
       }
@@ -85,7 +92,11 @@ function readWorkbookPart(opc: OpcPackage): WorkbookFacts {
     onClose(local, uri) {
       if (uri !== namespaces.spreadsheetml || local !== "definedName") return;
       if (definedName !== undefined && text !== "") {
-        definedNames.push({ name: definedName, ref: unescapeXstring(text) });
+        definedNames.push({
+          name: definedName,
+          ref: unescapeXstring(text),
+          ...(localSheetId === undefined ? {} : { localSheetId }),
+        });
       }
       definedName = undefined;
     },

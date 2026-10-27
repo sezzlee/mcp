@@ -29,6 +29,7 @@ export interface AnchorPlacement {
 }
 
 interface ImageContent {
+  readonly name?: string;
   readonly mediaPart?: string;
   readonly hyperlink?: string;
   readonly tooltip?: string;
@@ -109,6 +110,7 @@ interface AnchorDraft {
   embedId?: string;
   hyperlinkId?: string;
   tooltip?: string;
+  name?: string;
   altText?: string;
   decorative?: boolean;
   isPicture: boolean;
@@ -232,7 +234,10 @@ function readDrawing(opc: OpcPackage, drawingPart: string): SheetDrawing {
             break;
           case "cNvPr":
             if (frame !== undefined) frame.name ??= node.attr("name");
-            else if (anchor.isPicture) anchor.altText ??= node.attr("descr");
+            else if (anchor.isPicture) {
+              anchor.name ??= node.attr("name");
+              anchor.altText ??= node.attr("descr");
+            }
             break;
           case "col":
           case "colOff":
@@ -350,6 +355,7 @@ function readDrawing(opc: OpcPackage, drawingPart: string): SheetDrawing {
           ? undefined
           : rels.get(draft.hyperlinkId);
       images.push({
+        ...(draft.name === undefined ? {} : { name: draft.name }),
         ...(media?.kind === "internal" ? { mediaPart: media.target } : {}),
         ...placement,
         ...(link === undefined ? {} : { hyperlink: link.target }),

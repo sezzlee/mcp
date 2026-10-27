@@ -5,7 +5,11 @@ import { asciiLower } from "@sezzlee/file-core";
 import { z } from "zod";
 import { SezzleeExcelError, asExcelError } from "./errors.js";
 import { limits } from "./limits.js";
-import { resolveWorkbookPath, type WorkbookRoot } from "./paths.js";
+import {
+  portablePath,
+  resolveWorkbookPath,
+  type WorkbookRoot,
+} from "./paths.js";
 import { formats } from "./formats.js";
 export const workbookVersionIdSchema = z
   .string()
@@ -23,7 +27,14 @@ export const versionReceiptSchema = z.strictObject({
   sizeBytes: z.int().nonnegative().max(limits.maxFileBytes),
 });
 
+export const editPlacementSchema = z.strictObject({
+  operation: z.int().nonnegative(),
+  sheetName: z.string().min(1).max(31),
+  range: z.string().min(2).max(21),
+});
+
 export const mutationReceiptSchema = versionReceiptSchema.extend({
+  placements: z.array(editPlacementSchema).min(1).optional(),
   editing: z
     .strictObject({
       operations: z.int().nonnegative(),
@@ -52,6 +63,7 @@ export type WorkbookVersionId = z.infer<typeof workbookVersionIdSchema>;
 export type WorkbookVersion = z.infer<typeof workbookVersionSchema>;
 export type VersionReceipt = z.infer<typeof versionReceiptSchema>;
 export type MutationReceipt = z.infer<typeof mutationReceiptSchema>;
+export type EditPlacement = z.infer<typeof editPlacementSchema>;
 
 export type WorkbookOrigin =
   | { readonly kind: "new" }
@@ -157,7 +169,7 @@ async function readSnapshot(
         "Version preparation currently accepts .xlsx sources only.",
       );
     const format = formats.formatFor(path);
-    const canonical = relative(root.real, path).split("\\").join("/");
+    const canonical = portablePath(relative(root.real, path));
     const snapshot = await root.access.read(
       canonical,
       format === "csv" ? limits.maxCsvBytes : limits.maxFileBytes,

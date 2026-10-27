@@ -27,7 +27,6 @@ import {
   type OoxmlValidations,
 } from "../../../src/metadata/spreadsheetml/validations.js";
 import { limits } from "../../../src/platform/limits.js";
-import { metadataLimitations } from "../../../src/metadata/support.js";
 import {
   formatCellRef,
   formatRange,
@@ -44,6 +43,7 @@ import {
   type SheetView,
 } from "../../../src/grid/sheet.js";
 import type {
+  DescribedName,
   DocumentMeta,
   SheetSummary,
   WorkbookDescription,
@@ -454,15 +454,36 @@ function formulaStats(sheet: XLSX.WorkSheet): {
   return { formulaCellCount, cachedFormulaValueCount };
 }
 
-function definedNamesOf(
-  book: XLSX.WorkBook,
-): readonly { readonly name: string; readonly ranges: readonly string[] }[] {
+function definedNamesOf(book: XLSX.WorkBook): readonly DescribedName[] {
   return (book.Workbook?.Names ?? [])
     .filter((entry) => typeof entry.Name === "string")
-    .map((entry) => ({
-      name: entry.Name,
-      ranges: typeof entry.Ref === "string" ? [entry.Ref] : [],
-    }));
+    .map((entry): DescribedName => {
+      const ref = typeof entry.Ref === "string" ? entry.Ref : "";
+      const scopeSheet =
+        typeof entry.Sheet === "number"
+          ? book.SheetNames[entry.Sheet]
+          : undefined;
+      const bang = ref.lastIndexOf("!");
+      const qualifier = bang < 0 ? undefined : ref.slice(0, bang);
+      const refSheet =
+        qualifier?.startsWith("'") === true
+          ? qualifier.slice(1, -1).replaceAll("''", "'")
+          : qualifier;
+      const target = ref.slice(bang + 1).replaceAll("$", "");
+      const area = /^[A-Z]{1,3}\d+(?::[A-Z]{1,3}\d+)?$/i.test(target)
+        ? XLSX.utils.encode_range(XLSX.utils.decode_range(target))
+        : undefined;
+      const sheetName = scopeSheet ?? refSheet;
+      return {
+        name: entry.Name,
+        ranges: ref === "" ? [] : [ref],
+        scope: scopeSheet === undefined ? "workbook" : "sheet",
+        ...(sheetName === undefined ? {} : { sheetName }),
+        ...(area !== undefined && refSheet === sheetName
+          ? { range: area }
+          : {}),
+      };
+    });
 }
 
 export interface DescribeOptions {
@@ -546,14 +567,9 @@ export function describeSheetJs(
     dateSystem:
       loaded.book.Workbook?.WBProps?.date1904 === true ? "1904" : "1900",
     sheets,
-    limitations: options.includeDefinedNames
-      ? [metadataLimitations.definedNames]
-      : [],
+    limitations: [],
     ...(options.includeDefinedNames
-      ? {
-          definedNames: definedNamesOf(loaded.book),
-          definedNamesComplete: false as const,
-        }
+      ? { definedNames: definedNamesOf(loaded.book) }
       : {}),
     ...(tallest > limits.guidanceRowThreshold
       ? {

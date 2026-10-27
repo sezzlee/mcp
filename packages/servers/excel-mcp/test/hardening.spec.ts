@@ -681,8 +681,30 @@ describe("cell/header and metadata regressions", () => {
     const description = body(
       await handlers.describe_workbook({ filePath: "metadata-loss.xlsx" }),
     );
-    expect(description.definedNamesComplete).toBe(false);
-    expect(JSON.stringify(description.limitations)).toContain("EXCEL-META-025");
+    expect(description.definedNames).toEqual([
+      {
+        name: "Shared",
+        ranges: ["Meta!$B$2"],
+        scope: "sheet",
+        sheetName: "Meta",
+        range: "B2",
+      },
+      {
+        name: "Shared",
+        ranges: ["Other!$B$2"],
+        scope: "sheet",
+        sheetName: "Other",
+        range: "B2",
+      },
+      {
+        name: "Global",
+        ranges: ["Meta!$A$2"],
+        scope: "workbook",
+        sheetName: "Meta",
+        range: "A2",
+      },
+    ]);
+    expect(description.limitations).toEqual([]);
   });
   it("retains formula and hyperlink truncation facts (#21)", () => {
     for (const valueMode of ["values", "both"] as const) {

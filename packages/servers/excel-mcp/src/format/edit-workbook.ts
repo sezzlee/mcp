@@ -1,6 +1,9 @@
-import type { EditChange } from "../authoring/edit.js";
+import type { EditChange, SourceEditChange } from "../authoring/edit.js";
 import type { WorkbookChange } from "../authoring/workbook.js";
 import { SezzleeExcelError } from "../platform/errors.js";
+import type { EditPlacement } from "../platform/versions.js";
+import { workbookSheetNames } from "./edit-inspection.js";
+import { planSourceFrameEdit, type EditPlan } from "./edit-plan.js";
 import {
   readAuthoredWorkbook,
   editAuthoredWorkbook,
@@ -50,4 +53,56 @@ export function applyWorkbookChanges(
     }
   }
   return editPreservedWorkbook(bytes, changes, sources);
+}
+
+export type PlannedEdit = Extract<EditPlan, { kind: "planned" }>;
+
+export function planWorkbookEdit(
+  bytes: Buffer,
+  changes: readonly SourceEditChange[],
+  externalCopies: ReadonlySet<number>,
+): EditPlan {
+  return planSourceFrameEdit(
+    workbookSheetNames(bytes),
+    changes,
+    externalCopies,
+  );
+}
+
+export function refuseBlockedPlan(plan: EditPlan): PlannedEdit {
+  if (plan.kind === "planned") return plan;
+  throw new SezzleeExcelError(
+    "invalid_argument",
+    `The workbook cannot be edited: ${plan.blockers
+      .map((blocker) => `change ${blocker.operationIndex} ${blocker.code}`)
+      .join(", ")}.`,
+    "Address every change at source coordinates, never combine a change with another that deletes, moves or copies the same cells, and give new sheets names no source sheet uses.",
+  );
+}
+
+export function applyPlannedEdit(
+  bytes: Buffer,
+  plan: PlannedEdit,
+  operations: number,
+  sources: ReadonlyMap<number, Buffer> = new Map(),
+): ReturnType<typeof applyWorkbookChanges> & {
+  readonly placements: readonly EditPlacement[];
+} {
+  const ordered = new Map<number, Buffer>();
+  for (const [index, entry] of plan.changes.entries()) {
+    const source = sources.get(entry.origin);
+    if (source !== undefined) ordered.set(index, source);
+  }
+  const applied = applyWorkbookChanges(
+    bytes,
+    plan.changes.map((entry) => entry.change),
+    ordered,
+  );
+  return {
+    ...applied,
+    ...(applied.editing === undefined
+      ? {}
+      : { editing: { ...applied.editing, operations } }),
+    placements: plan.placements,
+  };
 }

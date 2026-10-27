@@ -3,6 +3,7 @@ import { limits } from "../../platform/limits.js";
 import type { OpcPackage } from "./package.js";
 import { transitionalNamespace } from "./reader.js";
 import { namespaces, scanPart, type XmlVisitor } from "./xml.js";
+import { plainAreaOf } from "./plain-area.js";
 
 export type ChartPlotType =
   | "bar"
@@ -34,6 +35,8 @@ export type SeriesData =
   | (SeriesDataCommon & {
       readonly kind: "reference";
       readonly ref: string;
+      readonly sheetName?: string;
+      readonly range?: string;
       readonly external?: true;
       /**
        * The outer levels of a multi-level category, innermost first; `points`
@@ -283,9 +286,11 @@ function finishData(draft: DataDraft, options: ReadChartOptions): SeriesData {
     truncated: capped < count,
   };
   if (draft.kind === "reference" && draft.ref !== undefined) {
+    const area = plainAreaOf(draft.ref);
     return {
       kind: "reference",
       ref: draft.ref,
+      ...(area ?? {}),
       ...(isExternalRef(draft.ref) ? { external: true as const } : {}),
       ...common,
       ...(outer.length === 0 ? {} : { levels: outer.map(pointsOf) }),

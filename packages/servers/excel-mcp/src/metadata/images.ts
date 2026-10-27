@@ -6,6 +6,7 @@ import type { OoxmlImage } from "./spreadsheetml/drawing.js";
 
 export interface SheetImage {
   readonly imageId: number;
+  readonly name?: string;
   readonly anchor: "oneCell" | "twoCell" | "absolute" | "inCell";
   readonly range?: string;
   readonly cell?: string;
@@ -51,6 +52,7 @@ function describe(
   const sizeBytes = entry?.sizeBytes;
   return {
     imageId: entry?.id ?? -1,
+    ...(image.name === undefined ? {} : { name: image.name }),
     ...placement,
     ...(extension === undefined ? {} : { extension }),
     ...(sizeBytes === undefined ? {} : { sizeBytes }),

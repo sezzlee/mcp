@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { presentationChangeSchema } from "./presentation.js";
+import {
+  presentationChangeSchema,
+  presentationLimits,
+} from "./presentation.js";
+import { writeCellSchema } from "./values.js";
 import {
   authoringLimits,
   sheetNameSchema,
@@ -11,15 +15,14 @@ const range = z
   .min(2)
   .max(21)
   .regex(/^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$/);
+const rowIndex = z.int().min(1).max(1_048_576);
 export const copyModeSchema = z.enum([
   "values",
   "formulas",
   "formatting",
   "all",
 ]);
-export const editChangeSchema = z.discriminatedUnion("kind", [
-  ...workbookChangeSchema.options,
-  ...presentationChangeSchema.options,
+const sheetChanges = [
   z.strictObject({
     kind: z.literal("clear_contents"),
     sheetName: sheetNameSchema,
@@ -62,16 +65,12 @@ export const editChangeSchema = z.discriminatedUnion("kind", [
     startCell: z.string().min(2).max(10),
     overwrite: z.boolean().default(false),
   }),
-  z.strictObject({
-    kind: z.literal("insert_rows"),
-    sheetName: sheetNameSchema,
-    at: z.int().min(1).max(1_048_576),
-    count: z.int().min(1).max(1_000_000),
-  }),
+] as const;
+const axisChanges = [
   z.strictObject({
     kind: z.literal("delete_rows"),
     sheetName: sheetNameSchema,
-    at: z.int().min(1).max(1_048_576),
+    at: rowIndex,
     count: z.int().min(1).max(1_000_000),
   }),
   z.strictObject({
@@ -86,12 +85,77 @@ export const editChangeSchema = z.discriminatedUnion("kind", [
     at: z.int().min(1).max(16_384),
     count: z.int().min(1).max(16_384),
   }),
+] as const;
+
+export const editChangeSchema = z.discriminatedUnion("kind", [
+  ...workbookChangeSchema.options,
+  ...presentationChangeSchema.options,
+  ...sheetChanges,
+  z.strictObject({
+    kind: z.literal("insert_rows"),
+    sheetName: sheetNameSchema,
+    at: rowIndex,
+    count: z.int().min(1).max(1_000_000),
+  }),
+  ...axisChanges,
 ]);
 
 export const editChangesSchema = z
   .array(editChangeSchema)
   .min(1)
   .max(authoringLimits.maxOperations);
+
+export const insertedCellSchema = z.discriminatedUnion("kind", [
+  ...writeCellSchema.options,
+  z.strictObject({
+    kind: z.literal("formula"),
+    formula: z.string().min(1).max(presentationLimits.maxFormulaChars),
+  }),
+]);
+
+export const sourceEditChangeSchema = z.discriminatedUnion("kind", [
+  ...workbookChangeSchema.options,
+  ...presentationChangeSchema.options,
+  ...sheetChanges,
+  z
+    .strictObject({
+      kind: z.literal("insert_rows"),
+      sheetName: sheetNameSchema,
+      at: rowIndex,
+      count: z.int().min(1).max(1_000_000).optional(),
+      startColumn: z
+        .string()
+        .regex(/^[A-Za-z]{1,3}$/)
+        .optional(),
+      values: z
+        .array(z.array(insertedCellSchema).min(1).max(16_384))
+        .min(1)
+        .max(authoringLimits.maxCells)
+        .optional(),
+    })
+    .refine(
+      (change) =>
+        (change.count === undefined) !== (change.values === undefined),
+      {
+        message: "Give insert_rows either count or values, not both.",
+      },
+    )
+    .refine(
+      (change) =>
+        change.values !== undefined || change.startColumn === undefined,
+      {
+        message: "startColumn places inserted values; it requires values.",
+      },
+    )
+    .refine(
+      (change) =>
+        change.values?.every(
+          (row) => row.length === change.values?.[0]?.length,
+        ) ?? true,
+      { message: "Every inserted row must have the same width." },
+    ),
+  ...axisChanges,
+]);
 
 export const editFeaturesSchema = z.strictObject({
   parts: z.int().nonnegative().default(0),
@@ -135,10 +199,18 @@ export const editBlockerSchema = z.discriminatedUnion("kind", [
       .int()
       .nonnegative()
       .max(authoringLimits.maxOperations - 1),
-    code: z.literal("operation_not_supported"),
+    code: z.enum([
+      "operation_not_supported",
+      "overlapping_writes",
+      "target_deleted",
+      "conflicting_structure",
+      "name_conflict",
+    ]),
   }),
 ]);
 
 export type EditChange = z.infer<typeof editChangeSchema>;
+export type SourceEditChange = z.infer<typeof sourceEditChangeSchema>;
+export type InsertedCell = z.infer<typeof insertedCellSchema>;
 export type EditFeatures = z.infer<typeof editFeaturesSchema>;
 export type EditBlocker = z.infer<typeof editBlockerSchema>;

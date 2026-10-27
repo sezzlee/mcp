@@ -21,7 +21,7 @@ import type { CsvOptions } from "../platform/delimited.js";
 import { SezzleeExcelError, fail } from "../platform/errors.js";
 import { formats, type DocumentFormat } from "../platform/formats.js";
 import { limits, modePolicy } from "../platform/limits.js";
-import { assertReadableFormat } from "../platform/paths.js";
+import { assertReadableFormat, portablePath } from "../platform/paths.js";
 import type { SheetSource, SheetView } from "../grid/sheet.js";
 import { vocabulary } from "../platform/vocabulary.js";
 import {
@@ -38,14 +38,21 @@ import type {
 } from "../metadata/description.js";
 import { declaredTablesOf } from "../metadata/tables.js";
 
+export interface ReadVersion {
+  readonly filePath: string;
+  readonly versionId: string;
+}
+
 interface XlsxBody {
   readonly format: "xlsx";
   readonly workbook: OoxmlWorkbook;
+  readonly version: ReadVersion;
 }
 
 interface CsvBody {
   readonly format: "csv";
   readonly table: CsvTable;
+  readonly version: ReadVersion;
 }
 
 type DocumentBody = XlsxBody | CsvBody;
@@ -59,6 +66,10 @@ async function parseDocument(
   options: CsvOptions,
 ): Promise<DocumentBody> {
   const format = formats.formatFor(context.path);
+  const version = {
+    filePath: portablePath(context.displayPath),
+    versionId: context.contentDigest,
+  };
   const bytes =
     context.mode === "resident"
       ? context.bytes
@@ -73,11 +84,11 @@ async function parseDocument(
       options,
       context.displayPath,
     );
-    return { format, table };
+    return { format, table, version };
   }
   assertReadableFormat(bytes.subarray(0, 8), context.displayPath);
   const workbook = parseOoxml(bytes, context.displayPath);
-  return { format, workbook };
+  return { format, workbook, version };
 }
 
 function variantKey(options: CsvOptions): string {

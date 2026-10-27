@@ -35,7 +35,9 @@ async function loadXlsx(file: string): Promise<LoadedWorkbook> {
 
 /**
  * The reference the OOXML reader has to agree with while ExcelJS is still in
- * the tree: its own model, regrouped the way the tool used to report it.
+ * the tree: the distinct rules of its per-cell model. ExcelJS keeps no record
+ * of which stored element a cell came from, so rule contents are compared as
+ * a set and element boundaries are checked against the sqref fixtures.
  */
 function excelJsRules(
   worksheet: ExcelJS.Worksheet,
@@ -127,8 +129,7 @@ describe("the OOXML data validation reader agrees with ExcelJS", () => {
     const parsed = parseOoxml(bytes, "parity.xlsx");
     const actual = collectValidations("Data", parsed.facts("Data").validations);
 
-    expect(actual.rules).toHaveLength(expected.length);
-    expect(actual.rules.map(comparable).sort()).toEqual(
+    expect([...new Set(actual.rules.map(comparable))].sort()).toEqual(
       expected.map(comparable).sort(),
     );
   });
@@ -139,8 +140,11 @@ describe("the OOXML data validation reader agrees with ExcelJS", () => {
       "Data",
       loaded.workbook.facts("Data").validations,
     );
-    const list = report.rules.find((rule) => rule.type === "list");
-    expect(list?.ranges).toEqual(["A2:A5000", "C2:C10"]);
+    expect(
+      report.rules
+        .filter((rule) => rule.type === "list")
+        .map((rule) => rule.ranges),
+    ).toEqual([["A2:A5000"], ["C2:C10"]]);
     expect(report.coveredCellCount).toBe(5017);
     expect(report.rangesTruncated).toBe(false);
   });

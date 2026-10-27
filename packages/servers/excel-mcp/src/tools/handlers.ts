@@ -40,7 +40,7 @@ import {
 import { resolveHeaderRow } from "./coerce.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import {
-  modeEnvelopeBytes,
+  sourceEnvelopeBytes,
   withAggregateEnvelope,
   withCsv,
   withMode,
@@ -204,7 +204,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               },
               args.includeDefinedNames ?? true,
             ),
-            loaded.mode,
+            loaded,
           ),
         );
       },
@@ -229,7 +229,8 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         withCsv(
           readSheet(sheetSource(loaded), {
             ...gridSelection(loaded, args),
-            extraEnvelopeBytes: csvEnvelope(report) + modeEnvelopeBytes,
+            extraEnvelopeBytes:
+              csvEnvelope(report) + sourceEnvelopeBytes(loaded),
             ...(args.sheetName === undefined
               ? {}
               : { sheetName: args.sheetName }),
@@ -257,7 +258,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
             includeHyperlinks: args.includeHyperlinks ?? false,
           }),
           report,
-          loaded.mode,
+          loaded,
         ),
       );
     }),
@@ -284,7 +285,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               maxColumns: args.maxColumns ?? limits.maxProfileColumnsDefault,
             }),
             csvReportOf(loaded),
-            loaded.mode,
+            loaded,
           ),
         );
       },
@@ -297,10 +298,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         const sheet = documentSheet(loaded, args.sheetName);
         const merges = sheet.merges;
         return json(
-          withMode(
-            { sheet: sheet.name, merges, count: merges.length },
-            loaded.mode,
-          ),
+          withMode({ sheet: sheet.name, merges, count: merges.length }, loaded),
         );
       },
     ),
@@ -313,7 +311,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         return json(
           withMode(
             collectValidations(sheet, loaded.workbook.facts(sheet).validations),
-            loaded.mode,
+            loaded,
           ),
         );
       },
@@ -327,7 +325,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         return json(
           withMode(
             collectTables(sheet, loaded.workbook.facts(sheet).tables),
-            loaded.mode,
+            loaded,
           ),
         );
       },
@@ -344,7 +342,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               sheet,
               loaded.workbook.facts(sheet).conditionalFormats,
             ),
-            loaded.mode,
+            loaded,
           ),
         );
       },
@@ -363,7 +361,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               loaded.workbook.facts(sheet).images,
               loaded.workbook.media,
             ),
-            loaded.mode,
+            loaded,
           ),
         );
       },
@@ -389,7 +387,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
                   : { maxPoints: args.maxPoints }),
               },
             ),
-            loaded.mode,
+            loaded,
           ),
         );
       },
@@ -449,7 +447,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               maxGroups: args.maxGroups ?? limits.maxGroupsDefault,
             }),
             csvReportOf(loaded),
-            loaded.mode,
+            loaded,
             args.compact ?? false,
           ),
         );
@@ -485,7 +483,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
             await find({
               ...gridSelection(loaded, args),
               extraEnvelopeBytes:
-                modeEnvelopeBytes +
+                sourceEnvelopeBytes(loaded) +
                 (csvReportOf(loaded) === undefined
                   ? 0
                   : measureJson({ csv: csvReportOf(loaded) })),
@@ -505,7 +503,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               maxResults: args.maxResults ?? limits.defaultFindResults,
             }),
             csvReportOf(loaded),
-            loaded.mode,
+            loaded,
           ),
         );
       },

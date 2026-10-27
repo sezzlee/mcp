@@ -15,6 +15,12 @@ export const cellRangeSchema = z
   .string()
   .max(21)
   .regex(/^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$/);
+const sqrefAreaSchema = z
+  .string()
+  .max(21)
+  .regex(
+    /^(?:[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?|[A-Za-z]{1,3}:[A-Za-z]{1,3}|[1-9][0-9]{0,6}:[1-9][0-9]{0,6})$/,
+  );
 const color = z.string().regex(/^[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$/);
 const plainText = z.string().refine(
   (value) =>
@@ -318,11 +324,18 @@ export const presentationChangeSchema = z.discriminatedUnion("kind", [
     prompt: plainText.max(255).optional(),
     overwrite: z.boolean().default(false),
   }),
-  z.strictObject({
-    kind: z.literal("remove_validation"),
-    sheetName: sheetNameSchema,
-    range: cellRangeSchema,
-  }),
+  z
+    .strictObject({
+      kind: z.literal("remove_validation"),
+      sheetName: sheetNameSchema,
+      range: cellRangeSchema.optional(),
+      ranges: z.array(sqrefAreaSchema).min(1).max(64).optional(),
+    })
+    .refine(
+      (change) =>
+        (change.range === undefined) !== (change.ranges === undefined),
+      { message: "Give remove_validation either range or ranges, not both." },
+    ),
   z.strictObject({
     kind: z.literal("set_conditional_format"),
     sheetName: sheetNameSchema,

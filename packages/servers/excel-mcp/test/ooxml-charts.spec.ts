@@ -500,6 +500,8 @@ describe("get_charts reads cached values and names as Excel writes them", () => 
     expect(chart.plots[0]!.series[0]!["categories"]).toEqual({
       kind: "reference",
       ref: "S!$A$2:$B$5",
+      sheetName: "S",
+      range: "A2:B5",
       count: 4,
       points: ["Q1", "Q2", "Q1", "Q2"],
       levels: [["2023", null, "2024", null]],

@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Breaking: edit addressing
+
+- `edit_workbook` and `prepare_edit` read every sheet name and A1 address of a request against the source as it was read. In 0.12 each change saw the result of the one before it, so a `write_cells` at `A4` after `insert_rows` at 4 wrote the new row; it now writes source row 4, which ends at row 5. A request that relied on the old order addresses source positions or carries the new row's contents in `insert_rows`.
+- `insert_rows` accepts `values` with an optional `startColumn` instead of `count`. A formula cell writes `{row}` for its own inserted row, for example `B{row}*C{row}`.
+- A combination whose result would depend on the order of its changes is blocked on the change that causes it: `target_deleted`, `overlapping_writes`, `conflicting_structure` or `name_conflict`. A sheet addressed by the name a rename in the same request gives it is `unknown_sheet`.
+- Protection changes no longer have to lead a request: unprotection always runs first and protection last.
+- `prepare_edit` and the `edit_workbook` receipt return `placements`, the output sheet and range of every target that moved or was renamed.
+
+### Reading feeds editing
+
+- Every read result carries `version: {filePath, versionId}`, the SHA-256 of the bytes that were parsed. It is the `source` `edit_workbook` takes and the `expectedVersion` `prepare_edit` takes, so an edit cannot land on bytes that changed after the read.
+- `get_data_validations` reports one rule per stored `<dataValidation>`; equal rules are no longer merged into one entry, so `count` and `ranges` describe what is stored. `remove_validation` accepts `ranges` copied from one rule, including multi-area and whole-column rules, which no change could select before. A stored whole-column or `$` range no longer makes every validation change on its sheet fail with `invalid_range`.
+- `describe_workbook` reports each defined name's `scope`, `sheetName` and, for one plain area, `range`, the fields `define_name` and `delete_name` take. Sheet-local names keep their scope, so the `sheet_local_defined_names` limitation and `definedNamesComplete` are gone.
+- `get_charts` series data carry `sheetName` and `range` beside `ref`, the fields `set_chart` series take. `get_images` reports a picture's drawing `name`, which `remove_image` selects.
+- `remove_conditional_format` matches a stored priority by its number, so a rule written as `priority="01"` is found by `priority: 1`.
+
 ## 0.12.0 — 2026-10-27
 
 ### Report authoring and calculation

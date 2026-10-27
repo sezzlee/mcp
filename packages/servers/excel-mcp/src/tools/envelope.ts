@@ -1,33 +1,46 @@
 import { measureJson, type SourceMode } from "@sezzlee/file-core";
 import type { CsvReport } from "../format/csv.js";
+import type { ReadVersion } from "../format/document.js";
 
-export const modeEnvelopeBytes = measureJson({ mode: "resident" });
+export interface ReadSource {
+  readonly mode: SourceMode;
+  readonly version: ReadVersion;
+}
+
+export function sourceEnvelopeBytes(source: ReadSource): number {
+  return measureJson({ mode: source.mode, version: source.version });
+}
 
 export function withCsv<T extends object>(
   payload: T,
   report: CsvReport | undefined,
-  mode: SourceMode,
-): T & { mode: SourceMode; csv?: CsvReport } {
+  source: ReadSource,
+): T & ReadSource & { csv?: CsvReport } {
   return report === undefined
-    ? { ...payload, mode }
-    : { ...payload, csv: report, mode };
+    ? { ...payload, mode: source.mode, version: source.version }
+    : { ...payload, csv: report, mode: source.mode, version: source.version };
 }
 
 export function withMode<T extends object>(
   payload: T,
-  mode: SourceMode,
-): T & { mode: SourceMode } {
-  return { ...payload, mode };
+  source: ReadSource,
+): T & ReadSource {
+  return { ...payload, mode: source.mode, version: source.version };
 }
 
 export function withAggregateEnvelope<T extends object>(
   payload: T,
   report: CsvReport | undefined,
-  mode: SourceMode,
+  source: ReadSource,
   compact: boolean,
-): T & { mode?: SourceMode; csv?: Partial<CsvReport> } {
-  if (!compact) return withCsv(payload, report, mode);
-  if (report === undefined) return payload;
+): T & {
+  mode?: SourceMode;
+  version: ReadVersion;
+  csv?: Partial<CsvReport>;
+} {
+  if (!compact) return withCsv(payload, report, source);
+  const versioned = { ...payload, version: source.version };
+  if (report === undefined) return versioned;
   const csv: Partial<CsvReport> = {
     ...(report.warnings === undefined ? {} : { warnings: report.warnings }),
     ...(report.raggedRecordCount === 0
@@ -43,5 +56,5 @@ export function withAggregateEnvelope<T extends object>(
       ? {}
       : { duplicateHeaders: report.duplicateHeaders }),
   };
-  return Object.keys(csv).length === 0 ? payload : { ...payload, csv };
+  return Object.keys(csv).length === 0 ? versioned : { ...versioned, csv };
 }
