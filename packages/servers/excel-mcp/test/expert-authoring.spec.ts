@@ -215,7 +215,7 @@ describe("Phase 7 authoring through MCP", () => {
 
   it("invalidates only affected chart caches and marks a changed pivot source stale", async () => {
     await workspace(async (directory, client) => {
-      const source = await create(client, [
+      const initial = await create(client, [
         {
           kind: "define_name",
           sheetName: "Sales '26",
@@ -267,6 +267,47 @@ describe("Phase 7 authoring through MCP", () => {
           ],
         },
       ]);
+      const composed = mutationReceiptSchema.parse(
+        await call(client, "edit_workbook", {
+          source: initial.version,
+          changes: [
+            {
+              kind: "write_formula",
+              sheetName: "Summary",
+              cell: "B8",
+              formula: "SUM('Sales ''26'!B2:B3)",
+            },
+            {
+              kind: "set_note",
+              sheetName: "Summary",
+              cell: "A9",
+              text: "Retain with drawings",
+              author: "Finance",
+            },
+            {
+              kind: "set_image",
+              sheetName: "Summary",
+              name: "Logo",
+              cell: "H1",
+              mime: "image/png",
+              data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+              width: 24,
+              height: 24,
+            },
+          ],
+        }),
+      );
+      const source = versionReceiptSchema
+        .passthrough()
+        .parse(
+          await call(client, "calculate_workbook", {
+            source: composed.version,
+          }),
+        );
+      const sourceBytes = await bytes(directory, source);
+      expect(
+        XLSX.read(sourceBytes, { type: "buffer" }).Sheets.Summary?.B8,
+      ).toMatchObject({ t: "n", v: 30 });
       const unrelated = mutationReceiptSchema.parse(
         await call(client, "edit_workbook", {
           source: source.version,
@@ -311,6 +352,119 @@ describe("Phase 7 authoring through MCP", () => {
       expect(changed.editing?.refreshRequired).toEqual(
         expect.arrayContaining(["charts", "pivots"]),
       );
+      expect(changed.editing?.recalculationRequired).toBe(true);
+      const refreshed = mutationReceiptSchema.parse(
+        await call(client, "edit_workbook", {
+          source: changed.version,
+          changes: [
+            {
+              kind: "set_pivot",
+              sheetName: "Summary",
+              name: "Regions",
+              cell: "A1",
+              sourceSheet: "Sales '26",
+              sourceRange: "A1:B3",
+              rowColumn: "Region",
+              measures: [{ column: "Amount", function: "sum", name: "Total" }],
+              overwrite: true,
+            },
+            {
+              kind: "set_chart",
+              sheetName: "Summary",
+              name: "Sales",
+              chartType: "column",
+              cell: "D1",
+              series: [
+                {
+                  name: "Revenue",
+                  sheetName: "Sales '26",
+                  categories: "A2:A3",
+                  values: "B2:B3",
+                },
+              ],
+              overwrite: true,
+            },
+          ],
+        }),
+      );
+      expect(refreshed.editing?.refreshRequired ?? []).not.toContain("charts");
+      expect(refreshed.editing?.refreshRequired ?? []).not.toContain("pivots");
+      const recalculated = versionReceiptSchema
+        .passthrough()
+        .parse(
+          await call(client, "calculate_workbook", {
+            source: refreshed.version,
+          }),
+        );
+      const current = await JSZip.loadAsync(
+        await bytes(directory, recalculated),
+      );
+      expect(
+        await current.file("xl/charts/chart1.xml")?.async("string"),
+      ).toContain('<c:pt idx="0"><c:v>45</c:v></c:pt>');
+      expect(
+        await current
+          .file("xl/pivotCache/pivotCacheDefinition1.xml")
+          ?.async("string"),
+      ).not.toContain('invalid="1"');
+      const values = XLSX.read(await bytes(directory, recalculated), {
+        type: "buffer",
+      }).Sheets.Summary;
+      expect(values?.B2).toMatchObject({ t: "n", v: 45 });
+      expect(values?.B3).toMatchObject({ t: "n", v: 20 });
+      expect(values?.B4).toMatchObject({ t: "n", v: 65 });
+      expect(values?.B8).toMatchObject({ t: "n", v: 65 });
+      const chartRemoved = mutationReceiptSchema.parse(
+        await call(client, "edit_workbook", {
+          source: recalculated.version,
+          changes: [
+            { kind: "remove_chart", sheetName: "Summary", name: "Sales" },
+          ],
+        }),
+      );
+      const withoutChart = await JSZip.loadAsync(
+        await bytes(directory, chartRemoved),
+      );
+      expect(
+        Object.keys(withoutChart.files).filter((path) =>
+          /^xl\/charts\/[^/]+\.xml$/.test(path),
+        ),
+      ).toHaveLength(0);
+      const withImage = new ExcelJS.Workbook();
+      await withImage.xlsx.load(
+        Uint8Array.from(await bytes(directory, chartRemoved)).buffer,
+      );
+      expect(withImage.model.media).toHaveLength(1);
+      const note = await current.file("xl/comments1.xml")?.async("string");
+      expect(note).toContain('ref="A9"');
+      expect(note).toContain("Retain with drawings");
+      expect(
+        await withoutChart.file("xl/comments1.xml")?.async("string"),
+      ).toEqual(note);
+      const imageRemoved = mutationReceiptSchema.parse(
+        await call(client, "edit_workbook", {
+          source: chartRemoved.version,
+          changes: [
+            { kind: "remove_image", sheetName: "Summary", name: "Logo" },
+          ],
+        }),
+      );
+      const noMedia = new ExcelJS.Workbook();
+      await noMedia.xlsx.load(
+        Uint8Array.from(await bytes(directory, imageRemoved)).buffer,
+      );
+      expect(noMedia.model.media).toHaveLength(0);
+      const withoutImage = await JSZip.loadAsync(
+        await bytes(directory, imageRemoved),
+      );
+      expect(
+        await withoutImage.file("xl/comments1.xml")?.async("string"),
+      ).toEqual(note);
+      expect(
+        XLSX.read(await bytes(directory, imageRemoved), { type: "buffer" })
+          .Sheets.Summary?.B8,
+      ).toMatchObject({ t: "n", v: 65 });
+      expect((await bytes(directory, source)).equals(sourceBytes)).toBe(true);
     });
   });
   it("replays one completed period job without duplicates and rolls back a failed expert finishing step", async () => {
