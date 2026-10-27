@@ -1,6 +1,6 @@
 # Error codes
 
-> Generated from the error-code union types of `@sezzlee/excel-mcp` 0.12.0.
+> Generated from the error-code union types of `@sezzlee/excel-mcp` 0.13.0.
 
 A tool that fails answers with `isError: true` and one text item holding a JSON object with three fields: `error`, a stable machine code from this page; `message`, what went wrong; and `recovery`, what the next call should do differently. Branch on `error`, never on `message`.
 

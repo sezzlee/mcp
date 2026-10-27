@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.13.0 — 2026-10-27
+
+### Requirements
+
+- Require `@sezzlee/file-core` 0.3.6 or later through the published dependency range for the content digest every read reports as `version.versionId`.
 
 ### Breaking: edit addressing
 
