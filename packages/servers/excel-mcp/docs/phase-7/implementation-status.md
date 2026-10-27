@@ -46,4 +46,6 @@ LibreOffice drops the deterministic report's `stopIfTrue` flag on export. The pr
 
 ## Remaining closure
 
+Seven fresh local tarballs passed dependency/content audit. A clean npm installation on darwin-arm64 Node 24.12.0 passed the expanded expert-report smoke and existing edit/transfer/calculate/retry/restore scenarios. The expert smoke independently checks named fill, validation, conditional rules, notes/links/images, chart caches/visible-color metadata, pivot results and protection. Its initial single-cell spelling assertion was corrected to accept semantically equivalent A1 range forms; other assertions were retained.
+
 Push this implementation to PR #73, run full native/platform/Node and installed-tarball CI, then bind those green results to the unchanged runtime here. Package publication, website deployment and private runtime rollout remain separate.

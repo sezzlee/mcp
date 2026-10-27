@@ -192,6 +192,16 @@
     "status": "pending",
     "workflow": "ci.yml",
     "full": true,
+    "runtimeRevision": "86db134da32bd48bc77a3e77d962b5be51508cff",
+    "localInstalledPackage": {
+      "tarballsAudited": 7,
+      "passed": true,
+      "platform": "darwin-arm64",
+      "node": "24.12.0",
+      "expertReportSmoke": true,
+      "scenario": "Scoped target fill, validation, conditional formatting, note/link/image, literal-source chart, pivot aggregation/cache and protection through a clean npm tarball install; independent XML/value assertions and source bytes checked.",
+      "testCorrection": "The first smoke expected only a single-cell A1 spelling. It now accepts both equivalent B1 and B1:B1 spellings; all value/object checks are retained."
+    },
     "required": [
       "all native platform/Node legs",
       "both NestJS host generations",
