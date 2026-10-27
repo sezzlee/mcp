@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import * as XLSX from "@e965/xlsx";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -32,6 +33,9 @@ const answers: readonly (readonly [
   ["INDEX(Inputs!A1:B2,1,3)", { error: "#REF!" }],
   ["INDEX(Inputs!C1:C2,1)", false],
   ["INDEX(Inputs!C1:C2,2)", { error: "#DIV/0!" }],
+  ["INDEX(Inputs!A1:C1,2)", "kept"],
+  ["INDEX(Inputs!A1:C1,3)", false],
+  ["INDEX(Inputs!A2:B2,2)", 0],
 ];
 
 async function fixture(staleCache: boolean) {
@@ -64,7 +68,7 @@ function check(bytes: Buffer, preserveFormulas = true) {
 }
 
 describe("scalar INDEX blank references", () => {
-  it("publishes correct typed caches without turning stored or absent blanks into reference errors", async () => {
+  it("publishes correct scalar INDEX caches and refuses array results without successful stale caches", async () => {
     const directory = await mkdtemp(join(tmpdir(), "excel-index-"));
     await mkdir(join(directory, "out"));
     const source = await fixture(true);
@@ -107,6 +111,57 @@ describe("scalar INDEX blank references", () => {
         errorCells: 3,
         cacheStatus: "current",
       });
+      const arrayBook = new ExcelJS.Workbook();
+      const arrayInput = arrayBook.addWorksheet("Inputs");
+      arrayInput.getCell("A1").value = 10;
+      arrayInput.getCell("B1").value = 20;
+      arrayInput.getCell("A2").value = 30;
+      arrayInput.getCell("B2").value = 40;
+      arrayBook.addWorksheet("Calc").getCell("A1").value = {
+        formula: "INDEX(Inputs!A1:B2,2)",
+        result: 999,
+      };
+      const arrayBytes = Buffer.from(await arrayBook.xlsx.writeBuffer());
+      await writeFile(join(directory, "array.xlsx"), arrayBytes);
+      const arrayResponse = await client.callTool({
+        name: "calculate_workbook",
+        arguments: {
+          source: {
+            filePath: "array.xlsx",
+            versionId: createHash("sha256").update(arrayBytes).digest("hex"),
+          },
+        },
+      });
+      expect(arrayResponse.isError).not.toBe(true);
+      const arrayItem = arrayResponse.content[0];
+      if (arrayItem?.type !== "text")
+        throw new Error("Missing array refusal receipt.");
+      const arrayReceipt = versionReceiptSchema
+        .extend({
+          calculation: z.object({
+            complete: z.boolean(),
+            unavailableCells: z.number(),
+          }),
+        })
+        .parse(JSON.parse(arrayItem.text));
+      expect(arrayReceipt.calculation).toEqual({
+        complete: false,
+        unavailableCells: 1,
+      });
+      const arrayResult = XLSX.read(
+        await readFile(join(directory, arrayReceipt.version.filePath)),
+        { type: "buffer" },
+      ).Sheets.Calc?.A1;
+      expect(arrayResult?.v).toBeUndefined();
+      const arrayZip = await JSZip.loadAsync(
+        await readFile(join(directory, arrayReceipt.version.filePath)),
+      );
+      const arrayXml = await arrayZip
+        .file("xl/worksheets/sheet2.xml")
+        ?.async("string");
+      expect(arrayXml).toContain("<f>INDEX(Inputs!A1:B2,2)</f>");
+      expect(arrayXml).not.toMatch(/<v(?:\s|>)/);
+      expect(await readFile(join(directory, "array.xlsx"))).toEqual(arrayBytes);
       check(await readFile(join(directory, receipt.version.filePath)));
       expect(await readFile(join(directory, "source.xlsx"))).toEqual(source);
     } finally {

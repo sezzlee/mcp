@@ -435,12 +435,19 @@ export function evaluateCalculation(
         if (row === 0 || column === 0)
           return unsupported("INDEX array results are unsupported.");
         if (row < 0 || column < 0) return error("#VALUE!");
-        if (Math.trunc(row) > range.rows || Math.trunc(column) > range.columns)
+        const horizontal = args.length === 2 && range.rows === 1;
+        const selectedRow = horizontal ? 1 : Math.trunc(row);
+        const selectedColumn = horizontal
+          ? Math.trunc(row)
+          : Math.trunc(column);
+        if (selectedRow === 0 || selectedColumn === 0)
+          return unsupported("INDEX array results are unsupported.");
+        if (selectedRow > range.rows || selectedColumn > range.columns)
           return error("#REF!");
+        if (args.length === 2 && range.rows > 1 && range.columns > 1)
+          return unsupported("INDEX array results are unsupported.");
         const value =
-          range.values[
-            (Math.trunc(row) - 1) * range.columns + Math.trunc(column) - 1
-          ];
+          range.values[(selectedRow - 1) * range.columns + selectedColumn - 1];
         return value === undefined ? error("#REF!") : value;
       }
       if (args.length !== (name === "MATCH" ? 3 : 4))
