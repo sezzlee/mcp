@@ -2,26 +2,80 @@
 
 ## Status and evidence boundary
 
-This is a **partial, source-backed Phase A audit**, not acceptance of the unified
-lab. The audited server and lab snapshot is
+This is a **source-backed Phase A audit**, completed by the measurements in
+[Measured on the current main](#measured-on-the-current-main); it is not
+acceptance of the unified lab. The audited server and lab snapshot is
 `585676cf46a1ef271ab218871bae6a5bea8a90fb`, the merge of PR #74. All source links
 below name that commit. The PR head and merge were compared and had no file
 changes between them.
 
-No harness was replaced. No scripted baseline, independent oracle, model trial,
-registered-catalog measurement or migration-parity comparison was executed for
-this audit. Existing historical results must not be relabelled as new results.
-The inspection environment had Node 22.16.0, no `pnpm`, and could not resolve the
-GitHub or npm registry hosts. The repository requires Node 24 or later and pins
-pnpm 12.6.0 ([root package manifest][root-package]). GitHub source access was
-available separately. No model host was contacted.
+No harness was replaced. The source inventory was written in an environment with
+Node 22.16.0, no `pnpm` and no registry access, so it executed nothing. The
+scripted baselines, oracle verification and catalog measurements in
+[Measured on the current main](#measured-on-the-current-main) were run afterwards
+in a provisioned checkout. No model trial or migration-parity comparison has run
+yet, and no model host was contacted.
 
-The inventory below is derived from source, not from a completed run. In
-particular, an advertised tool is not an exercised tool, a fixture-setup call is
-not an agent call, and a scripted assertion is not a newly verified verdict.
-The remaining read-through and measurement work is listed in
-[Closing the audit](#closing-the-audit). Phase A remains open; this document does
-not authorize deleting a harness or starting model trials.
+The inventory below is derived from source. An advertised tool is not an
+exercised tool, a fixture-setup call is not an agent call, and a scripted
+assertion is not a model result. What remains open is listed in
+[Closing the audit](#closing-the-audit). This document does not authorize
+deleting a harness or starting model trials; each harness is deleted only after
+its parity comparison passes.
+
+## Measured on the current main
+
+These measurements were taken after the audit was written, on this branch after merging `main` at `bd929bb`. Excel 0.13.0 is published from that `main`. The corpus is the local copy that `SEZZLEE_CORPUS` names; its 40 catalog files and both Apache editing fixtures match their pinned SHA-256. Raw outputs stay outside the repository. No model host was contacted.
+
+### Scripted baselines before any migration
+
+Every existing scripted baseline passes. This is the "before" side of every later parity comparison.
+
+| Harness                         | Command                                        | Verdict                                                                                        | Wall time | Peak RSS |
+| ------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------- | -------- |
+| Editing, transfer and authoring | `src/edit-agent-cli.ts --out … --corpus …`     | 16 of 16                                                                                       | 1.7 s     | 252 MiB  |
+| Bulk                            | `src/bulk-agent-cli.ts --out …`                | 7 of 7                                                                                         | 1.3 s     | 239 MiB  |
+| Expert                          | `src/expert-agent-cli.ts --out …`              | 1 of 1 (scripted four-chart report)                                                            | 0.4 s     | 205 MiB  |
+| Calculation                     | `src/calculation-agent-cli.ts --out …`         | 6 of 6 (three scenarios, run once per language because scripted and model modes are exclusive) | 0.7 s     | 233 MiB  |
+| Reading plans                   | `src/agent/baseline-cli.ts --out … --corpus …` | 104 of 104 `verified`; 196 calls, 121 answer calls, 591,004 response bytes                     | 63.5 s    | 702 MiB  |
+| Reading oracle                  | `scripts/agent-oracle.py verify --corpus …`    | 104 passed, 0 failed, 0 missing, 0 unused                                                      | —         | —        |
+| Retained result scenario        | `pnpm turbo run result-scenario … -- --out …`  | `passed`                                                                                       | 8.6 s     | —        |
+
+The protected editing fixture `workbookProtection_worksheet_protected.xlsx` was copied without a pinned digest. It is now pinned to `95a35c2e…7fb8f7cd` in `src/edit-agent-cli.ts`, and the `protected` scenario passes with the check.
+
+### What each catalog costs
+
+`src/lab/measure-cli.ts` lists the real `tools/list` of a read-mode and a write-mode server and prices each condition the way the runner sends it: description bytes, compact input-schema bytes, the whole host-side function object, and an estimate of `ceil(bytes / 3)` tokens. The catalog total uses the same `estimateTokens` the Ollama preflight applies, including its template reserve. These are byte-derived estimates, not tokenizer counts.
+
+| Condition                          | Tools | Bytes   | Estimated tokens |
+| ---------------------------------- | ----- | ------- | ---------------- |
+| Read mode, full                    | 13    | 35,249  | 12,006           |
+| Write mode, full                   | 24    | 373,359 | 124,709          |
+| Editing harness `editing` catalog  | 5     | 160,809 | 53,859           |
+| Editing harness `transfer` catalog | 4     | 44,762  | 15,177           |
+| Bulk harness                       | 5     | 99,265  | 33,345           |
+| Expert harness                     | 3     | 155,247 | 52,005           |
+| Calculation harness                | 4     | 84,886  | 28,552           |
+
+The full write catalog does not fit a 65,536-token window before a single message. Four tools carry two thirds of it:
+
+| Tool               | Whole object bytes | Description | Input schema | Estimated tokens |
+| ------------------ | ------------------ | ----------- | ------------ | ---------------- |
+| `edit_workbook`    | 77,579             | 6,192       | 71,285       | 25,860           |
+| `prepare_edit`     | 76,472             | 5,185       | 71,186       | 25,491           |
+| `prepare_bulk_job` | 47,000             | 2,890       | 43,995       | 15,667           |
+| `run_bulk_job`     | 45,524             | 1,420       | 43,995       | 15,175           |
+| `create_workbook`  | 37,546             | 3,849       | 33,593       | 12,516           |
+
+`edit_workbook` and `prepare_edit` repeat the same change schema, as do `prepare_bulk_job` and `run_bulk_job`. In the two edit tools, 36,834 bytes of each schema are the 0.13 `source` and `header` alternatives of `write_cells` and `insert_rows`; in `create_workbook`, 18,438 bytes. The transfer selection schema, with its column readings, is inlined at every place a block may take a source. Every other tool costs under 15 KB. This is a measured cost, not a cause: whether it changes agent outcomes is for the context-window axis of the night run.
+
+### Error envelopes and recovery hints
+
+The shared conversion adds no recovery text of its own (`packages/cores/mcp-core/src/tools.ts`), so a hint exists only where an error is constructed with one. A static count of direct `new SezzleeExcelError(…)` sites in `excel-mcp/src` finds 36 codes and 239 sites, 101 of them with a recovery argument. The largest codes are `invalid_argument` (81 sites, 29 with recovery), `resource_limit` (39, 14), `invalid_range` (17, 3) and `corrupt_workbook` (13, 5). Errors raised through local helpers such as `invalidPresentation` are not in this count, and a site is not proof that a request reaches it; observed wire errors are recorded per trial by the unified runner.
+
+### Reading plans
+
+The 104 reading plans make 196 calls. Plan lengths are 0 (one `readOnly` refusal), 1 (27 plans), 2 (61), 3 (13) and 4 (2). By calls and tasks: `read_sheet` 88/84, `aggregate_sheet` 70/59, `describe_workbook` 17/17, `find_in_sheet` 9/9, `list_workbooks` 4/4, `get_data_validations` 2/2, and one task each for `get_tables`, `get_conditional_formats`, `get_charts`, `get_images`, `profile_sheet` and `get_merged_ranges`. `query_result` has no reading task. The most common authored transitions are `read_sheet → aggregate_sheet` (53), `describe_workbook → read_sheet` (12), and `aggregate_sheet → read_sheet` and `find_in_sheet → read_sheet` (6 each). These are authored plans, not observed model behavior.
 
 ## Harness inventory
 
@@ -357,11 +411,11 @@ does not imply that every combination of optional fields is valid.
 
 **`calculate_workbook`.** Required: `source`. Optional: None at top level; [writing definitions][writing-head]
 
-For **each of these 24 tools**, description bytes, serialized input-schema bytes,
-full registered-tool bytes, model-facing tool bytes, token estimates, exhaustive
-reachable error codes, and recovery-hint coverage are **not measured** in this
-audit. They are unknown, not zero. Static TypeScript file size is not a substitute
-for any of those quantities.
+Description, input-schema and whole-tool bytes and their token estimates are now
+measured for every tool and condition in [What each catalog costs](#what-each-catalog-costs).
+Exhaustive reachable error codes per tool remain unmeasured; the static
+construction count in [Error envelopes and recovery hints](#error-envelopes-and-recovery-hints)
+is an upper view of what the source can raise, not of what a tool reaches.
 
 Capture them from the real MCP `tools/list` result in write mode, and separately
 capture the read-mode catalog and each offered condition. Count UTF-8 bytes of the
@@ -529,15 +583,15 @@ The following are unfinished requirements, not completed measurements:
    the server README/unreleased changelog, and source-frame planner. The source
    links above cover the inspected sections only; they do not imply this entire
    list was read.
-2. Execute the registered-catalog measurement for all 24 tools and each condition;
-   expand optional and nested arguments, reachable errors, blocker variants and
-   actual recovery hints. Save raw catalog/trace evidence outside the repository.
-3. Enumerate every ideal plan into a tools-by-harness-by-scenario matrix, including
-   read-only answer plans, and mark absent tasks explicitly. Measure adjacency
-   frequencies rather than generalizing the examples in this draft.
-4. Run existing scripted baselines and oracle controls on the pinned snapshot.
-   Record unavailable corpus/validators as unavailable, never passing. Produce
-   per-scenario before/after parity before deleting any harness.
+2. Done for catalog cost: every tool and condition is priced from the real
+   `tools/list`. Still open: reachable errors and blocker variants per tool,
+   which the unified runner records from observed trials.
+3. Done for reading plans (usage and transitions above) and for the writing
+   harnesses, whose scripted calls are listed in the inventory. Observed model
+   transitions come from the night run.
+4. Done for the "before" side: every existing scripted baseline and the reading
+   oracle pass. Per-scenario before/after parity is produced when each harness
+   moves to the unified runner, and no harness is deleted before it.
 
 The subsequent unified runner must also preserve attachment knowledge levels and
 language pairs, independent artifact grading, separate forced-error trials,
@@ -567,7 +621,6 @@ They are listed for verification in a provisioned checkout, not reported as havi
 run in the inspection environment. This audit changes no server behavior, task
 expectation, oracle or harness.
 
-[root-package]: https://github.com/sezzlee/mcp/blob/585676cf46a1ef271ab218871bae6a5bea8a90fb/package.json#L1-L29
 [read-cli]: https://github.com/sezzlee/mcp/blob/585676cf46a1ef271ab218871bae6a5bea8a90fb/packages/lab/excel-lab/src/agent/agent-cli.ts#L1-L330
 [task-model]: https://github.com/sezzlee/mcp/blob/585676cf46a1ef271ab218871bae6a5bea8a90fb/packages/lab/excel-lab/src/agent/task.ts#L150-L325
 [agent-doc]: https://github.com/sezzlee/mcp/blob/585676cf46a1ef271ab218871bae6a5bea8a90fb/packages/lab/excel-lab/AGENT_LAB.md#L15-L190

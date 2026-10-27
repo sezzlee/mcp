@@ -84,6 +84,14 @@ const fixtureHash =
 const digest = (bytes: Uint8Array | string): string =>
   createHash("sha256").update(bytes).digest("hex");
 assert.equal(digest(await readFile(fixturePath)), fixtureHash);
+const protectedPath = join(
+  options.corpus,
+  "apache-testdata/files/poi/spreadsheet/workbookProtection_worksheet_protected.xlsx",
+);
+assert.equal(
+  digest(await readFile(protectedPath)),
+  "95a35c2e6b9a3f73539a67c63105b6a69d68f52a39eb768ed47f419e7fb8f7cd",
+);
 const prompts = {
   ...authoringScenarios,
   transfer_range: {
@@ -274,13 +282,7 @@ for (const mode of host === undefined ? ["scripted"] : ["scripted", "model"])
           : fileURLToPath(
               new URL("../scripts/authoring-agent-oracle.py", import.meta.url),
             );
-      const sourcePath =
-        scenario === "protected"
-          ? join(
-              options.corpus,
-              "apache-testdata/files/poi/spreadsheet/workbookProtection_worksheet_protected.xlsx",
-            )
-          : fixturePath;
+      const sourcePath = scenario === "protected" ? protectedPath : fixturePath;
       await copyFile(sourcePath, join(directory, "source.xlsx"));
       await mkdir(join(directory, "out"));
       const source = {
