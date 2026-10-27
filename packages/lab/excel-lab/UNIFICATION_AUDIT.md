@@ -268,30 +268,30 @@ the evidence for those columns; [reading definitions][read-definitions] and
 
 | Tool                      | R   | E   | T   | B   | X   | C   | S   |
 | ------------------------- | --- | --- | --- | --- | --- | --- | --- |
-| `list_workbooks`           | O   | -   | -   | -   | -   | -   | S   |
-| `describe_workbook`        | O   | O   | O   | O   | -   | O   | S   |
-| `read_sheet`               | O   | O   | O   | O   | -   | O   | -   |
-| `profile_sheet`            | O   | -   | -   | -   | -   | -   | -   |
-| `get_merged_ranges`        | O   | -   | -   | -   | -   | -   | -   |
-| `get_data_validations`     | O   | -   | -   | -   | -   | -   | -   |
-| `get_tables`               | O   | -   | -   | -   | -   | -   | -   |
-| `get_conditional_formats`  | O   | -   | -   | -   | -   | -   | -   |
-| `get_images`               | O   | -   | -   | -   | -   | -   | -   |
-| `get_charts`               | O   | -   | -   | -   | -   | -   | -   |
-| `aggregate_sheet`          | O   | -   | -   | -   | -   | -   | S   |
-| `query_result`             | O   | -   | -   | -   | -   | -   | S   |
-| `find_in_sheet`            | O   | -   | -   | -   | -   | -   | -   |
-| `create_workbook`          | -   | -   | -   | -   | F   | F   | -   |
-| `edit_workbook`            | -   | O   | -   | -   | O   | O   | -   |
-| `prepare_edit`             | -   | O   | -   | -   | O   | -   | -   |
-| `create_workbook_version`  | -   | O   | -   | -   | -   | -   | -   |
-| `prepare_transfer`         | -   | -   | O   | -   | -   | -   | -   |
-| `transfer_data`            | -   | -   | O   | -   | -   | -   | -   |
-| `prepare_bulk`             | -   | -   | -   | -   | -   | -   | -   |
-| `prepare_bulk_job`         | -   | -   | -   | O   | -   | -   | -   |
-| `run_bulk_job`             | -   | -   | -   | O   | -   | -   | -   |
-| `get_bulk_job`             | -   | -   | -   | O   | -   | -   | -   |
-| `calculate_workbook`       | -   | -   | -   | -   | O   | O   | -   |
+| `list_workbooks`          | O   | -   | -   | -   | -   | -   | S   |
+| `describe_workbook`       | O   | O   | O   | O   | -   | O   | S   |
+| `read_sheet`              | O   | O   | O   | O   | -   | O   | -   |
+| `profile_sheet`           | O   | -   | -   | -   | -   | -   | -   |
+| `get_merged_ranges`       | O   | -   | -   | -   | -   | -   | -   |
+| `get_data_validations`    | O   | -   | -   | -   | -   | -   | -   |
+| `get_tables`              | O   | -   | -   | -   | -   | -   | -   |
+| `get_conditional_formats` | O   | -   | -   | -   | -   | -   | -   |
+| `get_images`              | O   | -   | -   | -   | -   | -   | -   |
+| `get_charts`              | O   | -   | -   | -   | -   | -   | -   |
+| `aggregate_sheet`         | O   | -   | -   | -   | -   | -   | S   |
+| `query_result`            | O   | -   | -   | -   | -   | -   | S   |
+| `find_in_sheet`           | O   | -   | -   | -   | -   | -   | -   |
+| `create_workbook`         | -   | -   | -   | -   | F   | F   | -   |
+| `edit_workbook`           | -   | O   | -   | -   | O   | O   | -   |
+| `prepare_edit`            | -   | O   | -   | -   | O   | -   | -   |
+| `create_workbook_version` | -   | O   | -   | -   | -   | -   | -   |
+| `prepare_transfer`        | -   | -   | O   | -   | -   | -   | -   |
+| `transfer_data`           | -   | -   | O   | -   | -   | -   | -   |
+| `prepare_bulk`            | -   | -   | -   | -   | -   | -   | -   |
+| `prepare_bulk_job`        | -   | -   | -   | O   | -   | -   | -   |
+| `run_bulk_job`            | -   | -   | -   | O   | -   | -   | -   |
+| `get_bulk_job`            | -   | -   | -   | O   | -   | -   | -   |
+| `calculate_workbook`      | -   | -   | -   | -   | O   | O   | -   |
 
 There is no offered agent task for `create_workbook` or `prepare_bulk` in these
 harness catalogs. An accidental unadvertised edit-harness call would not change
@@ -309,32 +309,53 @@ Nested union requirements, defaults, refinements and complete optional-key
 expansion remain part of the pending surface measurement. A field being optional
 does not imply that every combination of optional fields is valid.
 
-| Tool                      | Required top-level arguments    | Optional surface / owner                                                                                                                                        |
-| ------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list_workbooks`           | None                            | `subdirectory`, `pattern`, `maxResults`; [reading definitions][read-definitions]                                                                                    |
-| `describe_workbook`        | `filePath`                      | `includeDefinedNames`, `delimiter`, `encoding`; [reading definitions][read-definitions]                                                                             |
-| `read_sheet`               | `filePath`                      | Sheet/selection/range, typing hints, paging, value/merge/header/hyperlink options and CSV options; [reading definitions][read-definitions]                          |
-| `profile_sheet`            | `filePath`                      | Sheet/selection/range, header/typing/merge options, row/column sample limits and CSV options; [reading definitions][read-definitions]                               |
-| `get_merged_ranges`        | `filePath`                      | `sheetName`; [reading definitions][read-definitions] [shared schema][read-schemas]                                                                                  |
-| `get_data_validations`     | `filePath`                      | `sheetName`; [reading definitions][read-definitions-tail] [shared schema][read-schemas]                                                                             |
-| `get_tables`               | `filePath`                      | `sheetName`; [reading definitions][read-definitions-tail] [shared schema][read-schemas]                                                                             |
-| `get_conditional_formats`  | `filePath`                      | `sheetName`; [reading definitions][read-definitions-tail] [shared schema][read-schemas]                                                                             |
-| `get_images`               | `filePath`                      | `sheetName`, `kind`; [reading definitions][read-definitions-tail]                                                                                                   |
-| `get_charts`               | `filePath`                      | `sheetName`, `chartId`, `maxPoints`; [reading definitions][read-definitions-tail]                                                                                   |
-| `aggregate_sheet`          | `filePath`, `metrics`            | Selection, retained mode, grouping/pivot/sets, predicates, typing, derived metrics, ordering and preview controls; [reading definitions][read-definitions-tail]     |
-| `query_result`             | `resultId`                      | `columns`, `where`, `offset`, `maxRows`; [reading definitions][read-definitions-tail]                                                                               |
-| `find_in_sheet`            | `filePath`, `query`              | Sheet/selection/header/typing, matching, range, limits and CSV options; [reading definition][read-definition-tail]                                                  |
-| `create_workbook`          | `sheets`                        | `changes`; [writing definitions][writing-create]                                                                                                                  |
-| `edit_workbook`            | `source`, `changes`              | None at top level; [writing definitions][writing-tail]                                                                                                            |
-| `prepare_edit`             | `filePath`, `changes`            | `expectedVersion` is a digest string; [edit schema][edit-schemas]                                                                                                   |
-| `create_workbook_version`  | `filePath`                      | `expectedVersion`; [writing definitions][writing-tail]                                                                                                            |
-| `prepare_transfer`         | `filePath`, `selection`          | None at top level; [writing definitions][writing-head]                                                                                                            |
-| `transfer_data`            | `transfer`, `target`             | None at top level; [writing definitions][writing-head]                                                                                                            |
-| `prepare_bulk`             | `source`, `target`, `operation`  | None at top level; [bulk schema][bulk-schemas]                                                                                                                    |
-| `prepare_bulk_job`         | `job`                           | None at top level; [job schema][bulk-job-schemas]                                                                                                                 |
-| `run_bulk_job`             | `job`                           | None at top level; [job schema][bulk-job-schemas]                                                                                                                 |
-| `get_bulk_job`             | `jobId`                         | None at top level; [job schema][bulk-job-schemas]                                                                                                                 |
-| `calculate_workbook`       | `source`                        | None at top level; [writing definitions][writing-head]                                                                                                            |
+**`list_workbooks`.** Required: None. Optional: `subdirectory`, `pattern`, `maxResults`; [reading definitions][read-definitions]
+
+**`describe_workbook`.** Required: `filePath`. Optional: `includeDefinedNames`, `delimiter`, `encoding`; [reading definitions][read-definitions]
+
+**`read_sheet`.** Required: `filePath`. Optional: Sheet/selection/range, typing hints, paging, value/merge/header/hyperlink options and CSV options; [reading definitions][read-definitions]
+
+**`profile_sheet`.** Required: `filePath`. Optional: Sheet/selection/range, header/typing/merge options, row/column sample limits and CSV options; [reading definitions][read-definitions]
+
+**`get_merged_ranges`.** Required: `filePath`. Optional: `sheetName`; [reading definitions][read-definitions-tail] [shared schema][read-schemas]
+
+**`get_data_validations`.** Required: `filePath`. Optional: `sheetName`; [reading definitions][read-definitions-tail] [shared schema][read-schemas]
+
+**`get_tables`.** Required: `filePath`. Optional: `sheetName`; [reading definitions][read-definitions-tail] [shared schema][read-schemas]
+
+**`get_conditional_formats`.** Required: `filePath`. Optional: `sheetName`; [reading definitions][read-definitions-tail] [shared schema][read-schemas]
+
+**`get_images`.** Required: `filePath`. Optional: `sheetName`, `kind`; [reading definitions][read-definitions-tail]
+
+**`get_charts`.** Required: `filePath`. Optional: `sheetName`, `chartId`, `maxPoints`; [reading definitions][read-definitions-tail]
+
+**`aggregate_sheet`.** Required: `filePath`, `metrics`. Optional: Selection, retained mode, grouping/pivot/sets, predicates, typing, derived metrics, ordering and preview controls; [reading definitions][read-definitions-tail]
+
+**`query_result`.** Required: `resultId`. Optional: `columns`, `where`, `offset`, `maxRows`; [reading definitions][read-definitions-tail]
+
+**`find_in_sheet`.** Required: `filePath`, `query`. Optional: Sheet/selection/header/typing, matching, range, limits and CSV options; [reading definition][read-definition-tail]
+
+**`create_workbook`.** Required: `sheets`. Optional: `changes`; [writing definitions][writing-create]
+
+**`edit_workbook`.** Required: `source`, `changes`. Optional: None at top level; [writing definitions][writing-tail]
+
+**`prepare_edit`.** Required: `filePath`, `changes`. Optional: `expectedVersion` is a digest string; [edit schema][edit-schemas]
+
+**`create_workbook_version`.** Required: `filePath`. Optional: `expectedVersion`; [writing definitions][writing-tail]
+
+**`prepare_transfer`.** Required: `filePath`, `selection`. Optional: None at top level; [writing definitions][writing-head]
+
+**`transfer_data`.** Required: `transfer`, `target`. Optional: None at top level; [writing definitions][writing-head]
+
+**`prepare_bulk`.** Required: `source`, `target`, `operation`. Optional: None at top level; [bulk schema][bulk-schemas]
+
+**`prepare_bulk_job`.** Required: `job`. Optional: None at top level; [job schema][bulk-job-schemas]
+
+**`run_bulk_job`.** Required: `job`. Optional: None at top level; [job schema][bulk-job-schemas]
+
+**`get_bulk_job`.** Required: `jobId`. Optional: None at top level; [job schema][bulk-job-schemas]
+
+**`calculate_workbook`.** Required: `source`. Optional: None at top level; [writing definitions][writing-head]
 
 For **each of these 24 tools**, description bytes, serialized input-schema bytes,
 full registered-tool bytes, model-facing tool bytes, token estimates, exhaustive
@@ -487,14 +508,17 @@ not proof of a `model` cause.
 
 ## Parity ledger and closure requirements
 
-| Existing harness         | Replaced | Before/after parity in this audit | Disposition                                                                         |
-| ------------------------ | -------- | --------------------------------- | ----------------------------------------------------------------------------------- |
-| Reading agent/baseline    | No       | Not run                           | Retain; original corpus and oracle verification remain prerequisites.                |
-| Edit/transfer/authoring   | No       | Not run                           | Retain all 16 scenarios and both byte oracles; pinned external fixtures are needed.  |
-| Bulk                     | No       | Not run                           | Retain all seven scenarios and publication/retry/final-claim assertions.             |
-| Expert                   | No       | Not run                           | Retain; distinguish scripted four-chart and model one-chart contracts.               |
-| Calculation              | No       | Not run                           | Retain TS oracle and final-claim checks pending independently tested migration.      |
-| Retained result scenario | No       | Not run                           | Retain as scripted evidence; do not relabel it agent acceptance.                     |
+**Reading agent/baseline.** Replaced: no. Before/after parity: not run. Retain; original corpus and oracle verification remain prerequisites.
+
+**Edit/transfer/authoring.** Replaced: no. Before/after parity: not run. Retain all 16 scenarios and both byte oracles; pinned external fixtures are needed.
+
+**Bulk.** Replaced: no. Before/after parity: not run. Retain all seven scenarios and publication/retry/final-claim assertions.
+
+**Expert.** Replaced: no. Before/after parity: not run. Retain; distinguish scripted four-chart and model one-chart contracts.
+
+**Calculation.** Replaced: no. Before/after parity: not run. Retain TS oracle and final-claim checks pending independently tested migration.
+
+**Retained result scenario.** Replaced: no. Before/after parity: not run. Retain as scripted evidence; do not relabel it agent acceptance.
 
 ### Closing the audit
 
