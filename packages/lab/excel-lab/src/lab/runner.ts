@@ -1,6 +1,12 @@
 import { join } from "node:path";
 import type { ModelHost } from "../agent/host.ts";
-import type { Fixtures, LabScenario, Language, TrialRecord } from "./trial.ts";
+import type {
+  Fixtures,
+  LabScenario,
+  Language,
+  TrialInput,
+  TrialRecord,
+} from "./trial.ts";
 
 export interface LabRun {
   readonly gate: "passed" | "failed";
@@ -24,6 +30,7 @@ export async function runLab(input: {
   readonly answerThink?: boolean | string;
   readonly hostOf: (think: boolean | string | undefined) => ModelHost;
   readonly onRecord: (trial: TrialRecord) => Promise<void>;
+  readonly trial?: Pick<TrialInput, "manifestHash" | "onRunRecord" | "onEvent">;
 }): Promise<LabRun> {
   const records: TrialRecord[] = [];
   const record = async (trial: TrialRecord): Promise<void> => {
@@ -45,6 +52,7 @@ export async function runLab(input: {
           language,
           directory: directoryOf("scripted", scenario, language),
           fixtures: input.fixtures,
+          ...input.trial,
         }),
       );
 
@@ -64,6 +72,7 @@ export async function runLab(input: {
             language,
             directory: directoryOf("model", scenario, language),
             fixtures: input.fixtures,
+            ...input.trial,
             host: input.hostOf(input.think ?? scenario.policy.think),
             ...(input.answerThink === undefined
               ? {}

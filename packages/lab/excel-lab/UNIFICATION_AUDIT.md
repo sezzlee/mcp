@@ -562,7 +562,7 @@ not proof of a `model` cause.
 
 ## Parity ledger and closure requirements
 
-**Reading agent/baseline.** Replaced: no. Before/after parity: not run. Retain; original corpus and oracle verification remain prerequisites.
+**Reading agent/baseline.** Runs as the `read` suite of the unified runner. Scripted parity with `baseline-cli.ts`: 104 of 104 tasks with the same outcome and the same derived answer. Model trials call the reading runner's `runTask` unchanged. Giving every trial its own server costs the shared document cache: the scripted suite takes 135 s at 905 MiB peak RSS where the legacy baseline took 63 s at 702 MiB. `agent-cli.ts` and `baseline-cli.ts` stay until the night runner provides their resume, repetitions, level filters and window axis.
 
 **Edit/transfer/authoring.** Replaced by the `edit` suite of `src/lab/run-cli.ts`. Scripted parity: 16 of 16 scenarios with the same verdict and the same output `versionId` (content digest) as `edit-agent-cli.ts`, on the same pinned fixtures and both byte oracles.
 
