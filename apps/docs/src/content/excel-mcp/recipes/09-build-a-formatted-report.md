@@ -4,6 +4,8 @@ Create a report with number formats, cell appearance, formulas and real Excel ta
 
 Enable writing with `--write <relative-output-directory>` after the workbook root. The output directory is inside that root. The default server remains read-only. The [generated tool contracts](/docs/excel-mcp/tools) include the writing tools and their complete registered input schemas.
 
+These writing workflows require the current repository build. Until a package release includes them, [run the server from source](/docs/excel-mcp/run-the-server-from-source).
+
 ## Select the source and prepare the change
 
 Use `prepare_edit` to select the exact source version and inspect blockers before `edit_workbook`. A new report starts with `create_workbook`, which can create values and apply ordered presentation changes in one publication. Continue from the returned version, or select an older retained version to create a separate branch.
@@ -22,7 +24,9 @@ Tables support creation, header and identity changes, growth, shrink, calculated
 
 Table range resizing retains the header position and column width; structural width changes use explicit worksheet column operations first. Resizing refuses saved filter or sort criteria that need an unsupported transformation.
 
-The server writes formulas but does not calculate them. Newly written formulas have no cached result, and receipts disclose required recalculation. Open the output in a spreadsheet application to calculate it. Dynamic spilling arrays, external workbook formula authoring and unsupported affected dependencies are refused.
+Newly written formulas have no cached result, and receipts disclose required recalculation. Call `calculate_workbook` with the returned version to evaluate the documented bounded subset and save typed caches in another immutable version. Inspect `calculation.complete` and unavailable-cell diagnostics; unsupported formulas are not silently treated as calculated. Formula writing and calculation remain separate operations. Dynamic spilling arrays, external workbook formula authoring and unsupported affected dependencies are refused.
+
+The [chart and pivot report recipe](/docs/excel-mcp/build-a-chart-and-pivot-report) demonstrates named template fill, formula calculation, validation, conditional formatting, links, notes and protection. Chart and pivot refresh are separate from formula calculation.
 
 ## Finish a bulk report atomically
 

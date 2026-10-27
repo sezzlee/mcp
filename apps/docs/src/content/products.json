@@ -3,7 +3,7 @@
     "id": "excel-mcp",
     "label": "Excel MCP",
     "goal": "Spreadsheets",
-    "tagline": "A read-only MCP server that lets an agent read the .xlsx, .xlsm and .csv files in one folder."
+    "tagline": "Read spreadsheets in one folder, with optional immutable Excel report authoring and bounded formula calculation."
   },
   {
     "id": "pdf-mcp",

@@ -29,10 +29,16 @@ const products = {
       default: ["sales.xlsx", "report.xlsx"],
       "recipes/08-read-pictures-and-spilled-results.md": ["pictures.xlsx"],
     },
-    preamble: `excel() {
+    preamble: [
+      `excel() {
   npx -y @modelcontextprotocol/inspector --cli sezzlee-excel ~/sezzlee-sheets \\
     --method tools/call --tool-name "$@" | jq '.content[0].text | fromjson'
 }`,
+      `excelwrite() {
+  npx -y @modelcontextprotocol/inspector --cli sezzlee-excel ~/sezzlee-sheets --write out \\
+    -- --method tools/call --tool-name "$@" | jq '.content[0].text | fromjson'
+}`,
+    ],
   },
   "xml-mcp": {
     bins: { "sezzlee-xml": "packages/servers/xml-mcp/dist/cli.js" },
@@ -228,7 +234,7 @@ function run(product, config, file) {
   const { home, bin } = sandbox(product, config, file);
   const marker = "__SEZZLEE_EXAMPLE_END__";
   const script = [
-    "set -o pipefail",
+    "set -euo pipefail",
     `cd "$HOME"`,
     ...(needsForward ? [forward(ollama)] : []),
     ...preamblesOf(config),
@@ -246,6 +252,10 @@ function run(product, config, file) {
     timeout: 600_000,
   });
   rmSync(home, { recursive: true, force: true });
+  if (result.status !== 0 || result.error !== undefined)
+    throw new Error(
+      `${path.relative(repo, file)}: example shell failed (${result.status ?? result.error?.message}).\n${result.stdout.slice(-4000)}${result.stderr.slice(-4000)}`,
+    );
   const outputs = result.stdout.split(`${marker}\n`);
   const failures = [];
   let rewritten = markdown;
