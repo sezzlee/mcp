@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile, appendFile } from "node:fs/promises";
-import { join } from "node:path";
+import {
+  mkdir,
+  readFile,
+  writeFile,
+  appendFile,
+  readdir,
+} from "node:fs/promises";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import {
@@ -10,6 +17,7 @@ import {
   createWorkbookOutput,
 } from "@sezzlee/excel-mcp";
 import { z } from "zod";
+import { parseCalculationAnswer } from "./calculation-answer.ts";
 import { prepareOutRoot } from "./run.ts";
 import { OllamaHost } from "./agent/ollama.ts";
 import { toolSpecsOf } from "./agent/agent-run.ts";
@@ -18,6 +26,32 @@ import {
   checkCalculationOutput,
   type CalculationExpectation,
 } from "./calculation-oracle.ts";
+
+async function runtimeIdentity() {
+  const directory = dirname(
+    fileURLToPath(import.meta.resolve("@sezzlee/excel-mcp")),
+  );
+  const hash = createHash("sha256");
+  let modules = 0;
+  async function walk(path: string): Promise<void> {
+    for (const entry of (await readdir(path, { withFileTypes: true })).sort(
+      (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+    )) {
+      const file = join(path, entry.name);
+      if (entry.isDirectory()) await walk(file);
+      else if (entry.name.endsWith(".js")) {
+        hash
+          .update(relative(directory, file))
+          .update("\0")
+          .update(await readFile(file))
+          .update("\0");
+        modules += 1;
+      }
+    }
+  }
+  await walk(directory);
+  return { modules, sha256: hash.digest("hex") };
+}
 
 const { values } = parseArgs({
   options: {
@@ -45,11 +79,13 @@ const host =
         think: false,
       });
 const identity = await host?.identity();
+const runtime = await runtimeIdentity();
 await writeFile(
   join(directory, "manifest.json"),
   JSON.stringify(
     {
       host: identity ?? null,
+      runtime,
       endpoint: host?.endpoint ?? null,
       window: 65536,
       numPredict: 4096,
@@ -76,6 +112,7 @@ const results: {
   passed: boolean;
   error?: string;
   output?: string;
+  protocolSuffixStripped?: boolean;
 }[] = [];
 
 function textOf(response: { content: readonly unknown[] }): string {
@@ -287,21 +324,7 @@ for (const language of options.languages.split(","))
         sourceHash,
         "Source changed.",
       );
-      const answer = z
-        .object({
-          filePath: z.string(),
-          total: z.number().optional(),
-          complete: z.boolean().optional(),
-          unavailableCells: z.number().optional(),
-        })
-        .parse(
-          JSON.parse(
-            final
-              .trim()
-              .replace(/^```(?:json)?\s*/i, "")
-              .replace(/\s*```$/, ""),
-          ),
-        );
+      const { answer, protocolSuffixStripped } = parseCalculationAnswer(final);
       assert.equal(answer.filePath, selected.version.filePath);
       if (scenario === "unavailable") {
         assert.equal(answer.complete, false);
@@ -316,6 +339,7 @@ for (const language of options.languages.split(","))
         language,
         passed: true,
         output: join(workspace, selected.version.filePath),
+        protocolSuffixStripped,
       });
     } catch (error) {
       results.push({
@@ -335,10 +359,21 @@ for (const language of options.languages.split(","))
     console.log(JSON.stringify(results.at(-1)));
   }
 const passed = results.every((result) => result.passed);
+assert.deepEqual(
+  await runtimeIdentity(),
+  runtime,
+  "The server runtime changed during acceptance.",
+);
 await writeFile(
   join(directory, "summary.json"),
   JSON.stringify(
-    { passed, model: identity ?? null, scenarios: results.length, results },
+    {
+      passed,
+      model: identity ?? null,
+      runtime,
+      scenarios: results.length,
+      results,
+    },
     null,
     2,
   ),

@@ -254,9 +254,42 @@ try {
     { encoding: "utf8" },
   );
   assert.equal(authoringCheck.status, 0, authoringCheck.stderr);
+  const authoredBytes = await readFile(
+    join(directory, authored.version.filePath),
+  );
+  const calculated = await call("calculate_workbook", {
+    source: authored.version,
+  });
+  assert.equal(calculated.calculation.complete, false);
+  assert.equal(calculated.calculation.calculatedCells, 2);
+  assert.equal(calculated.calculation.unavailableCells, 1);
+  const calculationCheck = spawnSync(
+    "python3",
+    [
+      "-I",
+      "-c",
+      [
+        "import sys,zipfile,xml.etree.ElementTree as E",
+        "p=zipfile.ZipFile(sys.argv[1]); n={'s':'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}",
+        "s=E.fromstring(p.read('xl/worksheets/sheet1.xml')); cells={c.attrib['r']:c for c in s.findall('.//s:c',n)}",
+        "assert float(cells['D2'].find('s:v',n).text)==20",
+        "assert float(cells['F1'].find('s:v',n).text)==20",
+        "assert cells['D3'].find('s:v',n) is None",
+        "assert cells['D3'].find('s:f',n).text.startswith('SUBTOTAL(')",
+        "assert cells['F1'].find('s:f',n).text=='SUM(Orders[Amount])'",
+      ].join(";"),
+      join(directory, calculated.version.filePath),
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(calculationCheck.status, 0, calculationCheck.stderr);
+  assert.deepEqual(
+    await readFile(join(directory, authored.version.filePath)),
+    authoredBytes,
+  );
   assert.deepEqual(await readFile(join(directory, "external.xlsx")), bytes);
   process.stdout.write(
-    "Installed Excel editing, transfer, authoring, table formulas, layout, retry, atomic refusal and previous-version restore passed.\n",
+    "Installed Excel editing, transfer, authoring, table formulas, bounded calculation, layout, retry, atomic refusal and previous-version restore passed.\n",
   );
 } finally {
   await client.close();

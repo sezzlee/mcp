@@ -299,6 +299,18 @@ describe("server-side calculation", () => {
     expect(createHash("sha256").update(source).digest("hex")).toBe(hash);
   });
 
+  it("enforces aggregate work across individually permitted ranges", async () => {
+    const input = await fixture(
+      Array.from({ length: 6 }, () => "SUM(Inputs!A1:A100000)"),
+    );
+    expect(() => calculateWorkbook(input)).toThrow(/work budget/);
+  });
+
+  it("refuses a formula population beyond the declared workbook budget before evaluation", async () => {
+    const input = await fixture(Array.from({ length: 10_001 }, () => "1+1"));
+    expect(() => calculateWorkbook(input)).toThrow(/10,000 formula cells/);
+  });
+
   it("honors the 1904 date system and numeric leap-day serials without locale conversion", async () => {
     const workbook = new ExcelJS.Workbook();
     workbook.properties.date1904 = true;
