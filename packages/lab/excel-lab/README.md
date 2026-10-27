@@ -1,5 +1,9 @@
 # @sezzlee/excel-lab
 
+The [unification audit](UNIFICATION_AUDIT.md) records the source-backed inventory,
+0.13 chain gaps and migration requirements. It is a partial audit, not verified
+migration parity or a runnable unified night lab.
+
 ## Phase 7 expert report acceptance
 
 The [Phase 7 plan](../../servers/excel-mcp/docs/phase-7/implementation-plan.md) composes names/templates, validation, conditional formats, links/notes/images, charts, real pivots, protection and recurring report jobs. `expert-agent-cli.ts` always runs a deterministic report first. Optional Qwen trials repeat the report in Turkish and English, using the same registered tools and independent output grading.
