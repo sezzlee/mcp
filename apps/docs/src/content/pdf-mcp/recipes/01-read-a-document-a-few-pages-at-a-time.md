@@ -51,7 +51,7 @@ pdf read_pages --tool-arg filePath=annual-report.pdf 'pages=[4,1]' \
 A page number the document does not have is refused rather than answered with an empty page:
 
 ```sh
-pdf read_pages --tool-arg filePath=annual-report.pdf 'pages=[7]'
+pdf read_pages --tool-arg filePath=annual-report.pdf 'pages=[7]' || test "$?" -eq 5
 ```
 
 ```text

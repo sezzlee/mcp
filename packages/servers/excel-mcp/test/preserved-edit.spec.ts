@@ -112,7 +112,6 @@ it("edits an external cell while retaining styles, metadata, unrelated parts and
     for (const part of [
       "xl/styles.xml",
       "xl/tables/table1.xml",
-      "xl/charts/chart1.xml",
       "xl/drawings/drawing1.xml",
       "xl/worksheets/sheet3.xml",
       "customXml/item1.xml",
@@ -121,10 +120,18 @@ it("edits an external cell while retaining styles, metadata, unrelated parts and
         await xml(directory, source.filePath, part),
       );
     expect(await readFile(join(directory, source.filePath))).toEqual(original);
+    const chart = await xml(
+      directory,
+      receipt.version.filePath,
+      "xl/charts/chart1.xml",
+    );
+    expect(chart).toContain("Data!$B$2:$B$3");
+    expect(chart).not.toContain("<c:numCache>");
     expect(receipt.editing).toMatchObject({
       operations: 1,
       recalculated: false,
       recalculationRequired: true,
+      refreshRequired: expect.arrayContaining(["charts"]),
     });
   }, true);
 });

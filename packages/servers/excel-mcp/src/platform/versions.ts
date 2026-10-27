@@ -29,6 +29,10 @@ export const mutationReceiptSchema = versionReceiptSchema.extend({
       operations: z.int().nonnegative(),
       partsChanged: z.int().nonnegative(),
       cellsCleared: z.int().nonnegative(),
+      cellsFormatted: z.int().nonnegative().optional(),
+      formulasWritten: z.int().nonnegative().optional(),
+      mergedValuesCleared: z.int().nonnegative().optional(),
+      tablesChanged: z.int().nonnegative().optional(),
       recalculated: z.literal(false),
       recalculationRequired: z.boolean(),
       cachedFormulaValues: z.int().nonnegative().optional(),
@@ -47,6 +51,7 @@ export const mutationReceiptSchema = versionReceiptSchema.extend({
 export type WorkbookVersionId = z.infer<typeof workbookVersionIdSchema>;
 export type WorkbookVersion = z.infer<typeof workbookVersionSchema>;
 export type VersionReceipt = z.infer<typeof versionReceiptSchema>;
+export type MutationReceipt = z.infer<typeof mutationReceiptSchema>;
 
 export type WorkbookOrigin =
   | { readonly kind: "new" }
@@ -60,6 +65,13 @@ export interface WorkbookSnapshot {
 export interface WorkbookOutput {
   readonly directory: string;
   publish(bytes: Buffer, origin: WorkbookOrigin): Promise<VersionReceipt>;
+  readonly jobs?: {
+    publish(
+      name: string,
+      files: readonly { readonly name: string; readonly content: Buffer }[],
+    ): Promise<void>;
+    read(name: string, file: string): Promise<Buffer | undefined>;
+  };
 }
 
 function versionId(bytes: Buffer): WorkbookVersionId {
@@ -188,6 +200,48 @@ export async function createWorkbookOutput(
     const output = openOutputRoot(root.access, directory);
     return {
       directory,
+      jobs: {
+        async publish(name, files) {
+          try {
+            await output.publishDirectory(name, files, limits.maxFileBytes);
+          } catch (error) {
+            if (errorCode(error) !== "output_exists")
+              throw filesystemError(error);
+          }
+          for (const file of files) {
+            const retained = await root.access.read(
+              `${directory}/${name}/${file.name}`,
+              limits.maxFileBytes,
+            );
+            if (!retained.bytes.equals(file.content))
+              throw new SezzleeExcelError(
+                "file_changed",
+                "The retained job contains different content.",
+              );
+          }
+        },
+        async read(name, file) {
+          if (
+            !/^[a-z0-9-]{1,120}$/.test(name) ||
+            !/^[a-z0-9][a-z0-9._-]{0,119}$/.test(file)
+          )
+            throw new SezzleeExcelError(
+              "invalid_argument",
+              "Invalid job artifact name.",
+            );
+          try {
+            return (
+              await root.access.read(
+                `${directory}/${name}/${file}`,
+                limits.maxFileBytes,
+              )
+            ).bytes;
+          } catch (error) {
+            if (errorCode(error) === "file_not_found") return undefined;
+            throw filesystemError(error);
+          }
+        },
+      },
       async publish(bytes, origin) {
         if (bytes.length > limits.maxFileBytes)
           throw new SezzleeExcelError(

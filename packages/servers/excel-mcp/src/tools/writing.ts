@@ -18,6 +18,7 @@ import { assertReadableFormat, type WorkbookRoot } from "../platform/paths.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { prepareWorkbookVersion } from "../format/version.js";
 import { authoringLimits, newSheetSchema } from "../authoring/workbook.js";
+import { presentationWireChangeSchema } from "../authoring/presentation.js";
 import {
   createAuthoredWorkbook,
   editAuthoredWorkbook,
@@ -41,11 +42,60 @@ import {
   type EditWireChange,
 } from "./edit-schemas.js";
 import { limits } from "../platform/limits.js";
+import { prepareBulkSchema } from "./bulk-schemas.js";
+import { prepareBulk } from "./bulk.js";
+import {
+  bulkJobInputSchema,
+  bulkJobStatusInputSchema,
+} from "./bulk-job-schemas.js";
+import { prepareBulkJob, runBulkJob, getBulkJob } from "./bulk-jobs.js";
+import { calculateWorkbook } from "../calculation/workbook.js";
+
+const finishAdvice =
+  'Optional job.finish is at the job root, never inside group: [{"output":"report","changes":[{"kind":"format_cells","sheetName":"S","range":"C2:C4","style":{"numberFormat":"0.00"}}]}]. For independent jobs each finish entry additionally names job. Changes use edit_workbook authoring kinds and run after data rendering, before the existing atomic publication. Formula changes require formula text and never calculate results. ';
+const tableAdvice =
+  ' Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]*[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically.';
+const expertAdvice =
+  " Advanced changes: define_name uses sheetName,name,range,scope workbook/sheet; replacement requires overwrite:true. write_named_range uses the exact name/scope and a typed values rectangle of the same shape; delete_name refuses live formula dependencies. set_validation uses range and rule {type:list,items:[...]}, {type:whole/decimal/date/textLength,operator,bounds:[...]}, or {type:custom,formula}; date bounds are workbook serials, rules guide interactive Excel input and do not enforce all server writes. remove_validation requires the exact old range. set_conditional_format uses range,priority,rule {type:expression,formula} or {type:cellIs,operator,formulas:[...]}, appearance {font,fill},stopIfTrue. Replace a priority explicitly with overwrite:true; remove_conditional_format uses priority. set_hyperlink uses cell,target {kind:external,url} for HTTPS or {kind:internal,location}; set_note uses cell,text,author; set_image uses name,cell,mime image/png or image/jpeg,data canonical base64,width,height in pixels. Their remove_* operations select the same cell or image name. set_chart uses name,chartType column/bar/line/pie,title,cell and series [{name,sheetName,categories,values}] with one-row/column A1 ranges; formula sources have no invented cache and require refresh. remove_chart uses name. set_pivot creates/refreshes a real PivotTable using name,cell,sourceSheet,sourceRange including headers,rowColumn and measures [{column,function:sum/count/min/max,name}]; source cells must be literal, count counts nonblank values. set_pivot overwrite:true refreshes/replaces an existing private cache and clears its old result tail. protect_sheet/protect_workbook optionally use a legacy Excel protection password of up to 15 characters; this is not encryption. Unprotect every locked target with authenticated unprotect_workbook/unprotect_sheet changes at the start of a request before other edits. format_cells style.protection {locked,hidden} controls cell protection. Strong-hash, encrypted, signed and macro-enabled editing remains refused. Originals never change. Appearance and source changes distinguish current chart/pivot caches from refreshRequired.";
 
 export const writingToolDefinitions = {
+  calculate_workbook: {
+    description:
+      "Calculate supported formulas from an exact .xlsx source version and save typed cached results in a new immutable version. Returns bounded cell results, completion and unavailable diagnostics. Recomputes the workbook within strict budgets; no Excel installation or external access. Unsupported formulas, cycles and unavailable dependencies lose stale caches. Formula errors remain typed Excel errors. Only the advertised functions and rectangular A1/static named/table references are supported. Shared/array formulas, volatile functions, external links and iterative calculation are unsupported. Read omitted or long results from the returned output version. The saved workbook conservatively requests recalculation when opened in Excel.",
+    inputSchema: z.strictObject({ source: workbookVersionSchema }),
+    annotations: ownOutput,
+  },
+  prepare_bulk_job: {
+    description:
+      finishAdvice +
+      'Every step and output uses kind, never op or type. A read step is {kind:read,id:rows,source:{filePath,versionId},selection:{kind:records,sheetName,range,headerRow:1}}; selection is a nested object, never flattened onto the step. update.set is [{column:Flag,value:{kind:boolean,value:true}}], never a bare scalar or a {type:...} cell. CSV fields stay text unless selection.columns explicitly requests reading, e.g. [{column:Total,type:number,decimal:"."}]. keys is an array of {sourceColumn,targetColumn}. A join uses join:left and columns:[{side:left,column:Ticket,as:Ticket}], never joinType or from. For editing an existing workbook choose output kind edit; kind new creates a data-only report and does not preserve unrelated source package parts. Dry-run a complete dependent group or independent batch without writing files. job kind dependent has group {steps,outputs}; independent has jobs [{id,group}]. Steps have unique IDs and reference only earlier IDs. read pins source {filePath,versionId} and a complete records selection with positive headerRow and closed range or table. Conditions use where:[{column:State,op:eq,value:open}], an array of {column,op,value}, never a single object or a string. update.set uses typed cells, for example [{column:Total,value:{kind:number,value:99}}]. Set edit output overwrite:true when replacing occupied values. Operators: update/remove/filter with these where conditions; keyed_update/upsert with source/target step IDs, keys/set column mappings and explicit duplicates/missingKeys policies; replace uses {kind:replace,id:next,input:old,source:fresh}, where old and fresh are dataset IDs; append uses inputs, an array of dataset IDs; join inner/left/full with explicit output column mappings and bounded manyToMany; deduplicate with keep policy; stable sort with directions, blanks and mixedTypes; project; transform constants/trim/locale case/explicit typed conversions. Output new uses sheets [{name,input}]; edit uses target read ID, input dataset ID, mode changed_values or replace_values and overwrite; edit_workbook combines distinct-sheet changes from one exact source. changed_values preserves untouched formulas and row identities; sorting/replacement needs explicit replace_values. Physical delete_rows refuses other content in the same rows. Full editor preservation, budgets, expansion and every ordered step/output are checked. Ready is not publication or authorization. No calculation. Writing mode only.',
+    inputSchema: bulkJobInputSchema,
+    annotations: readOnly,
+  },
+  run_bulk_job: {
+    description:
+      finishAdvice +
+      "Execute the same job descriptor used by prepare_bulk_job. All dependent outputs are fully validated in memory, then their files and completion manifest are atomically published as one immutable job directory. Original files and earlier versions never change. Independent jobs commit separately and report complete/partial/failed/pending with per-job status; retry the same descriptor to reuse completed jobs and attempt only unfinished ones. Exact source versions and normalized operations identify each group. A retained result is verified and returned before source rereads, allowing recovery after a lost response or process restart even if an original later changed. Stale sources before first commit refuse. Outputs have exact readable .xlsx versions. Dependent failure publishes no completed group. No formula calculation; explicit value pipelines report saved-cache use. Use get_bulk_job with returned jobId for durable status. Read the prepare_bulk_job description for step/output syntax.",
+    inputSchema: bulkJobInputSchema,
+    annotations: ownOutput,
+  },
+  get_bulk_job: {
+    description:
+      "Read durable bulk completion by jobId without rerunning operations. Verifies the retained manifest and every completed output hash. Returns a complete dependent result, independent batch statuses, or not_found. Missing/changed retained output bytes are an error rather than a successful replay. Writing mode only; no source writes or recalculation.",
+    inputSchema: bulkJobStatusInputSchema,
+    annotations: readOnly,
+  },
+  prepare_bulk: {
+    description:
+      "Analyze complete version-pinned record selections for keyed_update or upsert without writing files. source and target contain filePath, versionId and selection {kind:records, sheetName, range or table, headerRow}; obtain versions from prepare_transfer or prior receipts. Select exactly one closed A1 range or named table, with an explicit positive headerRow. Target is an unfiltered complete .xlsx list; source can be .xlsx, .xlsm or CSV and use record filters/projection. operation has kind, keys and set arrays of {sourceColumn,targetColumn} using exact selected header names. Keys preserve types and case; no implicit trim/coercion. Empty or duplicate keys block; conflictPolicy currently only error. Key columns cannot be reassigned. Set overwrite:true to replace occupied target values. Upsert requires mapping every target column when inserting. Returns bounded counts/conflicts, exact versions and requestFingerprint, never records. Conflict record numbers are one-based positions in the selected records, not worksheet rows. Validation covers keys and target package policy only; executionAvailable:false describes this focused analysis. Use prepare_bulk_job/run_bulk_job for fully validated execution. Preparation never means a completed update or grants permission for changed sources. Writing mode only; no recalculation.",
+    inputSchema: prepareBulkSchema,
+    annotations: readOnly,
+  },
   prepare_edit: {
     description:
-      "Inspect an ordered edit request without publishing an output. Accept .xlsx filePath, optional expectedVersion, and changes. Returns exact source {filePath, versionId}, a fingerprint binding normalized changes, source feature counts, and ready or blocked with policy reasons. Pass source and the same changes to edit_workbook. Canonical and preservation-supported external workbooks can be ready. Supports write_cells, clear_contents, add/rename/reorder/copy/delete_sheet, copy_range, move_range and row/column insert/delete. Copy requires explicit values/formulas/formatting/all mode. No source file is changed. Enabled protection, macros, signatures, Strict markup or unsupported affected dependencies refuse editing. Preparation is not permission to edit changed bytes. No recalculation occurs.",
+      "Inspect an ordered edit request without publishing an output. Accept .xlsx filePath, optional expectedVersion, and changes. Returns exact source {filePath, versionId}, a fingerprint binding normalized changes, source feature counts, and ready or blocked with policy reasons. Pass source and the same changes to edit_workbook. Canonical and preservation-supported external workbooks can be ready. Supports scalar, sheet, copy/move and row/column edits, plus edit_workbook formatting/layout/formula/table authoring. Copy requires explicit values/formulas/formatting/all mode. No source file is changed. Enabled protection, macros, signatures, Strict markup or unsupported affected dependencies refuse editing. Preparation is not permission to edit changed bytes. No recalculation occurs." +
+      tableAdvice +
+      expertAdvice,
     inputSchema: prepareEditSchema,
     annotations: readOnly,
   },
@@ -69,15 +119,23 @@ export const writingToolDefinitions = {
   },
   create_workbook: {
     description:
-      "Create a new immutable .xlsx from explicitly named sheets and rectangular value blocks at A1 start cells. Provide every cell's kind: text, number, boolean, blank, date or local datetime. Text is literal; formulas are unsupported. At least one sheet is required; omit its blocks for a blank sheet. Rejects duplicate names and overlapping populated targets. Up to 1,000,000 cells per request/workbook, 64 sheets and 128 blocks, with separate byte budgets. Returns a compact version receipt. Identical requests produce the same output version.",
+      "Create one immutable .xlsx from named sheets and rectangular typed value blocks. Each scalar has kind text/number/boolean/blank/date/datetime; text beginning with = stays literal. Optional changes finish the workbook atomically with formatting, layout, merges, formulas and tables before publication. Formula operations write explicit formula text without calculating it. Table range includes its header and optional totals row; use literal unique headers. At least one sheet, up to 1,000,000 touched/stored cells, 64 sheets and 128 changes. Identical requests retain identical outputs; originals never change." +
+      tableAdvice +
+      expertAdvice,
     inputSchema: z.strictObject({
       sheets: z.array(newSheetSchema).min(1).max(authoringLimits.maxSheets),
+      changes: z
+        .array(presentationWireChangeSchema)
+        .max(authoringLimits.maxOperations)
+        .default([]),
     }),
     annotations: ownOutput,
   },
   edit_workbook: {
     description:
-      "Apply an ordered atomic changes list to an exact selected .xlsx source {filePath, versionId}, producing one immutable output. Obtain source from prepare_edit or a prior receipt. write_cells uses explicit typed values and requires overwrite true for occupied targets; clear_contents clears a closed A1 range without shifting or removing styles. add_sheet uses name; rename_sheet uses sheetName/name; reorder_sheet uses one-based position; delete_sheet retains at least one visible sheet; copy_sheet requires name and mode. copy_sheet/copy_range optionally accept from {filePath, versionId} for another workbook; source styles/theme and numeric calendar systems must match, and unsupported external bindings fail. copy_range/move_range use sheetName, range, targetSheet and startCell; copy requires mode values/formulas/formatting/all, and occupied targets require overwrite true. insert_rows/delete_rows/insert_columns/delete_columns use sheetName, at and count. Existing formulas, styles and supported dependent references are preserved or transformed; no new formulas are authored and nothing is calculated. Unsupported impacted references/groups/extensions fail the whole request. Retry identical source and changes for identical output. Select an earlier retained source version to undo or branch. Source and prior outputs remain unchanged.",
+      "Apply ordered atomic changes to source {filePath,versionId}; originals/retained outputs never change. write_cells uses typed literal values; occupied data/formula targets require overwrite:true. clear_contents preserves styles. copy_range/move_range use range,targetSheet,startCell; copy requires mode values/formulas/formatting/all. copy_sheet uses name/mode; copy operations optionally accept from {filePath,versionId}, subject to dependency/style compatibility. Sheet rename/reorder/delete and row/column insert/delete preserve supported references or refuse. format_cells patches only specified style fields; null resets a component. set_columns/set_rows use one-based first/last, width in character units/height in points, hidden; freeze_panes uses row/column counts. set_print_layout margins are inches; choose scale or fitWidth/fitHeight. merge_cells defaults to loss:reject; loss:discard_non_anchor explicitly clears other contents; unmerge_cells retains only the anchor. write_formula uses cell/formula; fill_formula uses anchor/range/formula and relative A1/table references. New formulas have no calculated cache; report recalculation required. create_table range includes header/data/optional totals; headers are unique literal text. edit_table can rename name/columns, resize range, set calculatedColumns/totals/style/filter; shrink preserves excluded values unless clearRemovedValues:true. convert_table preserves supported references/appearance or refuses. Table style is SezzleeBlue or none; filter toggles dropdowns, not dataset filtering. Dynamic arrays/external formula links and unsupported affected preservation refuse the whole request. Use prepare_edit first for scope/effects. Retry the same source/changes for the same result; select an earlier source to undo/branch." +
+      tableAdvice +
+      expertAdvice,
     inputSchema: z.strictObject({
       source: workbookVersionSchema,
       changes: editWireChangesSchema,
@@ -181,6 +239,68 @@ export function createWritingHandlers(
     return { snapshots, buffers };
   }
   return {
+    calculate_workbook: guardWriting<
+      typeof writingToolDefinitions,
+      "calculate_workbook"
+    >(root, "calculate_workbook", (args, _name, signal) =>
+      admitted(async () => {
+        await checkpoint(signal);
+        const snapshot = await readWorkbookSnapshot(
+          root,
+          args.source.filePath,
+          args.source.versionId,
+        );
+        const calculated = calculateWorkbook(snapshot.bytes);
+        await checkpoint(signal);
+        await readWorkbookSnapshot(
+          root,
+          snapshot.version.filePath,
+          snapshot.version.versionId,
+        );
+        await checkpoint(signal);
+        const receipt = await output.publish(calculated.bytes, {
+          kind: "source",
+          version: snapshot.version,
+        });
+        return json({ ...receipt, calculation: calculated.calculation });
+      }),
+    ),
+    prepare_bulk_job: guardWriting<
+      typeof writingToolDefinitions,
+      "prepare_bulk_job"
+    >(root, "prepare_bulk_job", (args, _name, signal) =>
+      admitted(async () =>
+        json(
+          await prepareBulkJob(root, output, args.job, () =>
+            checkpoint(signal),
+          ),
+        ),
+      ),
+    ),
+    run_bulk_job: guardWriting<typeof writingToolDefinitions, "run_bulk_job">(
+      root,
+      "run_bulk_job",
+      (args, _name, signal) =>
+        admitted(async () =>
+          json(
+            await runBulkJob(root, output, args.job, () => checkpoint(signal)),
+          ),
+        ),
+    ),
+    get_bulk_job: guardWriting<typeof writingToolDefinitions, "get_bulk_job">(
+      root,
+      "get_bulk_job",
+      (args) =>
+        admitted(async () => json(await getBulkJob(root, output, args.jobId))),
+    ),
+    prepare_bulk: guardWriting<typeof writingToolDefinitions, "prepare_bulk">(
+      root,
+      "prepare_bulk",
+      (args, _name, signal) =>
+        admitted(async () =>
+          json(await prepareBulk(root, args, () => checkpoint(signal))),
+        ),
+    ),
     prepare_edit: guardWriting<typeof writingToolDefinitions, "prepare_edit">(
       root,
       "prepare_edit",
@@ -231,6 +351,9 @@ export function createWritingHandlers(
             cellsRequested: inspection.cellsRequested,
             features: inspection.features,
             recalculated: false,
+            ...(prepared?.editing === undefined
+              ? {}
+              : { effects: prepared.editing }),
           };
           return json(
             editPreparationSchema.parse(
@@ -357,10 +480,29 @@ export function createWritingHandlers(
         checkInput(args);
         await checkpoint(signal);
         const { workbook, changes } = createAuthoredWorkbook(args.sheets);
-        const bytes = serializeAuthoredWorkbook(workbook);
+        const initial = serializeAuthoredWorkbook(workbook);
+        const applied =
+          args.changes.length === 0
+            ? undefined
+            : applyWorkbookChanges(initial, args.changes);
+        const bytes = applied?.bytes ?? initial;
         await checkpoint(signal);
         const receipt = await output.publish(bytes, { kind: "new" });
-        return json(mutationReceiptSchema.parse({ ...receipt, changes }));
+        return json(
+          mutationReceiptSchema.parse({
+            ...receipt,
+            changes: {
+              sheetsAdded: changes.sheetsAdded,
+              blocksWritten:
+                changes.blocksWritten + (applied?.changes.blocksWritten ?? 0),
+              cellsWritten:
+                changes.cellsWritten + (applied?.changes.cellsWritten ?? 0),
+            },
+            ...(applied?.editing === undefined
+              ? {}
+              : { editing: applied.editing }),
+          }),
+        );
       }),
     ),
     edit_workbook: guardWriting<typeof writingToolDefinitions, "edit_workbook">(

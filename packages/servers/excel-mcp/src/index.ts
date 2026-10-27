@@ -184,3 +184,17 @@ export type {
 } from "./platform/versions.js";
 export type { ExcelMcpServerOptions } from "./server.js";
 export { writingToolDefinitions } from "./tools/writing.js";
+export {
+  bulkJobSchema,
+  bulkGroupReceiptSchema,
+  bulkBatchReceiptSchema,
+  bulkStoredManifestSchema,
+  bulkJobLimits,
+} from "./tools/bulk-job-schemas.js";
+export type {
+  BulkJob,
+  BulkGroup,
+  BulkGroupReceipt,
+  BulkBatchReceipt,
+  BulkStep,
+} from "./tools/bulk-job-schemas.js";

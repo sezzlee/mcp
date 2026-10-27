@@ -168,9 +168,298 @@ try {
   assert.equal(output.B2.v, 1);
   assert.equal(output.A3.v, "b");
   assert.equal(output.B3.v, 2);
+  const authored = await call("create_workbook", {
+    sheets: [
+      {
+        name: "Report",
+        blocks: [
+          {
+            startCell: "A1",
+            values: [
+              [
+                { kind: "text", value: "Item" },
+                { kind: "text", value: "Qty" },
+                { kind: "text", value: "Price" },
+                { kind: "text", value: "Amount" },
+              ],
+              [
+                { kind: "text", value: "A" },
+                { kind: "number", value: 2 },
+                { kind: "number", value: 10 },
+                { kind: "blank" },
+              ],
+            ],
+          },
+        ],
+      },
+    ],
+    changes: [
+      {
+        kind: "create_table",
+        sheetName: "Report",
+        range: "A1:D3",
+        name: "Orders",
+        calculatedColumns: [{ column: "Amount", formula: "[@Qty]*[@Price]" }],
+        totals: [
+          { kind: "label", column: "Item", text: "Total" },
+          { kind: "function", column: "Amount", function: "sum" },
+        ],
+      },
+      {
+        kind: "format_cells",
+        sheetName: "Report",
+        range: "C2:D3",
+        style: { numberFormat: "0.00" },
+      },
+      { kind: "freeze_panes", sheetName: "Report", rows: 1, columns: 0 },
+      {
+        kind: "set_print_layout",
+        sheetName: "Report",
+        orientation: "landscape",
+        fitWidth: 1,
+        printArea: "A1:F3",
+      },
+      {
+        kind: "write_formula",
+        sheetName: "Report",
+        cell: "F1",
+        formula: "SUM(Orders[Amount])",
+      },
+      {
+        kind: "write_formula",
+        sheetName: "Report",
+        cell: "F2",
+        formula: "INDEX(A2:C2,2)",
+      },
+      {
+        kind: "write_formula",
+        sheetName: "Report",
+        cell: "F3",
+        formula: "INDEX(A1:D2,2)",
+      },
+      {
+        kind: "write_formula",
+        sheetName: "Report",
+        cell: "F4",
+        formula: "VLOOKUP(2,B2:C2,2.9,0)",
+      },
+      { kind: "merge_cells", sheetName: "Report", range: "G1:H1" },
+    ],
+  });
+  assert.equal(authored.editing.recalculated, false);
+  assert.equal(authored.editing.recalculationRequired, true);
+  const authoringCheck = spawnSync(
+    "python3",
+    [
+      "-I",
+      "-c",
+      [
+        "import sys,zipfile,xml.etree.ElementTree as E",
+        "p=zipfile.ZipFile(sys.argv[1]); n={'s':'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}",
+        "s=E.fromstring(p.read('xl/worksheets/sheet1.xml')); cells={c.attrib['r']:c for c in s.findall('.//s:c',n)}",
+        "assert cells['D2'].find('s:f',n).text=='Orders[[#This Row],[Qty]]*Orders[[#This Row],[Price]]'",
+        "assert cells['F1'].find('s:f',n).text=='SUM(Orders[Amount])'",
+        "assert all(c.find('s:v',n) is None for c in cells.values() if c.find('s:f',n) is not None)",
+        "assert s.find('s:sheetViews/s:sheetView/s:pane',n).attrib['ySplit']=='1'",
+        "assert s.find('s:pageSetup',n).attrib['orientation']=='landscape'",
+        "assert s.find('s:mergeCells/s:mergeCell',n).attrib['ref']=='G1:H1'",
+        "table=E.fromstring(p.read('xl/tables/table1.xml'))",
+        "assert table.attrib['ref']=='A1:D3'",
+        "assert table.findall('s:tableColumns/s:tableColumn',n)[3].find('s:calculatedColumnFormula',n).text=='Orders[[#This Row],[Qty]]*Orders[[#This Row],[Price]]'",
+      ].join(";"),
+      join(directory, authored.version.filePath),
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(authoringCheck.status, 0, authoringCheck.stderr);
+  const authoredBytes = await readFile(
+    join(directory, authored.version.filePath),
+  );
+  const calculated = await call("calculate_workbook", {
+    source: authored.version,
+  });
+  assert.equal(calculated.calculation.complete, false);
+  assert.equal(calculated.calculation.calculatedCells, 4);
+  assert.equal(calculated.calculation.unavailableCells, 2);
+  const calculationCheck = spawnSync(
+    "python3",
+    [
+      "-I",
+      "-c",
+      [
+        "import sys,zipfile,xml.etree.ElementTree as E",
+        "p=zipfile.ZipFile(sys.argv[1]); n={'s':'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}",
+        "s=E.fromstring(p.read('xl/worksheets/sheet1.xml')); cells={c.attrib['r']:c for c in s.findall('.//s:c',n)}",
+        "assert float(cells['D2'].find('s:v',n).text)==20",
+        "assert float(cells['F1'].find('s:v',n).text)==20",
+        "assert float(cells['F2'].find('s:v',n).text)==2",
+        "assert cells['F3'].find('s:v',n) is None",
+        "assert cells['F3'].find('s:f',n).text=='INDEX(A1:D2,2)'",
+        "assert float(cells['F4'].find('s:v',n).text)==10",
+        "assert cells['D3'].find('s:v',n) is None",
+        "assert cells['D3'].find('s:f',n).text.startswith('SUBTOTAL(')",
+        "assert cells['F1'].find('s:f',n).text=='SUM(Orders[Amount])'",
+      ].join(";"),
+      join(directory, calculated.version.filePath),
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(calculationCheck.status, 0, calculationCheck.stderr);
+  assert.deepEqual(
+    await readFile(join(directory, authored.version.filePath)),
+    authoredBytes,
+  );
   assert.deepEqual(await readFile(join(directory, "external.xlsx")), bytes);
+  const expertSource = await call("create_workbook", {
+    sheets: [
+      {
+        name: "Data",
+        blocks: [
+          {
+            startCell: "A1",
+            values: [
+              [
+                { kind: "text", value: "Region" },
+                { kind: "text", value: "Amount" },
+              ],
+              [
+                { kind: "text", value: "North" },
+                { kind: "number", value: 10 },
+              ],
+              [
+                { kind: "text", value: "South" },
+                { kind: "number", value: 20 },
+              ],
+              [
+                { kind: "text", value: "North" },
+                { kind: "number", value: 5 },
+              ],
+            ],
+          },
+        ],
+      },
+      { name: "Report", blocks: [] },
+    ],
+  });
+  const expertBytes = await readFile(
+    join(directory, expertSource.version.filePath),
+  );
+  const expert = await call("edit_workbook", {
+    source: expertSource.version,
+    changes: [
+      { kind: "define_name", sheetName: "Report", name: "Period", range: "B1" },
+      {
+        kind: "write_named_range",
+        sheetName: "Report",
+        name: "Period",
+        values: [[{ kind: "text", value: "2026-10" }]],
+      },
+      {
+        kind: "set_validation",
+        sheetName: "Data",
+        range: "A2:A4",
+        rule: { type: "list", items: ["North", "South"] },
+      },
+      {
+        kind: "set_conditional_format",
+        sheetName: "Data",
+        range: "B2:B4",
+        priority: 1,
+        rule: { type: "cellIs", operator: "greaterThan", formulas: ["15"] },
+        appearance: { fill: "FF0000" },
+        stopIfTrue: true,
+      },
+      {
+        kind: "set_hyperlink",
+        sheetName: "Report",
+        cell: "D1",
+        target: { kind: "external", url: "https://example.com/report" },
+      },
+      {
+        kind: "set_note",
+        sheetName: "Report",
+        cell: "B1",
+        text: "Reviewed",
+        author: "Finance",
+      },
+      {
+        kind: "set_image",
+        sheetName: "Report",
+        name: "Logo",
+        cell: "E1",
+        mime: "image/png",
+        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+        width: 48,
+        height: 48,
+      },
+      {
+        kind: "set_pivot",
+        sheetName: "Report",
+        name: "Regional",
+        cell: "A5",
+        sourceSheet: "Data",
+        sourceRange: "A1:B4",
+        rowColumn: "Region",
+        measures: [{ column: "Amount", function: "sum", name: "Total" }],
+      },
+      {
+        kind: "set_chart",
+        sheetName: "Report",
+        name: "Sales",
+        chartType: "column",
+        cell: "E5",
+        series: [
+          {
+            name: "Revenue",
+            sheetName: "Data",
+            categories: "A2:A4",
+            values: "B2:B4",
+          },
+        ],
+      },
+      {
+        kind: "format_cells",
+        sheetName: "Report",
+        range: "B1",
+        style: { protection: { locked: false } },
+      },
+      { kind: "protect_sheet", sheetName: "Report" },
+      { kind: "protect_workbook", sheetName: "Report" },
+    ],
+  });
+  const expertCheck = spawnSync(
+    "python3",
+    [
+      "-I",
+      "-c",
+      [
+        "import sys,zipfile,xml.etree.ElementTree as E",
+        "p=zipfile.ZipFile(sys.argv[1]); n={'s':'http://schemas.openxmlformats.org/spreadsheetml/2006/main','c':'http://schemas.openxmlformats.org/drawingml/2006/chart','a':'http://schemas.openxmlformats.org/drawingml/2006/main'}",
+        "book=E.fromstring(p.read('xl/workbook.xml')); assert book.find('s:definedNames/s:definedName',n).text in [\"'Report'!$B$1\",\"'Report'!$B$1:$B$1\"]",
+        "assert book.find('s:workbookProtection',n).attrib['lockStructure']=='1'",
+        "data=E.fromstring(p.read('xl/worksheets/sheet1.xml')); report=E.fromstring(p.read('xl/worksheets/sheet2.xml'))",
+        "assert data.find('s:dataValidations/s:dataValidation',n).attrib['sqref']=='A2:A4'",
+        "assert data.find('s:conditionalFormatting/s:cfRule',n).attrib['stopIfTrue']=='1'",
+        "cells={c.attrib['r']:c for c in report.findall('s:sheetData/s:row/s:c',n)}; assert cells['B1'].find('s:is/s:t',n).text=='2026-10'",
+        "assert [float(cells[a].find('s:v',n).text) for a in ['B6','B7','B8']]==[15,20,35]",
+        "assert report.find('s:sheetProtection',n) is not None; assert report.find('s:hyperlinks/s:hyperlink',n).attrib['ref']=='D1'",
+        "names=p.namelist(); pivot=E.fromstring(p.read(next(a for a in names if a.startswith('xl/pivotTables/') and a.endswith('.xml')))); assert pivot.attrib['name']=='Regional'",
+        "chart=E.fromstring(p.read(next(a for a in names if a.startswith('xl/charts/') and a.endswith('.xml')))); assert chart.find('.//c:ser/c:spPr/a:solidFill/a:srgbClr',n).attrib['val']=='4472C4'",
+        "assert [float(v.text) for v in chart.findall('.//c:numCache/c:pt/c:v',n)]==[10,20,5]",
+        "note=E.fromstring(p.read(next(a for a in names if a.startswith('xl/comments') and a.endswith('.xml')))); assert note.find('s:authors/s:author',n).text=='Finance'; assert ''.join(note.find('s:commentList/s:comment/s:text',n).itertext())=='Reviewed'",
+        "assert any(a.startswith('xl/media/') and p.read(a).startswith(bytes.fromhex('89504e47')) for a in names)",
+      ].join("\n"),
+      join(directory, expert.version.filePath),
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(expertCheck.status, 0, expertCheck.stderr);
+  assert.deepEqual(
+    await readFile(join(directory, expertSource.version.filePath)),
+    expertBytes,
+  );
   process.stdout.write(
-    "Installed Excel editing, transfer, retry, atomic refusal and previous-version restore passed.\n",
+    "Installed Excel editing, transfer, authoring, table formulas, bounded calculation, expert report features, layout, retry, atomic refusal and previous-version restore passed.\n",
   );
 } finally {
   await client.close();

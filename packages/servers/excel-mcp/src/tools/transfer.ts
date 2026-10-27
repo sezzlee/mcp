@@ -120,11 +120,22 @@ export interface TransferData {
   readonly values: WriteCell[][];
   readonly headers: readonly (string | null)[];
   readonly summary: TransferSummary;
+  readonly rowNumbers?: readonly number[];
 }
 
 export async function materializeTransfer(
   snapshot: WorkbookSnapshot,
   input: TransferSelection,
+  capacity: {
+    readonly maxRows: number;
+    readonly maxCells: number;
+    readonly maxTextBytes: number;
+    readonly retainRowNumbers?: boolean;
+  } = {
+    maxRows: authoringLimits.maxCells,
+    maxCells: authoringLimits.maxCells,
+    maxTextBytes: authoringLimits.maxTextBytes,
+  },
 ): Promise<TransferData> {
   const loaded = await loadSnapshot(snapshot, input);
   const source = sheetSource(loaded);
@@ -233,17 +244,18 @@ export async function materializeTransfer(
     readingHintsOf(input),
   );
   const values: WriteCell[][] = [];
+  const rowNumbers: number[] = [];
   let textBytes = 0;
   function addRow(row: WriteCell[]): void {
-    if ((values.length + 1) * row.length > authoringLimits.maxCells)
-      budget(
-        "A transfer may write at most 1,000,000 cells, including headers.",
-      );
+    if (values.length + 1 > capacity.maxRows)
+      budget("The selection exceeds its record budget.");
+    if ((values.length + 1) * row.length > capacity.maxCells)
+      budget("The selection exceeds its cell budget, including headers.");
     for (const cell of row) {
       if (cell.kind === "text") textBytes += Buffer.byteLength(cell.value);
+      if (textBytes > capacity.maxTextBytes)
+        budget("The selection exceeds its text byte budget.");
     }
-    if (textBytes > authoringLimits.maxTextBytes)
-      budget("The transfer exceeds its text byte budget.");
     values.push(row);
   }
   const visibility =
@@ -466,6 +478,7 @@ export async function materializeTransfer(
     matchedRows += 1;
     if (subset !== undefined && !subset.has(row)) continue;
     addRow(columns.map((column) => converted(row, column)));
+    if (capacity.retainRowNumbers === true) rowNumbers.push(row);
     selectedRows += 1;
   }
   if (subset !== undefined && selectedRows !== subset.size)
@@ -475,6 +488,7 @@ export async function materializeTransfer(
   return {
     values,
     headers: outputHeaders,
+    ...(capacity.retainRowNumbers === true ? { rowNumbers } : {}),
     summary: {
       kind: input.kind,
       sheet: sheet.name,

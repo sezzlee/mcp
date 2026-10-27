@@ -32,7 +32,9 @@ const options = z
     out: z.string().min(1),
     rows: z.coerce.number().int().min(50).max(50000).default(50000),
     columns: z.coerce.number().int().min(2).max(20).default(20),
-    operation: z.enum(["write", "rows", "columns", "copy"]).default("write"),
+    operation: z
+      .enum(["write", "rows", "columns", "copy", "format", "formula", "table"])
+      .default("write"),
     heapMiB: z.coerce.number().int().min(512).max(2048).default(1024),
     worker: z.boolean().default(false),
   })
@@ -112,37 +114,81 @@ async function measure(): Promise<void> {
   await Promise.all([client.connect(a), server.connect(b)]);
   const at = options.operation === "columns" ? 2 : Math.floor(options.rows / 2);
   const changes =
-    options.operation === "write"
+    options.operation === "format"
       ? [
           {
-            kind: "write_cells",
+            kind: "format_cells",
             sheetName: "Sequence",
-            startCell: "A1",
-            overwrite: true,
-            values: [[{ kind: "number", value: -1 }]],
+            range: `A1:${letters(options.columns)}${options.rows}`,
+            style: { numberFormat: "0.00", font: { bold: true } },
           },
         ]
-      : options.operation === "copy"
+      : options.operation === "formula"
         ? [
             {
-              kind: "copy_range",
+              kind: "fill_formula",
               sheetName: "Sequence",
-              range: `A1:${letters(options.columns)}25`,
-              targetSheet: "Sequence",
-              startCell: "A1000",
-              mode: "all",
+              anchor: `${letters(options.columns)}1`,
+              range: `${letters(options.columns)}1:${letters(options.columns)}${options.rows}`,
+              formula: "A1+B1",
               overwrite: true,
             },
           ]
-        : [
-            {
-              kind:
-                options.operation === "rows" ? "insert_rows" : "insert_columns",
-              sheetName: "Sequence",
-              at,
-              count: 1,
-            },
-          ];
+        : options.operation === "table"
+          ? [
+              {
+                kind: "write_cells",
+                sheetName: "Sequence",
+                startCell: "A1",
+                values: [
+                  Array.from({ length: options.columns }, (_, i) => ({
+                    kind: "text",
+                    value: `Field${i + 1}`,
+                  })),
+                ],
+                overwrite: true,
+              },
+              {
+                kind: "create_table",
+                sheetName: "Sequence",
+                range: `A1:${letters(options.columns)}${options.rows}`,
+                name: "SequenceData",
+                style: "none",
+              },
+            ]
+          : options.operation === "write"
+            ? [
+                {
+                  kind: "write_cells",
+                  sheetName: "Sequence",
+                  startCell: "A1",
+                  overwrite: true,
+                  values: [[{ kind: "number", value: -1 }]],
+                },
+              ]
+            : options.operation === "copy"
+              ? [
+                  {
+                    kind: "copy_range",
+                    sheetName: "Sequence",
+                    range: `A1:${letters(options.columns)}25`,
+                    targetSheet: "Sequence",
+                    startCell: "A1000",
+                    mode: "all",
+                    overwrite: true,
+                  },
+                ]
+              : [
+                  {
+                    kind:
+                      options.operation === "rows"
+                        ? "insert_rows"
+                        : "insert_columns",
+                    sheetName: "Sequence",
+                    at,
+                    count: 1,
+                  },
+                ];
   const calls: { ms: number; requestBytes: number; receiptBytes: number }[] =
     [];
   async function call() {
@@ -178,7 +224,14 @@ async function measure(): Promise<void> {
       "format/preserved-workbook.js",
       "format/xml-edit.js",
       "format/formula-edit.js",
+      "format/iso-write.js",
       "format/edit-workbook.js",
+      "format/presentation-workbook.js",
+      "format/presentation-xml.js",
+      "format/style-authoring.js",
+      "format/formula-authoring.js",
+      "format/table-authoring.js",
+      "authoring/presentation.js",
       "tools/writing.js",
     ])
       implementation

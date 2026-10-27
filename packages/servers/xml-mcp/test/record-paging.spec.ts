@@ -116,8 +116,9 @@ beforeAll(async () => {
       "</ledger>",
     ].join(""),
   );
-  resident = await createHarness(directory);
-  chunked = await createHarness(directory, undefined, 1);
+  const pagingPool = { budgetMs: 30_000 };
+  resident = await createHarness(directory, pagingPool);
+  chunked = await createHarness(directory, pagingPool, 1);
 });
 
 afterAll(async () => {
@@ -157,6 +158,8 @@ describe.each([
    * Guard: each case pages through about 50,000 records, measured at 5.00–5.02 s on GitHub's
    * darwin-x64 Node 24 runner against vitest's 5 s default, while every other target finishes well
    * under it.
+   * The fixture pool also allows 30 s so these record-visit checks do not depend on CPU contention;
+   * worker-lifecycle.spec.ts separately verifies deadline failure.
    */
   it.each([
     limits.maxItemVisits - 1,

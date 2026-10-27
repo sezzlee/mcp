@@ -45,3 +45,30 @@ export const writeCellSchema = z.discriminatedUnion("kind", [
 ]);
 
 export type WriteCell = z.infer<typeof writeCellSchema>;
+
+export const writeCellWireSchema = z
+  .strictObject({
+    kind: z.enum(
+      writeCellSchema.options.map((option) => option.shape.kind.value),
+    ),
+    value: z
+      .union([
+        writeCellSchema.options[0].shape.value,
+        writeCellSchema.options[1].shape.value,
+        writeCellSchema.options[2].shape.value,
+      ])
+      .optional(),
+  })
+  .transform((value, context) => {
+    const parsed = writeCellSchema.safeParse(value);
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues)
+        context.addIssue({
+          code: "custom",
+          message: issue.message,
+          path: issue.path,
+        });
+      return z.NEVER;
+    }
+    return parsed.data;
+  });

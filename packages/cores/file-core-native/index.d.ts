@@ -47,6 +47,11 @@ export function openRoot(path: string): NativeRoot;
 
 export interface NativeOutputRoot {
   publish(name: string, content: Buffer, maxBytes: number): Promise<string>;
+  publishDirectory(
+    name: string,
+    files: readonly { readonly name: string; readonly content: Buffer }[],
+    maxBytes: number,
+  ): Promise<string>;
 }
 export function openOutputRoot(
   root: NativeRoot,

@@ -1,5 +1,46 @@
 # @sezzlee/excel-lab
 
+## Phase 7 expert report acceptance
+
+The [Phase 7 plan](../../servers/excel-mcp/docs/phase-7/implementation-plan.md) composes names/templates, validation, conditional formats, links/notes/images, charts, real pivots, protection and recurring report jobs. `expert-agent-cli.ts` always runs a deterministic report first. Optional Qwen trials repeat the report in Turkish and English, using the same registered tools and independent output grading.
+
+```sh
+node packages/lab/excel-lab/src/expert-agent-cli.ts --out /tmp/excel-expert-scripted --application
+SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab/src/expert-agent-cli.ts --out /tmp/excel-expert-model --model MODEL --languages tr,en --application
+node --max-old-space-size=1024 packages/lab/excel-lab/src/expert-scale-cli.ts --out /tmp/excel-expert-scale
+python3 -I packages/lab/excel-lab/scripts/test-expert-oracle.py
+python3 -I packages/lab/excel-lab/scripts/test-expert-visual-oracle.py
+```
+
+The standard-library `expert-oracle.py` checks real package relationships, exact values, formula caches, scoped names, note text/authors, links, image hashes, chart source/cache equality, rule semantics and protection metadata. Pivot cache records must equal the literal source; saved pivot results must equal an independent aggregation. `--summary` omits the large cell map when checking scale fixtures. Model prose and preparation alone cannot pass. The report grader requires literal period text and an explicit note author, not a visually similar date or an author embedded only in the note body.
+
+With `--application`, actual LibreOffice opens and resaves every successful output. `expert-application-oracle.py` compares values, pivots, chart types/series, effective conditional fills and relative rule order, links, notes, images and protection. It records Calc's known loss of `stopIfTrue` separately; the source flag remains independently inspected and schema-checked. `expert-visual-oracle.py` renders the selected synthetic Report sheet through PDF/Poppler and requires visible plotted-series pixels in each chart region. Its evenly spaced chart-region contract belongs to this fixture, not arbitrary user workbooks. The visual oracle's five PNG scanline-filter vectors, blank-plot refusal and truncation cases have independent known answers.
+
+Manifests retain the sorted-path/NUL/JavaScript-bytes/NUL runtime SHA-256, module count, model identity/digest and generation settings. Catalog sizes, raw traces, exact output versions, independent snapshots and optional application/visual evidence remain in the chosen local output directory. Keep those artifacts and model endpoints outside the public repository.
+
+`expert-scale-cli.ts` runs through actual MCP with 24,999 records plus headers across four columns: exactly the 100,000-cell advanced-source ceiling, 100 row groups and a 10,000-point chart. It checks whole-source/cache/pivot correctness independently and records runtime duration, its own process peak RSS, output identity and source immutability. Resource measurements are distinct from throughput promises.
+
+## Phase 4 bulk acceptance
+
+The [Phase 4 plan](../../servers/excel-mcp/docs/phase-4/implementation-plan.md) binds the typed key policies, ordered pipelines, atomic group publication and independent-job retry. Use the existing corpus via SEZZLEE_CORPUS for complete reader/transfer regression; original corpus files never become output targets. The bulk lab complements that coverage with public deterministic synthetic fixtures whose whole outputs are independently graded.
+
+```sh
+pnpm turbo run build check-types lint --filter=@sezzlee/excel-mcp --filter=@sezzlee/excel-lab
+python3 -I packages/lab/excel-lab/scripts/test-bulk-oracles.py
+node packages/lab/excel-lab/src/bulk-bench.ts --out /tmp/excel-bulk-scale --operation update --rows 49999 --columns 20 --heap-mib 1024
+python3 -I packages/lab/excel-lab/scripts/bulk-oracle.py /tmp/excel-bulk-scale/bulk-REPLACE
+node packages/lab/excel-lab/src/bulk-agent-cli.ts --out /tmp/excel-bulk-scripted
+SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab/src/bulk-agent-cli.ts --out /tmp/excel-bulk-model --model MODEL --languages tr,en
+```
+
+bulk-bench accepts update, replace, upsert, append, join, sort, deduplicate, atomic or independent. A child with fixed heap and a 180-second watchdog exercises actual MCP calls, preparation, execution and replay. It records exact input hashes, generation/runtime/native source digests, source immutability, request/response sizes, per-call timings and peak RSS. The independent Python standard-library oracle verifies every expected coordinate, scalar type, order, count, source hash, output hash and ZIP CRC. The independent scenario first requires nine distinct completed reports and one failure, restores the missing source, then verifies all ten reports without duplicating the first nine. Use 10,000 rows and ten columns for the complete operator matrix; larger cases must fit each operation's intermediate/expansion guard. 49,999 data records plus a header at 20 columns are exactly one million cells. Heap and RSS are different measurements; failures or refusals are not throughput measurements.
+
+bulk-agent-cli runs scripted baselines before optional actual-model trials. Public fixture creation and grading live in bulk-agent-oracle.py; five known-answer tests pin correct values, typed output, source immutability and protected refusal. Scenarios are update, join, replace, retry and blocked, selectable with --only. The retry scenario requires two identical execution identities and a durable status read. Model prose and preparation alone are not accepted as output. Within the existing 16-call/16-turn budget, a reply without tool calls receives at most two generic incomplete-task reminders; the independent output/refusal checks remain mandatory. Traces and result logs remain outside the repository; manifests retain model identity, exact build/native source hashes, generation controls and the limited tool catalog. Existing network/data authorization rules still apply: use only these public fixtures and the selected model host, never private product inputs.
+
+After a successful bulk-bench run, run `python3 scripts/bulk-application-oracle.py <run-directory>` from this package. It first checks the independent bulk oracle, then opens every unique selected output in actual LibreOffice Calc, converts it to ODS and compares all scalar coordinates, types, values and order with the independently checked OOXML. It verifies that application opening leaves original workbook bytes unchanged and writes application-oracle.json. The soffice executable must be on PATH. This is selected application acceptance, not a whole-corpus compatibility claim.
+
+The harness also includes [server-side calculation acceptance](CALCULATION.md), with independent cache checks and optional live Ollama scenarios.
+
 The corpus harness for `@sezzlee/excel-mcp`. It runs the built server over a local corpus of
 real-world workbooks and records, per file, what every tool call answered, how long it took and
 how much memory the process needed.
@@ -261,3 +302,11 @@ python3 packages/lab/excel-lab/scripts/transfer-oracle.py /tmp/excel-transfer-ev
 Each run creates a fresh transfer-* directory outside the repository. The source CSV contains the integers 0 through 999999; the transfer descriptor explicitly reads its columns as numbers. The benchmark prepares the complete source selection without returning its cells, transfers it, applies a one-cell transfer from a separate source to the selected output version and retries that continuation. It checks source preservation and version reuse, records implementation/generator digests, call sizes and timings, and runs in one child with the selected heap limit and a 180-second watchdog. The independent standard-library Python oracle verifies every source field and every stored cell in both outputs, numeric types, exact counts and sums, file hashes, ZIP CRCs and absence of formulas. Generated source and output bytes and reports remain outside the repository.
 
 The Excel package's transfer-data.spec.ts includes small raw-OOXML/CSV acceptance cases and three optional external-corpus transfers. Set SEZZLEE_CORPUS to run those external cases; they skip explicitly when it is absent. They compare values and types with an independent SheetJS reader. The [Phase 2 plan](../../servers/excel-mcp/docs/phase-2/implementation-plan.md) records the chosen behavior, limits, execution evidence and required Phase 3 formula/formatting copying.
+
+## Authoring model acceptance
+
+The existing edit and bulk agent CLIs cover Phase 5 presentation, formula, table, merge, continuation and finished-report scenarios. Source/output hashes, tool catalogs, incremental traces, final messages and independent ZIP/XML grades are retained outside the repository. Bulk report grading waits for the final message as well as the finished file, including explicit partial status for independent groups and pending formula calculation.
+
+Both CLIs accept optional `--think false` or a model-advertised level such as `--think low`. Omission retains the model default. Discover supported values through Ollama's `/api/show` before selecting one; the [official thinking API](https://docs.ollama.com/capabilities/thinking) defines this control. Manifests record the requested value and host-client digest. Thinking-enabled output-limit failures and failed attempts remain separate evidence when another profile is tried.
+
+The independent oracle controls include equivalent A1/structured calculated-column formulas, missing or incorrect calculated-column metadata, fabricated caches, source/package corruption, valid dark-blue variants and invalid light or nonbold headers. Server calculation remains outside Phase 5; a successful formula write is not a computed result.

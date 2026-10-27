@@ -1,6 +1,6 @@
 # Faz 7: uzman seviye Excel iş akışları
 
-Durum: uzman ihtiyaçları için kapsam önerisi. İlgili önceki fazlara dayanır; ortak ilkeler [ana yol haritasındadır](../README.md). Kaynağı koruyan yeni sürüm kararı geçerlidir.
+Current review status, 2026-10-27: all eight approved families and the post-review fixes have fresh acceptance on the integrated runtime. The [review closure](review-closure.md), [implementation status](implementation-status.md) and [acceptance record](acceptance-record.json) close LOCAL-001–LOCAL-008 with current corpus/model/application/schema/resource, installed-package and 15/15 native CI evidence. The requested docs deployment is live. Earlier results remain historical for their original runtime. The [implementation plan](implementation-plan.md), immutable-version decision and [shared roadmap](../README.md) remain applicable; PR #73 is ready for user merge review within the documented profiles.
 
 ## Hedef
 
@@ -31,7 +31,7 @@ Makro içeriğini koruma, makroyu düzenleme ve makro çalıştırma farklı iht
 4. Şablon, çoklu sayfa ve tekrar eden iş örneklerini bir arada doğrulamak.
 5. Destek ve koruma kapsamını belgelerle birlikte güncellemek.
 
-Bu iç sıra henüz seçilmemiştir; grafik veya özet tablo desteğinin mutlaka önce yapılacağı varsayılmaz.
+The approved implementation order and concrete work packages are recorded in the [plan](implementation-plan.md#ordered-work-packages).
 
 ## Bağımlılıklar ve sınırlar
 
@@ -55,4 +55,4 @@ Bu iç sıra henüz seçilmemiştir; grafik veya özet tablo desteğinin mutlaka
 
 ## Açık kararlar
 
-A-10: ihtiyaç ailelerinin önceliği, dosya biçimleri ve her özellik için destek türü. Gerçek uzman senaryoları seçilmeden tüm aileler için uygulama taahhüdü verilmez.
+A-10 priority and family selection were approved on 2026-10-27: all eight families, in the order recorded above. The plan defines bounded `.xlsx` support profiles; the [capability matrix and acceptance status](implementation-status.md) separate reading, authoring, preservation and refresh. Macro preservation, editing and execution are separate capabilities, never implied by family inclusion.

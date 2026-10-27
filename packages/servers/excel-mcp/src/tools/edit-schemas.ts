@@ -7,6 +7,7 @@ import {
 import {
   workbookVersionIdSchema,
   workbookVersionSchema,
+  mutationReceiptSchema,
 } from "../platform/versions.js";
 import { authoringLimits } from "../authoring/workbook.js";
 
@@ -44,6 +45,7 @@ const common = {
   cellsRequested: z.int().nonnegative(),
   features: editFeaturesSchema,
   recalculated: z.literal(false),
+  effects: mutationReceiptSchema.shape.editing,
 };
 
 export const editPreparationSchema = z.discriminatedUnion("kind", [

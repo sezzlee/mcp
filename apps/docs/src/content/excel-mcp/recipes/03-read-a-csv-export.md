@@ -89,7 +89,7 @@ broken characters. A file saved by Turkish Excel:
 ```sh
 printf 'Şehir;Adet\nİstanbul;3\nİzmir;5\n' | iconv -f UTF-8 -t WINDOWS-1254 \
   > ~/sezzlee-sheets/cities.csv
-excel read_sheet --tool-arg filePath=cities.csv
+excel read_sheet --tool-arg filePath=cities.csv || test "$?" -eq 5
 ```
 
 ```text
@@ -123,7 +123,7 @@ server refuses such a file and names the line instead of guessing where the fiel
 ```sh
 printf 'Order,Note\n1001,"Leave at the door"\n1002,Ring "twice"\n' \
   > ~/sezzlee-sheets/notes.csv
-excel read_sheet --tool-arg filePath=notes.csv
+excel read_sheet --tool-arg filePath=notes.csv || test "$?" -eq 5
 ```
 
 ```text
@@ -165,7 +165,7 @@ A CSV has no formulas, merged cells, tables, validation rules, formatting or pic
 one fails instead of returning an empty list:
 
 ```sh
-excel get_tables --tool-arg filePath=orders.csv
+excel get_tables --tool-arg filePath=orders.csv || test "$?" -eq 5
 ```
 
 ```text

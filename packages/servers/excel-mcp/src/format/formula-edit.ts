@@ -5,6 +5,7 @@ import {
   columnToLetters,
 } from "../grid/range.js";
 import { SezzleeExcelError } from "../platform/errors.js";
+import { structuredReferenceAt } from "./structured-reference.js";
 
 export interface FormulaReference {
   readonly sheet: string | undefined;
@@ -22,7 +23,7 @@ export type ReferenceMapper = (
 function unsupported(): never {
   throw new SezzleeExcelError(
     "invalid_argument",
-    "This operation affects an unsupported formula reference (external, structured, 3D, spill or array syntax).",
+    "This operation affects an unsupported formula reference (external, 3D, spill or array syntax).",
   );
 }
 
@@ -65,6 +66,18 @@ export function transformFormula(
       inherited = undefined;
       continue;
     }
+    const previousCharacter = text[at - 1];
+    const structured =
+      previousCharacter !== undefined &&
+      /[\p{L}\p{N}_.\\]/u.test(previousCharacter)
+        ? undefined
+        : structuredReferenceAt(text, at);
+    if (structured !== undefined) {
+      out += structured.raw;
+      at = structured.end;
+      inherited = undefined;
+      continue;
+    }
     if (
       ch === "[" ||
       ch === "]" ||
@@ -101,7 +114,8 @@ export function transformFormula(
       qualifier === null
         ? inherited
         : (qualifier[1]?.replace(/''/g, "'") ?? qualifier[2]);
-    if (sheet?.includes(":")) unsupported();
+    if (sheet?.includes(":") || sheet?.includes("[") || sheet?.includes("]"))
+      unsupported();
     const coordinate = /^(\$?)([A-Za-z]{1,3})(\$?)([1-9][0-9]*)/.exec(
       rest.slice(prefix.length),
     );

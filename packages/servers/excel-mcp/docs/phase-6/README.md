@@ -1,6 +1,6 @@
 # Faz 6: sunucuda formül hesaplama
 
-Durum: kullanıcı kararıyla ayrı geliştirme fazı. Formül yazma Faz 5'tedir; [ana planda](../README.md) K1-06 ile kayıtlıdır.
+Durum: uygulama ve kabul tamamlandı. [Uygulama durumu](implementation-status.md) ile [kabul kaydı](acceptance-record.json), yerel/corpus, bağımsız uygulama, Qwen, native ve paket kurulum sonuçlarını içerir. [Uygulama planı](implementation-plan.md), önceki fazlardan devreden yükümlülükleri kaydeder. Formül yazma Faz 5'tedir; [ana planda](../README.md) K1-06 ile kayıtlıdır. Faz 6 mevcut Faz 4–5 PR'ına eklendi; Faz 7 sonraya bırakılmıştır.
 
 ## Hedef
 
@@ -18,7 +18,7 @@ Excel kurulmadan, açıkça seçilmiş bir formül kapsamının sonuçlarını h
 | F6-06  | Kullanıcıya gösterilen hesaplanmış sonuç ile çıktıda saklanan hesaplama durumunu ayırt etmek.           |
 | F6-07  | Sonuçları gerçek Excel'den alınmış veya başka bağımsız kaynaktan doğrulanmış örneklerle karşılaştırmak. |
 
-Başlangıç adayları aritmetik, temel toplam/sayma, koşullu işlemler ve basit aramalardır. Bu liste henüz onaylanmış işlev kapsamı değildir; yüzlerce işlevi ilk teslimde destekleme taahhüdü yoktur.
+Bu teslim, açık destek listesi olan aritmetik/karşılaştırma, toplam/sayma, koşullu işlemler, yuvarlama ve temel tam eşleşmeli aramalar içerir. İşlevler, değer anlamları, adlandırılmış/tablo başvuruları, limitler ve kapsam dışı durumlar [paket sözleşmesinde](../../README.md#explicit-formula-calculation) kayıtlıdır; yüzlerce işlevi destekleme taahhüdü yoktur.
 
 ## Kodlama iş paketleri
 
@@ -48,6 +48,6 @@ Başlangıç adayları aritmetik, temel toplam/sayma, koşullu işlemler ve basi
 - Limit aşımı önceki dosya sürümünü bozmaz.
 - Hesaplanmış değerlerin dosyada saklanması kapsama alınırsa yeniden açılışta da beklenen sonuçlar doğrulanır.
 
-## Açık kararlar
+## Kararlar
 
-A-12: işlev listesi, doğruluk/tolerans, tarih ve hata davranışı, bağımlılık, değişken işlevler ve sonuç saklama kapsamı. Kullanıcının ayrı faz kararı kesindir; motor ve destek ayrıntıları bu fazın uygulamasında seçilir.
+A-12: kullanıcı, sonuçların hem araç yanıtında gösterilmesini hem yeni `.xlsx` sürümüne kaydedilmesini onayladı. Paket içindeki `bounded-excel-v1` motoru, 21 işlevlik açık kapsam, 1900/1904 sayısal tarih sistemi, ayrı hata/hesaplanamama durumları ve sınırlı bağımlılık değerlendirmesi kullanır. Değişken işlevler ve kapsam dışı bağımlılıklar için değer uydurulmaz. Bağımsız doğrulama ve kabul sınırları uygulama planı ile durum kaydındadır.

@@ -90,13 +90,32 @@ def verify(file, expected=None):
                         wanted = (original_row - 1) * expected["columns"] + original_column - 1
                         if operation == "write" and address == "A1":
                             wanted = -1
-                        assert formula is None and value is not None and value.text is not None
-                        assert int(value.text) == wanted, (name, address, value.text, wanted)
+                        if operation == "formula" and column == expected["columns"]:
+                            assert formula is not None and formula.text == f"A{row}+B{row}" and value is None, ("formula fill", address)
+                        elif operation == "table" and row == 1:
+                            assert cell.attrib.get("t") == "inlineStr" and cell.findtext("s:is/s:t", namespaces=NS) == f"Field{column}", ("table header", address)
+                        else:
+                            assert formula is None and value is not None and value.text is not None
+                            assert int(value.text) == wanted, (name, address, value.text, wanted)
+                        if operation == "format":
+                            style = styles[int(cell.attrib.get("s", "0"))]
+                            assert style >= 164, ("missing authored number format", address)
                     evidence["cells"] += 1
                     cell.clear()
         if expected and expected.get("dataset") == "sequence":
             assert evidence["cells"] == expected["rows"] * expected["columns"]
             assert package.read("customXml/retained.xml") == b'<retained xmlns="urn:edit-bench">Keep these exact bytes.</retained>'
+            if expected["operation"] == "format":
+                style_xml = ET.fromstring(package.read("xl/styles.xml"))
+                assert any(n.attrib["formatCode"] == "0.00" for n in style_xml.findall("s:numFmts/s:numFmt", NS))
+                assert any(n.find("s:b", NS) is not None for n in style_xml.findall("s:fonts/s:font", NS))
+                assert len(style_xml.findall("s:cellXfs/s:xf", NS)) == 2, "equivalent range styles should be shared"
+            if expected["operation"] == "table":
+                tables = [ET.fromstring(package.read(n)) for n in names if n.startswith("xl/tables/") and n.endswith(".xml")]
+                assert len(tables) == 1 and tables[0].attrib["name"] == "SequenceData"
+                first, last = tables[0].attrib["ref"].split(":")
+                assert coordinate(first) == (1, 1) and coordinate(last) == (expected["rows"], expected["columns"])
+                assert len(tables[0].findall("s:tableColumns/s:tableColumn", NS)) == expected["columns"]
     return evidence
 
 
@@ -105,7 +124,8 @@ def main(directory):
     report = json.loads((root / "edit-results.json").read_text())
     assert sha(root / "source.xlsx") == report["source"]["versionId"]
     expected = {key: report[key] for key in ("rows", "columns", "operation", "at", "dataset")}
-    expected["recalculationRequired"] = True
+    expected["recalculationRequired"] = report["operation"] != "format"
+    assert report["edit"]["editing"]["recalculationRequired"] == expected["recalculationRequired"]
     output = root / report["edit"]["version"]["filePath"]
     assert sha(output) == report["edit"]["version"]["versionId"]
     evidence = verify(output, expected)

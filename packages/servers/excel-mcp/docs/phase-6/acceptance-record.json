@@ -1,0 +1,114 @@
+{
+  "phase": 6,
+  "date": "2026-10-27",
+  "status": "accepted",
+  "pullRequest": "https://github.com/sezzlee/mcp/pull/73",
+  "runtimeRevision": "3d38e09e67afc00cb0749e16c87844cf4ef06e7c",
+  "validationRevision": "2f723da248a4e179870f49942e0b04664910984d",
+  "runtime": {
+    "engine": "bounded-excel-v1",
+    "modules": 120,
+    "sha256": "4ef0b22f86f81adbb5b2b3bb5e7cd3970ba17fbfb3a96b8c7e2b09c65a5f7cef",
+    "hashAlgorithm": "SHA-256 over sorted dist .js relative paths, NUL, bytes, NUL",
+    "scriptedStartEndMatch": true,
+    "modelStartEndMatch": true,
+    "finalBuildMatches": true,
+    "newRuntimeDependencies": 0
+  },
+  "checks": {
+    "excel": { "files": 80, "passed": 6491, "failed": 0, "skipped": 0 },
+    "lab": { "files": 17, "passed": 136, "failed": 0, "skipped": 0 },
+    "calculationOwner": {
+      "passed": 17,
+      "knownAnswers": 64,
+      "libreOfficeAgreementCases": 56,
+      "documentedExcelSpecificCases": 8
+    },
+    "corpus": { "sameSourceAsPhase5": true, "licensedDataCommitted": false },
+    "buildTypesLint": "passed",
+    "formatting": "passed",
+    "boundaries": "passed",
+    "generatedReference": "passed_after_regeneration",
+    "tarballAudit": { "passed": 7 },
+    "cleanInstalledSmoke": {
+      "platform": "darwin-arm64",
+      "nodeMajor": 24,
+      "passed": true,
+      "includesCalculation": true
+    }
+  },
+  "scripted": { "languages": ["tr", "en"], "scenarios": 6, "passed": 6 },
+  "model": {
+    "provider": "ollama",
+    "name": "qwen3.8:latest",
+    "parentModel": "qwen3.8:27b-q4_K_M",
+    "digest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+    "hostVersion": "0.40.7",
+    "requestedWindow": 65536,
+    "temperature": 0,
+    "think": false,
+    "numPredict": 4096,
+    "turnBudget": 10,
+    "languages": ["tr", "en"],
+    "scenarios": 6,
+    "passed": 6,
+    "rawCleanFinals": 5,
+    "explicitProtocolTrailerNormalizations": 1,
+    "oneShotSuccessClaim": false,
+    "earlierRuns": [
+      {
+        "passed": 5,
+        "total": 6,
+        "failure": "Turkish partial-result task exhausted its call budget without a final answer"
+      },
+      {
+        "passed": 4,
+        "total": 6,
+        "failure": "Two correct Turkish JSON answers included Qwen protocol closing tags under the original strict parser"
+      }
+    ]
+  },
+  "outputs": {
+    "validatedPaths": 12,
+    "uniqueContents": 3,
+    "openXmlSdkErrors": 0,
+    "sha256": [
+      "3cff32efe1e18031504281af36f5da472e84223afdb9d05200cda5d5858f994b",
+      "21f6feb75fb10b30e130d3a172187f8e8fa1f16bf9d8ea61c5afee38c23fe8bc",
+      "6ce92940699003590d0954ab62701d3f7494da97739a1bbc60816046b27db9d5"
+    ]
+  },
+  "ci": {
+    "run": "https://github.com/sezzlee/mcp/actions/runs/40467382979",
+    "pullRequestRun": "https://github.com/sezzlee/mcp/actions/runs/40466893964",
+    "full": true,
+    "revision": "2f723da248a4e179870f49942e0b04664910984d",
+    "status": "passed",
+    "jobs": 15,
+    "successfulJobs": 15,
+    "nativeLegs": 10,
+    "mergedPrebuildPackingAndCleanInstall": true,
+    "earlierFailure": {
+      "run": "https://github.com/sezzlee/mcp/actions/runs/40466454315",
+      "cause": "Generated Excel tool reference had not been regenerated",
+      "fixRevision": "2f723da248a4e179870f49942e0b04664910984d"
+    }
+  },
+  "limits": {
+    "functions": 21,
+    "sheets": 128,
+    "storedCells": 100000,
+    "formulaCells": 10000,
+    "definedNames": 10000,
+    "formulaChars": 8192,
+    "rangeCells": 100000,
+    "combinedDepth": 128,
+    "workSteps": 1000000,
+    "reportedCells": 20
+  },
+  "nativeExcelUiPerformed": false,
+  "phase7Included": false,
+  "merged": false,
+  "published": false,
+  "privateEvidenceCommitted": false
+}

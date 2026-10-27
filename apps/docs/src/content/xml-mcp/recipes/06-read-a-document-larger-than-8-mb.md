@@ -66,7 +66,7 @@ One call examines at most 50,000 records, so on a large file the answer has `com
 recovery points to what still works:
 
 ```sh
-xml find_in_document --tool-arg filePath=events.xml query="Request 42 "
+xml find_in_document --tool-arg filePath=events.xml query="Request 42 " || test "$?" -eq 5
 ```
 
 ```text

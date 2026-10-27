@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { presentationChangeSchema } from "./presentation.js";
 import {
   authoringLimits,
   sheetNameSchema,
@@ -18,6 +19,7 @@ export const copyModeSchema = z.enum([
 ]);
 export const editChangeSchema = z.discriminatedUnion("kind", [
   ...workbookChangeSchema.options,
+  ...presentationChangeSchema.options,
   z.strictObject({
     kind: z.literal("clear_contents"),
     sheetName: sheetNameSchema,

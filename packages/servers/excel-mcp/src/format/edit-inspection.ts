@@ -14,6 +14,11 @@ import {
 } from "../metadata/spreadsheetml/reader.js";
 import { namespaces, type XmlNode } from "../metadata/spreadsheetml/xml.js";
 import { unescapeXstring } from "../metadata/spreadsheetml/shared-strings.js";
+import {
+  unprotectionPrefix,
+  verifyProtection,
+} from "./protection-authoring.js";
+import { xmlNodes } from "./presentation-xml.js";
 
 const officeDocument = new Set([
   `${namespaces.officeRelationships}/officeDocument`,
@@ -69,6 +74,30 @@ function requestedCells(changes: readonly EditChange[]): number {
         total += (end.row - start.row + 1) * (end.column - start.column + 1);
         break;
       }
+      case "format_cells":
+      case "fill_formula":
+      case "merge_cells":
+      case "unmerge_cells":
+      case "create_table": {
+        const [first, last] = change.range.split(":");
+        const start = parseCellRef(first ?? ""),
+          end = parseCellRef(last ?? first ?? "");
+        if (end.row < start.row || end.column < start.column)
+          throw new SezzleeExcelError(
+            "invalid_range",
+            "The operation range ends before it starts.",
+          );
+        total += (end.row - start.row + 1) * (end.column - start.column + 1);
+        break;
+      }
+      case "write_formula":
+        parseCellRef(change.cell);
+        total += 1;
+        break;
+      case "set_rows":
+      case "set_columns":
+        total += change.last - change.first + 1;
+        break;
       default:
         break;
     }
@@ -214,7 +243,16 @@ export function inspectWorkbookEdit(
     );
   features.sheets = sheets.length;
   if (features.strict) block("strict_markup");
-  if (features.workbookProtected) block("protected_workbook");
+  if (features.workbookProtected) {
+    const unprotect = unprotectionPrefix(changes);
+    const node = xmlNodes(
+      opc.part(workbookPart) ?? "",
+      "workbookProtection",
+    )[0];
+    if (unprotect === undefined || node === undefined)
+      block("protected_workbook");
+    else verifyProtection(node.attributes, unprotect.password, true);
+  }
   for (const part of opc.parts) {
     if (part.path === "[Content_Types].xml") continue;
     const type = opc.contentTypes.contentTypeOf(part.path) ?? "";
@@ -303,9 +341,19 @@ export function inspectWorkbookEdit(
       },
     });
     if (!root) corrupt("A sheet part has an unexpected root element.");
-    if (protectedSheet) features.protectedSheets += 1;
+    if (protectedSheet) {
+      features.protectedSheets += 1;
+      const sheet = sheets.find((s) => s.part === part.path);
+      const unprotect =
+        sheet === undefined
+          ? undefined
+          : unprotectionPrefix(changes, sheet.name);
+      const node = xmlNodes(opc.part(part.path) ?? "", "sheetProtection")[0];
+      if (unprotect === undefined || node === undefined)
+        block("protected_sheet");
+      else verifyProtection(node.attributes, unprotect.password, false);
+    }
   }
-  if (features.protectedSheets > 0) block("protected_sheet");
   if (features.sheets > authoringLimits.maxSheets)
     throw new SezzleeExcelError(
       "resource_limit",

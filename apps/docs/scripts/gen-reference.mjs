@@ -17,6 +17,8 @@ const repo = path.resolve(here, "../../..");
 const contentDir = path.resolve(here, "../src/content");
 const notesDir = path.resolve(here, "../reference");
 const check = process.argv.includes("--check");
+const json = process.argv.includes("--json");
+const generated = [];
 
 const servers = [
   {
@@ -24,6 +26,7 @@ const servers = [
     pkg: "@sezzlee/excel-mcp",
     dir: "excel-mcp",
     root: true,
+    writing: true,
   },
   { product: "xml-mcp", pkg: "@sezzlee/xml-mcp", dir: "xml-mcp", root: true },
   { product: "pdf-mcp", pkg: "@sezzlee/pdf-mcp", dir: "pdf-mcp", root: true },
@@ -48,6 +51,10 @@ const problems = [];
 function interrogate(server, scratch, example) {
   const cli = path.join(repo, "packages/servers", server.dir, "dist/cli.js");
   const args = server.root ? [cli, scratch] : [cli];
+  if (server.writing) {
+    mkdirSync(path.join(scratch, "out"), { recursive: true });
+    args.push("--write", "out");
+  }
   const env = { ...process.env, ...server.env };
   if (server.workspace) {
     env.SEZZLEE_LLM_ROOT = scratch;
@@ -204,7 +211,7 @@ function hints(annotations = {}) {
 const provenance = (server, serverInfo, what) =>
   `> Generated from ${what} of \`${server.pkg}\` ${serverInfo.version}.`;
 
-function toolsPage(server, { serverInfo, tools }) {
+function toolsPage(server, { serverInfo, tools, readTools }) {
   const lines = [
     "# Tools",
     "",
@@ -223,6 +230,21 @@ function toolsPage(server, { serverInfo, tools }) {
     const facts = hints(tool.annotations);
     if (facts.length > 0) {
       lines.push("", `Annotations: ${facts.join(", ")}.`);
+    }
+    if (readTools !== undefined && !readTools.includes(tool.name)) {
+      lines.push(
+        "",
+        "Available only with `--write <relative-output-directory>`. The registered JSON Schema below is the exact wire contract; nested operation variants are validated by the server.",
+        "",
+        ":::details[Input JSON Schema]",
+        "",
+        "```json",
+        JSON.stringify(tool.inputSchema, null, 2),
+        "```",
+        "",
+        ":::",
+      );
+      continue;
     }
     const table = [];
     rows(tool.inputSchema, "", table, `${server.pkg} ${tool.name}`);
@@ -387,6 +409,11 @@ try {
       interrogate(server, scratch, notesOf(server.product).errors?.example),
     ),
   );
+  for (const [i, server] of published.entries())
+    if (server.writing) {
+      const read = await interrogate({ ...server, writing: false }, scratch);
+      answers[i].readTools = read.tools.map((tool) => tool.name);
+    }
   for (const [i, server] of published.entries()) {
     const notes = notesOf(server.product);
     const answer = answers[i];
@@ -415,7 +442,9 @@ try {
       });
       const current = existsSync(target) ? readFileSync(target, "utf8") : null;
       if (current === page) continue;
-      if (check) {
+      if (json) {
+        generated.push({ path: path.relative(repo, target), content: page });
+      } else if (check) {
         stale.push(path.relative(repo, target));
       } else {
         mkdirSync(path.dirname(target), { recursive: true });
@@ -440,3 +469,4 @@ if (stale.length > 0) {
   );
   process.exit(1);
 }
+if (json) process.stdout.write(JSON.stringify(generated) + "\n");

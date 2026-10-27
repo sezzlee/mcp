@@ -1,0 +1,968 @@
+{
+  "recordedAt": "2026-10-26T20:01:09.545Z",
+  "status": "acceptance-passed",
+  "baseRevision": "71066444b21c514d80e3e9188317d18c0d2ad17d",
+  "serverSourceSha256": "b3ff3254878e834674c1c19e29dddd7712d895bdcb3fd8818f18635c30f5761f",
+  "runtimeModules": 117,
+  "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+  "configuredCorpusTests": {
+    "files": 79,
+    "tests": 6474,
+    "skipped": 0
+  },
+  "labTests": {
+    "files": 15,
+    "tests": 123
+  },
+  "pythonControls": {
+    "authoring": 12,
+    "bulk": 11,
+    "corpusScanner": 8
+  },
+  "model": {
+    "provider": "ollama",
+    "model": "qwen3.8:latest",
+    "digest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+    "version": "0.40.7",
+    "details": {
+      "parent_model": "qwen3.8:27b-q4_K_M",
+      "format": "gguf",
+      "family": "qwen35",
+      "families": ["qwen35"],
+      "parameter_size": "27.3B",
+      "quantization_level": "Q4_K_M",
+      "context_length": 262144,
+      "embedding_length": 5120,
+      "runner": "ggml"
+    }
+  },
+  "modelCoverage": {
+    "required": 18,
+    "passed": 18,
+    "repetitions": {
+      "authoring_formula": 4,
+      "authoring_table": 3,
+      "report": 3
+    },
+    "trials": 92,
+    "categories": {
+      "superseded-runtime": 65,
+      "accepted-proof": 24,
+      "answer-rejected": 3
+    },
+    "note": "Coverage uses successful cases with immutable file checks and a final answer after the last tool call. It is not a one-shot pass rate. Failed, superseded and incomplete trials remain separate."
+  },
+  "cases": [
+    {
+      "profile": "editing",
+      "language": "tr",
+      "scenario": "authoring_format",
+      "status": "passed",
+      "calls": 3,
+      "generation": {
+        "window": 65536,
+        "temperature": 0,
+        "callBudget": 12,
+        "thinking": "product",
+        "requestedThink": "low",
+        "numPredict": 8192,
+        "authoringCallBudget": 24,
+        "authoringWindow": 98304,
+        "authoringNumPredict": 12288,
+        "authoringTimeoutMs": 360000
+      },
+      "implementationSha256": "7a20cf6bcd8c9a6e663890adaaee65b2265a33d83293909d4da3fedb51d5aa2a",
+      "runtimeEvidence": {
+        "kind": "exact-recorded-call-replay",
+        "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+        "replayReportSha256": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af",
+        "calls": 3
+      },
+      "harnessSha256": "58b1a194966e93c44b56a913421e5c1838484690971090a3a68cf173c13cc4c1",
+      "hostClientSha256": "c8293ee44c0951e96f0f4513b1348de002cec133f0f6b8a90f6cf3e1a657418b",
+      "answerClaimsSha256": "795e3d0611a2ae32c320d8504ea230245540f9465ac637b2096020a0358560c5",
+      "traceSha256": "d21cab83b9ed30d6bdd17f98225af54d16e8c9e75b72fe18e90f4bc09eb2b549",
+      "toolCatalogSha256": "08ebb0955491c7cf2bd5897b954b0fd28baefad2c5db6a1d9e730bea198d8d67",
+      "selectedOutputSha256": "d7ad7c348b84fdc886d473aac7c5879bdc281f20d9282eeefcc364a738df0e76",
+      "retainedVersions": 1
+    },
+    {
+      "profile": "editing",
+      "language": "tr",
+      "scenario": "authoring_formula",
+      "status": "passed",
+      "calls": 6,
+      "generation": {
+        "window": 65536,
+        "temperature": 0,
+        "callBudget": 12,
+        "thinking": "product",
+        "requestedThink": "low",
+        "numPredict": 8192,
+        "authoringCallBudget": 24,
+        "authoringNumPredict": 12288,
+        "authoringTimeoutMs": 360000
+      },
+      "implementationSha256": "7a20cf6bcd8c9a6e663890adaaee65b2265a33d83293909d4da3fedb51d5aa2a",
+      "runtimeEvidence": {
+        "kind": "exact-recorded-call-replay",
+        "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+        "replayReportSha256": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af",
+        "calls": 6
+      },
+      "harnessSha256": "df889922fa6b6f6288949b3a60a48363abd5184a18063d54df73ccd533b3f8a1",
+      "hostClientSha256": "c8293ee44c0951e96f0f4513b1348de002cec133f0f6b8a90f6cf3e1a657418b",
+      "answerClaimsSha256": null,
+      "traceSha256": "2da760b72b3cadff1033be977b1814443587ad7f0d8e045a0a7d9ef0cf6c65fb",
+      "toolCatalogSha256": "08ebb0955491c7cf2bd5897b954b0fd28baefad2c5db6a1d9e730bea198d8d67",
+      "selectedOutputSha256": "95d75c42c10525446a5c0f76d785d72327f6e7d96d4fa882f019df01f8320ac8",
+      "retainedVersions": 1
+    },
+    {
+      "profile": "editing",
+      "language": "tr",
+      "scenario": "authoring_table",
+      "status": "passed",
+      "calls": 8,
+      "generation": {
+        "window": 65536,
+        "temperature": 0,
+        "callBudget": 12,
+        "thinking": "product",
+        "requestedThink": "low",
+        "numPredict": 8192,
+        "authoringCallBudget": 24,
+        "authoringNumPredict": 12288,
+        "authoringTimeoutMs": 360000
+      },
+      "implementationSha256": "7a20cf6bcd8c9a6e663890adaaee65b2265a33d83293909d4da3fedb51d5aa2a",
+      "runtimeEvidence": {
+        "kind": "exact-recorded-call-replay",
+        "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+        "replayReportSha256": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af",
+        "calls": 8
+      },
+      "harnessSha256": "df889922fa6b6f6288949b3a60a48363abd5184a18063d54df73ccd533b3f8a1",
+      "hostClientSha256": "c8293ee44c0951e96f0f4513b1348de002cec133f0f6b8a90f6cf3e1a657418b",
+      "answerClaimsSha256": null,
+      "traceSha256": "77d779199a166ecf44db48aa455e6250ee2dc1669526c69482302104319a47ac",
+      "toolCatalogSha256": "08ebb0955491c7cf2bd5897b954b0fd28baefad2c5db6a1d9e730bea198d8d67",
+      "selectedOutputSha256": "838aec2736034129dd6038c4927cb150b330fe8f8035a2aaf596f89eb9204402",
+      "retainedVersions": 1
+    },
+    {
+      "profile": "editing",
+      "language": "tr",
+      "scenario": "authoring_lifecycle",
+      "status": "passed",
+      "calls": 9,
+      "generation": {
+        "window": 65536,
+        "temperature": 0,
+        "callBudget": 12,
+        "thinking": "product",
+        "requestedThink": "low",
+        "finalRequestedThink": false,
+        "numPredict": 8192,
+        "authoringCallBudget": 24,
+        "authoringWindow": 98304,
+        "authoringNumPredict": 12288,
+        "authoringTimeoutMs": 360000
+      },
+      "implementationSha256": "7a20cf6bcd8c9a6e663890adaaee65b2265a33d83293909d4da3fedb51d5aa2a",
+      "runtimeEvidence": {
+        "kind": "exact-recorded-call-replay",
+        "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+        "replayReportSha256": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af",
+        "calls": 9
+      },
+      "harnessSha256": "33bb70a8c80da8235e821ee5da6f6619502e87dfd5662db3b46965e8e68b0e4b",
+      "hostClientSha256": "c8293ee44c0951e96f0f4513b1348de002cec133f0f6b8a90f6cf3e1a657418b",
+      "answerClaimsSha256": "795e3d0611a2ae32c320d8504ea230245540f9465ac637b2096020a0358560c5",
+      "traceSha256": "b193c9981d36e1a818a57613bc2ced84b5b7aff21369c0ad1b716fbb7a2c5f21",
+      "toolCatalogSha256": "08ebb0955491c7cf2bd5897b954b0fd28baefad2c5db6a1d9e730bea198d8d67",
+      "selectedOutputSha256": "fc116994316c3f5d7ca263140742b59481e2a910c8654842b008debb6369827d",
+      "retainedVersions": 1
+    },
+    {
+      "profile": "editing",
+      "language": "tr",
+      "scenario": "authoring_continuation",
+      "status": "passed",
+      "calls": 10,
+      "generation": {
+        "window": 65536,
+        "temperature": 0,
+        "callBudget": 12,
+        "thinking": "product",
+        "thinkingEnabled": false,
+        "numPredict": 8192,
+        "authoringCallBudget": 24,
+        "authoringNumPredict": 12288,
+        "authoringTimeoutMs": 360000
+      },
+      "implementationSha256": "7a20cf6bcd8c9a6e663890adaaee65b2265a33d83293909d4da3fedb51d5aa2a",
+      "runtimeEvidence": {
+        "kind": "exact-recorded-call-replay",
+        "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+        "replayReportSha256": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af",
+        "calls": 10
+      },
+      "harnessSha256": "d85f52f60ffa9ebd8b7da34887227304a1966b3bc8b933a40a44dccc74f59dd8",
+      "answerClaimsSha256": null,
+      "traceSha256": "ebb08798bc6dc56c6bfe710c5c2e9a6c6e28d3467dd09aa60cfe1be6e3117c7f",
+      "toolCatalogSha256": "08ebb0955491c7cf2bd5897b954b0fd28baefad2c5db6a1d9e730bea198d8d67",
+      "selectedOutputSha256": "bc81938214b54d99be02f2c9c8a8de32738dd93728beca4444c37fdd08cf7041",
+      "retainedVersions": 3
+    },
+    {
+      "profile": "editing",
+      "language": "tr",
+      "scenario": "authoring_merge",
+      "status": "passed",
+      "calls": 4,
+      "generation": {
+        "window": 65536,
+        "temperature": 0,
+        "callBudget": 12,
+        "thinking": "product",
+        "requestedThink": "low",
+        "numPredict": 8192,
+        "authoringCallBudget": 24,
+        "authoringWindow": 98304,
+        "authoringNumPredict": 12288,
+        "authoringTimeoutMs": 360000
+      },
+      "implementationSha256": "7a20cf6bcd8c9a6e663890adaaee65b2265a33d83293909d4da3fedb51d5aa2a",
+      "runtimeEvidence": {
+        "kind": "exact-recorded-call-replay",
+        "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+        "replayReportSha256": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af",
+        "calls": 4
+      },
+      "harnessSha256": "58b1a194966e93c44b56a913421e5c1838484690971090a3a68cf173c13cc4c1",
+      "hostClientSha256": "c8293ee44c0951e96f0f4513b1348de002cec133f0f6b8a90f6cf3e1a657418b",
+      "answerClaimsSha256": "795e3d0611a2ae32c320d8504ea230245540f9465ac637b2096020a0358560c5",
+      "traceSha256": "271ea5b1a5e52e045f2d6301fe9c1ca55fa2ca229c902a8f68dd2fc769b0a4ad",
+      "toolCatalogSha256": "08ebb0955491c7cf2bd5897b954b0fd28baefad2c5db6a1d9e730bea198d8d67",
+      "selectedOutputSha256": "a924190cefe063c1676541f9b34f59775b5cd597da295250c2ceb2880e902a84",
+      "retainedVersions": 1
+    },
+    {
+      "profile": "editing",
+      "language": "tr",
+      "scenario": "authoring_unsupported",
+      "status": "passed",
+      "calls": 2,
+      "generation": {
+        "window": 65536,
+        "temperature": 0,
+        "callBudget": 12,
+        "thinking": "product",
+        "thinkingEnabled": false,
+        "numPredict": 8192,
+        "authoringCallBudget": 24,
+        "authoringNumPredict": 12288,
+        "authoringTimeoutMs": 360000
+      },
+      "implementationSha256": "7a20cf6bcd8c9a6e663890adaaee65b2265a33d83293909d4da3fedb51d5aa2a",
+      "runtimeEvidence": {
+        "kind": "exact-recorded-call-replay",
+        "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+        "replayReportSha256": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af",
+        "calls": 2
+      },
+      "harnessSha256": "d85f52f60ffa9ebd8b7da34887227304a1966b3bc8b933a40a44dccc74f59dd8",
+      "answerClaimsSha256": null,
+      "traceSha256": "87dd1695185160d051a9f494249c3c3699c8f32e89bed2ddbe9240894fe35a1c",
+      "toolCatalogSha256": "08ebb0955491c7cf2bd5897b954b0fd28baefad2c5db6a1d9e730bea198d8d67",
+      "selectedOutputSha256": null,
+      "retainedVersions": 0
+    },
+    {
+      "profile": "bulk",
+      "language": "tr",
+      "scenario": "report",
+      "status": "passed",
+      "calls": 6,
+      "generation": {
+        "requestedThink": "low",
+        "window": 65536,
+        "temperature": 0,
+        "numPredict": 12288,
+        "timeoutMs": 360000,
+        "callBudget": 16,
+        "incompleteReplyReminders": 2
+      },
+      "implementationSha256": "cb20c6d8099513bb00691e2c006c54d4bb1404136c39338e46ac576043069283",
+      "runtimeEvidence": {
+        "kind": "direct-model-execution"
+      },
+      "harnessSha256": "9ca113eea1ee23f8ea3c771303ad44f760641e883f80a77752cca52ec4a995c5",
+      "hostClientSha256": "c8293ee44c0951e96f0f4513b1348de002cec133f0f6b8a90f6cf3e1a657418b",
+      "answerClaimsSha256": "795e3d0611a2ae32c320d8504ea230245540f9465ac637b2096020a0358560c5",
+      "traceSha256": "e270a847c8e352be3ff897be6f4e309b499de70196d74dc5966fc9ed28b36301",
+      "toolCatalogSha256": "646ddb6f95e45e7290e8227a5d63331341ea04e83a032dc352b68eb6a159c4f5",
+      "selectedOutputSha256": "34c7a66808bd41c3fbaa88ddf4a66ba67cbb29230710c77f74bd0177d9682c63",
+      "retainedVersions": 0
+    },
+    {
+      "profile": "bulk",
+      "language": "tr",
+      "scenario": "independent_report",
+      "status": "passed",
+      "calls": 4,
+      "generation": {
+        "requestedThink": "low",
+        "window": 65536,
+        "temperature": 0,
+        "numPredict": 12288,
+        "timeoutMs": 360000,
+        "callBudget": 16,
+        "incompleteReplyReminders": 2
+      },
+      "implementationSha256": "cb20c6d8099513bb00691e2c006c54d4bb1404136c39338e46ac576043069283",
+      "runtimeEvidence": {
+        "kind": "direct-model-execution"
+      },
+      "harnessSha256": "9ca113eea1ee23f8ea3c771303ad44f760641e883f80a77752cca52ec4a995c5",
+      "hostClientSha256": "c8293ee44c0951e96f0f4513b1348de002cec133f0f6b8a90f6cf3e1a657418b",
+      "answerClaimsSha256": "795e3d0611a2ae32c320d8504ea230245540f9465ac637b2096020a0358560c5",
+      "traceSha256": "1cd5fab82782c92bb600c90d03af404b103c47410ac0306fc7295a20c16edb7c",
+      "toolCatalogSha256": "646ddb6f95e45e7290e8227a5d63331341ea04e83a032dc352b68eb6a159c4f5",
+      "selectedOutputSha256": "1b6139fa8f8b51038410a194c6e21678bc2c1951a4df2932df911d8679d656bd",
+      "retainedVersions": 0
+    },
+    {
+      "profile": "editing",
+      "language": "en",
+      "scenario": "authoring_format",
+      "status": "passed",
+      "calls": 3,
+      "generation": {
+        "window": 65536,
+        "temperature": 0,
+        "callBudget": 12,
+        "thinking": "product",
+        "requestedThink": "low",
+        "numPredict": 8192,
+        "authoringCallBudget": 24,
+        "authoringWindow": 98304,
+        "authoringNumPredict": 12288,
+        "authoringTimeoutMs": 360000
+      },
+      "implementationSha256": "7a20cf6bcd8c9a6e663890adaaee65b2265a33d83293909d4da3fedb51d5aa2a",
+      "runtimeEvidence": {
+        "kind": "exact-recorded-call-replay",
+        "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+        "replayReportSha256": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af",
+        "calls": 3
+      },
+      "harnessSha256": "687e5f1de55860f183010dc6109d52f77601c192094a58eca84b93f798698bb4",
+      "hostClientSha256": "c8293ee44c0951e96f0f4513b1348de002cec133f0f6b8a90f6cf3e1a657418b",
+      "answerClaimsSha256": null,
+      "traceSha256": "d2c018f88ba0d0188886de2f42b6b264b91427e64aef78e44d0c9b94823cbb69",
+      "toolCatalogSha256": "08ebb0955491c7cf2bd5897b954b0fd28baefad2c5db6a1d9e730bea198d8d67",
+      "selectedOutputSha256": "14f25be1273e8c6bc78c627dbfbb87c7bdaede5de71bb2fe37c41a6ac540f61a",
+      "retainedVersions": 1
+    },
+    {
+      "profile": "editing",
+      "language": "en",
+      "scenario": "authoring_formula",
+      "status": "passed",
+      "calls": 6,
+      "generation": {
+        "window": 65536,
+        "temperature": 0,
+        "callBudget": 12,
+        "thinking": "product",
+        "numPredict": 8192,
+        "authoringCallBudget": 24,
+        "authoringNumPredict": 12288,
+        "authoringTimeoutMs": 360000
+      },
+      "implementationSha256": "7a20cf6bcd8c9a6e663890adaaee65b2265a33d83293909d4da3fedb51d5aa2a",
+      "runtimeEvidence": {
+        "kind": "exact-recorded-call-replay",
+        "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+        "replayReportSha256": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af",
+        "calls": 6
+      },
+      "harnessSha256": "a8d931fe57243b5ec3bb7b2859487e4f0137c63f0c85f39cbb0f17ba7209c745",
+      "answerClaimsSha256": null,
+      "traceSha256": "d59bf0e302a16db874b9e41ba8976dc7a3fc969fe8b8b2c8d0c85b755c6e44af",
+      "toolCatalogSha256": "08ebb0955491c7cf2bd5897b954b0fd28baefad2c5db6a1d9e730bea198d8d67",
+      "selectedOutputSha256": "95d75c42c10525446a5c0f76d785d72327f6e7d96d4fa882f019df01f8320ac8",
+      "retainedVersions": 1
+    },
+    {
+      "profile": "editing",
+      "language": "en",
+      "scenario": "authoring_table",
+      "status": "passed",
+      "calls": 15,
+      "generation": {
+        "window": 65536,
+        "temperature": 0,
+        "callBudget": 12,
+        "thinking": "product",
+        "numPredict": 8192,
+        "authoringCallBudget": 24,
+        "authoringNumPredict": 12288,
+        "authoringTimeoutMs": 360000
+      },
+      "implementationSha256": "7a20cf6bcd8c9a6e663890adaaee65b2265a33d83293909d4da3fedb51d5aa2a",
+      "runtimeEvidence": {
+        "kind": "exact-recorded-call-replay",
+        "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+        "replayReportSha256": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af",
+        "calls": 15
+      },
+      "harnessSha256": "a8d931fe57243b5ec3bb7b2859487e4f0137c63f0c85f39cbb0f17ba7209c745",
+      "answerClaimsSha256": null,
+      "traceSha256": "65099585b46b67a09a78b1018629d7d6806e2ae6432059aa70a31d06f7765f6e",
+      "toolCatalogSha256": "08ebb0955491c7cf2bd5897b954b0fd28baefad2c5db6a1d9e730bea198d8d67",
+      "selectedOutputSha256": "838aec2736034129dd6038c4927cb150b330fe8f8035a2aaf596f89eb9204402",
+      "retainedVersions": 3
+    },
+    {
+      "profile": "editing",
+      "language": "en",
+      "scenario": "authoring_lifecycle",
+      "status": "passed",
+      "calls": 16,
+      "generation": {
+        "window": 65536,
+        "temperature": 0,
+        "callBudget": 12,
+        "thinking": "product",
+        "numPredict": 8192,
+        "authoringCallBudget": 24,
+        "authoringNumPredict": 12288,
+        "authoringTimeoutMs": 360000
+      },
+      "implementationSha256": "7a20cf6bcd8c9a6e663890adaaee65b2265a33d83293909d4da3fedb51d5aa2a",
+      "runtimeEvidence": {
+        "kind": "exact-recorded-call-replay",
+        "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+        "replayReportSha256": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af",
+        "calls": 16
+      },
+      "harnessSha256": "a8d931fe57243b5ec3bb7b2859487e4f0137c63f0c85f39cbb0f17ba7209c745",
+      "answerClaimsSha256": null,
+      "traceSha256": "c3ef346efa6e1d8f5b165285c0139a67f953c97187d54b36cb2c2cf594086dcf",
+      "toolCatalogSha256": "08ebb0955491c7cf2bd5897b954b0fd28baefad2c5db6a1d9e730bea198d8d67",
+      "selectedOutputSha256": "fc116994316c3f5d7ca263140742b59481e2a910c8654842b008debb6369827d",
+      "retainedVersions": 4
+    },
+    {
+      "profile": "editing",
+      "language": "en",
+      "scenario": "authoring_continuation",
+      "status": "passed",
+      "calls": 6,
+      "generation": {
+        "window": 65536,
+        "temperature": 0,
+        "callBudget": 12,
+        "thinking": "product",
+        "requestedThink": "low",
+        "numPredict": 8192,
+        "authoringCallBudget": 24,
+        "authoringNumPredict": 12288,
+        "authoringTimeoutMs": 360000
+      },
+      "implementationSha256": "7a20cf6bcd8c9a6e663890adaaee65b2265a33d83293909d4da3fedb51d5aa2a",
+      "runtimeEvidence": {
+        "kind": "exact-recorded-call-replay",
+        "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+        "replayReportSha256": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af",
+        "calls": 6
+      },
+      "harnessSha256": "df889922fa6b6f6288949b3a60a48363abd5184a18063d54df73ccd533b3f8a1",
+      "hostClientSha256": "c8293ee44c0951e96f0f4513b1348de002cec133f0f6b8a90f6cf3e1a657418b",
+      "answerClaimsSha256": null,
+      "traceSha256": "b7a650ee73b0b1d00ba7816ba495be97ed2929ad03d213a22e4edf9fd6fe63f9",
+      "toolCatalogSha256": "08ebb0955491c7cf2bd5897b954b0fd28baefad2c5db6a1d9e730bea198d8d67",
+      "selectedOutputSha256": "bc81938214b54d99be02f2c9c8a8de32738dd93728beca4444c37fdd08cf7041",
+      "retainedVersions": 3
+    },
+    {
+      "profile": "editing",
+      "language": "en",
+      "scenario": "authoring_merge",
+      "status": "passed",
+      "calls": 9,
+      "generation": {
+        "window": 65536,
+        "temperature": 0,
+        "callBudget": 12,
+        "thinking": "product",
+        "requestedThink": "low",
+        "numPredict": 8192,
+        "authoringCallBudget": 24,
+        "authoringWindow": 98304,
+        "authoringNumPredict": 12288,
+        "authoringTimeoutMs": 360000
+      },
+      "implementationSha256": "7a20cf6bcd8c9a6e663890adaaee65b2265a33d83293909d4da3fedb51d5aa2a",
+      "runtimeEvidence": {
+        "kind": "exact-recorded-call-replay",
+        "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+        "replayReportSha256": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af",
+        "calls": 9
+      },
+      "harnessSha256": "687e5f1de55860f183010dc6109d52f77601c192094a58eca84b93f798698bb4",
+      "hostClientSha256": "c8293ee44c0951e96f0f4513b1348de002cec133f0f6b8a90f6cf3e1a657418b",
+      "answerClaimsSha256": null,
+      "traceSha256": "b11762baf7287110b1c79be0ec516fc7c1b2d78cd01a1f7dbc790c91b69286b4",
+      "toolCatalogSha256": "08ebb0955491c7cf2bd5897b954b0fd28baefad2c5db6a1d9e730bea198d8d67",
+      "selectedOutputSha256": "a924190cefe063c1676541f9b34f59775b5cd597da295250c2ceb2880e902a84",
+      "retainedVersions": 2
+    },
+    {
+      "profile": "editing",
+      "language": "en",
+      "scenario": "authoring_unsupported",
+      "status": "passed",
+      "calls": 1,
+      "generation": {
+        "window": 65536,
+        "temperature": 0,
+        "callBudget": 12,
+        "thinking": "product",
+        "numPredict": 8192,
+        "authoringCallBudget": 24,
+        "authoringNumPredict": 12288,
+        "authoringTimeoutMs": 360000
+      },
+      "implementationSha256": "7a20cf6bcd8c9a6e663890adaaee65b2265a33d83293909d4da3fedb51d5aa2a",
+      "runtimeEvidence": {
+        "kind": "exact-recorded-call-replay",
+        "runtimeManifestSha256": "edf572fb0ee56d43d9dff501040d577c49083a31e822d880a23426f94a79695d",
+        "replayReportSha256": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af",
+        "calls": 1
+      },
+      "harnessSha256": "a8d931fe57243b5ec3bb7b2859487e4f0137c63f0c85f39cbb0f17ba7209c745",
+      "answerClaimsSha256": null,
+      "traceSha256": "70d1344b3230cd3a9002ebcd84eb2b152ce90d3b79badd3819e83fe2a5b05ca6",
+      "toolCatalogSha256": "08ebb0955491c7cf2bd5897b954b0fd28baefad2c5db6a1d9e730bea198d8d67",
+      "selectedOutputSha256": null,
+      "retainedVersions": 0
+    },
+    {
+      "profile": "bulk",
+      "language": "en",
+      "scenario": "report",
+      "status": "passed",
+      "calls": 1,
+      "generation": {
+        "requestedThink": "low",
+        "window": 65536,
+        "temperature": 0,
+        "numPredict": 12288,
+        "timeoutMs": 360000,
+        "callBudget": 16,
+        "incompleteReplyReminders": 2
+      },
+      "implementationSha256": "cb20c6d8099513bb00691e2c006c54d4bb1404136c39338e46ac576043069283",
+      "runtimeEvidence": {
+        "kind": "direct-model-execution"
+      },
+      "harnessSha256": "9ca113eea1ee23f8ea3c771303ad44f760641e883f80a77752cca52ec4a995c5",
+      "hostClientSha256": "c8293ee44c0951e96f0f4513b1348de002cec133f0f6b8a90f6cf3e1a657418b",
+      "answerClaimsSha256": "795e3d0611a2ae32c320d8504ea230245540f9465ac637b2096020a0358560c5",
+      "traceSha256": "8ff49ff4a1c7f199e75ce88ef0726a7e5d69fa18606e003b9ea10e86aaa6e246",
+      "toolCatalogSha256": "646ddb6f95e45e7290e8227a5d63331341ea04e83a032dc352b68eb6a159c4f5",
+      "selectedOutputSha256": "34c7a66808bd41c3fbaa88ddf4a66ba67cbb29230710c77f74bd0177d9682c63",
+      "retainedVersions": 0
+    },
+    {
+      "profile": "bulk",
+      "language": "en",
+      "scenario": "independent_report",
+      "status": "passed",
+      "calls": 1,
+      "generation": {
+        "requestedThink": "low",
+        "window": 65536,
+        "temperature": 0,
+        "numPredict": 12288,
+        "timeoutMs": 360000,
+        "callBudget": 16,
+        "incompleteReplyReminders": 2
+      },
+      "implementationSha256": "cb20c6d8099513bb00691e2c006c54d4bb1404136c39338e46ac576043069283",
+      "runtimeEvidence": {
+        "kind": "direct-model-execution"
+      },
+      "harnessSha256": "9ca113eea1ee23f8ea3c771303ad44f760641e883f80a77752cca52ec4a995c5",
+      "hostClientSha256": "c8293ee44c0951e96f0f4513b1348de002cec133f0f6b8a90f6cf3e1a657418b",
+      "answerClaimsSha256": "795e3d0611a2ae32c320d8504ea230245540f9465ac637b2096020a0358560c5",
+      "traceSha256": "fdc3372021e05c56ebc7f3df4284da0e8e27abeb82ea43b589aeb9693474a48e",
+      "toolCatalogSha256": "646ddb6f95e45e7290e8227a5d63331341ea04e83a032dc352b68eb6a159c4f5",
+      "selectedOutputSha256": "34c7a66808bd41c3fbaa88ddf4a66ba67cbb29230710c77f74bd0177d9682c63",
+      "retainedVersions": 0
+    }
+  ],
+  "answerReviewExclusions": [
+    {
+      "traceSha256": "43a509b64033c4a9f634e07c552a944055e5bf550503c4061104d8ecff5c368d",
+      "status": "rejected",
+      "reason": "The workbook and no-server-calculation disclosure pass, but the final answer predicts 119 for 99 + 20 + 99. The independent expected sum is 218. This raw harness pass cannot count as an answer acceptance pass."
+    },
+    {
+      "traceSha256": "f36ce3a7953db1e2cda836da12a9ae1f172b48c4dc1c755a12e7b9950d6fb6bc",
+      "status": "rejected",
+      "reason": "The final workbook passes, but the final-state explanation quotes F1 as SUM(SalesData[Amount]) after the table has been converted and the formula has been rebound to an ordinary range. The explanation misstates the final formula. A later independently verified trial correctly distinguishes the original and converted formulas."
+    },
+    {
+      "traceSha256": "98e3f43d48b9036df49c6d5c0fcb431f696f2ccecd12e1143f66c45c3058f6c3",
+      "status": "rejected",
+      "reason": "The final answer predicts 219 for 99 + 20 + 99, whose independent expected sum is 218. File correctness and pending-calculation disclosure do not excuse the incorrect numerical claim."
+    }
+  ],
+  "applications": {
+    "openXmlSdk": {
+      "version": "2.16.0",
+      "outputs": 16,
+      "errors": 0
+    },
+    "libreOffice": {
+      "version": "LibreOfficeDev 26.8.0.0.alpha0 2c87e51eeaa2b413ff4ae097b2705eea1995d8e5",
+      "authoringOutputs": 12,
+      "bulkOutputs": 4,
+      "scalarChecks": 44
+    },
+    "nativeMicrosoftExcelUi": "not_run"
+  },
+  "scale": [
+    {
+      "operation": "format",
+      "status": "passed",
+      "rows": 50000,
+      "columns": 20,
+      "heapMiB": 1536,
+      "maxRssKiB": 1180656,
+      "calls": [
+        {
+          "ms": 40304.561208,
+          "requestBytes": 248,
+          "receiptBytes": 639
+        },
+        {
+          "ms": 40896.857958,
+          "requestBytes": 248,
+          "receiptBytes": 639
+        }
+      ],
+      "outputSha256": "97c597c981d5566812d6c22ccb7da6e4373adcb4e04d32e8d59e091b9c1d67c2",
+      "retrySha256": "97c597c981d5566812d6c22ccb7da6e4373adcb4e04d32e8d59e091b9c1d67c2"
+    },
+    {
+      "operation": "formula",
+      "status": "passed",
+      "rows": 50000,
+      "columns": 20,
+      "heapMiB": 1536,
+      "maxRssKiB": 1033104,
+      "calls": [
+        {
+          "ms": 11276.179208000001,
+          "requestBytes": 244,
+          "receiptBytes": 650
+        },
+        {
+          "ms": 11801.754874999999,
+          "requestBytes": 244,
+          "receiptBytes": 650
+        }
+      ],
+      "outputSha256": "1ebf50f7359b8bd08eb6e697e26eb17dd28eb4dd181e4ebf4e52140edba8deb6",
+      "retrySha256": "1ebf50f7359b8bd08eb6e697e26eb17dd28eb4dd181e4ebf4e52140edba8deb6"
+    },
+    {
+      "operation": "table",
+      "status": "passed",
+      "rows": 50000,
+      "columns": 20,
+      "heapMiB": 1536,
+      "maxRssKiB": 1199472,
+      "calls": [
+        {
+          "ms": 19869.953584,
+          "requestBytes": 996,
+          "receiptBytes": 643
+        },
+        {
+          "ms": 19805.522917000002,
+          "requestBytes": 996,
+          "receiptBytes": 643
+        }
+      ],
+      "outputSha256": "f5468e73ea89073417a9cc9974b0e0d34252d7b74b3db5616fc483c4de5b2420",
+      "retrySha256": "f5468e73ea89073417a9cc9974b0e0d34252d7b74b3db5616fc483c4de5b2420"
+    }
+  ],
+  "installedTarballs": {
+    "status": "passed",
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v24.12.0",
+    "smokeScriptSha256": "fef6d45f8f3580867484b92bc7d7c1fbbb2807ea9b0948c10c2651c05f71e1ee",
+    "packages": [
+      {
+        "name": "sezzlee-excel-mcp-0.11.0.tgz",
+        "sha256": "45ab33eae6bc1f7b962c56c505aa8f90b20e573deaef52d373f28ef218545bb5"
+      },
+      {
+        "name": "sezzlee-file-core-0.3.4.tgz",
+        "sha256": "2981d0345c5d645a0556a1505cf5cecab346db71488eeed5948aec3d0928cb75"
+      },
+      {
+        "name": "sezzlee-file-core-native-0.3.0.tgz",
+        "sha256": "dbdbe416e9444ee4ff0c7ba019e8a9fb0ddfc0f62c32821efbecbf0ccce1cec9"
+      },
+      {
+        "name": "sezzlee-llm-mcp-0.1.3.tgz",
+        "sha256": "bdb8ebbdeb6d0ba4ddddf8e6d1cd565159a1e40fc0cce2676daf44b72cd7e43a"
+      },
+      {
+        "name": "sezzlee-mcp-core-0.2.1.tgz",
+        "sha256": "8b578502004b5320c323305deaa327988a9a003cc3a7ec73c69bcef9b7c9c26e"
+      },
+      {
+        "name": "sezzlee-ooxml-core-0.3.0.tgz",
+        "sha256": "36e69e73320b3d5acb9ca33eb2e56ca311fe3baf76596e799a7c15b36282dbfb"
+      },
+      {
+        "name": "sezzlee-xml-mcp-0.5.1.tgz",
+        "sha256": "f53dc4d7d4259d11e18ffb88928d822289c4a5ebeac7539444514489a3cd192a"
+      }
+    ]
+  },
+  "evidenceSha256": {
+    "modelAudit": "edaf16da8ce2073ccd7f2f378bef59987c7bf505c35bdbe2062424b210a0537a",
+    "modelFileChecks": "9032ec0914ab8ae59d7f4f6511bdf9750feddf97cb125b839c7c3d474db04c67",
+    "finalLocalChecks": "e0616477e05e44011aaaa47728a794ddf8ed7cfad39f8129b27526c7a7ee729c",
+    "fullRegression": "27f08ffaed576f7aa50981ffb7f7cae8484832d0e6737abf4ade822a3996b0a5",
+    "scriptedFiles": "093b4a592361b8f4a41f8cc403cd65ec51589d8c02e984aea27b0544f678e331",
+    "exactTraceReplay": "90375b1f5e0596dfa8f89aa939565267f50fa7176bf4cd10de6950cdfa0ed9af"
+  },
+  "openGates": [],
+  "publication": "not_performed",
+  "privateConsumerRollout": "not_performed",
+  "remoteCI": {
+    "runId": 40398948588,
+    "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588",
+    "testedRevision": "6c53eb15988e7e86113bf95b31d9622c450ccfce",
+    "full": true,
+    "corpusProvenance": "Native CI uses the checked-in suites. The configured external corpus was validated separately in the local 6,474-test checkpoint.",
+    "conclusion": "success",
+    "updatedAt": "2026-10-26T20:55:48Z",
+    "nativeLegs": [
+      {
+        "name": "secure files (win32-x64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606527"
+      },
+      {
+        "name": "secure files (win32-x64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606531"
+      },
+      {
+        "name": "secure files (darwin-x64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606577"
+      },
+      {
+        "name": "secure files (darwin-arm64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606585"
+      },
+      {
+        "name": "secure files (linux-arm64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606606"
+      },
+      {
+        "name": "secure files (darwin-x64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606620"
+      },
+      {
+        "name": "secure files (linux-x64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606621"
+      },
+      {
+        "name": "secure files (darwin-arm64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606645"
+      },
+      {
+        "name": "secure files (linux-arm64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606654"
+      },
+      {
+        "name": "secure files (linux-x64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839607383"
+      }
+    ],
+    "jobs": [
+      {
+        "name": "plan",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839354452"
+      },
+      {
+        "name": "NestJS host (nest12-express5)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606334"
+      },
+      {
+        "name": "build, lint, types, fixtures",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606416"
+      },
+      {
+        "name": "NestJS host (nest10-express4)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606464"
+      },
+      {
+        "name": "secure files (win32-x64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606527"
+      },
+      {
+        "name": "secure files (win32-x64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606531"
+      },
+      {
+        "name": "secure files (darwin-x64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606577"
+      },
+      {
+        "name": "secure files (darwin-arm64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606585"
+      },
+      {
+        "name": "secure files (linux-arm64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606606"
+      },
+      {
+        "name": "secure files (darwin-x64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606620"
+      },
+      {
+        "name": "secure files (linux-x64, Node 22)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606621"
+      },
+      {
+        "name": "secure files (darwin-arm64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606645"
+      },
+      {
+        "name": "secure files (linux-arm64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839606654"
+      },
+      {
+        "name": "secure files (linux-x64, Node 24)",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121839607383"
+      },
+      {
+        "name": "pack",
+        "conclusion": "success",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/job/121842496797"
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12688815576,
+        "name": "npm-tarballs",
+        "sizeInBytes": 1152253,
+        "digest": "sha256:17d32e2f40ea78af7473c8a5bf5d5122e27d7e0981ab6577c86618e62c5d51c7",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/artifacts/12688815576"
+      },
+      {
+        "id": 12687896902,
+        "name": "native-linux-arm64",
+        "sizeInBytes": 49777,
+        "digest": "sha256:91e6e80e83a153981c854017e109a0bed1036d53cd11ca932a96cc01058c08a1",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/artifacts/12687896902"
+      },
+      {
+        "id": 12687882199,
+        "name": "native-darwin-arm64",
+        "sizeInBytes": 42499,
+        "digest": "sha256:9386726267e83e3c2c3dc8495fa4f60959044888f6658d50d6ed88be6b4256b9",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/artifacts/12687882199"
+      },
+      {
+        "id": 12687777270,
+        "name": "native-linux-x64",
+        "sizeInBytes": 54766,
+        "digest": "sha256:fa344f9c2324d5fe2e8e4611dbf5d71e35c29304e06043fb7b3c94cc30a2a36a",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/artifacts/12687777270"
+      },
+      {
+        "id": 12687613177,
+        "name": "native-darwin-x64",
+        "sizeInBytes": 44383,
+        "digest": "sha256:65deb296ab552c456b335f67c80d54fb153d56ae3f4d45987b039e39de6a60fb",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/artifacts/12687613177"
+      },
+      {
+        "id": 12686954841,
+        "name": "native-win32-x64",
+        "sizeInBytes": 255202,
+        "digest": "sha256:f49ed9cd3a2d7de415cd00c7ee5537cde39d0b4607d5bb3bdc44f2d01fc35ae2",
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40398948588/artifacts/12686954841"
+      }
+    ],
+    "rawRunReportSha256": "8c2ded21ba09e236b86884adf8171db800b0051cb551b290e65633191ea92706",
+    "previousRuns": [
+      {
+        "runId": 40395807311,
+        "url": "https://github.com/sezzlee/mcp/actions/runs/40395807311",
+        "conclusion": "failure",
+        "attempts": 2,
+        "reason": "Both Intel Mac jobs reproduced test-fixture deadline failures. Only failed jobs were retried before the test-only corrections."
+      }
+    ],
+    "stabilityCorrections": {
+      "wasteSource": "Repeated Intel Mac failures came from fixture wall-clock budgets rather than assertion failures.",
+      "fixes": [
+        {
+          "commit": "d79cbe9",
+          "change": "The full 16,384-style fixture has a 120-second test deadline; its data and assertions are unchanged."
+        },
+        {
+          "commit": "6c53eb1",
+          "change": "Paging semantics use the existing test pool budget option; the production 2-second parse limit and separate deadline tests are unchanged."
+        }
+      ],
+      "localValidation": {
+        "excelAuthoringCases": 30,
+        "xmlPagingAndDeadlineCases": 19,
+        "typesAndLint": "passed"
+      },
+      "impact": "The matrix, checks and parallelism are unchanged. No runner-minute savings are claimed; the live full run validates the corrected test revision."
+    },
+    "note": "CI validated revision 6c53eb1, including both test-budget corrections. The subsequent evidence-only commit changes documentation; it does not change the validated runtime sources."
+  }
+}
