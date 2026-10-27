@@ -225,6 +225,18 @@ try {
         cell: "F1",
         formula: "SUM(Orders[Amount])",
       },
+      {
+        kind: "write_formula",
+        sheetName: "Report",
+        cell: "F2",
+        formula: "INDEX(A2:C2,2)",
+      },
+      {
+        kind: "write_formula",
+        sheetName: "Report",
+        cell: "F3",
+        formula: "INDEX(A1:D2,2)",
+      },
       { kind: "merge_cells", sheetName: "Report", range: "G1:H1" },
     ],
   });
@@ -261,8 +273,8 @@ try {
     source: authored.version,
   });
   assert.equal(calculated.calculation.complete, false);
-  assert.equal(calculated.calculation.calculatedCells, 2);
-  assert.equal(calculated.calculation.unavailableCells, 1);
+  assert.equal(calculated.calculation.calculatedCells, 3);
+  assert.equal(calculated.calculation.unavailableCells, 2);
   const calculationCheck = spawnSync(
     "python3",
     [
@@ -274,6 +286,9 @@ try {
         "s=E.fromstring(p.read('xl/worksheets/sheet1.xml')); cells={c.attrib['r']:c for c in s.findall('.//s:c',n)}",
         "assert float(cells['D2'].find('s:v',n).text)==20",
         "assert float(cells['F1'].find('s:v',n).text)==20",
+        "assert float(cells['F2'].find('s:v',n).text)==2",
+        "assert cells['F3'].find('s:v',n) is None",
+        "assert cells['F3'].find('s:f',n).text=='INDEX(A1:D2,2)'",
         "assert cells['D3'].find('s:v',n) is None",
         "assert cells['D3'].find('s:f',n).text.startswith('SUBTOTAL(')",
         "assert cells['F1'].find('s:f',n).text=='SUM(Orders[Amount])'",
