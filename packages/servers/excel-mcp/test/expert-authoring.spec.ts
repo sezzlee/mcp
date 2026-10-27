@@ -739,9 +739,51 @@ describe("Phase 7 authoring through MCP", () => {
               startCell: "A1",
               values: [[{ kind: "number", value: 42 }]],
             },
+            { kind: "protect_sheet", sheetName: "Summary", password: "next" },
+            {
+              kind: "protect_workbook",
+              sheetName: "Summary",
+              password: "next",
+            },
           ],
         }),
       );
+      expect(
+        XLSX.read(await bytes(directory, next), { type: "buffer" }).Sheets
+          .Summary?.A1?.v,
+      ).toBe(42);
+      const nextZip = await JSZip.loadAsync(await bytes(directory, next));
+      expect(
+        await nextZip.file("xl/worksheets/sheet2.xml")?.async("string"),
+      ).toContain("sheetProtection");
+      expect(await nextZip.file("xl/workbook.xml")?.async("string")).toContain(
+        "workbookProtection",
+      );
+      const nextFiles = await readdir(join(directory, "out"));
+      const lockedAgain = await client.callTool({
+        name: "edit_workbook",
+        arguments: {
+          source: next.version,
+          changes: [
+            {
+              kind: "unprotect_workbook",
+              sheetName: "Summary",
+              password: "next",
+            },
+            { kind: "unprotect_sheet", sheetName: "Summary", password: "next" },
+            { kind: "protect_sheet", sheetName: "Summary", password: "next" },
+            {
+              kind: "write_cells",
+              sheetName: "Summary",
+              startCell: "A1",
+              values: [[{ kind: "number", value: 99 }]],
+              overwrite: true,
+            },
+          ],
+        },
+      });
+      expect(lockedAgain.isError).toBe(true);
+      expect(await readdir(join(directory, "out"))).toEqual(nextFiles);
       expect(
         XLSX.read(await bytes(directory, next), { type: "buffer" }).Sheets
           .Summary?.A1?.v,
