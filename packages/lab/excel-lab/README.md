@@ -10,13 +10,26 @@ node packages/lab/excel-lab/src/lab/measure-cli.ts --out /tmp/excel-catalog-cost
 
 It writes `catalog-cost.json` plus the raw read- and write-mode tool lists.
 
-## Phase 7 expert report acceptance
+## Unified agent runner
 
-The [Phase 7 plan](../../servers/excel-mcp/docs/phase-7/implementation-plan.md) composes names/templates, validation, conditional formats, links/notes/images, charts, real pivots, protection and recurring report jobs. `expert-agent-cli.ts` always runs a deterministic report first. Optional Qwen trials repeat the report in Turkish and English, using the same registered tools and independent output grading.
+`src/lab/run-cli.ts` runs the writing scenarios of every suite through one runner. Each trial gets its own workspace and a fresh write-mode server, so retained results, copy-refusal state and outputs never carry over. The scripted baseline of every selected scenario runs first. Model trials start only when all of them pass, and until then no model host is built or asked anything. A model may call only the tools its scenario offers: any other call is answered as not offered and never reaches the server. The call budget counts every call, including calls inside one reply. Each record counts requested, dispatched, catalog-refused and budget-refused calls separately.
 
 ```sh
-node packages/lab/excel-lab/src/expert-agent-cli.ts --out /tmp/excel-expert-scripted --application
-SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab/src/expert-agent-cli.ts --out /tmp/excel-expert-model --model MODEL --languages tr,en --application
+SEZZLEE_CORPUS=/path/to/corpus node packages/lab/excel-lab/src/lab/run-cli.ts --out /tmp/excel-lab-run [--suite calc,edit,bulk,expert] [--only calc/calculate,...]
+SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab/src/lab/run-cli.ts --out /tmp/excel-lab-model --model MODEL --languages tr,en [--think false|low] [--final-think ...]
+```
+
+It writes `manifest.json` (server build and lab source digests, the model, each scenario's catalog and budget), one `results.jsonl` line per trial, `summary.json`, and a `trace.jsonl` in each trial directory. Scenario ids are namespaced: `calc/calculate`, `edit/write`, `bulk/update`, `expert/report`.
+
+## Phase 7 expert report acceptance
+
+The [Phase 7 plan](../../servers/excel-mcp/docs/phase-7/implementation-plan.md) composes names/templates, validation, conditional formats, links/notes/images, charts, real pivots, protection and recurring report jobs. The `expert` suite of the [unified runner](#unified-agent-runner) always runs a deterministic report first. Optional model trials repeat the report in Turkish and English, using the same registered tools and independent output grading.
+
+```sh
+node packages/lab/excel-lab/src/lab/run-cli.ts --out /tmp/excel-expert-scripted --suite expert
+SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab/src/lab/run-cli.ts --out /tmp/excel-expert-model --suite expert --model MODEL --languages tr,en
+python3 -I packages/lab/excel-lab/scripts/expert-application-oracle.py OUTPUT.xlsx --out /tmp/excel-expert-application
+python3 -I packages/lab/excel-lab/scripts/expert-visual-oracle.py OUTPUT.xlsx --out /tmp/excel-expert-visual --charts 4
 node --max-old-space-size=1024 packages/lab/excel-lab/src/expert-scale-cli.ts --out /tmp/excel-expert-scale
 python3 -I packages/lab/excel-lab/scripts/test-expert-oracle.py
 python3 -I packages/lab/excel-lab/scripts/test-expert-visual-oracle.py
@@ -24,9 +37,9 @@ python3 -I packages/lab/excel-lab/scripts/test-expert-visual-oracle.py
 
 The standard-library `expert-oracle.py` checks real package relationships, exact values, formula caches, scoped names, note text/authors, links, image hashes, chart source/cache equality, rule semantics and protection metadata. Pivot cache records must equal the literal source; saved pivot results must equal an independent aggregation. `--summary` omits the large cell map when checking scale fixtures. Model prose and preparation alone cannot pass. The report grader requires literal period text and an explicit note author, not a visually similar date or an author embedded only in the note body.
 
-With `--application`, actual LibreOffice opens and resaves every successful output. `expert-application-oracle.py` compares values, pivots, chart types/series, effective conditional fills and relative rule order, links, notes, images and protection. It records Calc's known loss of `stopIfTrue` separately; the source flag remains independently inspected and schema-checked. `expert-visual-oracle.py` renders the selected synthetic Report sheet through PDF/Poppler and requires visible plotted-series pixels in each chart region. Its evenly spaced chart-region contract belongs to this fixture, not arbitrary user workbooks. The visual oracle's five PNG scanline-filter vectors, blank-plot refusal and truncation cases have independent known answers.
+On a selected output, `expert-application-oracle.py` has actual LibreOffice open and resave it. `expert-application-oracle.py` compares values, pivots, chart types/series, effective conditional fills and relative rule order, links, notes, images and protection. It records Calc's known loss of `stopIfTrue` separately; the source flag remains independently inspected and schema-checked. `expert-visual-oracle.py` renders the selected synthetic Report sheet through PDF/Poppler and requires visible plotted-series pixels in each chart region. Its evenly spaced chart-region contract belongs to this fixture, not arbitrary user workbooks. The visual oracle's five PNG scanline-filter vectors, blank-plot refusal and truncation cases have independent known answers.
 
-Manifests retain the sorted-path/NUL/JavaScript-bytes/NUL runtime SHA-256, module count, model identity/digest and generation settings. Catalog sizes, raw traces, exact output versions, independent snapshots and optional application/visual evidence remain in the chosen local output directory. Keep those artifacts and model endpoints outside the public repository.
+The run manifest retains the sorted-path/NUL/JavaScript-bytes/NUL server build SHA-256, file count, lab source and oracle digests, model and generation settings; `measure-cli.ts` prices the catalog. Raw traces, exact output versions, independent snapshots and optional application/visual evidence remain in the chosen local output directory. Keep those artifacts and model endpoints outside the public repository.
 
 `expert-scale-cli.ts` runs through actual MCP with 24,999 records plus headers across four columns: exactly the 100,000-cell advanced-source ceiling, 100 row groups and a 10,000-point chart. It checks whole-source/cache/pivot correctness independently and records runtime duration, its own process peak RSS, output identity and source immutability. Resource measurements are distinct from throughput promises.
 
@@ -39,13 +52,13 @@ pnpm turbo run build check-types lint --filter=@sezzlee/excel-mcp --filter=@sezz
 python3 -I packages/lab/excel-lab/scripts/test-bulk-oracles.py
 node packages/lab/excel-lab/src/bulk-bench.ts --out /tmp/excel-bulk-scale --operation update --rows 49999 --columns 20 --heap-mib 1024
 python3 -I packages/lab/excel-lab/scripts/bulk-oracle.py /tmp/excel-bulk-scale/bulk-REPLACE
-node packages/lab/excel-lab/src/bulk-agent-cli.ts --out /tmp/excel-bulk-scripted
-SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab/src/bulk-agent-cli.ts --out /tmp/excel-bulk-model --model MODEL --languages tr,en
+node packages/lab/excel-lab/src/lab/run-cli.ts --out /tmp/excel-bulk-scripted --suite bulk
+SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab/src/lab/run-cli.ts --out /tmp/excel-bulk-model --suite bulk --model MODEL --languages tr,en
 ```
 
 bulk-bench accepts update, replace, upsert, append, join, sort, deduplicate, atomic or independent. A child with fixed heap and a 180-second watchdog exercises actual MCP calls, preparation, execution and replay. It records exact input hashes, generation/runtime/native source digests, source immutability, request/response sizes, per-call timings and peak RSS. The independent Python standard-library oracle verifies every expected coordinate, scalar type, order, count, source hash, output hash and ZIP CRC. The independent scenario first requires nine distinct completed reports and one failure, restores the missing source, then verifies all ten reports without duplicating the first nine. Use 10,000 rows and ten columns for the complete operator matrix; larger cases must fit each operation's intermediate/expansion guard. 49,999 data records plus a header at 20 columns are exactly one million cells. Heap and RSS are different measurements; failures or refusals are not throughput measurements.
 
-bulk-agent-cli runs scripted baselines before optional actual-model trials. Public fixture creation and grading live in bulk-agent-oracle.py; five known-answer tests pin correct values, typed output, source immutability and protected refusal. Scenarios are update, join, replace, retry and blocked, selectable with --only. The retry scenario requires two identical execution identities and a durable status read. Model prose and preparation alone are not accepted as output. Within the existing 16-call/16-turn budget, a reply without tool calls receives at most two generic incomplete-task reminders; the independent output/refusal checks remain mandatory. Traces and result logs remain outside the repository; manifests retain model identity, exact build/native source hashes, generation controls and the limited tool catalog. Existing network/data authorization rules still apply: use only these public fixtures and the selected model host, never private product inputs.
+The `bulk` suite runs scripted baselines before optional actual-model trials. Public fixture creation and grading live in bulk-agent-oracle.py; its known-answer tests pin correct values, typed output, source immutability and protected refusal. Scenarios are `bulk/update`, `bulk/join`, `bulk/replace`, `bulk/retry`, `bulk/blocked`, `bulk/report` and `bulk/independent_report`, selectable with --only. The retry scenario requires two identical execution identities and a durable status read. Model prose and preparation alone are not accepted as output. Within the existing 16-call/16-turn budget, a reply without tool calls receives at most two generic incomplete-task reminders; the independent output/refusal checks remain mandatory. Traces and result logs remain outside the repository; the run manifest retains model identity, the server build digest, generation controls and the limited tool catalog. Existing network/data authorization rules still apply: use only these public fixtures and the selected model host, never private product inputs.
 
 After a successful bulk-bench run, run `python3 scripts/bulk-application-oracle.py <run-directory>` from this package. It first checks the independent bulk oracle, then opens every unique selected output in actual LibreOffice Calc, converts it to ODS and compares all scalar coordinates, types, values and order with the independently checked OOXML. It verifies that application opening leaves original workbook bytes unchanged and writes application-oracle.json. The soffice executable must be on PATH. This is selected application acceptance, not a whole-corpus compatibility claim.
 
@@ -135,15 +148,15 @@ python3 -I packages/lab/excel-lab/scripts/test-inspect-edit-corpus.py
 python3 -I packages/lab/excel-lab/scripts/inspect-edit-corpus.py --corpus /path/to/corpus --out /tmp/excel-edit-inventory
 node packages/lab/excel-lab/src/edit-bench.ts --out /tmp/excel-edit-scale --rows 50000 --columns 20 --operation write --heap-mib 1024
 python3 -I packages/lab/excel-lab/scripts/edit-oracle.py /tmp/excel-edit-scale/edit-REPLACE
-node packages/lab/excel-lab/src/edit-agent-cli.ts --out /tmp/excel-edit-scripted --corpus /path/to/corpus
-SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab/src/edit-agent-cli.ts --out /tmp/excel-edit-live --corpus /path/to/corpus --model MODEL --languages tr,en
+node packages/lab/excel-lab/src/lab/run-cli.ts --out /tmp/excel-edit-scripted --suite edit --corpus /path/to/corpus
+SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab/src/lab/run-cli.ts --out /tmp/excel-edit-live --suite edit --corpus /path/to/corpus --model MODEL --languages tr,en
 ```
 
 Inventory uses Python standard-library ZIP/XML parsing, manifest hashes, containment and archive budgets. Content types select noncanonical XML part paths too. summary.json pins manifests/script and representative features; inventory.jsonl retains failures and budget outcomes. Feature/protection-markup counts are not editing or enabled-protection claims.
 
 The edit benchmark accepts operation write, rows, columns or copy. Defaults produce 1,000,000 numeric sequence cells (50000 by 20); copy requires at least 1024 rows for destination A1000 and its 25-row block. A fresh child uses a fixed heap and 180-second watchdog, executes/retries through actual MCP and checks unchanged originals. edit-results.json records exact source/output hashes, call/request/receipt sizes, timings, peak RSS and generator/build digests. The independent edit-oracle.py checks every expected coordinate/value, types, ZIP CRCs, relationships, stale-cache policy and retained opaque XML. Heap and RSS are different measurements.
 
-The writing-aware agent harness preserves the existing read-agent lab. It runs scripted baselines before optional actual-model trials in Turkish and English: correction, copy, clear, row insertion, restore, protected refusal, complete range-value transfer, filtered/reordered record transfer and aggregate-result transfer. --only transfer_range,transfer_records,transfer_aggregate selects the Phase 2 acceptance set. Public Apache fixtures are pinned by hash; isolated retained outputs are graded by edit-agent-oracle.py, not by model prose. traces, results.jsonl and summary.json retain model identity, build/script hashes and actual calls. Network runs require authorization for their fixture data and target. Editing tasks expose the five edit/read tools; transfer tasks expose prepare_transfer, transfer_data, describe_workbook and read_sheet. Both catalogs are recorded in run.json. A preparatory create_workbook_version receipt is not accepted as a completed edit or transfer.
+The `edit` suite preserves the existing read-agent lab. It runs scripted baselines before optional actual-model trials in Turkish and English: correction, copy, clear, row insertion, restore, protected refusal, complete range-value transfer, filtered/reordered record transfer and aggregate-result transfer. --only edit/transfer_range,edit/transfer_records,edit/transfer_aggregate selects the Phase 2 acceptance set. Public Apache fixtures are pinned by hash; isolated retained outputs are graded by edit-agent-oracle.py, not by model prose. traces, results.jsonl and summary.json retain model identity, build/script hashes and actual calls. Network runs require authorization for their fixture data and target. Editing tasks expose the five edit/read tools; transfer tasks expose prepare_transfer, transfer_data, describe_workbook and read_sheet. Both catalogs are recorded in manifest.json. A preparatory create_workbook_version receipt is not accepted as a completed edit or transfer.
 
 Optional independent validation:
 
