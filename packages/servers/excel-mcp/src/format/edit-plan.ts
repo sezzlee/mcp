@@ -18,7 +18,12 @@ import {
 } from "../grid/range.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import type { EditPlacement } from "../platform/versions.js";
-import { transformFormula, type ReferenceMapper } from "./formula-edit.js";
+import {
+  copyFormula,
+  transformFormula,
+  type ReferenceMapper,
+} from "./formula-edit.js";
+import { authoringLimits } from "../authoring/workbook.js";
 import { boundsOf } from "./preserved-workbook.js";
 import { validationTargets } from "./rule-authoring.js";
 
@@ -453,6 +458,35 @@ function invalidPlaceholder(message: string): never {
   );
 }
 
+function authoredText(formula: string): string {
+  return (formula.startsWith("=") ? formula.slice(1) : formula).trim();
+}
+
+/**
+ * Guard: a run of inserted formulas becomes one fill_formula only when the
+ * engine's fill writes, cell for cell, the text each write_formula would. Fill
+ * shifts every relative reference, while a source-frame formula keeps a
+ * reference without {row} fixed, so equality is checked, never assumed.
+ * Structured references are rewritten against the workbook's tables at write
+ * time, so they never join a run. Without runs, each inserted formula cell is
+ * its own operation and every one re-reads the whole sheet.
+ */
+function fillsAs(
+  anchor: string,
+  formula: string,
+  sheetName: string,
+  rows: number,
+): boolean {
+  const first = authoredText(anchor),
+    next = authoredText(formula);
+  return (
+    !first.includes("[") &&
+    !next.includes("[") &&
+    copyFormula(next, sheetName, 0, 0) ===
+      copyFormula(first, sheetName, rows, 0)
+  );
+}
+
 function withPlaceholderRow(formula: string, row: number): string {
   if (
     formula
@@ -841,6 +875,7 @@ export function planSourceFrameEdit(
   for (const change of structural)
     planned.push({ origin: change.origin, change: axisEdit(change) });
 
+  let formulaOperations = 0;
   for (const insert of inserted) {
     const top = insertedStart(
       axisChanges(insert.sheetName, "row"),
@@ -867,23 +902,72 @@ export function planSourceFrameEdit(
           overwrite: false,
         },
       });
-    for (const [rowOffset, cells] of insert.rows.entries())
-      for (const [columnOffset, cell] of cells.entries())
-        if (cell.kind === "formula")
-          planned.push({
-            origin: insert.origin,
-            change: {
-              kind: "write_formula",
-              sheetName: insert.sheetName,
-              cell: formatCellRef(top + rowOffset, left + columnOffset),
-              formula: translateInserted(
-                insert,
-                cell.formula,
-                outputIndex(top + rowOffset),
-              ),
-              overwrite: false,
-            },
-          });
+    const width = insert.rows[0]?.length ?? 0;
+    for (let columnOffset = 0; columnOffset < width; columnOffset++) {
+      const column = left + columnOffset;
+      let run: { readonly top: number; readonly formula: string } | undefined;
+      let bottom = 0;
+      const flush = (): void => {
+        if (run === undefined) return;
+        formulaOperations += 1;
+        if (formulaOperations > authoringLimits.maxOperations)
+          throw new SezzleeExcelError(
+            "resource_limit",
+            `Inserted rows need more than ${authoringLimits.maxOperations} formula writes in one request.`,
+            "Make references to fixed cells absolute, such as $F$1, so each inserted column fills as one formula, or insert fewer formula rows per request.",
+          );
+        planned.push({
+          origin: insert.origin,
+          change:
+            bottom === run.top
+              ? {
+                  kind: "write_formula",
+                  sheetName: insert.sheetName,
+                  cell: formatCellRef(run.top, column),
+                  formula: run.formula,
+                  overwrite: false,
+                }
+              : {
+                  kind: "fill_formula",
+                  sheetName: insert.sheetName,
+                  anchor: formatCellRef(run.top, column),
+                  range: formatRange({
+                    top: run.top,
+                    bottom,
+                    left: column,
+                    right: column,
+                  }),
+                  formula: run.formula,
+                  overwrite: false,
+                },
+        });
+        run = undefined;
+      };
+      for (const [rowOffset, cells] of insert.rows.entries()) {
+        const cell = cells[columnOffset];
+        if (cell?.kind !== "formula") {
+          flush();
+          continue;
+        }
+        const row = top + rowOffset;
+        const formula = translateInserted(
+          insert,
+          cell.formula,
+          outputIndex(row),
+        );
+        if (
+          run !== undefined &&
+          fillsAs(run.formula, formula, insert.sheetName, row - run.top)
+        ) {
+          bottom = row;
+          continue;
+        }
+        flush();
+        run = { top: row, formula };
+        bottom = row;
+      }
+      flush();
+    }
   }
 
   emitPhase("rename");

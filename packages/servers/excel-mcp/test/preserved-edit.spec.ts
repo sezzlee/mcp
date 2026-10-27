@@ -909,6 +909,58 @@ it("addresses every change at source coordinates and reports where moved targets
   });
 });
 
+it("fills an inserted formula column as one write and keeps references without {row} fixed", async () => {
+  await workspace(async (directory, client, source) => {
+    const count = 120;
+    const receipt = await edit(client, source, [
+      {
+        kind: "insert_rows",
+        sheetName: "Data",
+        at: 3,
+        values: Array.from({ length: count }, (_, index) => [
+          { kind: "text", value: `New ${index}` },
+          { kind: "number", value: index },
+          { kind: "formula", formula: "B{row}*$E$1" },
+          { kind: "formula", formula: "=B{row}+E1" },
+        ]),
+      },
+    ]);
+    const data = independentRead(
+      await readFile(join(directory, receipt.version.filePath)),
+      { type: "buffer", sheetStubs: true },
+    ).Sheets.Data;
+    for (let row = 3; row < 3 + count; row += 1) {
+      expect(data?.[`C${row}`]?.f).toBe(`B${row}*$E$1`);
+      expect(data?.[`D${row}`]?.f).toBe(`B${row}+E1`);
+    }
+    expect(data?.[`A${3 + count}`]?.v).toBe("Two");
+  });
+});
+
+it("refuses inserted rows whose formulas need more writes than one request allows", async () => {
+  await workspace(async (_directory, client, source) => {
+    const response = await client.callTool({
+      name: "edit_workbook",
+      arguments: {
+        source,
+        changes: [
+          {
+            kind: "insert_rows",
+            sheetName: "Data",
+            at: 3,
+            startColumn: "D",
+            values: Array.from({ length: 129 }, () => [
+              { kind: "formula", formula: "B{row}+E1" },
+            ]),
+          },
+        ],
+      },
+    });
+    expect(response.isError).toBe(true);
+    expect(payload(response)).toMatchObject({ error: "resource_limit" });
+  });
+});
+
 it("copies a sheet as the source was read, before other changes to it", async () => {
   await workspace(async (directory, client, source) => {
     const receipt = await edit(client, source, [
