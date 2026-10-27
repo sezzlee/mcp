@@ -140,7 +140,7 @@ excel get_merged_ranges --tool-arg filePath=report.xlsx | jq -c '.merges'
 cached values ([tool reference](/docs/excel-mcp/tools)). Pivot tables and sparklines are refused:
 
 ```sh
-excel get_images --tool-arg filePath=sales.xlsx kind=pivotTable
+excel get_images --tool-arg filePath=sales.xlsx kind=pivotTable || test "$?" -eq 5
 ```
 
 ```text

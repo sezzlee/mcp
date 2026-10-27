@@ -62,7 +62,7 @@ them, 50 by default and 200 at most. `groupCount` and `matchedItems` always cove
 ```sh
 xml aggregate_document --tool-arg filePath=orders.xml "itemAddress=$ORDERS" \
   'columns=[{"label":"paid","name":{"namespaceUri":"urn:example:payments","localName":"payment"}}]' \
-  'metrics=[{"fn":"sum","column":"paid"}]'
+  'metrics=[{"fn":"sum","column":"paid"}]' || test "$?" -eq 5
 ```
 
 ```text
@@ -103,7 +103,7 @@ printf '<ledger><entry amount="12345678901234567890.5"/><entry amount="0.1"/></l
 xml aggregate_document --tool-arg filePath=ledger.xml \
   'itemAddress={"ancestors":[{"namespaceUri":"","localName":"ledger"}],"name":{"namespaceUri":"","localName":"entry"}}' \
   'columns=[{"label":"amount","value":{"from":"attribute","namespaceUri":"","localName":"amount"}}]' \
-  'metrics=[{"fn":"sum","column":"amount"}]' numericMode=binary64
+  'metrics=[{"fn":"sum","column":"amount"}]' numericMode=binary64 || test "$?" -eq 5
 ```
 
 ```text

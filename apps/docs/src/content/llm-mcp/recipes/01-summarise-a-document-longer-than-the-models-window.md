@@ -59,7 +59,7 @@ minutes.
 
 ```sh
 llm local_task --tool-arg kind=free instruction="Which month had the highest revenue?" \
-  'files=["operations-2026.txt"]'
+  'files=["operations-2026.txt"]' || test "$?" -eq 5
 ```
 
 ```text

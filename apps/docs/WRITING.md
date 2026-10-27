@@ -98,6 +98,10 @@ On a server product's pages, "someone ran it" is `scripts/run-examples.mjs`: it 
 against the workspace build and compares the output with the block below it. Write the command,
 leave the output block empty, and let `--write` fill it.
 
+The runner stops on unexpected shell failures. A deliberately failing Inspector call that returns
+`isError:true` uses `|| test "$?" -eq 5`, the observed Inspector tool-error exit code. Keep its complete
+expected error transcript immediately below the command so a different failure still fails validation.
+
 If an example that has not been run is published anyway, the page says so. It is never published
 silently.
 
