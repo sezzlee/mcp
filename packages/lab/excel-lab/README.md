@@ -1,5 +1,15 @@
 # @sezzlee/excel-lab
 
+The [unification audit](UNIFICATION_AUDIT.md) records the inventory of the agent harnesses, their scripted baselines, what each tool catalog costs a model, the 0.13 chain gaps and the migration requirements. It is not migration parity or a runnable unified night lab.
+
+Price the tool catalogs from a real `tools/list`, optionally naming extra conditions:
+
+```sh
+node packages/lab/excel-lab/src/lab/measure-cli.ts --out /tmp/excel-catalog-cost --condition editing=prepare_edit,edit_workbook,describe_workbook,read_sheet
+```
+
+It writes `catalog-cost.json` plus the raw read- and write-mode tool lists.
+
 ## Phase 7 expert report acceptance
 
 The [Phase 7 plan](../../servers/excel-mcp/docs/phase-7/implementation-plan.md) composes names/templates, validation, conditional formats, links/notes/images, charts, real pivots, protection and recurring report jobs. `expert-agent-cli.ts` always runs a deterministic report first. Optional Qwen trials repeat the report in Turkish and English, using the same registered tools and independent output grading.
