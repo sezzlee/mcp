@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -102,5 +103,23 @@ describe("the document store's file reads", () => {
     const reloaded = await store.load(path, undefined);
     expect(io.operations).toEqual(["read", "digest", "read"]);
     expect(reloaded.text).toBe("after!");
+  });
+
+  it("reports the SHA-256 of the exact bytes it serves, on a miss, a hit and after a change", async () => {
+    const path = join(dir, "digest.probe") as SandboxedPath;
+    const sha256 = (text: string) =>
+      createHash("sha256").update(text).digest("hex");
+    await writeFile(path, "first bytes");
+    const store = createStore();
+    expect((await store.load(path, undefined)).contentDigest).toBe(
+      sha256("first bytes"),
+    );
+    expect((await store.load(path, undefined)).contentDigest).toBe(
+      sha256("first bytes"),
+    );
+    await writeFile(path, "second bytes");
+    expect((await store.load(path, undefined)).contentDigest).toBe(
+      sha256("second bytes"),
+    );
   });
 });
