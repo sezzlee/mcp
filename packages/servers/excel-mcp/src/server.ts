@@ -31,7 +31,7 @@ export function createExcelMcpServer(
   options: ExcelMcpServerOptions = { mode: "read" },
 ): McpServer {
   const identity = { name: "sezzlee-excel", version: manifest.version };
-  const handlers = createHandlers(root);
+  const { dispose, ...handlers } = createHandlers(root);
   const server =
     options.mode === "read"
       ? createFileSourceServer(identity, toolDefinitions, handlers)
@@ -42,6 +42,7 @@ export function createExcelMcpServer(
         );
   const close = server.close.bind(server);
   server.close = async () => {
+    dispose();
     await closeRegexWorkers();
     await close();
   };

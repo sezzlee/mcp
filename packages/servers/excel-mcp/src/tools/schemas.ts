@@ -3,13 +3,11 @@ import { limits } from "../platform/limits.js";
 import { encodingNames } from "../platform/delimited.js";
 import { dateParts } from "../grid/grouping.js";
 
-export const filePath = z
-  .string()
-  .describe("Path under the server root, as list_workbooks returns it.");
+export const filePath = z.string().describe("Path under the root.");
 export const sheetName = z
   .string()
   .optional()
-  .describe("Exact worksheet name; defaults to the first visible sheet.");
+  .describe("Exact sheet; default first visible.");
 export const table = z
   .string()
   .min(1)
@@ -117,5 +115,5 @@ export const encoding = z
 export const columnSpecs = columnSpecsSchema
   .optional()
   .describe(
-    "How to read columns, as profile_sheet returns it: [{column, type, ...}]. number takes decimal, group, locale or identifiers; date takes format (such as dd.MM.yyyy) or order; boolean takes trueValues and falseValues.",
+    "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
   );

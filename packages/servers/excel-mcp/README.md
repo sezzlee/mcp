@@ -89,6 +89,7 @@ Numeric text coercion is limited to plain decimal/scientific strings. Formatted 
 | `profile_sheet`           | Bounded type and quality profiles with reusable column specifications                                                                            |
 | `read_sheet`              | A cell range as a compact grid: hoisted column headers plus row arrays                                                                           |
 | `aggregate_sheet`         | Grouped summaries, calendar and numeric buckets, bounded pivots, conditional metrics and exact percentiles                                       |
+| `query_result`            | Exact filtering, column selection and stable paging over a retained complete aggregate snapshot                                                  |
 | `find_in_sheet`           | Cells whose value or formula matches a query; without a sheet, in every worksheet                                                                |
 | `get_tables`              | Excel Tables: range, header and totals rows, column names and letters                                                                            |
 | `get_data_validations`    | Validation rules, one entry per stored rule with its ranges                                                                                      |
@@ -205,12 +206,133 @@ add up (`count`, `countValues`, `countTrue`, `countFalse`, `sum`). A zero denomi
 and a `derived_division_by_zero` warning. `orderByDerived` sorts by one of them. Derived values
 are not offered with `pivotBy`.
 
+Requested total-scope metrics use checked compensated summation over the groups. A non-finite
+total or intermediate derived calculation refuses the call with `numeric_overflow`, in both
+inline and retained modes; no retained identifier is published. Missing inputs and zero
+denominators keep their null behavior. Cross-group totals are calculated only for metrics
+referenced with `scope: "total"`, so an unrequested total cannot reject valid finite groups.
+
 `inColumn` and `notInColumn` keep the rows whose cell is, or is not, among the values of another
 column, named by `source`: a sheet and column of the same file or of another file under the
 root, opened through the same gates. Values match as `eq` compares them, never trimmed; the
 source holds at most 100,000 distinct values (`maxSourceValues`). Two calls, one in each
 direction, answer which keys one list has and the other lacks. This is a filter, not a join:
 no columns of the source are returned.
+
+## Continue on a complete aggregate result
+
+`aggregate_sheet` already computes over the complete selected range under its existing
+processing budgets. The default `resultMode: "inline"` keeps the existing response: `maxGroups`
+bounds the groups shown after calculation. For a large breakdown that needs another operation,
+pass `resultMode: "retained"`. This explicit choice is deterministic; even a small retained
+result gets an identifier, while ordinary small calls allocate no retained-result entry.
+
+Retained mode accepts every aggregate shape inline mode accepts. A pivot is stored one row per
+group, in the inline pivot's columns: group keys, then each pivot key's metrics with its
+`pivotKey`, then derived metrics. Each `groupingSets` entry is a separate result with its own
+`resultId`, listed under `groupingSets` in the response beside its columns, counts and preview
+rows. The primary result and its grouping sets are admitted together or not at all.
+`inColumn`/`notInColumn` members are read once before the calculation; when they come from
+another file, `memberSourceVersions` lists that file's captured fingerprint. The complete
+calculation still uses the existing `SheetView`, typed interpretations and aggregate state/visit
+budgets. A failure publishes no partial result or identifier. No workbook is changed and there
+is no code execution API.
+
+The returned `resultId` identifies all finalized result rows, captured before response string
+truncation and independently of `maxGroups`. `query_result` can select original result columns
+by one-based position, apply AND-combined exact scalar equality filters, and read pages in the
+original aggregate order. Filtering visits the complete retained result. It does not reopen,
+hash or parse the source. Equality is case-sensitive and performs no trimming, normalization,
+coercion or ranked text retrieval. The stored numeric values include requested metric rounding;
+the original aggregate order was determined before that rounding, as in inline mode. There is
+no follow-up sorting or reaggregation in this slice.
+
+The response distinguishes these scopes:
+
+| Field                                                       | Meaning                                                                                                           |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `sourceVersion`, `sourcePolicy`                             | Captured content fingerprint and `snapshot` policy; source edits do not change this result                        |
+| `sheet`, `range`, `headerRow`, `scannedRows`, `matchedRows` | Original source selection and completed scan/filter counts                                                        |
+| `resultComplete`, `sampled`                                 | `true` and `false`: the selected calculation completed without sampling; these do not claim every cell was usable |
+| `totalRows`                                                 | Complete stored result row count, independent of the preview                                                      |
+| `matchingRows`, `matchingSourceRows`                        | All result rows matching the follow-up query and the original matched source rows they represent                  |
+| `returnedRows`, `returnedMatchedRows`                       | Result rows actually displayed and their represented original source rows                                         |
+| `offset`, `hasMore`, `nextOffset`                           | Page position and continuation among matching result rows                                                         |
+| `preview`                                                   | `true` on the initial retained response; `false` on a follow-up page                                              |
+| `totalColumns`                                              | Present when a preview shows only the leading columns; select the rest with `query_result` `columns`              |
+| `valueTruncation`                                           | Count of displayed cells shortened by the existing presentation rules and their string limit                      |
+
+`columnNumbers` maps projected output columns back to their original one-based positions.
+Repeat the same `resultId`, `where` and `columns` with `nextOffset` until `hasMore` is false.
+Offsets are deterministic within this immutable result and the same query. Changing filters
+defines a new query and should start at offset zero. Result columns' `counted`, `skipped`,
+`filtered` and unit/currency diagnostics describe the complete stored calculation, including
+when a page projects fewer columns or filters fewer rows. Existing `warnings`, `readAs`,
+`columnStats`, error distribution and ungrouped counts remain available; completion does not
+erase exclusions, ambiguity or missing formula caches.
+
+### Ownership, lifetime and admission
+
+Each `createHandlers(root)` owns its store. Opaque random identifiers work only in that handler
+instance and the configured root authority it already has. Another server instance, even with
+the same root, cannot read them. There is no tenant, user or session authorization layer beyond
+this existing instance scope; a host sharing one server instance shares its retained results.
+The metadata carries the root-relative `version.filePath` every read reports, never an absolute path. Source changes or deletion leave an admitted
+snapshot readable until expiry; a new aggregate captures the current source independently.
+
+| Budget             | Bound and behavior                                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Complete result    | 100,000 rows, 1,000,000 cells and 8 MiB of accounted serialized data; every bound must pass                                                      |
+| Per-instance store | Four live results and 16 MiB total accounted serialized data                                                                                     |
+| Lifetime           | Absolute 15 minutes from admission; reads do not refresh it                                                                                      |
+| Preview and page   | 16 KiB of serialized `CallToolResult`, including metadata, envelope and JSON escaping; at most `maxGroups`/`maxRows`, default 50 and maximum 500 |
+| Equality input     | At most 16 conditions and 4,096 characters per string value                                                                                      |
+
+Row values and represented-source counts are admitted incrementally, with metadata counted
+before publication. These serialized-byte limits are accounting limits, not exact JavaScript
+heap or process RSS guarantees. Row/cell/entry limits also bound object overhead and query work.
+Source workbook/cache memory remains subject to its existing separate limits.
+
+Expired entries are removed on store access or admission, and closing the server clears the
+store. Idle expired allocations can remain until the next access, always within store bounds.
+There is no disk storage, service or background timer. Capacity exhaustion returns
+`resource_limit` and preserves live results; wait for expiry, request fewer/smaller results or
+restart the instance. Unknown, expired, cleared and foreign identifiers all return
+`result_unavailable`, with recovery to run a new retained aggregate. A preview that cannot fit
+its required metadata and one row fails before admission. Every result in a preview first keeps
+one column and, when it has rows, one row; each then widens to all its columns in order, and only
+then takes more rows in order, so a wide pivot or a large primary breakdown cannot crowd out a
+grouping set. A follow-up row that cannot fit
+fails with projection guidance instead of returning a non-progressing page. Every response
+still goes through the existing `json()` constructor and mandatory `guard()` payload gate and
+root-redacted error envelope. Retained allocation makes `aggregate_sheet` non-idempotent in its
+MCP annotation; all tools remain read-only with respect to source files.
+
+### Why existing limits stay in place
+
+Classification follows the enforcement point, rather than the name of a constant:
+
+| Purpose                      | Existing examples and enforcement                                                                                                                                                                                                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Processing/resources         | Native 50 MiB workbook and 16 MiB CSV input gates; CSV's two-million-cell tokenizer cap; four-entry parsed-file cache; OOXML expansion limits; aggregate's 20-million cell visits, 100,000 groups, 200,000 metric states, one-million exact samples/distinct values, and 10,000 dense pivot cells |
+| Responses/context            | `maxGroups` slices already completed groups; search-result limits bound displayed matches while counting the full search; 512-character cell presentation and the 512 KiB emitted text-payload guard                                                                                              |
+| Both work and response/scope | Read-page cell limits bound presentation work and output; profile row/column/cell caps intentionally sample a prefix; diagnostic/example and chart-point caps bound retained reporting state and displayed detail                                                                                 |
+
+Aggregate execution is synchronous and bounded by visits and state, not by a new wall-clock
+deadline. Regex has its own worker, concurrency and timeout limits, which this change does not
+alter. The retained-result budgets are additional limits, not replacements for processing
+guards. The distinction follows [context-mode's retain-before-emission principle](https://github.com/mksglu/context-mode),
+but uses structured complete numeric results: text snippets cannot establish a full sum, and
+KV-cache reuse does not remove new response bytes from context.
+
+The repeatable MCP payment scenario, independent expectations, external corpus entry and
+commands live in [the Excel lab README](../../lab/excel-lab/README.md). It measures exact counts
+and serialized responses without a model; it does not claim agent success or token savings.
+Future result operations and write capabilities are tracked in the root [roadmap](../../../ROADMAP.md).
+The [architecture recommendations](ARCHITECTURE_RECOMMENDATIONS.md) map the current layers to
+Excel's package, dataset and analytical schemas, identify a reproduced derived-total overflow
+defect, and prioritize existing-tool improvements and possible new operations. They distinguish
+review findings from proposed behavior; the recommendations are not an implemented contract.
 
 ## Profile and reuse a column interpretation
 
@@ -265,7 +387,7 @@ syntax faults still report physical file lines, and `csv.lineBreak` includes the
 line ending. With no explicit delimiter, `csv.delimiterSource` is `"sep"`. An explicit
 `delimiter` wins and keeps source `"explicit"`; a conflicting declaration adds a warning but
 is still removed. BOM and strict decoding checks run first. See the
-[CSV profile recipe](../../../../apps/docs/src/content/excel-mcp/recipes/07-profile-and-read-global-data.md).
+[CSV profile recipe](../../../apps/docs/src/content/excel-mcp/recipes/07-profile-and-read-global-data.md).
 
 An explicit number column may provide `locale` and `numberingSystem` instead of decimal/group
 marks, for example `{"column":"Amount","type":"number","locale":"ar-EG","numberingSystem":"arab"}`.
@@ -308,7 +430,7 @@ hours or fixed ISO day/time durations, for example `25:30` or `P1DT2H`, into
 are refused. Numeric duration metrics use seconds and report the unit. Automatic duration
 reading requires a duration cue in the column; pure clocks are not summed as durations.
 Percent and per-mille quantities are fractions, with unit metadata; currency labels are retained
-without exchange-rate conversion. See the [CSV profile recipe](../../../../apps/docs/src/content/excel-mcp/recipes/07-profile-and-read-global-data.md)
+without exchange-rate conversion. See the [CSV profile recipe](../../../apps/docs/src/content/excel-mcp/recipes/07-profile-and-read-global-data.md)
 and the reproducible generator/fuzz instructions in the repository's lab.
 
 ## Named tables and saved row visibility
@@ -377,7 +499,7 @@ Images and supported linked values are not classified as errors.
 
 Every tool reads the OOXML parts directly through `@sezzlee/ooxml-core`: cells, number formats, formulas, hyperlinks, merges and defined names as much as data validation, Excel Tables, conditional formatting, images and frozen panes. No spreadsheet library is present at runtime. SheetJS and exceljs are dev dependencies: exceljs writes the test fixtures, and SheetJS is the reference the cell reader is compared against.
 
-The OOXML parts are read namespace-aware by `@sezzlee/ooxml-core`'s own XML tokenizer. Matching is done on `(namespace uri, local name)` — the prefix the file happens to write is never consulted — so `<x:dataValidation>` and `<dataValidation>` are indistinguishable at the call site. These tools therefore work with any OPC layout, including prefixed .NET output and a worksheet part named `sheet.xml`.
+The OOXML parts are read namespace-aware by `@sezzlee/ooxml-core`'s own XML tokenizer. Matching is done on `(namespace uri, local name)` — the prefix the file happens to write is never consulted — so `<x:dataValidation>` and `<dataValidation>` are indistinguishable at the call site. Relationships resolve supported worksheet, style and shared-string parts, including prefixed .NET output and a worksheet part named `sheet.xml`. The workbook root is currently required at `xl/workbook.xml`; arbitrary OPC workbook-root layouts are not supported.
 
 | tool                      | source                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

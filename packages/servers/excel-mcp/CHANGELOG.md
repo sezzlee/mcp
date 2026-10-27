@@ -18,6 +18,14 @@
 - `get_charts` series data carry `sheetName` and `range` beside `ref`, the fields `set_chart` series take. `get_images` reports a picture's drawing `name`, which `remove_image` selects.
 - `remove_conditional_format` matches a stored priority by its number, so a rule written as `priority="01"` is found by `priority: 1`.
 
+### Retained aggregate results
+
+- `aggregate_sheet` takes `resultMode: "retained"`: the complete calculation is kept for 15 minutes in this server instance and answered with a byte-bounded preview and a `resultId`. Inline remains the default and is unchanged.
+- `query_result` reads a retained result without opening the workbook again: exact, case-sensitive equality filters, column projection and stable paging with `nextOffset`. An unknown, expired or foreign identifier is `result_unavailable`.
+- Every aggregate shape can be retained. A pivot keeps the inline pivot's columns, each `groupingSets` entry is its own result with its own `resultId`, and the primary result and its grouping sets are admitted together or not at all. `inColumn`/`notInColumn` members from another file are named in `memberSourceVersions`.
+- A preview too wide for its 16 KiB budget shows its leading columns and reports `totalColumns`; every grouping set keeps at least one column and one row of the shared budget.
+- Results are bounded at 100,000 rows, 1,000,000 cells and 8 MiB each, and the store at four results and 16 MiB; a refused result stores nothing and leaves existing results readable.
+
 ## 0.12.0 — 2026-10-27
 
 ### Report authoring and calculation

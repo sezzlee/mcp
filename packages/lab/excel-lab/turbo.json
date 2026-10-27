@@ -7,6 +7,10 @@
       "cache": false,
       "env": ["SEZZLEE_CORPUS"]
     },
+    "result-scenario": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
     "test": {
       "cache": false
     },

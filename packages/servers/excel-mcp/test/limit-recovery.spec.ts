@@ -23,7 +23,7 @@ afterAll(async () => {
   await close();
 });
 
-it("tells a caller past maxGroups that groups are not paged and what to ask instead", async () => {
+it("keeps the maxGroups bound and points to retained continuation", async () => {
   const response = await client.callTool({
     name: "aggregate_sheet",
     arguments: {
@@ -39,8 +39,9 @@ it("tells a caller past maxGroups that groups are not paged and what to ask inst
   expect(response.isError).toBe(true);
   const failure = JSON.parse(content.text) as Record<string, string>;
   expect(failure["error"]).toBe("invalid_argument");
+  expect(failure["message"]).toContain("maxGroups is at most 500");
   expect(failure["message"]).toContain(
-    "maxGroups is at most 500 and groups past it are not paged",
+    'resultMode "retained" and query_result',
   );
   expect(failure["message"]).toContain('orderBy "metric"');
 });

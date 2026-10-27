@@ -29,7 +29,8 @@ export type SezzleeExcelErrorCode =
   | "invalid_range"
   | "invalid_pattern"
   | "numeric_overflow"
-  | "range_outside_used_range";
+  | "range_outside_used_range"
+  | "result_unavailable";
 
 export class SezzleeExcelError extends FileSourceError {
   declare readonly code: SezzleeExcelErrorCode;

@@ -28,7 +28,7 @@ The text item, parsed:
 }
 ```
 
-The server has 33 codes.
+The server has 34 codes.
 
 ## Arguments and paging
 
@@ -40,7 +40,8 @@ The server has 33 codes.
 | `invalid_cursor`           | `cursor` is not a token that a previous `read_sheet` answer returned, for example because it was cut short or edited. Read again without a cursor.                                                                                                                                                                                                              |
 | `stale_cursor`             | The file changed between two pages of the same read. Start again without a cursor.                                                                                                                                                                                                                                                                              |
 | `invalid_pattern`          | `find_in_sheet` refused a `regex` query: it is longer than 256 characters, uses a Unicode property escape (`\p{…}`), or is not a valid JavaScript regular expression.                                                                                                                                                                                           |
-| `resource_limit`           | The request would exceed a fixed budget: too many groups or cells for `aggregate_sheet`, or a regex search that timed out or found the queue full. See [Limits](/docs/excel-mcp/limits).                                                                                                                                                                        |
+| `resource_limit`           | The request would exceed a fixed processing, response or retained-result budget, or a regex search timed out or found the queue full. No partial aggregate is published. A full result store refuses admission until entries expire or the server restarts. See [Limits](/docs/excel-mcp/limits).                                                               |
+| `result_unavailable`       | The result identifier is unknown, expired, or belongs to another server instance. Retained results are snapshots in one instance, not durable identifiers. Repeat aggregate_sheet with resultMode retained to create a new result.                                                                                                                              |
 
 ## Files and paths
 
