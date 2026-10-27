@@ -4,13 +4,13 @@ Build through Turbo before invoking the CLI. Run from the repository root:
 
 ```sh
 pnpm turbo run build --filter=@sezzlee/excel-mcp
-node packages/lab/excel-lab/src/calculation-agent-cli.ts --out /tmp/calculation-scripted
-node packages/lab/excel-lab/src/calculation-agent-cli.ts --out /tmp/calculation-model --url http://MODEL_HOST:11434 --model MODEL
+node packages/lab/excel-lab/src/lab/run-cli.ts --out /tmp/calculation-scripted --suite calc
+SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab/src/lab/run-cli.ts --out /tmp/calculation-model --suite calc --model MODEL
 ```
 
-Each run creates synthetic public fixtures and tests calculation, edit → calculate and explicit unsupported/circular reporting in Turkish and English. `--languages tr` or `--languages en` selects one language. Output directories are fresh evidence roots, not existing source or corpus directories.
+Each run creates synthetic public fixtures and tests calculation, edit → calculate and explicit unsupported/circular reporting in Turkish and English. The scripted baseline always runs both languages; `--languages tr` or `--languages en` selects the model-trial languages. Output directories are fresh evidence roots, not existing source or corpus directories.
 
-The live run uses the existing Ollama wire adapter, `think: false`, a 65,536-token context, temperature zero, a 4,096-token response limit and a ten-turn budget. It records host/model identity, controls, complete traces, selected output paths, source hashes and final claim checks. An unfinished model turn is a failure even when a correct workbook was produced.
+The live run uses the existing Ollama wire adapter, `think: false`, a 65,536-token context, temperature zero, a 4,096-token response limit and a budget of ten requests and ten calls. It records host/model identity, controls, complete traces, selected output paths, source hashes and final claim checks. An unfinished model turn is a failure even when a correct workbook was produced.
 
 `calculation-oracle.ts` independently reads saved ZIP/XML with Saxes and checks fixed expected scalar results, cache types, exact formula text and absent caches for unavailable cells. Its corruption controls reject wrong values/types, changed/missing formulas, duplicate/missing cells and stale caches. Model output never supplies the expected numeric answer.
 

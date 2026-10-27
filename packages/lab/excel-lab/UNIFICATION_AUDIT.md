@@ -564,13 +564,24 @@ not proof of a `model` cause.
 
 **Reading agent/baseline.** Replaced: no. Before/after parity: not run. Retain; original corpus and oracle verification remain prerequisites.
 
-**Edit/transfer/authoring.** Replaced: no. Before/after parity: not run. Retain all 16 scenarios and both byte oracles; pinned external fixtures are needed.
+**Edit/transfer/authoring.** Replaced by the `edit` suite of `src/lab/run-cli.ts`. Scripted parity: 16 of 16 scenarios with the same verdict and the same output `versionId` (content digest) as `edit-agent-cli.ts`, on the same pinned fixtures and both byte oracles.
 
-**Bulk.** Replaced: no. Before/after parity: not run. Retain all seven scenarios and publication/retry/final-claim assertions.
+**Bulk.** Replaced by the `bulk` suite. Scripted parity: 7 of 7, same verdicts and output `versionId`s; `blocked` produces no output in both.
 
-**Expert.** Replaced: no. Before/after parity: not run. Retain; distinguish scripted four-chart and model one-chart contracts.
+**Expert.** Replaced by the `expert` suite (`expert/report`). Scripted parity: 1 of 1, same output `versionId`. The scripted four-chart and model one-chart contracts are kept as they were.
 
-**Calculation.** Replaced: no. Before/after parity: not run. Retain TS oracle and final-claim checks pending independently tested migration.
+**Calculation.** Replaced by the `calc` suite. Scripted parity: 6 of 6 (three scenarios in two languages), same output `versionId`s, with the TypeScript cache oracle and final-claim checks unchanged.
+
+One scripted run of all four suites passes 30 of 30 trials in 2.6 s at 322 MiB peak RSS. The comparison script and both sides' results stayed outside the repository; the legacy CLIs were deleted only after these comparisons.
+
+Model trials deliberately differ from the legacy loops, where the legacy behavior was one of the risks above:
+
+- A tool outside the offered catalog is answered as not offered and never reaches the server, instead of being executed (editing, A03) or failing the trial (bulk, expert, calculation).
+- The call budget counts every call, including calls inside one reply; a call past it is answered with the budget notice instead of failing the trial, and calculation now has a call budget besides its ten requests (A04).
+- Model trials start only after every selected scripted baseline passed, and no host is built before that (A02).
+- A dropped connection is retried up to three attempts and a timeout once, as the reading runner does; the legacy writing loops did not retry.
+- Each trial directory has one streamed `trace.jsonl`, which names the offered tools; the duplicate `trace.json`, `tools.json`, `final.json` and expert `catalog-sizes.json` are gone, and `measure-cli.ts` prices catalogs. Expert's application and visual oracles run on a selected output directly instead of through a CLI flag.
+- The run manifest records the server build digest, lab source and oracle digests, the model and each scenario's catalog and budget, and the run fails if the server build changes during it.
 
 **Retained result scenario.** Replaced: no. Before/after parity: not run. Retain as scripted evidence; do not relabel it agent acceptance.
 
