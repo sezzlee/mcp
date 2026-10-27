@@ -1,5 +1,7 @@
 # Phase 7 implementation status
 
+Published release, 2026-10-27: [Excel MCP 0.12.0](release-0.12.0.md), file-core 0.3.5 and native 0.3.1 are on npm. The MCP Registry and live docs were updated, and a fresh registry-only consumer passed the new workflows. The phase acceptance evidence below predates this subsequent package publication.
+
 Status, 2026-10-27: implementation and post-review acceptance are complete for the eight approved profiles on [PR #73](https://github.com/sezzlee/mcp/pull/73). The external review's open LOCAL-001–LOCAL-008 tasks are closed by the [review closure](review-closure.md) and fresh [acceptance record](acceptance-record.json). Review and merge remain the user's decision.
 
 Final [native and installed-package CI](https://github.com/sezzlee/mcp/actions/runs/40502797716) passed 15/15 jobs on `70caabc6e038cc5887b0b6e59cfc8c66bdfdb9ac`, with current main integrated. All 129 built server modules have SHA-256 `9f0a54c8ba58be8875df897e10a1b48229a69b75ec23024ffe342be876c1bc8f`, matching both ends of the local acceptance run and final model/application evidence. Earlier acceptance records remain historical for their original runtime.
