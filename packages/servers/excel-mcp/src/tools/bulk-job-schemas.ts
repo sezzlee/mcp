@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { presentationWireChangeSchema } from "../authoring/presentation.js";
 import { bulkOperationSchema } from "../authoring/bulk.js";
-import { writeCellSchema } from "../authoring/values.js";
+import { writeCellWireSchema } from "../authoring/values.js";
 import { sheetNameSchema } from "../authoring/workbook.js";
 import { columnSpecSchema } from "../grid/column-spec.js";
 import {
@@ -57,7 +57,7 @@ const transform = z
     z.strictObject({
       kind: z.literal("constant"),
       column,
-      value: writeCellSchema,
+      value: writeCellWireSchema,
     }),
     z.strictObject({ kind: z.literal("trim"), column }),
     z.strictObject({
@@ -83,7 +83,7 @@ const bulkStepVariants = z
       ...input,
       ...predicate,
       set: z
-        .array(z.strictObject({ column, value: writeCellSchema }))
+        .array(z.strictObject({ column, value: writeCellWireSchema }))
         .min(1)
         .max(64),
     }),

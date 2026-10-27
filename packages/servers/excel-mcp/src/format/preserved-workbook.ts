@@ -38,6 +38,8 @@ import { namespaces } from "../metadata/spreadsheetml/xml.js";
 import { failOoxml } from "../metadata/spreadsheetml/errors.js";
 import { unescapeXstring } from "../metadata/spreadsheetml/shared-strings.js";
 import { inspectWorkbookEdit } from "./edit-inspection.js";
+import { guardCurrentProtection } from "./protection-authoring.js";
+import { featureData } from "./feature-data.js";
 import { readNumberFormats } from "../metadata/spreadsheetml/styles.js";
 import { isDateFormat } from "./cell-date.js";
 import { isTimeOnlyFormat } from "./cell-date.js";
@@ -406,6 +408,9 @@ export class PreservedWorkbook {
   private cleared = 0;
   private touched = 0;
   private needsCalculation = false;
+  private readonly featureRefresh = new Set<"charts" | "pivots">();
+  private readonly featureFreshness = new Map<string, string>();
+  private readonly originalBytes: Buffer;
   private formattingChanged = false;
   private cachedFormulaValues = 0;
   private readonly presentation = {
@@ -426,6 +431,7 @@ export class PreservedWorkbook {
   private readonly original: ReadonlyMap<string, Uint8Array>;
 
   constructor(bytes: Buffer) {
+    this.originalBytes = bytes;
     const opc = openOpcPackage(zipSource(bytes));
     if (
       opc.parts.reduce((total, part) => total + part.sizeBytes, 0) >
@@ -540,13 +546,20 @@ export class PreservedWorkbook {
       budget("The transaction exceeds 1,000,000 touched cells.");
   }
   presentationEffect(
-    kind: "format" | "formula" | "merge" | "table" | "layout" | "visibility",
+    kind:
+      | "format"
+      | "formula"
+      | "merge"
+      | "table"
+      | "layout"
+      | "visibility"
+      | "name",
     cells: number,
     cleared = 0,
   ): void {
     this.touch(cells);
     if (kind === "format" || kind === "layout") this.formattingChanged = true;
-    if (kind === "visibility") this.needsCalculation = true;
+    if (kind === "visibility" || kind === "name") this.needsCalculation = true;
     if (kind === "format") {
       this.presentation.cellsFormatted += cells;
       this.formats = undefined;
@@ -564,6 +577,52 @@ export class PreservedWorkbook {
     } else if (kind === "table") {
       this.presentation.tablesChanged += 1;
       this.needsCalculation = true;
+    }
+  }
+  requireFeatureRefresh(kind: "charts" | "pivots"): void {
+    this.featureRefresh.add(kind);
+  }
+  markFeatureCurrent(part: string): void {
+    const signature = this.featureSourceSignature(part);
+    if (signature !== undefined) this.featureFreshness.set(part, signature);
+  }
+  private featureSourceSignature(part: string): string | undefined {
+    if (!this.parts.has(part)) return undefined;
+    const sources: { sheet: string; range: string }[] = [];
+    const xml = this.xml(part);
+    let unsupported = false;
+    scanXml(xml, part, (node) => {
+      if (node.uri === namespaces.chart && node.local === "f") {
+        const ref = xmlUnescape(xml.slice(node.openEnd, node.closeStart));
+        const match =
+          /^(?:'((?:[^']|'')+)'|([^'![\]]+))!([A-Za-z$0-9:]+)$/.exec(ref);
+        const sheet = match?.[1]?.replace(/''/g, "'") ?? match?.[2],
+          range = match?.[3]?.replace(/\$/g, "");
+        if (sheet === undefined || range === undefined) unsupported = true;
+        else sources.push({ sheet, range });
+      }
+      if (node.uri === main && node.local === "worksheetSource") {
+        const sheet = node.attributes.get("sheet"),
+          range = node.attributes.get("ref");
+        if (sheet === undefined || range === undefined) unsupported = true;
+        else sources.push({ sheet, range });
+      }
+    });
+    if (unsupported || sources.length === 0) return undefined;
+    try {
+      const data = sources.map((source) =>
+        featureData(this, source.sheet, source.range),
+      );
+      if (
+        data.some((grid) =>
+          grid.some((row) => row.some((cell) => cell.kind === "formula")),
+        )
+      )
+        return undefined;
+      return JSON.stringify({ sources, data });
+    } catch (error) {
+      if (error instanceof SezzleeExcelError) return undefined;
+      throw error;
     }
   }
   guardPresentation(sheetName: string, bounds: GridBounds): void {
@@ -1121,6 +1180,7 @@ export class PreservedWorkbook {
     sources: ReadonlyMap<number, Buffer> = new Map(),
   ): void {
     for (const [index, change] of changes.entries()) {
+      guardCurrentProtection(this, change);
       if (isPresentationChange(change)) {
         applyPresentationChange(this, change);
         continue;
@@ -2842,7 +2902,60 @@ export class PreservedWorkbook {
           this.needsCalculation = true;
       });
     }
-    if (this.needsCalculation) this.invalidateCalculations();
+    if (this.needsCalculation) {
+      this.invalidateCalculations();
+      const opc = this.opc();
+      let originalWorkbook: PreservedWorkbook | undefined;
+      for (const entry of opc.parts) {
+        const type = opc.contentTypes.contentTypeOf(entry.path) ?? "";
+        if (!/\.chart\+xml$|pivotCacheDefinition\+xml$/.test(type)) continue;
+        const current = this.featureSourceSignature(entry.path);
+        let previous = this.featureFreshness.get(entry.path);
+        if (previous === undefined && this.original.has(entry.path)) {
+          originalWorkbook ??= new PreservedWorkbook(this.originalBytes);
+          previous = originalWorkbook.featureSourceSignature(entry.path);
+        }
+        if (current !== undefined && previous === current) continue;
+        if (/\.chart\+xml$/.test(type)) {
+          const xml = this.xml(entry.path),
+            patches: XmlPatch[] = [];
+          scanXml(xml, entry.path, (node) => {
+            if (
+              node.uri === namespaces.chart &&
+              ["numCache", "strCache", "multiLvlStrCache"].includes(node.local)
+            )
+              patches.push({ start: node.start, end: node.end, text: "" });
+          });
+          if (patches.length)
+            this.put(entry.path, applyXmlPatches(xml, patches));
+          this.requireFeatureRefresh("charts");
+        }
+        if (/pivotCacheDefinition\+xml$/.test(type)) {
+          const xml = this.xml(entry.path);
+          let root: XmlSpan | undefined;
+          scanXml(xml, entry.path, (node) => {
+            if (node.uri === main && node.local === "pivotCacheDefinition")
+              root = node;
+          });
+          if (root !== undefined)
+            this.put(
+              entry.path,
+              applyXmlPatches(xml, [
+                {
+                  start: root.start,
+                  end: root.end,
+                  text: attribute(
+                    attribute(xml.slice(root.start, root.end), "invalid", "1"),
+                    "refreshOnLoad",
+                    "1",
+                  ),
+                },
+              ]),
+            );
+          this.requireFeatureRefresh("pivots");
+        }
+      }
+    }
     if (stored > authoringLimits.maxCells)
       budget("The workbook exceeds 1,000,000 stored cells.");
     let changed = 0;
@@ -2854,22 +2967,11 @@ export class PreservedWorkbook {
     for (const part of this.original.keys())
       if (!this.parts.has(part)) changed += 1;
     const bytes = Buffer.from(writer.zip(this.parts, limits.maxFileBytes));
-    const refreshRequired: ("formulas" | "charts" | "pivots")[] = [];
+    const refreshRequired: ("formulas" | "charts" | "pivots")[] = [
+      ...this.featureRefresh,
+    ];
     if (this.needsCalculation) {
       refreshRequired.push("formulas");
-      const opc = this.opc();
-      if (
-        opc.parts.some((part) =>
-          /chart/i.test(opc.contentTypes.contentTypeOf(part.path) ?? ""),
-        )
-      )
-        refreshRequired.push("charts");
-      if (
-        opc.parts.some((part) =>
-          /pivot/i.test(opc.contentTypes.contentTypeOf(part.path) ?? ""),
-        )
-      )
-        refreshRequired.push("pivots");
     }
     return {
       bytes,

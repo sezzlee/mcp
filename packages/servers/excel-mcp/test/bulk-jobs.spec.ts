@@ -1538,6 +1538,26 @@ it("bounds the advertised job catalog while keeping kind-specific argument valid
         });
       }
       const read = await readStep(directory);
+      for (const value of [
+        { kind: "number", value: "7" },
+        { kind: "blank", value: "unexpected" },
+        { kind: "date", value: "2026-02-30" },
+      ]) {
+        const invalid = await invoke(client, {
+          steps: [
+            read,
+            {
+              kind: "update",
+              id: "invalid",
+              input: read.id,
+              set: [{ column: "Amount", value }],
+            },
+          ],
+          outputs: [newOutput("invalid")],
+        });
+        expect(invalid.isError).toBe(true);
+        expect(payload(invalid)).toMatchObject({ error: "invalid_argument" });
+      }
       const response = await invoke(client, {
         steps: [{ kind: "read", id: "invalid", source: read.source }],
         outputs: [newOutput("invalid")],

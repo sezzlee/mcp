@@ -55,6 +55,8 @@ const finishAdvice =
   'Optional job.finish is at the job root, never inside group: [{"output":"report","changes":[{"kind":"format_cells","sheetName":"S","range":"C2:C4","style":{"numberFormat":"0.00"}}]}]. For independent jobs each finish entry additionally names job. Changes use edit_workbook authoring kinds and run after data rendering, before the existing atomic publication. Formula changes require formula text and never calculate results. ';
 const tableAdvice =
   ' Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]*[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically.';
+const expertAdvice =
+  " Advanced changes: define_name uses sheetName,name,range,scope workbook/sheet; replacement requires overwrite:true. write_named_range uses the exact name/scope and a typed values rectangle of the same shape; delete_name refuses live formula dependencies. set_validation uses range and rule {type:list,items:[...]}, {type:whole/decimal/date/textLength,operator,bounds:[...]}, or {type:custom,formula}; date bounds are workbook serials, rules guide interactive Excel input and do not enforce all server writes. remove_validation requires the exact old range. set_conditional_format uses range,priority,rule {type:expression,formula} or {type:cellIs,operator,formulas:[...]}, appearance {font,fill},stopIfTrue. Replace a priority explicitly with overwrite:true; remove_conditional_format uses priority. set_hyperlink uses cell,target {kind:external,url} for HTTPS or {kind:internal,location}; set_note uses cell,text,author; set_image uses name,cell,mime image/png or image/jpeg,data canonical base64,width,height in pixels. Their remove_* operations select the same cell or image name. set_chart uses name,chartType column/bar/line/pie,title,cell and series [{name,sheetName,categories,values}] with one-row/column A1 ranges; formula sources have no invented cache and require refresh. remove_chart uses name. set_pivot creates/refreshes a real PivotTable using name,cell,sourceSheet,sourceRange including headers,rowColumn and measures [{column,function:sum/count/min/max,name}]; source cells must be literal, count counts nonblank values. set_pivot overwrite:true refreshes/replaces an existing private cache and clears its old result tail. protect_sheet/protect_workbook optionally use a legacy Excel protection password of up to 15 characters; this is not encryption. Unprotect every locked target with authenticated unprotect_workbook/unprotect_sheet changes at the start of a request before other edits. format_cells style.protection {locked,hidden} controls cell protection. Strong-hash, encrypted, signed and macro-enabled editing remains refused. Originals never change. Appearance and source changes distinguish current chart/pivot caches from refreshRequired.";
 
 export const writingToolDefinitions = {
   calculate_workbook: {
@@ -92,7 +94,8 @@ export const writingToolDefinitions = {
   prepare_edit: {
     description:
       "Inspect an ordered edit request without publishing an output. Accept .xlsx filePath, optional expectedVersion, and changes. Returns exact source {filePath, versionId}, a fingerprint binding normalized changes, source feature counts, and ready or blocked with policy reasons. Pass source and the same changes to edit_workbook. Canonical and preservation-supported external workbooks can be ready. Supports scalar, sheet, copy/move and row/column edits, plus edit_workbook formatting/layout/formula/table authoring. Copy requires explicit values/formulas/formatting/all mode. No source file is changed. Enabled protection, macros, signatures, Strict markup or unsupported affected dependencies refuse editing. Preparation is not permission to edit changed bytes. No recalculation occurs." +
-      tableAdvice,
+      tableAdvice +
+      expertAdvice,
     inputSchema: prepareEditSchema,
     annotations: readOnly,
   },
@@ -117,7 +120,8 @@ export const writingToolDefinitions = {
   create_workbook: {
     description:
       "Create one immutable .xlsx from named sheets and rectangular typed value blocks. Each scalar has kind text/number/boolean/blank/date/datetime; text beginning with = stays literal. Optional changes finish the workbook atomically with formatting, layout, merges, formulas and tables before publication. Formula operations write explicit formula text without calculating it. Table range includes its header and optional totals row; use literal unique headers. At least one sheet, up to 1,000,000 touched/stored cells, 64 sheets and 128 changes. Identical requests retain identical outputs; originals never change." +
-      tableAdvice,
+      tableAdvice +
+      expertAdvice,
     inputSchema: z.strictObject({
       sheets: z.array(newSheetSchema).min(1).max(authoringLimits.maxSheets),
       changes: z
@@ -130,7 +134,8 @@ export const writingToolDefinitions = {
   edit_workbook: {
     description:
       "Apply ordered atomic changes to source {filePath,versionId}; originals/retained outputs never change. write_cells uses typed literal values; occupied data/formula targets require overwrite:true. clear_contents preserves styles. copy_range/move_range use range,targetSheet,startCell; copy requires mode values/formulas/formatting/all. copy_sheet uses name/mode; copy operations optionally accept from {filePath,versionId}, subject to dependency/style compatibility. Sheet rename/reorder/delete and row/column insert/delete preserve supported references or refuse. format_cells patches only specified style fields; null resets a component. set_columns/set_rows use one-based first/last, width in character units/height in points, hidden; freeze_panes uses row/column counts. set_print_layout margins are inches; choose scale or fitWidth/fitHeight. merge_cells defaults to loss:reject; loss:discard_non_anchor explicitly clears other contents; unmerge_cells retains only the anchor. write_formula uses cell/formula; fill_formula uses anchor/range/formula and relative A1/table references. New formulas have no calculated cache; report recalculation required. create_table range includes header/data/optional totals; headers are unique literal text. edit_table can rename name/columns, resize range, set calculatedColumns/totals/style/filter; shrink preserves excluded values unless clearRemovedValues:true. convert_table preserves supported references/appearance or refuses. Table style is SezzleeBlue or none; filter toggles dropdowns, not dataset filtering. Dynamic arrays/external formula links and unsupported affected preservation refuse the whole request. Use prepare_edit first for scope/effects. Retry the same source/changes for the same result; select an earlier source to undo/branch." +
-      tableAdvice,
+      tableAdvice +
+      expertAdvice,
     inputSchema: z.strictObject({
       source: workbookVersionSchema,
       changes: editWireChangesSchema,

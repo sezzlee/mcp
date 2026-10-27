@@ -299,12 +299,49 @@ export class StyleAuthoring {
         patch.alignment === null ? undefined : "1",
       );
     }
+    if (patch.protection !== undefined) {
+      let protection = "";
+      if (patch.protection !== null) {
+        const current = xmlNodes(xf, "protection", "xf")[0];
+        protection =
+          current === undefined
+            ? `<protection xmlns="${main}"/>`
+            : xf.slice(current.start, current.end);
+        for (const [name, value] of Object.entries(patch.protection))
+          protection = attribute(protection, name, value ? "1" : "0");
+      }
+      xf = setXmlChild(xf, "xf", "protection", protection, [
+        "alignment",
+        "protection",
+        "extLst",
+      ]);
+      xf = attribute(
+        xf,
+        "applyProtection",
+        patch.protection === null ? undefined : "1",
+      );
+    }
     const result = String(this.append("cellXfs", "xf", xf));
     this.cache.set(key, result);
     return result;
   }
   finish(): void {
     this.workbook.put(this.part, this.xml);
+  }
+  differential(patch: Pick<CellStyle, "font" | "fill">): number {
+    const font =
+      patch.font == null
+        ? ""
+        : this.patchFont(`<font xmlns="${main}"/>`, patch.font);
+    const fill =
+      patch.fill == null
+        ? ""
+        : `<fill><patternFill patternType="solid"><fgColor rgb="${argb(patch.fill)}"/><bgColor rgb="${argb(patch.fill)}"/></patternFill></fill>`;
+    return this.append(
+      "dxfs",
+      "dxf",
+      `<dxf xmlns="${main}">${font}${fill}</dxf>`,
+    );
   }
   defineTableStyle(): void {
     const prior = xmlNodes(this.xml, "tableStyle", "tableStyles").find(

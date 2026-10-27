@@ -914,118 +914,38 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               "maxLength": 32767
                             },
                             "value": {
-                              "oneOf": [
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "text"
-                                    },
-                                    "value": {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "text",
+                                    "number",
+                                    "boolean",
+                                    "blank",
+                                    "date",
+                                    "datetime"
+                                  ]
+                                },
+                                "value": {
+                                  "anyOf": [
+                                    {
                                       "type": "string",
                                       "maxLength": 32767
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "number"
                                     },
-                                    "value": {
+                                    {
                                       "type": "number"
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "boolean"
                                     },
-                                    "value": {
+                                    {
                                       "type": "boolean"
                                     }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "blank"
-                                    }
-                                  },
-                                  "required": [
-                                    "kind"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "date"
-                                    },
-                                    "value": {
-                                      "type": "string",
-                                      "minLength": 10,
-                                      "format": "date",
-                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "datetime"
-                                    },
-                                    "value": {
-                                      "type": "string",
-                                      "allOf": [
-                                        {
-                                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z)|(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?)$"
-                                        },
-                                        {
-                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?$"
-                                        }
-                                      ]
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
+                                  ]
                                 }
-                              ]
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "additionalProperties": false
                             }
                           },
                           "required": [
@@ -1327,118 +1247,38 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               "maxLength": 32767
                             },
                             "value": {
-                              "oneOf": [
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "text"
-                                    },
-                                    "value": {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "text",
+                                    "number",
+                                    "boolean",
+                                    "blank",
+                                    "date",
+                                    "datetime"
+                                  ]
+                                },
+                                "value": {
+                                  "anyOf": [
+                                    {
                                       "type": "string",
                                       "maxLength": 32767
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "number"
                                     },
-                                    "value": {
+                                    {
                                       "type": "number"
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "boolean"
                                     },
-                                    "value": {
+                                    {
                                       "type": "boolean"
                                     }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "blank"
-                                    }
-                                  },
-                                  "required": [
-                                    "kind"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "date"
-                                    },
-                                    "value": {
-                                      "type": "string",
-                                      "minLength": 10,
-                                      "format": "date",
-                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "datetime"
-                                    },
-                                    "value": {
-                                      "type": "string",
-                                      "allOf": [
-                                        {
-                                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z)|(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?)$"
-                                        },
-                                        {
-                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?$"
-                                        }
-                                      ]
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
+                                  ]
                                 }
-                              ]
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "additionalProperties": false
                             }
                           },
                           "required": [
@@ -2442,118 +2282,38 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     "maxLength": 32767
                                   },
                                   "value": {
-                                    "oneOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "text"
-                                          },
-                                          "value": {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "text",
+                                          "number",
+                                          "boolean",
+                                          "blank",
+                                          "date",
+                                          "datetime"
+                                        ]
+                                      },
+                                      "value": {
+                                        "anyOf": [
+                                          {
                                             "type": "string",
                                             "maxLength": 32767
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "number"
                                           },
-                                          "value": {
+                                          {
                                             "type": "number"
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "boolean"
                                           },
-                                          "value": {
+                                          {
                                             "type": "boolean"
                                           }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "blank"
-                                          }
-                                        },
-                                        "required": [
-                                          "kind"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "date"
-                                          },
-                                          "value": {
-                                            "type": "string",
-                                            "minLength": 10,
-                                            "format": "date",
-                                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "datetime"
-                                          },
-                                          "value": {
-                                            "type": "string",
-                                            "allOf": [
-                                              {
-                                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z)|(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?)$"
-                                              },
-                                              {
-                                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?$"
-                                              }
-                                            ]
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
+                                        ]
                                       }
-                                    ]
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "additionalProperties": false
                                   }
                                 },
                                 "required": [
@@ -2855,118 +2615,38 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     "maxLength": 32767
                                   },
                                   "value": {
-                                    "oneOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "text"
-                                          },
-                                          "value": {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "text",
+                                          "number",
+                                          "boolean",
+                                          "blank",
+                                          "date",
+                                          "datetime"
+                                        ]
+                                      },
+                                      "value": {
+                                        "anyOf": [
+                                          {
                                             "type": "string",
                                             "maxLength": 32767
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "number"
                                           },
-                                          "value": {
+                                          {
                                             "type": "number"
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "boolean"
                                           },
-                                          "value": {
+                                          {
                                             "type": "boolean"
                                           }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "blank"
-                                          }
-                                        },
-                                        "required": [
-                                          "kind"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "date"
-                                          },
-                                          "value": {
-                                            "type": "string",
-                                            "minLength": 10,
-                                            "format": "date",
-                                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "datetime"
-                                          },
-                                          "value": {
-                                            "type": "string",
-                                            "allOf": [
-                                              {
-                                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z)|(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?)$"
-                                              },
-                                              {
-                                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?$"
-                                              }
-                                            ]
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
+                                        ]
                                       }
-                                    ]
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "additionalProperties": false
                                   }
                                 },
                                 "required": [
@@ -3462,6 +3142,26 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     "kind": {
                       "type": "string",
                       "enum": [
+                        "protect_sheet",
+                        "unprotect_sheet",
+                        "protect_workbook",
+                        "unprotect_workbook",
+                        "set_pivot",
+                        "set_chart",
+                        "remove_chart",
+                        "set_hyperlink",
+                        "remove_hyperlink",
+                        "set_note",
+                        "remove_note",
+                        "set_image",
+                        "remove_image",
+                        "set_validation",
+                        "remove_validation",
+                        "set_conditional_format",
+                        "remove_conditional_format",
+                        "define_name",
+                        "delete_name",
+                        "write_named_range",
                         "format_cells",
                         "set_columns",
                         "set_rows",
@@ -3482,10 +3182,478 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                       "minLength": 1,
                       "maxLength": 31
                     },
+                    "rule": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "list",
+                            "whole",
+                            "decimal",
+                            "date",
+                            "textLength",
+                            "custom",
+                            "cellIs",
+                            "expression"
+                          ]
+                        },
+                        "items": {
+                          "minItems": 1,
+                          "maxItems": 128,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                          }
+                        },
+                        "operator": {
+                          "type": "string",
+                          "enum": [
+                            "between",
+                            "notBetween",
+                            "equal",
+                            "notEqual",
+                            "greaterThan",
+                            "lessThan",
+                            "greaterThanOrEqual",
+                            "lessThanOrEqual"
+                          ]
+                        },
+                        "bounds": {
+                          "minItems": 1,
+                          "maxItems": 2,
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          }
+                        },
+                        "formula": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 8192
+                        },
+                        "formulas": {
+                          "minItems": 1,
+                          "maxItems": 2,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 8192
+                          }
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "password": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 15,
+                      "pattern": "^[\\x20-\\x7e]+$"
+                    },
+                    "selectLocked": {
+                      "type": "boolean"
+                    },
+                    "selectUnlocked": {
+                      "type": "boolean"
+                    },
+                    "name": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255,
+                          "pattern": "^[\\p{L}_\\\\][\\p{L}\\p{N}_.\\\\]*$"
+                        },
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        }
+                      ]
+                    },
+                    "cell": {
+                      "type": "string",
+                      "maxLength": 21,
+                      "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                    },
+                    "sourceSheet": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 31
+                    },
+                    "sourceRange": {
+                      "type": "string",
+                      "maxLength": 21,
+                      "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                    },
+                    "rowColumn": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "measures": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "column": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                          },
+                          "function": {
+                            "type": "string",
+                            "enum": [
+                              "sum",
+                              "count",
+                              "min",
+                              "max"
+                            ]
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                          }
+                        },
+                        "required": [
+                          "column",
+                          "function",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "overwrite": {
+                      "type": "boolean"
+                    },
+                    "chartType": {
+                      "type": "string",
+                      "enum": [
+                        "column",
+                        "bar",
+                        "line",
+                        "pie"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    "width": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 2000
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 10000
+                        },
+                        {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 255
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "height": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 2000
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 10000
+                        },
+                        {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 409
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "series": {
+                      "minItems": 1,
+                      "maxItems": 16,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                          },
+                          "sheetName": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 31
+                          },
+                          "categories": {
+                            "type": "string",
+                            "maxLength": 21,
+                            "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                          },
+                          "values": {
+                            "type": "string",
+                            "maxLength": 21,
+                            "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "sheetName",
+                          "categories",
+                          "values"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "target": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "internal"
+                            },
+                            "location": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1024
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "location"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "external"
+                            },
+                            "url": {
+                              "type": "string",
+                              "maxLength": 2048,
+                              "format": "uri"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "url"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "tooltip": {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    "display": {
+                      "type": "string",
+                      "maxLength": 32767
+                    },
+                    "text": {
+                      "type": "string",
+                      "maxLength": 32767
+                    },
+                    "author": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "mime": {
+                      "type": "string",
+                      "enum": [
+                        "image/png",
+                        "image/jpeg"
+                      ]
+                    },
+                    "data": {
+                      "type": "string",
+                      "minLength": 4,
+                      "maxLength": 7000000
+                    },
                     "range": {
                       "type": "string",
                       "maxLength": 21,
                       "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                    },
+                    "allowBlank": {
+                      "type": "boolean"
+                    },
+                    "errorStyle": {
+                      "type": "string",
+                      "enum": [
+                        "stop",
+                        "warning",
+                        "information"
+                      ]
+                    },
+                    "errorTitle": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "error": {
+                      "type": "string",
+                      "maxLength": 225
+                    },
+                    "promptTitle": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "prompt": {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    "priority": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 4096
+                    },
+                    "appearance": {
+                      "type": "object",
+                      "properties": {
+                        "font": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                },
+                                "size": {
+                                  "type": "number",
+                                  "minimum": 1,
+                                  "maximum": 409
+                                },
+                                "bold": {
+                                  "type": "boolean"
+                                },
+                                "italic": {
+                                  "type": "boolean"
+                                },
+                                "underline": {
+                                  "type": "boolean"
+                                },
+                                "strike": {
+                                  "type": "boolean"
+                                },
+                                "color": {
+                                  "type": "string",
+                                  "pattern": "^[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "fill": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "stopIfTrue": {
+                      "type": "boolean"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "workbook",
+                        "sheet"
+                      ]
+                    },
+                    "values": {
+                      "minItems": 1,
+                      "maxItems": 1048576,
+                      "type": "array",
+                      "items": {
+                        "minItems": 1,
+                        "maxItems": 16384,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "text",
+                                "number",
+                                "boolean",
+                                "blank",
+                                "date",
+                                "datetime"
+                              ]
+                            },
+                            "value": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 32767
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "boolean"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
                     },
                     "style": {
                       "anyOf": [
@@ -3709,6 +3877,25 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                   "type": "null"
                                 }
                               ]
+                            },
+                            "protection": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "locked": {
+                                      "type": "boolean"
+                                    },
+                                    "hidden": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             }
                           },
                           "additionalProperties": false
@@ -3750,32 +3937,8 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       ]
                     },
-                    "width": {
-                      "anyOf": [
-                        {
-                          "type": "number",
-                          "minimum": 0,
-                          "maximum": 255
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
                     "hidden": {
                       "type": "boolean"
-                    },
-                    "height": {
-                      "anyOf": [
-                        {
-                          "type": "number",
-                          "minimum": 0,
-                          "maximum": 409
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
                     },
                     "rows": {
                       "type": "integer",
@@ -3970,29 +4133,15 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "discard_non_anchor"
                       ]
                     },
-                    "cell": {
-                      "type": "string",
-                      "maxLength": 21,
-                      "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
-                    },
                     "formula": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 8192
                     },
-                    "overwrite": {
-                      "type": "boolean"
-                    },
                     "anchor": {
                       "type": "string",
                       "maxLength": 21,
                       "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
-                    },
-                    "name": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 255,
-                      "pattern": "^[\\p{L}_\\\\][\\p{L}\\p{N}_.\\\\]*$"
                     },
                     "filter": {
                       "type": "boolean"
@@ -4809,118 +4958,38 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               "maxLength": 32767
                             },
                             "value": {
-                              "oneOf": [
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "text"
-                                    },
-                                    "value": {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "text",
+                                    "number",
+                                    "boolean",
+                                    "blank",
+                                    "date",
+                                    "datetime"
+                                  ]
+                                },
+                                "value": {
+                                  "anyOf": [
+                                    {
                                       "type": "string",
                                       "maxLength": 32767
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "number"
                                     },
-                                    "value": {
+                                    {
                                       "type": "number"
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "boolean"
                                     },
-                                    "value": {
+                                    {
                                       "type": "boolean"
                                     }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "blank"
-                                    }
-                                  },
-                                  "required": [
-                                    "kind"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "date"
-                                    },
-                                    "value": {
-                                      "type": "string",
-                                      "minLength": 10,
-                                      "format": "date",
-                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "datetime"
-                                    },
-                                    "value": {
-                                      "type": "string",
-                                      "allOf": [
-                                        {
-                                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z)|(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?)$"
-                                        },
-                                        {
-                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?$"
-                                        }
-                                      ]
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
+                                  ]
                                 }
-                              ]
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "additionalProperties": false
                             }
                           },
                           "required": [
@@ -5222,118 +5291,38 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               "maxLength": 32767
                             },
                             "value": {
-                              "oneOf": [
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "text"
-                                    },
-                                    "value": {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "text",
+                                    "number",
+                                    "boolean",
+                                    "blank",
+                                    "date",
+                                    "datetime"
+                                  ]
+                                },
+                                "value": {
+                                  "anyOf": [
+                                    {
                                       "type": "string",
                                       "maxLength": 32767
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "number"
                                     },
-                                    "value": {
+                                    {
                                       "type": "number"
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "boolean"
                                     },
-                                    "value": {
+                                    {
                                       "type": "boolean"
                                     }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "blank"
-                                    }
-                                  },
-                                  "required": [
-                                    "kind"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "date"
-                                    },
-                                    "value": {
-                                      "type": "string",
-                                      "minLength": 10,
-                                      "format": "date",
-                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                {
-                                  "type": "object",
-                                  "properties": {
-                                    "kind": {
-                                      "type": "string",
-                                      "const": "datetime"
-                                    },
-                                    "value": {
-                                      "type": "string",
-                                      "allOf": [
-                                        {
-                                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z)|(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?)$"
-                                        },
-                                        {
-                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?$"
-                                        }
-                                      ]
-                                    }
-                                  },
-                                  "required": [
-                                    "kind",
-                                    "value"
-                                  ],
-                                  "additionalProperties": false
+                                  ]
                                 }
-                              ]
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "additionalProperties": false
                             }
                           },
                           "required": [
@@ -6337,118 +6326,38 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     "maxLength": 32767
                                   },
                                   "value": {
-                                    "oneOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "text"
-                                          },
-                                          "value": {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "text",
+                                          "number",
+                                          "boolean",
+                                          "blank",
+                                          "date",
+                                          "datetime"
+                                        ]
+                                      },
+                                      "value": {
+                                        "anyOf": [
+                                          {
                                             "type": "string",
                                             "maxLength": 32767
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "number"
                                           },
-                                          "value": {
+                                          {
                                             "type": "number"
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "boolean"
                                           },
-                                          "value": {
+                                          {
                                             "type": "boolean"
                                           }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "blank"
-                                          }
-                                        },
-                                        "required": [
-                                          "kind"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "date"
-                                          },
-                                          "value": {
-                                            "type": "string",
-                                            "minLength": 10,
-                                            "format": "date",
-                                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "datetime"
-                                          },
-                                          "value": {
-                                            "type": "string",
-                                            "allOf": [
-                                              {
-                                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z)|(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?)$"
-                                              },
-                                              {
-                                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?$"
-                                              }
-                                            ]
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
+                                        ]
                                       }
-                                    ]
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "additionalProperties": false
                                   }
                                 },
                                 "required": [
@@ -6750,118 +6659,38 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     "maxLength": 32767
                                   },
                                   "value": {
-                                    "oneOf": [
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "text"
-                                          },
-                                          "value": {
+                                    "type": "object",
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "text",
+                                          "number",
+                                          "boolean",
+                                          "blank",
+                                          "date",
+                                          "datetime"
+                                        ]
+                                      },
+                                      "value": {
+                                        "anyOf": [
+                                          {
                                             "type": "string",
                                             "maxLength": 32767
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "number"
                                           },
-                                          "value": {
+                                          {
                                             "type": "number"
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "boolean"
                                           },
-                                          "value": {
+                                          {
                                             "type": "boolean"
                                           }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "blank"
-                                          }
-                                        },
-                                        "required": [
-                                          "kind"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "date"
-                                          },
-                                          "value": {
-                                            "type": "string",
-                                            "minLength": 10,
-                                            "format": "date",
-                                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
-                                      },
-                                      {
-                                        "type": "object",
-                                        "properties": {
-                                          "kind": {
-                                            "type": "string",
-                                            "const": "datetime"
-                                          },
-                                          "value": {
-                                            "type": "string",
-                                            "allOf": [
-                                              {
-                                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z)|(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?)$"
-                                              },
-                                              {
-                                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?$"
-                                              }
-                                            ]
-                                          }
-                                        },
-                                        "required": [
-                                          "kind",
-                                          "value"
-                                        ],
-                                        "additionalProperties": false
+                                        ]
                                       }
-                                    ]
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "additionalProperties": false
                                   }
                                 },
                                 "required": [
@@ -7357,6 +7186,26 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     "kind": {
                       "type": "string",
                       "enum": [
+                        "protect_sheet",
+                        "unprotect_sheet",
+                        "protect_workbook",
+                        "unprotect_workbook",
+                        "set_pivot",
+                        "set_chart",
+                        "remove_chart",
+                        "set_hyperlink",
+                        "remove_hyperlink",
+                        "set_note",
+                        "remove_note",
+                        "set_image",
+                        "remove_image",
+                        "set_validation",
+                        "remove_validation",
+                        "set_conditional_format",
+                        "remove_conditional_format",
+                        "define_name",
+                        "delete_name",
+                        "write_named_range",
                         "format_cells",
                         "set_columns",
                         "set_rows",
@@ -7377,10 +7226,478 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                       "minLength": 1,
                       "maxLength": 31
                     },
+                    "rule": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "list",
+                            "whole",
+                            "decimal",
+                            "date",
+                            "textLength",
+                            "custom",
+                            "cellIs",
+                            "expression"
+                          ]
+                        },
+                        "items": {
+                          "minItems": 1,
+                          "maxItems": 128,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                          }
+                        },
+                        "operator": {
+                          "type": "string",
+                          "enum": [
+                            "between",
+                            "notBetween",
+                            "equal",
+                            "notEqual",
+                            "greaterThan",
+                            "lessThan",
+                            "greaterThanOrEqual",
+                            "lessThanOrEqual"
+                          ]
+                        },
+                        "bounds": {
+                          "minItems": 1,
+                          "maxItems": 2,
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          }
+                        },
+                        "formula": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 8192
+                        },
+                        "formulas": {
+                          "minItems": 1,
+                          "maxItems": 2,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 8192
+                          }
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "password": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 15,
+                      "pattern": "^[\\x20-\\x7e]+$"
+                    },
+                    "selectLocked": {
+                      "type": "boolean"
+                    },
+                    "selectUnlocked": {
+                      "type": "boolean"
+                    },
+                    "name": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255,
+                          "pattern": "^[\\p{L}_\\\\][\\p{L}\\p{N}_.\\\\]*$"
+                        },
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        }
+                      ]
+                    },
+                    "cell": {
+                      "type": "string",
+                      "maxLength": 21,
+                      "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                    },
+                    "sourceSheet": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 31
+                    },
+                    "sourceRange": {
+                      "type": "string",
+                      "maxLength": 21,
+                      "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                    },
+                    "rowColumn": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "measures": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "column": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                          },
+                          "function": {
+                            "type": "string",
+                            "enum": [
+                              "sum",
+                              "count",
+                              "min",
+                              "max"
+                            ]
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                          }
+                        },
+                        "required": [
+                          "column",
+                          "function",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "overwrite": {
+                      "type": "boolean"
+                    },
+                    "chartType": {
+                      "type": "string",
+                      "enum": [
+                        "column",
+                        "bar",
+                        "line",
+                        "pie"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    "width": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 2000
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 10000
+                        },
+                        {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 255
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "height": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 2000
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 10000
+                        },
+                        {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 409
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "series": {
+                      "minItems": 1,
+                      "maxItems": 16,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                          },
+                          "sheetName": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 31
+                          },
+                          "categories": {
+                            "type": "string",
+                            "maxLength": 21,
+                            "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                          },
+                          "values": {
+                            "type": "string",
+                            "maxLength": 21,
+                            "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "sheetName",
+                          "categories",
+                          "values"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "target": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "internal"
+                            },
+                            "location": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1024
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "location"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "external"
+                            },
+                            "url": {
+                              "type": "string",
+                              "maxLength": 2048,
+                              "format": "uri"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "url"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "tooltip": {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    "display": {
+                      "type": "string",
+                      "maxLength": 32767
+                    },
+                    "text": {
+                      "type": "string",
+                      "maxLength": 32767
+                    },
+                    "author": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "mime": {
+                      "type": "string",
+                      "enum": [
+                        "image/png",
+                        "image/jpeg"
+                      ]
+                    },
+                    "data": {
+                      "type": "string",
+                      "minLength": 4,
+                      "maxLength": 7000000
+                    },
                     "range": {
                       "type": "string",
                       "maxLength": 21,
                       "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                    },
+                    "allowBlank": {
+                      "type": "boolean"
+                    },
+                    "errorStyle": {
+                      "type": "string",
+                      "enum": [
+                        "stop",
+                        "warning",
+                        "information"
+                      ]
+                    },
+                    "errorTitle": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "error": {
+                      "type": "string",
+                      "maxLength": 225
+                    },
+                    "promptTitle": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "prompt": {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    "priority": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 4096
+                    },
+                    "appearance": {
+                      "type": "object",
+                      "properties": {
+                        "font": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                },
+                                "size": {
+                                  "type": "number",
+                                  "minimum": 1,
+                                  "maximum": 409
+                                },
+                                "bold": {
+                                  "type": "boolean"
+                                },
+                                "italic": {
+                                  "type": "boolean"
+                                },
+                                "underline": {
+                                  "type": "boolean"
+                                },
+                                "strike": {
+                                  "type": "boolean"
+                                },
+                                "color": {
+                                  "type": "string",
+                                  "pattern": "^[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "fill": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "stopIfTrue": {
+                      "type": "boolean"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "workbook",
+                        "sheet"
+                      ]
+                    },
+                    "values": {
+                      "minItems": 1,
+                      "maxItems": 1048576,
+                      "type": "array",
+                      "items": {
+                        "minItems": 1,
+                        "maxItems": 16384,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "text",
+                                "number",
+                                "boolean",
+                                "blank",
+                                "date",
+                                "datetime"
+                              ]
+                            },
+                            "value": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 32767
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "boolean"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
                     },
                     "style": {
                       "anyOf": [
@@ -7604,6 +7921,25 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                   "type": "null"
                                 }
                               ]
+                            },
+                            "protection": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "locked": {
+                                      "type": "boolean"
+                                    },
+                                    "hidden": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             }
                           },
                           "additionalProperties": false
@@ -7645,32 +7981,8 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       ]
                     },
-                    "width": {
-                      "anyOf": [
-                        {
-                          "type": "number",
-                          "minimum": 0,
-                          "maximum": 255
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
                     "hidden": {
                       "type": "boolean"
-                    },
-                    "height": {
-                      "anyOf": [
-                        {
-                          "type": "number",
-                          "minimum": 0,
-                          "maximum": 409
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
                     },
                     "rows": {
                       "type": "integer",
@@ -7865,29 +8177,15 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "discard_non_anchor"
                       ]
                     },
-                    "cell": {
-                      "type": "string",
-                      "maxLength": 21,
-                      "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
-                    },
                     "formula": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 8192
                     },
-                    "overwrite": {
-                      "type": "boolean"
-                    },
                     "anchor": {
                       "type": "string",
                       "maxLength": 21,
                       "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
-                    },
-                    "name": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 255,
-                      "pattern": "^[\\p{L}_\\\\][\\p{L}\\p{N}_.\\\\]*$"
                     },
                     "filter": {
                       "type": "boolean"
@@ -9036,7 +9334,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
 
 ## `prepare_edit`
 
-Inspect an ordered edit request without publishing an output. Accept .xlsx filePath, optional expectedVersion, and changes. Returns exact source {filePath, versionId}, a fingerprint binding normalized changes, source feature counts, and ready or blocked with policy reasons. Pass source and the same changes to edit_workbook. Canonical and preservation-supported external workbooks can be ready. Supports scalar, sheet, copy/move and row/column edits, plus edit_workbook formatting/layout/formula/table authoring. Copy requires explicit values/formulas/formatting/all mode. No source file is changed. Enabled protection, macros, signatures, Strict markup or unsupported affected dependencies refuse editing. Preparation is not permission to edit changed bytes. No recalculation occurs. Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]*[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically.
+Inspect an ordered edit request without publishing an output. Accept .xlsx filePath, optional expectedVersion, and changes. Returns exact source {filePath, versionId}, a fingerprint binding normalized changes, source feature counts, and ready or blocked with policy reasons. Pass source and the same changes to edit_workbook. Canonical and preservation-supported external workbooks can be ready. Supports scalar, sheet, copy/move and row/column edits, plus edit_workbook formatting/layout/formula/table authoring. Copy requires explicit values/formulas/formatting/all mode. No source file is changed. Enabled protection, macros, signatures, Strict markup or unsupported affected dependencies refuse editing. Preparation is not permission to edit changed bytes. No recalculation occurs. Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]*[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically. Advanced changes: define_name uses sheetName,name,range,scope workbook/sheet; replacement requires overwrite:true. write_named_range uses the exact name/scope and a typed values rectangle of the same shape; delete_name refuses live formula dependencies. set_validation uses range and rule {type:list,items:[...]}, {type:whole/decimal/date/textLength,operator,bounds:[...]}, or {type:custom,formula}; date bounds are workbook serials, rules guide interactive Excel input and do not enforce all server writes. remove_validation requires the exact old range. set_conditional_format uses range,priority,rule {type:expression,formula} or {type:cellIs,operator,formulas:[...]}, appearance {font,fill},stopIfTrue. Replace a priority explicitly with overwrite:true; remove_conditional_format uses priority. set_hyperlink uses cell,target {kind:external,url} for HTTPS or {kind:internal,location}; set_note uses cell,text,author; set_image uses name,cell,mime image/png or image/jpeg,data canonical base64,width,height in pixels. Their remove_* operations select the same cell or image name. set_chart uses name,chartType column/bar/line/pie,title,cell and series [{name,sheetName,categories,values}] with one-row/column A1 ranges; formula sources have no invented cache and require refresh. remove_chart uses name. set_pivot creates/refreshes a real PivotTable using name,cell,sourceSheet,sourceRange including headers,rowColumn and measures [{column,function:sum/count/min/max,name}]; source cells must be literal, count counts nonblank values. set_pivot overwrite:true refreshes/replaces an existing private cache and clears its old result tail. protect_sheet/protect_workbook optionally use a legacy Excel protection password of up to 15 characters; this is not encryption. Unprotect every locked target with authenticated unprotect_workbook/unprotect_sheet changes at the start of a request before other edits. format_cells style.protection {locked,hidden} controls cell protection. Strong-hash, encrypted, signed and macro-enabled editing remains refused. Originals never change. Appearance and source changes distinguish current chart/pivot caches from refreshRequired.
 
 Annotations: read-only, idempotent, closed world.
 
@@ -9235,6 +9533,1204 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "values",
               "kind",
               "sheetName"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "protect_sheet"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "password": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 15,
+                "pattern": "^[\\x20-\\x7e]+$"
+              },
+              "selectLocked": {
+                "default": true,
+                "type": "boolean"
+              },
+              "selectUnlocked": {
+                "default": true,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "unprotect_sheet"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "password": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 15,
+                "pattern": "^[\\x20-\\x7e]+$"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "protect_workbook"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "password": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 15,
+                "pattern": "^[\\x20-\\x7e]+$"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "unprotect_workbook"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "password": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 15,
+                "pattern": "^[\\x20-\\x7e]+$"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "set_pivot"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^[\\p{L}_\\\\][\\p{L}\\p{N}_.\\\\]*$"
+              },
+              "cell": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "sourceSheet": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "sourceRange": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "rowColumn": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "measures": {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "function": {
+                      "type": "string",
+                      "enum": [
+                        "sum",
+                        "count",
+                        "min",
+                        "max"
+                      ]
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    }
+                  },
+                  "required": [
+                    "column",
+                    "function",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name",
+              "cell",
+              "sourceSheet",
+              "sourceRange",
+              "rowColumn",
+              "measures"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "set_chart"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "chartType": {
+                "type": "string",
+                "enum": [
+                  "column",
+                  "bar",
+                  "line",
+                  "pie"
+                ]
+              },
+              "title": {
+                "default": "",
+                "type": "string",
+                "maxLength": 255
+              },
+              "cell": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "width": {
+                "default": 640,
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 2000
+              },
+              "height": {
+                "default": 360,
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 2000
+              },
+              "series": {
+                "minItems": 1,
+                "maxItems": 16,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "sheetName": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 31
+                    },
+                    "categories": {
+                      "type": "string",
+                      "maxLength": 21,
+                      "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                    },
+                    "values": {
+                      "type": "string",
+                      "maxLength": 21,
+                      "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "sheetName",
+                    "categories",
+                    "values"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name",
+              "chartType",
+              "cell",
+              "series"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "remove_chart"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "set_hyperlink"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "cell": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "target": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "internal"
+                      },
+                      "location": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "location"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "external"
+                      },
+                      "url": {
+                        "type": "string",
+                        "maxLength": 2048,
+                        "format": "uri"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "url"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "tooltip": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "display": {
+                "type": "string",
+                "maxLength": 32767
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "cell",
+              "target"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "remove_hyperlink"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "cell": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "cell"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "set_note"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "cell": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 32767
+              },
+              "author": {
+                "default": "Author",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "cell",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "remove_note"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "cell": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "cell"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "set_image"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "cell": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "mime": {
+                "type": "string",
+                "enum": [
+                  "image/png",
+                  "image/jpeg"
+                ]
+              },
+              "data": {
+                "type": "string",
+                "minLength": 4,
+                "maxLength": 7000000
+              },
+              "width": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name",
+              "cell",
+              "mime",
+              "data",
+              "width",
+              "height"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "remove_image"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "set_validation"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "range": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "rule": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "list"
+                      },
+                      "items": {
+                        "minItems": 1,
+                        "maxItems": 128,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "items"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "whole"
+                      },
+                      "operator": {
+                        "type": "string",
+                        "enum": [
+                          "between",
+                          "notBetween",
+                          "equal",
+                          "notEqual",
+                          "greaterThan",
+                          "lessThan",
+                          "greaterThanOrEqual",
+                          "lessThanOrEqual"
+                        ]
+                      },
+                      "bounds": {
+                        "minItems": 1,
+                        "maxItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "operator",
+                      "bounds"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "decimal"
+                      },
+                      "operator": {
+                        "type": "string",
+                        "enum": [
+                          "between",
+                          "notBetween",
+                          "equal",
+                          "notEqual",
+                          "greaterThan",
+                          "lessThan",
+                          "greaterThanOrEqual",
+                          "lessThanOrEqual"
+                        ]
+                      },
+                      "bounds": {
+                        "minItems": 1,
+                        "maxItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "operator",
+                      "bounds"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "date"
+                      },
+                      "operator": {
+                        "type": "string",
+                        "enum": [
+                          "between",
+                          "notBetween",
+                          "equal",
+                          "notEqual",
+                          "greaterThan",
+                          "lessThan",
+                          "greaterThanOrEqual",
+                          "lessThanOrEqual"
+                        ]
+                      },
+                      "bounds": {
+                        "minItems": 1,
+                        "maxItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "operator",
+                      "bounds"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "textLength"
+                      },
+                      "operator": {
+                        "type": "string",
+                        "enum": [
+                          "between",
+                          "notBetween",
+                          "equal",
+                          "notEqual",
+                          "greaterThan",
+                          "lessThan",
+                          "greaterThanOrEqual",
+                          "lessThanOrEqual"
+                        ]
+                      },
+                      "bounds": {
+                        "minItems": 1,
+                        "maxItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "operator",
+                      "bounds"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "custom"
+                      },
+                      "formula": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 8192
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "formula"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "allowBlank": {
+                "default": false,
+                "type": "boolean"
+              },
+              "errorStyle": {
+                "default": "stop",
+                "type": "string",
+                "enum": [
+                  "stop",
+                  "warning",
+                  "information"
+                ]
+              },
+              "errorTitle": {
+                "type": "string",
+                "maxLength": 32
+              },
+              "error": {
+                "type": "string",
+                "maxLength": 225
+              },
+              "promptTitle": {
+                "type": "string",
+                "maxLength": 32
+              },
+              "prompt": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "range",
+              "rule"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "remove_validation"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "range": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "range"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "set_conditional_format"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "range": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "priority": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4096
+              },
+              "rule": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "cellIs"
+                      },
+                      "operator": {
+                        "type": "string",
+                        "enum": [
+                          "between",
+                          "notBetween",
+                          "equal",
+                          "notEqual",
+                          "greaterThan",
+                          "lessThan",
+                          "greaterThanOrEqual",
+                          "lessThanOrEqual"
+                        ]
+                      },
+                      "formulas": {
+                        "minItems": 1,
+                        "maxItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 8192
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "operator",
+                      "formulas"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "expression"
+                      },
+                      "formula": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 8192
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "formula"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "appearance": {
+                "type": "object",
+                "properties": {
+                  "font": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          },
+                          "size": {
+                            "type": "number",
+                            "minimum": 1,
+                            "maximum": 409
+                          },
+                          "bold": {
+                            "type": "boolean"
+                          },
+                          "italic": {
+                            "type": "boolean"
+                          },
+                          "underline": {
+                            "type": "boolean"
+                          },
+                          "strike": {
+                            "type": "boolean"
+                          },
+                          "color": {
+                            "type": "string",
+                            "pattern": "^[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "fill": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              },
+              "stopIfTrue": {
+                "default": false,
+                "type": "boolean"
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "range",
+              "priority",
+              "rule",
+              "appearance"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "remove_conditional_format"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "priority": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4096
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "priority"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "define_name"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^[\\p{L}_\\\\][\\p{L}\\p{N}_.\\\\]*$"
+              },
+              "scope": {
+                "default": "workbook",
+                "type": "string",
+                "enum": [
+                  "workbook",
+                  "sheet"
+                ]
+              },
+              "range": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name",
+              "range"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "delete_name"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^[\\p{L}_\\\\][\\p{L}\\p{N}_.\\\\]*$"
+              },
+              "scope": {
+                "default": "workbook",
+                "type": "string",
+                "enum": [
+                  "workbook",
+                  "sheet"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "write_named_range"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^[\\p{L}_\\\\][\\p{L}\\p{N}_.\\\\]*$"
+              },
+              "scope": {
+                "default": "workbook",
+                "type": "string",
+                "enum": [
+                  "workbook",
+                  "sheet"
+                ]
+              },
+              "values": {
+                "minItems": 1,
+                "maxItems": 1048576,
+                "type": "array",
+                "items": {
+                  "minItems": 1,
+                  "maxItems": 16384,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "text",
+                          "number",
+                          "boolean",
+                          "blank",
+                          "date",
+                          "datetime"
+                        ]
+                      },
+                      "value": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 32767
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name",
+              "values"
             ],
             "additionalProperties": false
           },
@@ -9466,6 +10962,25 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                             ]
                           },
                           "wrapText": {
+                            "type": "boolean"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "protection": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "locked": {
+                            "type": "boolean"
+                          },
+                          "hidden": {
                             "type": "boolean"
                           }
                         },
@@ -13274,7 +14789,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
 
 ## `create_workbook`
 
-Create one immutable .xlsx from named sheets and rectangular typed value blocks. Each scalar has kind text/number/boolean/blank/date/datetime; text beginning with = stays literal. Optional changes finish the workbook atomically with formatting, layout, merges, formulas and tables before publication. Formula operations write explicit formula text without calculating it. Table range includes its header and optional totals row; use literal unique headers. At least one sheet, up to 1,000,000 touched/stored cells, 64 sheets and 128 changes. Identical requests retain identical outputs; originals never change. Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]*[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically.
+Create one immutable .xlsx from named sheets and rectangular typed value blocks. Each scalar has kind text/number/boolean/blank/date/datetime; text beginning with = stays literal. Optional changes finish the workbook atomically with formatting, layout, merges, formulas and tables before publication. Formula operations write explicit formula text without calculating it. Table range includes its header and optional totals row; use literal unique headers. At least one sheet, up to 1,000,000 touched/stored cells, 64 sheets and 128 changes. Identical requests retain identical outputs; originals never change. Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]*[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically. Advanced changes: define_name uses sheetName,name,range,scope workbook/sheet; replacement requires overwrite:true. write_named_range uses the exact name/scope and a typed values rectangle of the same shape; delete_name refuses live formula dependencies. set_validation uses range and rule {type:list,items:[...]}, {type:whole/decimal/date/textLength,operator,bounds:[...]}, or {type:custom,formula}; date bounds are workbook serials, rules guide interactive Excel input and do not enforce all server writes. remove_validation requires the exact old range. set_conditional_format uses range,priority,rule {type:expression,formula} or {type:cellIs,operator,formulas:[...]}, appearance {font,fill},stopIfTrue. Replace a priority explicitly with overwrite:true; remove_conditional_format uses priority. set_hyperlink uses cell,target {kind:external,url} for HTTPS or {kind:internal,location}; set_note uses cell,text,author; set_image uses name,cell,mime image/png or image/jpeg,data canonical base64,width,height in pixels. Their remove_* operations select the same cell or image name. set_chart uses name,chartType column/bar/line/pie,title,cell and series [{name,sheetName,categories,values}] with one-row/column A1 ranges; formula sources have no invented cache and require refresh. remove_chart uses name. set_pivot creates/refreshes a real PivotTable using name,cell,sourceSheet,sourceRange including headers,rowColumn and measures [{column,function:sum/count/min/max,name}]; source cells must be literal, count counts nonblank values. set_pivot overwrite:true refreshes/replaces an existing private cache and clears its old result tail. protect_sheet/protect_workbook optionally use a legacy Excel protection password of up to 15 characters; this is not encryption. Unprotect every locked target with authenticated unprotect_workbook/unprotect_sheet changes at the start of a request before other edits. format_cells style.protection {locked,hidden} controls cell protection. Strong-hash, encrypted, signed and macro-enabled editing remains refused. Originals never change. Appearance and source changes distinguish current chart/pivot caches from refreshRequired.
 
 Annotations: non-destructive, closed world.
 
@@ -13460,6 +14975,26 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
           "kind": {
             "type": "string",
             "enum": [
+              "protect_sheet",
+              "unprotect_sheet",
+              "protect_workbook",
+              "unprotect_workbook",
+              "set_pivot",
+              "set_chart",
+              "remove_chart",
+              "set_hyperlink",
+              "remove_hyperlink",
+              "set_note",
+              "remove_note",
+              "set_image",
+              "remove_image",
+              "set_validation",
+              "remove_validation",
+              "set_conditional_format",
+              "remove_conditional_format",
+              "define_name",
+              "delete_name",
+              "write_named_range",
               "format_cells",
               "set_columns",
               "set_rows",
@@ -13480,10 +15015,478 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
             "minLength": 1,
             "maxLength": 31
           },
+          "rule": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "list",
+                  "whole",
+                  "decimal",
+                  "date",
+                  "textLength",
+                  "custom",
+                  "cellIs",
+                  "expression"
+                ]
+              },
+              "items": {
+                "minItems": 1,
+                "maxItems": 128,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                }
+              },
+              "operator": {
+                "type": "string",
+                "enum": [
+                  "between",
+                  "notBetween",
+                  "equal",
+                  "notEqual",
+                  "greaterThan",
+                  "lessThan",
+                  "greaterThanOrEqual",
+                  "lessThanOrEqual"
+                ]
+              },
+              "bounds": {
+                "minItems": 1,
+                "maxItems": 2,
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "formula": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192
+              },
+              "formulas": {
+                "minItems": 1,
+                "maxItems": 2,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 8192
+                }
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 15,
+            "pattern": "^[\\x20-\\x7e]+$"
+          },
+          "selectLocked": {
+            "type": "boolean"
+          },
+          "selectUnlocked": {
+            "type": "boolean"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^[\\p{L}_\\\\][\\p{L}\\p{N}_.\\\\]*$"
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              }
+            ]
+          },
+          "cell": {
+            "type": "string",
+            "maxLength": 21,
+            "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+          },
+          "sourceSheet": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31
+          },
+          "sourceRange": {
+            "type": "string",
+            "maxLength": 21,
+            "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+          },
+          "rowColumn": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "measures": {
+            "minItems": 1,
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "column": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "function": {
+                  "type": "string",
+                  "enum": [
+                    "sum",
+                    "count",
+                    "min",
+                    "max"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                }
+              },
+              "required": [
+                "column",
+                "function",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "overwrite": {
+            "type": "boolean"
+          },
+          "chartType": {
+            "type": "string",
+            "enum": [
+              "column",
+              "bar",
+              "line",
+              "pie"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 2000
+              },
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 255
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            ]
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 2000
+              },
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 409
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            ]
+          },
+          "series": {
+            "minItems": 1,
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "sheetName": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 31
+                },
+                "categories": {
+                  "type": "string",
+                  "maxLength": 21,
+                  "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                },
+                "values": {
+                  "type": "string",
+                  "maxLength": 21,
+                  "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                }
+              },
+              "required": [
+                "name",
+                "sheetName",
+                "categories",
+                "values"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "target": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "internal"
+                  },
+                  "location": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  }
+                },
+                "required": [
+                  "kind",
+                  "location"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "external"
+                  },
+                  "url": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "format": "uri"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "url"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "tooltip": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "display": {
+            "type": "string",
+            "maxLength": 32767
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 32767
+          },
+          "author": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "mime": {
+            "type": "string",
+            "enum": [
+              "image/png",
+              "image/jpeg"
+            ]
+          },
+          "data": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 7000000
+          },
           "range": {
             "type": "string",
             "maxLength": 21,
             "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+          },
+          "allowBlank": {
+            "type": "boolean"
+          },
+          "errorStyle": {
+            "type": "string",
+            "enum": [
+              "stop",
+              "warning",
+              "information"
+            ]
+          },
+          "errorTitle": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "error": {
+            "type": "string",
+            "maxLength": 225
+          },
+          "promptTitle": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "appearance": {
+            "type": "object",
+            "properties": {
+              "font": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "size": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 409
+                      },
+                      "bold": {
+                        "type": "boolean"
+                      },
+                      "italic": {
+                        "type": "boolean"
+                      },
+                      "underline": {
+                        "type": "boolean"
+                      },
+                      "strike": {
+                        "type": "boolean"
+                      },
+                      "color": {
+                        "type": "string",
+                        "pattern": "^[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "fill": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "stopIfTrue": {
+            "type": "boolean"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "workbook",
+              "sheet"
+            ]
+          },
+          "values": {
+            "minItems": 1,
+            "maxItems": 1048576,
+            "type": "array",
+            "items": {
+              "minItems": 1,
+              "maxItems": 16384,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "text",
+                      "number",
+                      "boolean",
+                      "blank",
+                      "date",
+                      "datetime"
+                    ]
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 32767
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            }
           },
           "style": {
             "anyOf": [
@@ -13707,6 +15710,25 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "null"
                       }
                     ]
+                  },
+                  "protection": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "locked": {
+                            "type": "boolean"
+                          },
+                          "hidden": {
+                            "type": "boolean"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -13748,32 +15770,8 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               }
             ]
           },
-          "width": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0,
-                "maximum": 255
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "hidden": {
             "type": "boolean"
-          },
-          "height": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0,
-                "maximum": 409
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "rows": {
             "type": "integer",
@@ -13968,29 +15966,15 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "discard_non_anchor"
             ]
           },
-          "cell": {
-            "type": "string",
-            "maxLength": 21,
-            "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
-          },
           "formula": {
             "type": "string",
             "minLength": 1,
             "maxLength": 8192
           },
-          "overwrite": {
-            "type": "boolean"
-          },
           "anchor": {
             "type": "string",
             "maxLength": 21,
             "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255,
-            "pattern": "^[\\p{L}_\\\\][\\p{L}\\p{N}_.\\\\]*$"
           },
           "filter": {
             "type": "boolean"
@@ -14239,7 +16223,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
 
 ## `edit_workbook`
 
-Apply ordered atomic changes to source {filePath,versionId}; originals/retained outputs never change. write_cells uses typed literal values; occupied data/formula targets require overwrite:true. clear_contents preserves styles. copy_range/move_range use range,targetSheet,startCell; copy requires mode values/formulas/formatting/all. copy_sheet uses name/mode; copy operations optionally accept from {filePath,versionId}, subject to dependency/style compatibility. Sheet rename/reorder/delete and row/column insert/delete preserve supported references or refuse. format_cells patches only specified style fields; null resets a component. set_columns/set_rows use one-based first/last, width in character units/height in points, hidden; freeze_panes uses row/column counts. set_print_layout margins are inches; choose scale or fitWidth/fitHeight. merge_cells defaults to loss:reject; loss:discard_non_anchor explicitly clears other contents; unmerge_cells retains only the anchor. write_formula uses cell/formula; fill_formula uses anchor/range/formula and relative A1/table references. New formulas have no calculated cache; report recalculation required. create_table range includes header/data/optional totals; headers are unique literal text. edit_table can rename name/columns, resize range, set calculatedColumns/totals/style/filter; shrink preserves excluded values unless clearRemovedValues:true. convert_table preserves supported references/appearance or refuses. Table style is SezzleeBlue or none; filter toggles dropdowns, not dataset filtering. Dynamic arrays/external formula links and unsupported affected preservation refuse the whole request. Use prepare_edit first for scope/effects. Retry the same source/changes for the same result; select an earlier source to undo/branch. Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]*[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically.
+Apply ordered atomic changes to source {filePath,versionId}; originals/retained outputs never change. write_cells uses typed literal values; occupied data/formula targets require overwrite:true. clear_contents preserves styles. copy_range/move_range use range,targetSheet,startCell; copy requires mode values/formulas/formatting/all. copy_sheet uses name/mode; copy operations optionally accept from {filePath,versionId}, subject to dependency/style compatibility. Sheet rename/reorder/delete and row/column insert/delete preserve supported references or refuse. format_cells patches only specified style fields; null resets a component. set_columns/set_rows use one-based first/last, width in character units/height in points, hidden; freeze_panes uses row/column counts. set_print_layout margins are inches; choose scale or fitWidth/fitHeight. merge_cells defaults to loss:reject; loss:discard_non_anchor explicitly clears other contents; unmerge_cells retains only the anchor. write_formula uses cell/formula; fill_formula uses anchor/range/formula and relative A1/table references. New formulas have no calculated cache; report recalculation required. create_table range includes header/data/optional totals; headers are unique literal text. edit_table can rename name/columns, resize range, set calculatedColumns/totals/style/filter; shrink preserves excluded values unless clearRemovedValues:true. convert_table preserves supported references/appearance or refuses. Table style is SezzleeBlue or none; filter toggles dropdowns, not dataset filtering. Dynamic arrays/external formula links and unsupported affected preservation refuse the whole request. Use prepare_edit first for scope/effects. Retry the same source/changes for the same result; select an earlier source to undo/branch. Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]*[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically. Advanced changes: define_name uses sheetName,name,range,scope workbook/sheet; replacement requires overwrite:true. write_named_range uses the exact name/scope and a typed values rectangle of the same shape; delete_name refuses live formula dependencies. set_validation uses range and rule {type:list,items:[...]}, {type:whole/decimal/date/textLength,operator,bounds:[...]}, or {type:custom,formula}; date bounds are workbook serials, rules guide interactive Excel input and do not enforce all server writes. remove_validation requires the exact old range. set_conditional_format uses range,priority,rule {type:expression,formula} or {type:cellIs,operator,formulas:[...]}, appearance {font,fill},stopIfTrue. Replace a priority explicitly with overwrite:true; remove_conditional_format uses priority. set_hyperlink uses cell,target {kind:external,url} for HTTPS or {kind:internal,location}; set_note uses cell,text,author; set_image uses name,cell,mime image/png or image/jpeg,data canonical base64,width,height in pixels. Their remove_* operations select the same cell or image name. set_chart uses name,chartType column/bar/line/pie,title,cell and series [{name,sheetName,categories,values}] with one-row/column A1 ranges; formula sources have no invented cache and require refresh. remove_chart uses name. set_pivot creates/refreshes a real PivotTable using name,cell,sourceSheet,sourceRange including headers,rowColumn and measures [{column,function:sum/count/min/max,name}]; source cells must be literal, count counts nonblank values. set_pivot overwrite:true refreshes/replaces an existing private cache and clears its old result tail. protect_sheet/protect_workbook optionally use a legacy Excel protection password of up to 15 characters; this is not encryption. Unprotect every locked target with authenticated unprotect_workbook/unprotect_sheet changes at the start of a request before other edits. format_cells style.protection {locked,hidden} controls cell protection. Strong-hash, encrypted, signed and macro-enabled editing remains refused. Originals never change. Appearance and source changes distinguish current chart/pivot caches from refreshRequired.
 
 Annotations: non-destructive, closed world.
 
@@ -14448,6 +16432,1204 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "values",
               "kind",
               "sheetName"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "protect_sheet"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "password": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 15,
+                "pattern": "^[\\x20-\\x7e]+$"
+              },
+              "selectLocked": {
+                "default": true,
+                "type": "boolean"
+              },
+              "selectUnlocked": {
+                "default": true,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "unprotect_sheet"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "password": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 15,
+                "pattern": "^[\\x20-\\x7e]+$"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "protect_workbook"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "password": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 15,
+                "pattern": "^[\\x20-\\x7e]+$"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "unprotect_workbook"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "password": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 15,
+                "pattern": "^[\\x20-\\x7e]+$"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "set_pivot"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^[\\p{L}_\\\\][\\p{L}\\p{N}_.\\\\]*$"
+              },
+              "cell": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "sourceSheet": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "sourceRange": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "rowColumn": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "measures": {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "function": {
+                      "type": "string",
+                      "enum": [
+                        "sum",
+                        "count",
+                        "min",
+                        "max"
+                      ]
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    }
+                  },
+                  "required": [
+                    "column",
+                    "function",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name",
+              "cell",
+              "sourceSheet",
+              "sourceRange",
+              "rowColumn",
+              "measures"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "set_chart"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "chartType": {
+                "type": "string",
+                "enum": [
+                  "column",
+                  "bar",
+                  "line",
+                  "pie"
+                ]
+              },
+              "title": {
+                "default": "",
+                "type": "string",
+                "maxLength": 255
+              },
+              "cell": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "width": {
+                "default": 640,
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 2000
+              },
+              "height": {
+                "default": 360,
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 2000
+              },
+              "series": {
+                "minItems": 1,
+                "maxItems": 16,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
+                    "sheetName": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 31
+                    },
+                    "categories": {
+                      "type": "string",
+                      "maxLength": 21,
+                      "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                    },
+                    "values": {
+                      "type": "string",
+                      "maxLength": 21,
+                      "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "sheetName",
+                    "categories",
+                    "values"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name",
+              "chartType",
+              "cell",
+              "series"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "remove_chart"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "set_hyperlink"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "cell": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "target": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "internal"
+                      },
+                      "location": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "location"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "external"
+                      },
+                      "url": {
+                        "type": "string",
+                        "maxLength": 2048,
+                        "format": "uri"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "url"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "tooltip": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "display": {
+                "type": "string",
+                "maxLength": 32767
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "cell",
+              "target"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "remove_hyperlink"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "cell": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "cell"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "set_note"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "cell": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 32767
+              },
+              "author": {
+                "default": "Author",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "cell",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "remove_note"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "cell": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "cell"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "set_image"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "cell": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "mime": {
+                "type": "string",
+                "enum": [
+                  "image/png",
+                  "image/jpeg"
+                ]
+              },
+              "data": {
+                "type": "string",
+                "minLength": 4,
+                "maxLength": 7000000
+              },
+              "width": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name",
+              "cell",
+              "mime",
+              "data",
+              "width",
+              "height"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "remove_image"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "set_validation"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "range": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "rule": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "list"
+                      },
+                      "items": {
+                        "minItems": 1,
+                        "maxItems": 128,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "items"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "whole"
+                      },
+                      "operator": {
+                        "type": "string",
+                        "enum": [
+                          "between",
+                          "notBetween",
+                          "equal",
+                          "notEqual",
+                          "greaterThan",
+                          "lessThan",
+                          "greaterThanOrEqual",
+                          "lessThanOrEqual"
+                        ]
+                      },
+                      "bounds": {
+                        "minItems": 1,
+                        "maxItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "operator",
+                      "bounds"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "decimal"
+                      },
+                      "operator": {
+                        "type": "string",
+                        "enum": [
+                          "between",
+                          "notBetween",
+                          "equal",
+                          "notEqual",
+                          "greaterThan",
+                          "lessThan",
+                          "greaterThanOrEqual",
+                          "lessThanOrEqual"
+                        ]
+                      },
+                      "bounds": {
+                        "minItems": 1,
+                        "maxItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "operator",
+                      "bounds"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "date"
+                      },
+                      "operator": {
+                        "type": "string",
+                        "enum": [
+                          "between",
+                          "notBetween",
+                          "equal",
+                          "notEqual",
+                          "greaterThan",
+                          "lessThan",
+                          "greaterThanOrEqual",
+                          "lessThanOrEqual"
+                        ]
+                      },
+                      "bounds": {
+                        "minItems": 1,
+                        "maxItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "operator",
+                      "bounds"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "textLength"
+                      },
+                      "operator": {
+                        "type": "string",
+                        "enum": [
+                          "between",
+                          "notBetween",
+                          "equal",
+                          "notEqual",
+                          "greaterThan",
+                          "lessThan",
+                          "greaterThanOrEqual",
+                          "lessThanOrEqual"
+                        ]
+                      },
+                      "bounds": {
+                        "minItems": 1,
+                        "maxItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "operator",
+                      "bounds"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "custom"
+                      },
+                      "formula": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 8192
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "formula"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "allowBlank": {
+                "default": false,
+                "type": "boolean"
+              },
+              "errorStyle": {
+                "default": "stop",
+                "type": "string",
+                "enum": [
+                  "stop",
+                  "warning",
+                  "information"
+                ]
+              },
+              "errorTitle": {
+                "type": "string",
+                "maxLength": 32
+              },
+              "error": {
+                "type": "string",
+                "maxLength": 225
+              },
+              "promptTitle": {
+                "type": "string",
+                "maxLength": 32
+              },
+              "prompt": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "range",
+              "rule"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "remove_validation"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "range": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "range"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "set_conditional_format"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "range": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "priority": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4096
+              },
+              "rule": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "cellIs"
+                      },
+                      "operator": {
+                        "type": "string",
+                        "enum": [
+                          "between",
+                          "notBetween",
+                          "equal",
+                          "notEqual",
+                          "greaterThan",
+                          "lessThan",
+                          "greaterThanOrEqual",
+                          "lessThanOrEqual"
+                        ]
+                      },
+                      "formulas": {
+                        "minItems": 1,
+                        "maxItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 8192
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "operator",
+                      "formulas"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "expression"
+                      },
+                      "formula": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 8192
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "formula"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "appearance": {
+                "type": "object",
+                "properties": {
+                  "font": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          },
+                          "size": {
+                            "type": "number",
+                            "minimum": 1,
+                            "maximum": 409
+                          },
+                          "bold": {
+                            "type": "boolean"
+                          },
+                          "italic": {
+                            "type": "boolean"
+                          },
+                          "underline": {
+                            "type": "boolean"
+                          },
+                          "strike": {
+                            "type": "boolean"
+                          },
+                          "color": {
+                            "type": "string",
+                            "pattern": "^[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "fill": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              },
+              "stopIfTrue": {
+                "default": false,
+                "type": "boolean"
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "range",
+              "priority",
+              "rule",
+              "appearance"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "remove_conditional_format"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "priority": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4096
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "priority"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "define_name"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^[\\p{L}_\\\\][\\p{L}\\p{N}_.\\\\]*$"
+              },
+              "scope": {
+                "default": "workbook",
+                "type": "string",
+                "enum": [
+                  "workbook",
+                  "sheet"
+                ]
+              },
+              "range": {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?$"
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name",
+              "range"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "delete_name"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^[\\p{L}_\\\\][\\p{L}\\p{N}_.\\\\]*$"
+              },
+              "scope": {
+                "default": "workbook",
+                "type": "string",
+                "enum": [
+                  "workbook",
+                  "sheet"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "write_named_range"
+              },
+              "sheetName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^[\\p{L}_\\\\][\\p{L}\\p{N}_.\\\\]*$"
+              },
+              "scope": {
+                "default": "workbook",
+                "type": "string",
+                "enum": [
+                  "workbook",
+                  "sheet"
+                ]
+              },
+              "values": {
+                "minItems": 1,
+                "maxItems": 1048576,
+                "type": "array",
+                "items": {
+                  "minItems": 1,
+                  "maxItems": 16384,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "text",
+                          "number",
+                          "boolean",
+                          "blank",
+                          "date",
+                          "datetime"
+                        ]
+                      },
+                      "value": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 32767
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "overwrite": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "sheetName",
+              "name",
+              "values"
             ],
             "additionalProperties": false
           },
@@ -14679,6 +17861,25 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                             ]
                           },
                           "wrapText": {
+                            "type": "boolean"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "protection": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "locked": {
+                            "type": "boolean"
+                          },
+                          "hidden": {
                             "type": "boolean"
                           }
                         },

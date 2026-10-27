@@ -1,6 +1,6 @@
 # Faz 7: uzman seviye Excel iş akışları
 
-Durum: uzman ihtiyaçları için kapsam önerisi. İlgili önceki fazlara dayanır; ortak ilkeler [ana yol haritasındadır](../README.md). Kaynağı koruyan yeni sürüm kararı geçerlidir.
+Status, 2026-10-27: all eight approved families are implemented in the order F7-06 → F7-03 → F7-04 → F7-05 → F7-01 → F7-02 → F7-07 → F7-08. The [implementation and verification plan](implementation-plan.md) records the support profiles and earlier-phase obligations. Final local corpus, model, application, schema and resource acceptance passed; full native/installed-package CI is pending for [PR #73](https://github.com/sezzlee/mcp/pull/73). See the [implementation status](implementation-status.md) and [acceptance record](acceptance-record.json). The immutable-version decision and [shared roadmap](../README.md) remain applicable.
 
 ## Hedef
 
@@ -31,7 +31,7 @@ Makro içeriğini koruma, makroyu düzenleme ve makro çalıştırma farklı iht
 4. Şablon, çoklu sayfa ve tekrar eden iş örneklerini bir arada doğrulamak.
 5. Destek ve koruma kapsamını belgelerle birlikte güncellemek.
 
-Bu iç sıra henüz seçilmemiştir; grafik veya özet tablo desteğinin mutlaka önce yapılacağı varsayılmaz.
+The approved implementation order and concrete work packages are recorded in the [plan](implementation-plan.md#ordered-work-packages).
 
 ## Bağımlılıklar ve sınırlar
 
@@ -55,4 +55,4 @@ Bu iç sıra henüz seçilmemiştir; grafik veya özet tablo desteğinin mutlaka
 
 ## Açık kararlar
 
-A-10: ihtiyaç ailelerinin önceliği, dosya biçimleri ve her özellik için destek türü. Gerçek uzman senaryoları seçilmeden tüm aileler için uygulama taahhüdü verilmez.
+A-10 priority and family selection were approved on 2026-10-27: all eight families, in the order recorded above. The plan defines bounded `.xlsx` support profiles; detailed operation contracts and independent acceptance remain implementation gates. Macro preservation, editing and execution are separate capabilities, never implied by family inclusion.

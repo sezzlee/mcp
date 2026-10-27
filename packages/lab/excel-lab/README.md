@@ -1,5 +1,25 @@
 # @sezzlee/excel-lab
 
+## Phase 7 expert report acceptance
+
+The [Phase 7 plan](../../servers/excel-mcp/docs/phase-7/implementation-plan.md) composes names/templates, validation, conditional formats, links/notes/images, charts, real pivots, protection and recurring report jobs. `expert-agent-cli.ts` always runs a deterministic report first. Optional Qwen trials repeat the report in Turkish and English, using the same registered tools and independent output grading.
+
+```sh
+node packages/lab/excel-lab/src/expert-agent-cli.ts --out /tmp/excel-expert-scripted --application
+SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab/src/expert-agent-cli.ts --out /tmp/excel-expert-model --model MODEL --languages tr,en --application
+node --max-old-space-size=1024 packages/lab/excel-lab/src/expert-scale-cli.ts --out /tmp/excel-expert-scale
+python3 -I packages/lab/excel-lab/scripts/test-expert-oracle.py
+python3 -I packages/lab/excel-lab/scripts/test-expert-visual-oracle.py
+```
+
+The standard-library `expert-oracle.py` checks real package relationships, exact values, formula caches, scoped names, note text/authors, links, image hashes, chart source/cache equality, rule semantics and protection metadata. Pivot cache records must equal the literal source; saved pivot results must equal an independent aggregation. `--summary` omits the large cell map when checking scale fixtures. Model prose and preparation alone cannot pass. The report grader requires literal period text and an explicit note author, not a visually similar date or an author embedded only in the note body.
+
+With `--application`, actual LibreOffice opens and resaves every successful output. `expert-application-oracle.py` compares values, pivots, chart types/series, effective conditional fills and relative rule order, links, notes, images and protection. It records Calc's known loss of `stopIfTrue` separately; the source flag remains independently inspected and schema-checked. `expert-visual-oracle.py` renders the selected synthetic Report sheet through PDF/Poppler and requires visible plotted-series pixels in each chart region. Its evenly spaced chart-region contract belongs to this fixture, not arbitrary user workbooks. The visual oracle's five PNG scanline-filter vectors, blank-plot refusal and truncation cases have independent known answers.
+
+Manifests retain the sorted-path/NUL/JavaScript-bytes/NUL runtime SHA-256, module count, model identity/digest and generation settings. Catalog sizes, raw traces, exact output versions, independent snapshots and optional application/visual evidence remain in the chosen local output directory. Keep those artifacts and model endpoints outside the public repository.
+
+`expert-scale-cli.ts` runs through actual MCP with 24,999 records plus headers across four columns: exactly the 100,000-cell advanced-source ceiling, 100 row groups and a 10,000-point chart. It checks whole-source/cache/pivot correctness independently and records runtime duration, its own process peak RSS, output identity and source immutability. Resource measurements are distinct from throughput promises.
+
 ## Phase 4 bulk acceptance
 
 The [Phase 4 plan](../../servers/excel-mcp/docs/phase-4/implementation-plan.md) binds the typed key policies, ordered pipelines, atomic group publication and independent-job retry. Use the existing corpus via SEZZLEE_CORPUS for complete reader/transfer regression; original corpus files never become output targets. The bulk lab complements that coverage with public deterministic synthetic fixtures whose whole outputs are independently graded.

@@ -1,0 +1,210 @@
+{
+  "phase": 7,
+  "date": "2026-10-27",
+  "status": "local-acceptance-passed-ci-pending",
+  "pullRequest": "https://github.com/sezzlee/mcp/pull/73",
+  "branch": "codex/excel-phase4-bulk",
+  "baseRevision": "f42d625ecb8ec5936a3241b58c5ea8d863a4df8c",
+  "runtime": {
+    "modules": 129,
+    "sha256": "9abd27742e21704b6da3500bc6d239e4f8f9430391f455525aad300b19da5b52",
+    "algorithm": "Sorted relative dist JavaScript paths: SHA-256(path + NUL + file bytes + NUL)."
+  },
+  "implementation": {
+    "changedTypeScriptAndPythonFiles": 28,
+    "sha256": "06d273a51e783e3e12a03c239f73dd5cf4a52deb20d11d03a14828a19cc14b6c",
+    "algorithm": "Sorted changed/new .ts and .py paths relative to vendor root: SHA-256(path + NUL + file bytes + NUL). Excludes documentation."
+  },
+  "families": [
+    "F7-06",
+    "F7-03",
+    "F7-04",
+    "F7-05",
+    "F7-01",
+    "F7-02",
+    "F7-07",
+    "F7-08"
+  ],
+  "checks": {
+    "excel": {
+      "command": "SEZZLEE_CORPUS=<external-corpus> SEZZLEE_CALCULATION_ORACLE=1 pnpm turbo run test --filter=@sezzlee/excel-mcp --concurrency=1 --ui=stream -- --maxWorkers=1",
+      "files": 81,
+      "passed": 6520,
+      "skipped": 0,
+      "durationSeconds": 227.79,
+      "expertOwnerTests": 29
+    },
+    "lab": {
+      "command": "pnpm turbo run test --filter=@sezzlee/excel-lab --concurrency=1 --ui=stream -- --maxWorkers=1",
+      "files": 17,
+      "passed": 136,
+      "skipped": 0
+    },
+    "pythonOracleSelfTests": {
+      "expert": 6,
+      "visual": 3,
+      "authoring": 12,
+      "bulk": 11,
+      "scanner": 8,
+      "passed": true
+    },
+    "buildTypesLint": {
+      "command": "pnpm turbo run build check-types lint --filter=@sezzlee/excel-mcp --filter=@sezzlee/excel-lab --concurrency=1 --ui=stream",
+      "tasks": 13,
+      "passed": true
+    },
+    "boundaries": {
+      "files": 1703,
+      "packages": 23,
+      "issues": 0
+    },
+    "reference": {
+      "command": "node apps/docs/scripts/gen-reference.mjs --check",
+      "passed": true
+    },
+    "catalogBytes": {
+      "limit": 50000,
+      "prepare_bulk_job": 47549,
+      "run_bulk_job": 46099
+    },
+    "openXmlSdk": {
+      "outputs": 4,
+      "errors": 0,
+      "selections": [
+        "scripted-report",
+        "tr-report",
+        "en-report",
+        "scale-report"
+      ]
+    },
+    "application": {
+      "reports": 3,
+      "passed": true,
+      "compared": [
+        "typed values",
+        "independent pivot aggregation/cache",
+        "chart types/series",
+        "relative/effective conditional rules",
+        "notes",
+        "links",
+        "images",
+        "protection",
+        "unlocked cells",
+        "source hashes"
+      ],
+      "consumer": "LibreOffice",
+      "desktopExcelChecked": false,
+      "stopIfTrueRoundtrip": {
+        "scripted": false,
+        "tr": true,
+        "en": true
+      }
+    },
+    "visual": {
+      "passed": true,
+      "scriptedSeriesPixelCounts": [56374, 72845, 2795, 43377],
+      "trSeriesPixelCounts": [75527],
+      "enSeriesPixelCounts": [75527],
+      "oldInvisibleChartRejected": true,
+      "oldSeriesPixelCounts": [0, 0, 0, 0],
+      "method": "Calc SinglePageSheets PDF; Report page rendered at 2400 pixels; independent stdlib PNG decode and per-chart visible-series threshold. Synthetic fixture only.",
+      "humanImageReview": true
+    },
+    "scale": {
+      "passed": true,
+      "sourceCells": 100000,
+      "records": 24999,
+      "pivotGroups": 100,
+      "chartPoints": 10000,
+      "runtimeMs": 4646.298042,
+      "maxRSSKiB": 498400,
+      "sourceUnchanged": true,
+      "timingScope": "create source plus expert edit; excludes Python oracle",
+      "nodeHeapMiB": 1024,
+      "performanceGuarantee": false
+    }
+  },
+  "corpus": {
+    "external": true,
+    "inputs": 10713,
+    "csv": 9762,
+    "xlsx": 947,
+    "xlsm": 4,
+    "selection": "Existing suite discovery/selection rules; input inventory is not an edit count."
+  },
+  "model": {
+    "provider": "ollama",
+    "name": "qwen3.8:latest",
+    "digest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+    "hostVersion": "0.40.7",
+    "parent": "qwen3.8:27b-q4_K_M",
+    "endpointAvailable": true,
+    "think": false,
+    "temperature": 0,
+    "window": 65536,
+    "numPredict": 8192,
+    "callBudget": 16,
+    "finalBatch": "model-final-04",
+    "results": [
+      {
+        "language": "scripted",
+        "passed": true,
+        "sha256": "49cfe7a7d0a15cf67b288716527a6c1e9399fa23239e33d24735b7a8b07d1ccd"
+      },
+      {
+        "language": "tr",
+        "passed": true,
+        "sha256": "b66f21ef68f97e3991a742de5922417f56d997ef3eed171e6644119e1c884ccc"
+      },
+      {
+        "language": "en",
+        "passed": true,
+        "sha256": "b66f21ef68f97e3991a742de5922417f56d997ef3eed171e6644119e1c884ccc"
+      }
+    ],
+    "grading": "Whole artifact plus application and visible-chart oracles; final runtime identity above.",
+    "historicalAttempts": [
+      {
+        "batch": "model-01",
+        "scripted": true,
+        "tr": true,
+        "en": false,
+        "reason": "Period emitted as a date instead of exact literal text."
+      },
+      {
+        "batch": "model-final-02",
+        "scripted": true,
+        "tr": true,
+        "en": false,
+        "reason": "Note author/text differed from exact requirements."
+      },
+      {
+        "batch": "model-final-03",
+        "scripted": true,
+        "tr": true,
+        "en": true,
+        "finalAcceptance": false,
+        "reason": "Predates final visible-chart runtime fix."
+      }
+    ]
+  },
+  "ci": {
+    "status": "pending",
+    "workflow": "ci.yml",
+    "full": true,
+    "required": [
+      "all native platform/Node legs",
+      "both NestJS host generations",
+      "combined checks",
+      "installed-tarball pack/smoke"
+    ]
+  },
+  "limits": [
+    "Bounded initial profiles documented in package README.",
+    "LibreOffice export can drop stopIfTrue; original OOXML and effective rules checked independently.",
+    "No desktop Excel interaction claim.",
+    "Macros never execute; encrypted/signed/unsupported protection edits refuse.",
+    "Publication, website deployment and private consumer rollout are separate."
+  ],
+  "privateArtifactsCommitted": false
+}

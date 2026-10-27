@@ -145,6 +145,32 @@ export function addRelatedPart(
 ): string {
   if (workbook.parts.has(target))
     invalidPresentation("A new package part collides with retained content.");
+  const id = addInternalRelationship(workbook, owner, target, type);
+  const types = workbook.xml("[Content_Types].xml");
+  let typesRoot: XmlSpan | undefined;
+  scanXml(types, "content types", (node) => {
+    if (node.depth === 0) typesRoot = node;
+  });
+  if (typesRoot === undefined)
+    invalidPresentation("No content-type root exists.");
+  workbook.put(
+    "[Content_Types].xml",
+    replaceElementBody(
+      types,
+      typesRoot,
+      types.slice(typesRoot.openEnd, typesRoot.closeStart) +
+        `<Override xmlns="${namespaces.contentTypes}" PartName="/${xmlEscape(target)}" ContentType="${xmlEscape(contentType)}"/>`,
+    ),
+  );
+  workbook.put(target, xml);
+  return id;
+}
+export function addInternalRelationship(
+  workbook: PreservedWorkbook,
+  owner: string,
+  target: string,
+  type: string,
+): string {
   const relPart = relationshipsPathFor(owner);
   let rels = workbook.parts.has(relPart)
     ? workbook.xml(relPart)
@@ -164,23 +190,6 @@ export function addRelatedPart(
     rels.slice(root.openEnd, root.closeStart) + relationship,
   );
   workbook.put(relPart, rels);
-  const types = workbook.xml("[Content_Types].xml");
-  let typesRoot: XmlSpan | undefined;
-  scanXml(types, "content types", (node) => {
-    if (node.depth === 0) typesRoot = node;
-  });
-  if (typesRoot === undefined)
-    invalidPresentation("No content-type root exists.");
-  workbook.put(
-    "[Content_Types].xml",
-    replaceElementBody(
-      types,
-      typesRoot,
-      types.slice(typesRoot.openEnd, typesRoot.closeStart) +
-        `<Override xmlns="${namespaces.contentTypes}" PartName="/${xmlEscape(target)}" ContentType="${xmlEscape(contentType)}"/>`,
-    ),
-  );
-  workbook.put(target, xml);
   return `rId${id}`;
 }
 export function removeRelatedPart(
@@ -224,6 +233,26 @@ export function removeRelatedPart(
   workbook.put("[Content_Types].xml", applyXmlPatches(xml, patches));
   workbook.parts.delete(target);
   workbook.parts.delete(ownedRelationships);
+}
+
+export function removeRelationship(
+  workbook: PreservedWorkbook,
+  owner: string,
+  id: string,
+): void {
+  const part = relationshipsPathFor(owner);
+  if (!workbook.parts.has(part)) return;
+  const xml = workbook.xml(part),
+    patches: { start: number; end: number; text: string }[] = [];
+  scanXml(xml, part, (node) => {
+    if (
+      node.uri === namespaces.packageRelationships &&
+      node.local === "Relationship" &&
+      node.attributes.get("Id") === id
+    )
+      patches.push({ start: node.start, end: node.end, text: "" });
+  });
+  workbook.put(part, applyXmlPatches(xml, patches));
 }
 export function headerWith(
   xml: string,

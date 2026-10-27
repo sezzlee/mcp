@@ -26,6 +26,15 @@ import {
 import { applyLayoutChange } from "./layout-authoring.js";
 import { applyFormulaChange } from "./formula-authoring.js";
 import { applyTableChange } from "./table-authoring.js";
+import { applyNameChange } from "./name-authoring.js";
+import {
+  applyConditionalChange,
+  applyValidationChange,
+} from "./rule-authoring.js";
+import { applyContentChange } from "./content-authoring.js";
+import { applyChartChange } from "./chart-authoring.js";
+import { applyPivotChange } from "./pivot-authoring.js";
+import { applyProtectionChange } from "./protection-authoring.js";
 
 export function isPresentationChange(
   change: EditChange,
@@ -281,6 +290,40 @@ export function applyPresentationChange(
   change: PresentationChange,
 ): void {
   switch (change.kind) {
+    case "protect_sheet":
+    case "unprotect_sheet":
+    case "protect_workbook":
+    case "unprotect_workbook":
+      applyProtectionChange(workbook, change);
+      break;
+    case "set_pivot":
+      applyPivotChange(workbook, change);
+      break;
+    case "set_chart":
+    case "remove_chart":
+      applyChartChange(workbook, change);
+      break;
+    case "set_hyperlink":
+    case "remove_hyperlink":
+    case "set_note":
+    case "remove_note":
+    case "set_image":
+    case "remove_image":
+      applyContentChange(workbook, change);
+      break;
+    case "set_validation":
+    case "remove_validation":
+      applyValidationChange(workbook, change);
+      break;
+    case "set_conditional_format":
+    case "remove_conditional_format":
+      applyConditionalChange(workbook, change);
+      break;
+    case "define_name":
+    case "delete_name":
+    case "write_named_range":
+      applyNameChange(workbook, change);
+      break;
     case "format_cells":
       formatCells(workbook, change);
       break;
