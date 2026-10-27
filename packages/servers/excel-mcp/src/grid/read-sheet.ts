@@ -266,9 +266,6 @@ export function readSheet(
   let truncationReason: "maxCells" | "maxPayloadBytes" | undefined;
   let nextRow = window.startRow;
 
-  const merges = window.sheet.merges.filter((merge) =>
-    overlaps(merge, window.bounds),
-  );
   const headerNotices =
     options.cursor === undefined
       ? headerWarnings(
@@ -348,6 +345,15 @@ export function readSheet(
     window.bounds.bottom - window.startRow + 1,
     Math.max(1, Math.floor(options.maxCells / width)),
   );
+  let pageEnd = window.startRow - 1;
+  for (let kept = 0; kept < rowLimit && pageEnd < window.bounds.bottom;) {
+    pageEnd += 1;
+    if (options.visibleOnly !== true || !window.sheet.hiddenRows.has(pageEnd))
+      kept += 1;
+  }
+  const pageMerges = window.sheet.merges.filter((merge) =>
+    overlaps(merge, { ...window.bounds, bottom: pageEnd }),
+  );
   const parallelSeparators =
     Math.max(0, rowLimit - 1) * (1 + Number(options.includeTyped === true));
   const reserveBytes =
@@ -380,7 +386,7 @@ export function readSheet(
           }
         : {}),
       cellNotes: {},
-      merges,
+      merges: pageMerges,
       returnedRows: options.maxCells,
       returnedCells: options.maxCells,
       truncated: true,
@@ -515,6 +521,12 @@ export function readSheet(
   }
 
   const columns = columnsFrom(numberFormats);
+  const merges = pageMerges.filter((merge) =>
+    overlaps(merge, {
+      ...window.bounds,
+      bottom: Math.max(window.bounds.top, nextRow - 1),
+    }),
+  );
   const truncated = truncationReason !== undefined;
   const remaining = window.bounds.bottom - nextRow + 1;
 
@@ -654,6 +666,107 @@ export async function findInSheet(
       options.signal,
     );
   return findWithMatcher(source, options);
+}
+
+export interface SheetFindSummary {
+  readonly sheet: string;
+  readonly range: string;
+  readonly total: number;
+  readonly scannedCells: number;
+  readonly visibility?: VisibilityReport;
+}
+
+export interface WorkbookFindResult {
+  readonly scope: "workbook";
+  readonly sheets: readonly SheetFindSummary[];
+  readonly total: number;
+  readonly truncated: boolean;
+  readonly scannedCells: number;
+  readonly matching: Matching;
+  readonly matches: readonly (FindMatch & { readonly sheet: string })[];
+  readonly truncationReason?: "maxPayloadBytes";
+}
+
+export async function findInWorkbook(
+  source: SheetSource,
+  sheetNames: readonly string[],
+  options: FindOptions,
+): Promise<WorkbookFindResult> {
+  if (options.matchMode === "regex")
+    return withRegex(
+      options.query,
+      options.caseSensitive,
+      (test) => findAcross(source, sheetNames, options, test),
+      options.signal,
+    );
+  return findAcross(source, sheetNames, options);
+}
+
+async function findAcross(
+  source: SheetSource,
+  sheetNames: readonly string[],
+  options: FindOptions,
+  regexTest?: (texts: readonly string[]) => Promise<readonly boolean[]>,
+): Promise<WorkbookFindResult> {
+  const sheets: SheetFindSummary[] = [];
+  const matches: (FindMatch & { readonly sheet: string })[] = [];
+  const summaryBytes = measureJson({
+    scope: "workbook",
+    sheets: sheetNames.map((sheet) => ({
+      sheet,
+      range: "XFD1048576:XFD1048576",
+      total: 17_179_869_184,
+      scannedCells: 17_179_869_184,
+    })),
+  });
+  const sheetFieldBytes =
+    options.maxResults *
+    Math.max(...sheetNames.map((sheet) => measureJson({ sheet }) - 1));
+  let total = 0;
+  let scannedCells = 0;
+  let matching: Matching = "regex";
+  let refused = false;
+  for (const sheetName of sheetNames) {
+    const found = await findWithMatcher(
+      source,
+      {
+        ...options,
+        sheetName,
+        maxResults: refused ? 0 : options.maxResults - matches.length,
+        extraEnvelopeBytes:
+          (options.extraEnvelopeBytes ?? 0) +
+          summaryBytes +
+          sheetFieldBytes +
+          measureJson(matches),
+      },
+      regexTest,
+    );
+    sheets.push({
+      sheet: found.sheet,
+      range: found.range,
+      total: found.total,
+      scannedCells: found.scannedCells,
+      ...(found.visibility === undefined
+        ? {}
+        : { visibility: found.visibility }),
+    });
+    for (const match of found.matches)
+      matches.push({ sheet: found.sheet, ...match });
+    total += found.total;
+    scannedCells += found.scannedCells;
+    matching = found.matching;
+    refused ||= found.truncationReason !== undefined;
+  }
+  return {
+    scope: "workbook",
+    sheets,
+    total,
+    truncated: total > matches.length,
+    scannedCells,
+    matching,
+    matches,
+    ...(refused ? { truncationReason: "maxPayloadBytes" as const } : {}),
+  };
 }
 
 async function findWithMatcher(
