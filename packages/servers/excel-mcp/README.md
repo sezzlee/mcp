@@ -176,11 +176,16 @@ bounds the groups shown after calculation. For a large breakdown that needs anot
 pass `resultMode: "retained"`. This explicit choice is deterministic; even a small retained
 result gets an identifier, while ordinary small calls allocate no retained-result entry.
 
-Retained mode supports one non-pivot grouping, including conditional metrics and derived
-metrics. It refuses `pivotBy`, additional `groupingSets`, and `inColumn`/`notInColumn` filters;
-those remain supported in inline mode. The complete calculation still uses the existing
-`SheetView`, typed interpretations and aggregate state/visit budgets. A failure publishes no
-partial result or identifier. No workbook is changed and there is no code execution API.
+Retained mode accepts every aggregate shape inline mode accepts. A pivot is stored one row per
+group, in the inline pivot's columns: group keys, then each pivot key's metrics with its
+`pivotKey`, then derived metrics. Each `groupingSets` entry is a separate result with its own
+`resultId`, listed under `groupingSets` in the response beside its columns, counts and preview
+rows. The primary result and its grouping sets are admitted together or not at all.
+`inColumn`/`notInColumn` members are read once before the calculation; when they come from
+another file, `memberSourceVersions` lists that file's captured fingerprint. The complete
+calculation still uses the existing `SheetView`, typed interpretations and aggregate state/visit
+budgets. A failure publishes no partial result or identifier. No workbook is changed and there
+is no code execution API.
 
 The returned `resultId` identifies all finalized result rows, captured before response string
 truncation and independently of `maxGroups`. `query_result` can select original result columns
@@ -203,6 +208,7 @@ The response distinguishes these scopes:
 | `returnedRows`, `returnedMatchedRows`                       | Result rows actually displayed and their represented original source rows                                         |
 | `offset`, `hasMore`, `nextOffset`                           | Page position and continuation among matching result rows                                                         |
 | `preview`                                                   | `true` on the initial retained response; `false` on a follow-up page                                              |
+| `totalColumns`                                              | Present when a preview shows only the leading columns; select the rest with `query_result` `columns`              |
 | `valueTruncation`                                           | Count of displayed cells shortened by the existing presentation rules and their string limit                      |
 
 `columnNumbers` maps projected output columns back to their original one-based positions.
@@ -242,7 +248,10 @@ There is no disk storage, service or background timer. Capacity exhaustion retur
 `resource_limit` and preserves live results; wait for expiry, request fewer/smaller results or
 restart the instance. Unknown, expired, cleared and foreign identifiers all return
 `result_unavailable`, with recovery to run a new retained aggregate. A preview that cannot fit
-its required metadata and one row fails before admission. A follow-up row that cannot fit
+its required metadata and one row fails before admission. Every result in a preview first keeps
+one column and, when it has rows, one row; each then widens to all its columns in order, and only
+then takes more rows in order, so a wide pivot or a large primary breakdown cannot crowd out a
+grouping set. A follow-up row that cannot fit
 fails with projection guidance instead of returning a non-progressing page. Every response
 still goes through the existing `json()` constructor and mandatory `guard()` payload gate and
 root-redacted error envelope. Retained allocation makes `aggregate_sheet` non-idempotent in its

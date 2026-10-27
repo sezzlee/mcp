@@ -24,6 +24,7 @@ export type ResultMetadata = Omit<
 > & {
   readonly sourceVersion: string;
   readonly sourcePolicy: "snapshot";
+  readonly memberSourceVersions?: readonly string[];
 };
 
 interface CapturedRow {
@@ -131,12 +132,11 @@ export interface ResultQuery {
   readonly maxRows?: number;
 }
 
-export interface RetainedPage extends ResultMetadata {
+interface PageFields {
   readonly resultId: string;
   readonly expiresAt: string;
-  readonly resultComplete: true;
-  readonly sampled: false;
   readonly totalRows: number;
+  readonly totalColumns?: number;
   readonly matchingRows: number;
   readonly matchingSourceRows: number;
   readonly returnedRows: number;
@@ -144,7 +144,6 @@ export interface RetainedPage extends ResultMetadata {
   readonly offset: number;
   readonly hasMore: boolean;
   readonly nextOffset?: number;
-  readonly preview: boolean;
   readonly columnNumbers: readonly number[];
   readonly rows: readonly (readonly CellScalar[])[];
   readonly valueTruncation: {
@@ -153,21 +152,66 @@ export interface RetainedPage extends ResultMetadata {
   };
 }
 
+export type RetainedPage = ResultMetadata & {
+  readonly resultComplete: true;
+  readonly sampled: false;
+  readonly preview: boolean;
+} & PageFields;
+
+export type GroupingSetPreview = Pick<
+  ResultMetadata,
+  "columns" | "groupCount" | "ungroupedRows" | "pivotBy"
+> &
+  PageFields;
+
+export type RetainedPreview = RetainedPage & {
+  readonly groupingSets?: readonly GroupingSetPreview[];
+};
+
+export interface RetainRequest {
+  readonly capture: ResultCapture;
+  readonly metadata: ResultMetadata;
+}
+
 interface StoredResult extends CapturedResult {
   readonly id: string;
   readonly expiresAt: number;
   readonly metadata: ResultMetadata;
 }
 
+interface Candidate {
+  readonly values: readonly CellScalar[];
+  readonly shortened: readonly boolean[];
+  readonly matchedRows: number;
+}
+
+interface PagePlan {
+  readonly entry: StoredResult;
+  readonly columns: readonly number[];
+  readonly offset: number;
+  readonly matchingRows: number;
+  readonly matchingSourceRows: number;
+  readonly candidates: readonly Candidate[];
+}
+
+interface PageShape {
+  readonly width: number;
+  readonly rows: number;
+}
+
+interface Slot {
+  readonly plan: PagePlan;
+  shape: PageShape;
+}
+
 function invalid(message: string, recovery?: string): never {
   throw new SezzleeExcelError("invalid_argument", message, recovery);
 }
 
-function pageOf(
+function planOf(
   entry: StoredResult,
   query: Omit<ResultQuery, "resultId">,
-  preview: boolean,
-): RetainedPage {
+): PagePlan {
   const maxRows = query.maxRows ?? limits.maxGroupsDefault;
   const offset = query.offset ?? 0;
   if (
@@ -231,8 +275,33 @@ function pageOf(
       "offset exceeds the matching result rows.",
       "Start at offset 0 or use nextOffset with the same filters and columns.",
     );
-  const descriptors = columns.map((column) => {
-    const descriptor = entry.metadata.columns[column - 1];
+  const candidates = matching
+    .slice(offset, offset + maxRows)
+    .map((row): Candidate => {
+      const stored = JSON.parse(row.json) as CellScalar[];
+      const values: CellScalar[] = [];
+      const shortened: boolean[] = [];
+      for (const column of columns) {
+        const value = stored[column - 1] ?? null;
+        const presented = presentScalar(value);
+        values.push(presented);
+        shortened.push(JSON.stringify(value) !== JSON.stringify(presented));
+      }
+      return { values, shortened, matchedRows: row.matchedRows };
+    });
+  return {
+    entry,
+    columns,
+    offset,
+    matchingRows: matching.length,
+    matchingSourceRows,
+    candidates,
+  };
+}
+
+function descriptorsOf({ plan, shape }: Slot): ResultMetadata["columns"] {
+  return plan.columns.slice(0, shape.width).map((column) => {
+    const descriptor = plan.entry.metadata.columns[column - 1];
     if (descriptor === undefined)
       throw new SezzleeExcelError(
         "internal_error",
@@ -240,86 +309,149 @@ function pageOf(
       );
     return descriptor;
   });
-  const build = (
-    rows: readonly (readonly CellScalar[])[],
-    sourceRows: number,
-    shortened: number,
-  ): RetainedPage => {
-    const nextOffset = offset + rows.length;
-    const hasMore = nextOffset < matching.length;
-    return {
-      ...entry.metadata,
-      columns: descriptors,
-      resultId: entry.id,
-      expiresAt: new Date(entry.expiresAt).toISOString(),
-      resultComplete: true,
-      sampled: false,
-      totalRows: entry.rows.length,
-      matchingRows: matching.length,
-      matchingSourceRows,
-      returnedRows: rows.length,
-      returnedMatchedRows: sourceRows,
-      offset,
-      hasMore,
-      ...(hasMore ? { nextOffset } : {}),
-      preview,
-      columnNumbers: columns,
-      rows,
-      valueTruncation: {
-        cells: shortened,
-        maxStringChars: limits.maxStringChars,
-      },
-    };
+}
+
+function pagingOf({ plan, shape }: Slot): PageFields {
+  const shown = plan.candidates.slice(0, shape.rows);
+  const nextOffset = plan.offset + shown.length;
+  const hasMore = nextOffset < plan.matchingRows;
+  let returnedMatchedRows = 0;
+  let cells = 0;
+  for (const row of shown) {
+    returnedMatchedRows += row.matchedRows;
+    for (const shortened of row.shortened.slice(0, shape.width))
+      if (shortened) cells += 1;
+  }
+  return {
+    resultId: plan.entry.id,
+    expiresAt: new Date(plan.entry.expiresAt).toISOString(),
+    totalRows: plan.entry.rows.length,
+    ...(shape.width < plan.columns.length
+      ? { totalColumns: plan.entry.metadata.columns.length }
+      : {}),
+    matchingRows: plan.matchingRows,
+    matchingSourceRows: plan.matchingSourceRows,
+    returnedRows: shown.length,
+    returnedMatchedRows,
+    offset: plan.offset,
+    hasMore,
+    ...(hasMore ? { nextOffset } : {}),
+    columnNumbers: plan.columns.slice(0, shape.width),
+    rows: shown.map((row) => row.values.slice(0, shape.width)),
+    valueTruncation: { cells, maxStringChars: limits.maxStringChars },
   };
-  const recovery = preview
-    ? "Use fewer metrics or shorter group labels so the result preview fits."
-    : "Select fewer result columns, or use a filter that selects shorter values.";
-  const rows: CellScalar[][] = [];
-  let sourceRows = 0;
-  let shortened = 0;
-  if (
-    measureJson(json(build(rows, sourceRows, shortened))) >
-    limits.maxResultPageBytes
-  )
+}
+
+function pageOf(slot: Slot, preview: boolean): RetainedPage {
+  return {
+    ...slot.plan.entry.metadata,
+    columns: descriptorsOf(slot),
+    resultComplete: true,
+    sampled: false,
+    preview,
+    ...pagingOf(slot),
+  };
+}
+
+function groupingSetOf(slot: Slot): GroupingSetPreview {
+  const { groupCount, ungroupedRows, pivotBy } = slot.plan.entry.metadata;
+  return {
+    columns: descriptorsOf(slot),
+    groupCount,
+    ...(ungroupedRows === undefined ? {} : { ungroupedRows }),
+    ...(pivotBy === undefined ? {} : { pivotBy }),
+    ...pagingOf(slot),
+  };
+}
+
+function fitsPage(response: unknown): boolean {
+  return measureJson(json(response)) <= limits.maxResultPageBytes;
+}
+
+function largest(
+  low: number,
+  high: number,
+  fits: (value: number) => boolean,
+): number {
+  let found = low;
+  let lower = low + 1;
+  let upper = high;
+  while (lower <= upper) {
+    const middle = Math.floor((lower + upper) / 2);
+    if (fits(middle)) {
+      found = middle;
+      lower = middle + 1;
+    } else upper = middle - 1;
+  }
+  return found;
+}
+
+function fit(
+  slots: readonly Slot[],
+  narrow: boolean,
+  fits: () => boolean,
+  recovery: string,
+): void {
+  for (const slot of slots)
+    slot.shape = { width: narrow ? 1 : slot.plan.columns.length, rows: 0 };
+  if (!fits())
     throw resource(
       `Result metadata exceeds the ${limits.maxResultPageBytes} byte serialized response budget.`,
       recovery,
     );
-  for (const row of matching.slice(offset, offset + maxRows)) {
-    const values = JSON.parse(row.json) as CellScalar[];
-    let truncated = 0;
-    const shown = columns.map((column) => {
-      const value = values[column - 1] ?? null;
-      const presented = presentScalar(value);
-      if (JSON.stringify(value) !== JSON.stringify(presented)) truncated += 1;
-      return presented;
-    });
-    const next = build(
-      [...rows, shown],
-      sourceRows + row.matchedRows,
-      shortened + truncated,
+  for (const slot of slots)
+    slot.shape = {
+      ...slot.shape,
+      rows: Math.min(1, slot.plan.candidates.length),
+    };
+  if (!fits())
+    throw resource(
+      `The first selected row does not fit in the ${limits.maxResultPageBytes} byte serialized response budget.`,
+      recovery,
     );
-    if (measureJson(json(next)) > limits.maxResultPageBytes) {
-      if (rows.length === 0)
-        throw resource(
-          `The first selected row does not fit in the ${limits.maxResultPageBytes} byte serialized response budget.`,
-          recovery,
-        );
-      break;
+  /**
+   * Guard: the full width drops totalColumns and the last row can drop
+   * nextOffset, so size is monotone only below the top value. Try the top
+   * first, then search the monotone part.
+   */
+  const grow = (
+    slot: Slot,
+    low: number,
+    high: number,
+    shapeOf: (value: number) => PageShape,
+  ): void => {
+    const trial = (value: number): boolean => {
+      slot.shape = shapeOf(value);
+      return fits();
+    };
+    slot.shape = shapeOf(trial(high) ? high : largest(low, high - 1, trial));
+  };
+  if (narrow)
+    for (const slot of slots) {
+      const { width, rows } = slot.shape;
+      grow(slot, width, slot.plan.columns.length, (next) => ({
+        width: next,
+        rows,
+      }));
     }
-    rows.push(shown);
-    sourceRows += row.matchedRows;
-    shortened += truncated;
+  for (const slot of slots) {
+    const { width, rows } = slot.shape;
+    grow(slot, rows, slot.plan.candidates.length, (next) => ({
+      width,
+      rows: next,
+    }));
   }
-  return build(rows, sourceRows, shortened);
+}
+
+function slotOf(plan: PagePlan): Slot {
+  return { plan, shape: { width: plan.columns.length, rows: 0 } };
 }
 
 export interface ResultStore {
   retain(
-    capture: ResultCapture,
-    metadata: ResultMetadata,
+    requests: readonly [RetainRequest, ...RetainRequest[]],
     maxRows: number,
-  ): RetainedPage;
+  ): RetainedPreview;
   query(query: ResultQuery): RetainedPage;
   clear(): void;
 }
@@ -335,40 +467,58 @@ export function createResultStore(): ResultStore {
       }
   };
   return {
-    retain(capture, metadata, maxRows) {
+    retain([first, ...rest], maxRows) {
       const now = Date.now();
       expire(now);
-      const captured = capture.snapshot();
+      const prepare = ({ capture, metadata }: RetainRequest): StoredResult => {
+        const captured = capture.snapshot();
+        if (
+          captured.width !== undefined &&
+          captured.width !== metadata.columns.length
+        )
+          throw new SezzleeExcelError(
+            "internal_error",
+            "The result columns do not match its captured rows.",
+          );
+        const bytes = captured.sizeBytes + measureJson(metadata);
+        if (bytes > limits.maxResultBytes)
+          throw resource(
+            `A retained result exceeds ${limits.maxResultBytes} bytes.`,
+          );
+        return {
+          ...captured,
+          sizeBytes: bytes,
+          id: createResultId(),
+          expiresAt: now + limits.resultTtlMs,
+          metadata: JSON.parse(JSON.stringify(metadata)) as ResultMetadata,
+        };
+      };
+      const primary = prepare(first);
+      const sets = rest.map(prepare);
+      const admitted = [primary, ...sets];
+      const bytes = admitted.reduce((sum, entry) => sum + entry.sizeBytes, 0);
       if (
-        captured.width !== undefined &&
-        captured.width !== metadata.columns.length
-      )
-        throw new SezzleeExcelError(
-          "internal_error",
-          "The result columns do not match its captured rows.",
-        );
-      const bytes = captured.sizeBytes + measureJson(metadata);
-      if (bytes > limits.maxResultBytes)
-        throw resource(
-          `A retained result exceeds ${limits.maxResultBytes} bytes.`,
-        );
-      if (
-        entries.size >= limits.maxResults ||
+        entries.size + admitted.length > limits.maxResults ||
         sizeBytes + bytes > limits.maxResultStoreBytes
       )
         throw resource(
           `The result store is full (${limits.maxResults} results, ${limits.maxResultStoreBytes} bytes).`,
           "Wait for an existing result to expire, or start a new server instance. Existing results remain readable.",
         );
-      const entry: StoredResult = {
-        ...captured,
-        sizeBytes: bytes,
-        id: createResultId(),
-        expiresAt: now + limits.resultTtlMs,
-        metadata: JSON.parse(JSON.stringify(metadata)) as ResultMetadata,
-      };
-      const preview = pageOf(entry, { maxRows }, true);
-      entries.set(entry.id, entry);
+      const head = slotOf(planOf(primary, { maxRows }));
+      const tail = sets.map((entry) => slotOf(planOf(entry, { maxRows })));
+      const previewOf = (): RetainedPreview => ({
+        ...pageOf(head, true),
+        ...(tail.length === 0 ? {} : { groupingSets: tail.map(groupingSetOf) }),
+      });
+      fit(
+        [head, ...tail],
+        true,
+        () => fitsPage(previewOf()),
+        "Use fewer metrics or shorter group labels so the result preview fits.",
+      );
+      const preview = previewOf();
+      for (const entry of admitted) entries.set(entry.id, entry);
       sizeBytes += bytes;
       return preview;
     },
@@ -381,7 +531,14 @@ export function createResultStore(): ResultStore {
           "The result is unknown, expired, or belongs to another server instance.",
           "Run aggregate_sheet with resultMode retained in this server instance to create a new result.",
         );
-      return pageOf(entry, query, false);
+      const slot = slotOf(planOf(entry, query));
+      fit(
+        [slot],
+        false,
+        () => fitsPage(pageOf(slot, false)),
+        "Select fewer result columns, or use a filter that selects shorter values.",
+      );
+      return pageOf(slot, false);
     },
     clear() {
       entries.clear();

@@ -22,7 +22,7 @@ import {
   type LoadedDocument,
   sheetSource,
 } from "../format/document.js";
-import { aggregateSheet } from "../grid/aggregate.js";
+import { aggregateSheet, type GroupingResult } from "../grid/aggregate.js";
 import type { ColumnMode } from "../grid/columns.js";
 import { columnMembers } from "../grid/members.js";
 import type { Condition } from "../grid/predicate.js";
@@ -31,7 +31,11 @@ import type { DelimiterName, EncodingName } from "../platform/delimited.js";
 import { inheritCursorOptions, decodeCursor } from "../grid/cursor.js";
 import type { ToolHandlers, ToolInput } from "./definitions.js";
 import { guard } from "./guard.js";
-import { createResultCapture, createResultStore } from "./retained-results.js";
+import {
+  createResultCapture,
+  createResultStore,
+  type ResultCapture,
+} from "./retained-results.js";
 import {
   assertHeaderScan,
   assertPictureKind,
@@ -106,6 +110,7 @@ export function createHandlers(
       readonly columnMode: ColumnMode;
       readonly mergedCells: "master" | "repeat";
       readonly caseSensitive: boolean;
+      readonly memberVersions: Set<string>;
     },
   ): Promise<Condition[] | undefined> => {
     if (conditions === undefined) return undefined;
@@ -141,6 +146,8 @@ export function createHandlers(
           source.filePath === undefined
             ? context.loaded
             : await openFor(source.filePath);
+        if (target.stamp !== context.loaded.stamp)
+          context.memberVersions.add(target.stamp);
         const sourceArgs = {
           ...(source.sheetName === undefined
             ? {}
@@ -399,20 +406,6 @@ export function createHandlers(
       { root: root.real, tool: "aggregate_sheet" },
       async (args) => {
         const retained = args.resultMode === "retained";
-        if (
-          retained &&
-          ((args.pivotBy?.length ?? 0) > 0 ||
-            (args.groupingSets?.length ?? 0) > 0 ||
-            [
-              ...(args.where ?? []),
-              ...args.metrics.flatMap((metric) => metric.where ?? []),
-            ].some(({ op }) => op === "inColumn" || op === "notInColumn"))
-        )
-          throw new SezzleeExcelError(
-            "invalid_argument",
-            "Retained results support one non-pivot grouping without column-membership filters.",
-            "Omit pivotBy, groupingSets and inColumn/notInColumn, or use the default inline result mode.",
-          );
         assertHeaderScan(args, args.filePath);
         const loaded = await openFor(args.filePath, csvOptionsOf(args));
         const context = {
@@ -420,6 +413,7 @@ export function createHandlers(
           columnMode: args.columnMode ?? "auto",
           mergedCells: args.mergedCells ?? "master",
           caseSensitive: args.caseSensitive ?? false,
+          memberVersions: new Set<string>(),
         } as const;
         const where = await withMembers(args.where, context);
         const metrics = await Promise.all(
@@ -430,7 +424,11 @@ export function createHandlers(
               : { ...metric, where: resolved };
           }),
         );
-        const capture = retained ? createResultCapture() : undefined;
+        const captures = retained
+          ? [undefined, ...(args.groupingSets ?? [])].map(() =>
+              createResultCapture(),
+            )
+          : undefined;
         const result = aggregateSheet(
           sheetSource(loaded),
           {
@@ -464,9 +462,19 @@ export function createHandlers(
             descending: args.descending ?? false,
             maxGroups: args.maxGroups ?? limits.maxGroupsDefault,
           },
-          capture?.add,
+          captures === undefined
+            ? undefined
+            : (grouping, row, matchedRows) => {
+                const capture = captures[grouping];
+                if (capture === undefined)
+                  throw new SezzleeExcelError(
+                    "internal_error",
+                    "The calculated result has no capture for a grouping.",
+                  );
+                capture.add(row, matchedRows);
+              },
         );
-        if (capture !== undefined) {
+        if (captures !== undefined) {
           if (disposed)
             throw new SezzleeExcelError(
               "result_unavailable",
@@ -481,22 +489,57 @@ export function createHandlers(
             truncated: _truncated,
             truncationReason: _truncationReason,
             hint: _hint,
-            groupingSets: _groupingSets,
-            ...metadata
+            groupingSets: sets = [],
+            columns: _columns,
+            groupCount: _groupCount,
+            ungroupedRows: _ungroupedRows,
+            pivotBy: _pivotBy,
+            ...shared
           } = result;
+          const mismatch = (): never => {
+            throw new SezzleeExcelError(
+              "internal_error",
+              "The calculated groupings do not match their captures.",
+            );
+          };
+          const [primary = mismatch(), ...rest] = captures;
+          if (rest.length !== sets.length) mismatch();
+          const memberSourceVersions = [...context.memberVersions].sort();
+          const request = (
+            capture: ResultCapture,
+            grouping: GroupingResult,
+          ) => ({
+            capture,
+            metadata: withAggregateEnvelope(
+              {
+                ...shared,
+                columns: grouping.columns,
+                groupCount: grouping.groupCount,
+                ...(grouping.ungroupedRows === undefined
+                  ? {}
+                  : { ungroupedRows: grouping.ungroupedRows }),
+                ...(grouping.pivotBy === undefined
+                  ? {}
+                  : { pivotBy: grouping.pivotBy }),
+                sourceVersion: loaded.stamp,
+                sourcePolicy: "snapshot" as const,
+                ...(memberSourceVersions.length === 0
+                  ? {}
+                  : { memberSourceVersions }),
+              },
+              csvReportOf(loaded),
+              loaded.mode,
+              args.compact ?? false,
+            ),
+          });
           return json(
             results.retain(
-              capture,
-              withAggregateEnvelope(
-                {
-                  ...metadata,
-                  sourceVersion: loaded.stamp,
-                  sourcePolicy: "snapshot" as const,
-                },
-                csvReportOf(loaded),
-                loaded.mode,
-                args.compact ?? false,
-              ),
+              [
+                request(primary, result),
+                ...sets.map((grouping, at) =>
+                  request(rest[at] ?? mismatch(), grouping),
+                ),
+              ],
               args.maxGroups ?? limits.maxGroupsDefault,
             ),
           );

@@ -101,13 +101,17 @@ describe("retained result snapshots", () => {
     const store = createResultStore();
     const prefix = "q".repeat(limits.maxStringChars + 20);
     const first = store.retain(
-      capture([
-        [`${prefix}alpha`, 10],
-        [`${prefix}beta`, 20],
-        [1, 30],
-        ["1", 40],
-      ]),
-      metadata(4),
+      [
+        {
+          capture: capture([
+            [`${prefix}alpha`, 10],
+            [`${prefix}beta`, 20],
+            [1, 30],
+            ["1", 40],
+          ]),
+          metadata: metadata(4),
+        },
+      ],
       2,
     );
     expect(first.rows).toEqual([
@@ -149,7 +153,7 @@ describe("retained result snapshots", () => {
     const row: CellScalar[] = ["A", 10];
     const captured = capture([row]);
     const details = metadata(1);
-    const first = store.retain(captured, details, 1);
+    const first = store.retain([{ capture: captured, metadata: details }], 1);
     row[1] = 999;
     captured.add(["B", 20], 2);
     Object.assign(details.columns[0] ?? {}, { label: "Changed" });
@@ -162,14 +166,18 @@ describe("retained result snapshots", () => {
   it("pages after AND filtering in stable result order", () => {
     const store = createResultStore();
     const first = store.retain(
-      capture([
-        ["A", 1],
-        ["B", 1],
-        ["A", 1],
-        ["A", 2],
-        ["A", 1],
-      ]),
-      metadata(5),
+      [
+        {
+          capture: capture([
+            ["A", 1],
+            ["B", 1],
+            ["A", 1],
+            ["A", 2],
+            ["A", 1],
+          ]),
+          metadata: metadata(5),
+        },
+      ],
       1,
     );
     const options = {
@@ -209,7 +217,10 @@ describe("retained result snapshots", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
     const store = createResultStore();
-    const first = store.retain(capture([["A", 1]]), metadata(1), 1);
+    const first = store.retain(
+      [{ capture: capture([["A", 1]]), metadata: metadata(1) }],
+      1,
+    );
     const other = createResultStore();
     expect(() => other.query({ resultId: first.resultId })).toThrowError(
       expect.objectContaining({ code: "result_unavailable" }),
@@ -220,7 +231,10 @@ describe("retained result snapshots", () => {
     expect(() => store.query({ resultId: first.resultId })).toThrowError(
       expect.objectContaining({ code: "result_unavailable" }),
     );
-    const second = store.retain(capture([["B", 2]]), metadata(1), 1);
+    const second = store.retain(
+      [{ capture: capture([["B", 2]]), metadata: metadata(1) }],
+      1,
+    );
     store.clear();
     expect(() => store.query({ resultId: second.resultId })).toThrowError(
       expect.objectContaining({ code: "result_unavailable" }),
@@ -231,7 +245,10 @@ describe("retained result snapshots", () => {
     const store = createResultStore();
     const text = '\\"東京'.repeat(100);
     const rows = Array.from({ length: 40 }, (_item, index) => [text, index]);
-    const first = store.retain(capture(rows), metadata(40), 40);
+    const first = store.retain(
+      [{ capture: capture(rows), metadata: metadata(40) }],
+      40,
+    );
     expect(first.returnedRows).toBeGreaterThan(0);
     expect(first.returnedRows).toBeLessThan(40);
     expect(measureJson(json(first))).toBeLessThanOrEqual(
@@ -258,7 +275,10 @@ describe("retained result snapshots", () => {
 
   it("distinguishes an empty complete filter from an out-of-range offset", () => {
     const store = createResultStore();
-    const first = store.retain(capture([["A", 1]]), metadata(1), 1);
+    const first = store.retain(
+      [{ capture: capture([["A", 1]]), metadata: metadata(1) }],
+      1,
+    );
     expect(
       store.query({
         resultId: first.resultId,

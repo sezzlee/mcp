@@ -123,6 +123,21 @@ beforeAll(async () => {
     join(directory, "small.csv"),
     "Customer,Amount\nAlpha,4\nBeta,7\nAlpha,6\n",
   );
+  await writeFile(
+    join(directory, "sales.csv"),
+    "Region,Quarter,Product,Amount\nNorth,Q1,Pen,10\nNorth,Q2,Pen,20\nSouth,Q1,Ink,5\nSouth,Q1,Pen,7\nEast,Q2,Ink,3\n",
+  );
+  await writeFile(join(directory, "allowed.csv"), "Region\nNorth\nEast\n");
+  await writeFile(
+    join(directory, "wide.csv"),
+    [
+      "Key,Pivot,Amount",
+      ...Array.from(
+        { length: 400 },
+        (_, index) => `A,P${String(index + 1).padStart(3, "0")},${index + 1}`,
+      ),
+    ].join("\n"),
+  );
   await mkdir(join(directory, "other-root"));
 });
 
@@ -509,38 +524,170 @@ describe("retained results through real MCP calls", () => {
     expectBounded(result);
   });
 
-  it.each([
-    { pivotBy: ["Customer"] },
-    { groupingSets: [{ groupBy: ["Customer"] }] },
-    {
-      where: [
-        { column: "Customer", op: "inColumn", source: { column: "Customer" } },
-      ],
-    },
-    {
-      where: [
-        {
-          column: "Customer",
-          op: "notInColumn",
-          source: { column: "Customer" },
-        },
-      ],
-    },
-  ])(
-    "refuses unsupported retained aggregation options: %j",
-    async (unsupported) => {
-      const client = await connect();
-      const result = await retain(client, {
-        filePath: "small.csv",
-        groupBy: ["Customer"],
-        metrics: [{ fn: "sum", column: "Amount" }],
-        ...unsupported,
+  it("retains a pivot in its inline row shape and pages it with query_result", async () => {
+    const client = await connect();
+    const args = {
+      filePath: "sales.csv",
+      groupBy: ["Region"],
+      pivotBy: ["Quarter"],
+      metrics: [{ fn: "sum", column: "Amount" }],
+    };
+    const expected = [
+      ["East", null, 3],
+      ["North", 10, 20],
+      ["South", 12, null],
+    ];
+    const inline = await client.callTool({
+      name: "aggregate_sheet",
+      arguments: args,
+    });
+    expect(rowsOf(inline)).toEqual(expected);
+    const retained = await retain(client, args);
+    const resultId = resultIdOf(retained);
+    expectBounded(retained);
+    expect(rowsOf(retained)).toEqual(expected);
+    expect(payload(retained)).toMatchObject({
+      totalRows: 3,
+      columns: [{ role: "group" }, { pivotKey: ["Q1"] }, { pivotKey: ["Q2"] }],
+    });
+
+    const filtered = await client.callTool({
+      name: "query_result",
+      arguments: {
+        resultId,
+        columns: [1, 3],
+        where: [{ column: 1, equals: "North" }],
+      },
+    });
+    expect(rowsOf(filtered)).toEqual([["North", 20]]);
+
+    const paged: unknown[][] = [];
+    let offset: number | undefined = 0;
+    while (offset !== undefined) {
+      const page: CallToolResult = await client.callTool({
+        name: "query_result",
+        arguments: { resultId, columns: [1, 2], offset, maxRows: 1 },
       });
-      expect(result.isError).toBe(true);
-      expect(payload(result)).toMatchObject({ error: "invalid_argument" });
-      expect(payload(result)).not.toHaveProperty("resultId");
+      paged.push(...rowsOf(page));
+      offset = payload(page)["nextOffset"] as number | undefined;
+    }
+    expect(paged).toEqual([
+      ["East", null],
+      ["North", 10],
+      ["South", 12],
+    ]);
+  });
+
+  it("retains every grouping set as its own result", async () => {
+    const client = await connect();
+    const retained = await retain(client, {
+      filePath: "sales.csv",
+      groupBy: ["Region"],
+      groupingSets: [{ groupBy: ["Product"] }, { groupBy: [] }],
+      metrics: [{ fn: "sum", column: "Amount" }],
+    });
+    const primaryId = resultIdOf(retained);
+    expectBounded(retained);
+    expect(rowsOf(retained)).toEqual([
+      ["East", 3],
+      ["North", 30],
+      ["South", 12],
+    ]);
+    const sets = payload(retained)["groupingSets"] as Record<string, unknown>[];
+    expect(sets.map((set) => set["rows"])).toEqual([
+      [
+        ["Ink", 8],
+        ["Pen", 37],
+      ],
+      [[45]],
+    ]);
+    const ids = sets.map((set) => set["resultId"]);
+    expect(new Set([primaryId, ...ids]).size).toBe(3);
+
+    const pen = await client.callTool({
+      name: "query_result",
+      arguments: { resultId: ids[0], where: [{ column: 1, equals: "Pen" }] },
+    });
+    expect(rowsOf(pen)).toEqual([["Pen", 37]]);
+    expect(payload(pen)).toMatchObject({
+      columns: [{ label: "Product" }, { fn: "sum" }],
+      totalRows: 2,
+    });
+  });
+
+  it.each([
+    {
+      op: "inColumn",
+      rows: [
+        ["East", 3],
+        ["North", 30],
+      ],
+    },
+    { op: "notInColumn", rows: [["South", 12]] },
+  ])(
+    "retains $op filters and names the member source's version",
+    async ({ op, rows }) => {
+      const client = await connect();
+      const args = {
+        filePath: "sales.csv",
+        groupBy: ["Region"],
+        metrics: [{ fn: "sum", column: "Amount" }],
+      };
+      const retained = await retain(client, {
+        ...args,
+        where: [
+          {
+            column: "Region",
+            op,
+            source: { filePath: "allowed.csv", column: "Region" },
+          },
+        ],
+      });
+      resultIdOf(retained);
+      expect(rowsOf(retained)).toEqual(rows);
+      const versions = payload(retained)["memberSourceVersions"];
+      expect(versions).toEqual([expect.any(String)]);
+      expect(versions).not.toContain(payload(retained)["sourceVersion"]);
+
+      const sameFile = await retain(client, {
+        ...args,
+        where: [{ column: "Region", op, source: { column: "Region" } }],
+      });
+      resultIdOf(sameFile);
+      expect(payload(sameFile)).not.toHaveProperty("memberSourceVersions");
     },
   );
+
+  it("narrows a preview too wide for its budget and keeps every column queryable", async () => {
+    const client = await connect();
+    const retained = await retain(client, {
+      filePath: "wide.csv",
+      groupBy: ["Key"],
+      pivotBy: ["Pivot"],
+      metrics: [{ fn: "sum", column: "Amount" }],
+    });
+    const resultId = resultIdOf(retained);
+    expectBounded(retained);
+    const body = payload(retained);
+    const shown = body["columnNumbers"] as number[];
+    expect(body["totalColumns"]).toBe(401);
+    expect(shown.length).toBeGreaterThan(1);
+    expect(shown.length).toBeLessThan(401);
+    expect(shown).toEqual(Array.from(shown, (_, index) => index + 1));
+    expect(rowsOf(retained)).toEqual([
+      ["A", ...Array.from(shown.slice(1), (_, index) => index + 1)],
+    ]);
+
+    const last = await client.callTool({
+      name: "query_result",
+      arguments: { resultId, columns: [1, 401] },
+    });
+    expect(rowsOf(last)).toEqual([["A", 400]]);
+    expect(payload(last)).toMatchObject({
+      columns: [{ label: "Key" }, { pivotKey: ["P400"] }],
+    });
+    expect(payload(last)).not.toHaveProperty("totalColumns");
+  });
 
   it("keeps file access enforcement and error redaction on retained aggregate calls", async () => {
     const client = await connect();

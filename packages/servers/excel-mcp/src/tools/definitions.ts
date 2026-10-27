@@ -37,6 +37,9 @@ const typedOptions = {
 
 const selectionOptions = { table, visibleOnly };
 
+const maxResultColumns =
+  limits.maxMetrics + limits.maxPivotCells + limits.maxDerivedMetrics;
+
 const profileHeaders = {
   headerRow: z
     .int()
@@ -280,7 +283,7 @@ export const toolDefinitions = {
         .enum(["inline", "retained"])
         .optional()
         .describe(
-          "inline (default), or retain all groups for 15 minutes in this instance. retained returns a preview up to 16 KiB and resultId; rejects pivots, groupingSets and inColumn/notInColumn. All processing limits apply; failures store nothing.",
+          "inline (default), or retain all groups for 15 minutes in this instance. retained returns a preview up to 16 KiB and resultId, plus one per groupingSets entry; a wide preview lists totalColumns. All processing limits apply; failures store nothing.",
         ),
       ...selectionOptions,
       range: z
@@ -459,16 +462,9 @@ export const toolDefinitions = {
         .max(128)
         .describe("Opaque identifier from this server instance."),
       columns: z
-        .array(
-          z
-            .int()
-            .min(1)
-            .max(
-              limits.maxMetrics + limits.maxMetrics + limits.maxDerivedMetrics,
-            ),
-        )
+        .array(z.int().min(1).max(maxResultColumns))
         .min(1)
-        .max(limits.maxMetrics + limits.maxMetrics + limits.maxDerivedMetrics)
+        .max(maxResultColumns)
         .optional()
         .describe(
           "One-based original result columns in output order; default all.",
@@ -479,11 +475,7 @@ export const toolDefinitions = {
             column: z
               .int()
               .min(1)
-              .max(
-                limits.maxMetrics +
-                  limits.maxMetrics +
-                  limits.maxDerivedMetrics,
-              )
+              .max(maxResultColumns)
               .describe("One-based original column, before projection."),
             equals: z
               .union([

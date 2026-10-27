@@ -208,6 +208,56 @@ describe("retained result budgets through real MCP calls", () => {
     expect(payload(inline)).not.toHaveProperty("resultId");
   });
 
+  it("admits a result and its grouping sets together or not at all", async () => {
+    budget.maxResults = 2;
+    const client = await connect();
+    const kept = payload(await aggregate(client, "small.csv"))["resultId"];
+    expect(kept).toEqual(expect.any(String));
+    expectRefused(
+      await client.callTool({
+        name: "aggregate_sheet",
+        arguments: {
+          filePath: "many.csv",
+          groupBy: ["Customer"],
+          groupingSets: [{ groupBy: [] }, { groupBy: [] }],
+          metrics: [{ fn: "sum", column: "Amount" }],
+          resultMode: "retained",
+        },
+      }),
+    );
+    const readable = await client.callTool({
+      name: "query_result",
+      arguments: { resultId: kept },
+    });
+    expect(payload(readable)["rows"]).toEqual([["Alpha", 10]]);
+    const next = await aggregate(client);
+    expect(next.isError).not.toBe(true);
+    expect(payload(next)["resultId"]).toEqual(expect.any(String));
+  });
+
+  it("keeps a row for every grouping set when the primary preview fills the budget", async () => {
+    budget.maxResultPageBytes = 1_700;
+    const client = await connect();
+    const result = await client.callTool({
+      name: "aggregate_sheet",
+      arguments: {
+        filePath: "many.csv",
+        groupBy: ["Customer"],
+        groupingSets: [{ groupBy: [] }],
+        metrics: [{ fn: "sum", column: "Amount" }],
+        compact: true,
+        resultMode: "retained",
+      },
+    });
+    expect(result.isError).not.toBe(true);
+    expect(JSON.stringify(result).length).toBeLessThanOrEqual(1_700);
+    const body = payload(result);
+    expect(body).toMatchObject({ totalRows: 12, hasMore: true });
+    expect((body["rows"] as unknown[]).length).toBeLessThan(12);
+    const [total] = body["groupingSets"] as Record<string, unknown>[];
+    expect(total?.["rows"]).toEqual([[78]]);
+  });
+
   it("does not admit an inaccessible result when even preview metadata cannot fit", async () => {
     budget.maxResults = 1;
     budget.maxResultPageBytes = 128;

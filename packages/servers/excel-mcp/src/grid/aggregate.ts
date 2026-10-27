@@ -322,18 +322,12 @@ function conditionWarnings(
 export function aggregateSheet(
   source: SheetSource,
   options: AggregateOptions,
-  capture?: (row: readonly CellScalar[], matchedRows: number) => void,
+  capture?: (
+    grouping: number,
+    row: readonly CellScalar[],
+    matchedRows: number,
+  ) => void,
 ): AggregateResult {
-  if (
-    capture !== undefined &&
-    ((options.pivotBy?.length ?? 0) > 0 ||
-      (options.groupingSets?.length ?? 0) > 0)
-  )
-    throw new SezzleeExcelError(
-      "invalid_argument",
-      "Retained results support one non-pivot grouping.",
-      "Omit pivotBy and groupingSets, or use the default inline result mode.",
-    );
   const firstMetric = options.metrics[0];
   if (firstMetric === undefined || options.metrics.length > limits.maxMetrics)
     throw new SezzleeExcelError(
@@ -841,7 +835,7 @@ export function aggregateSheet(
     for (const term of [...entry.numerator, ...(entry.denominator ?? [])])
       if (term.scope === "total") totalSlots.add(term.metric - 1);
   let divisionByZero = false;
-  const finishGrouping = (set: Grouping): GroupingResult => {
+  const finishGrouping = (set: Grouping, index: number): GroupingResult => {
     const numeric = (value: CellScalar): number | null =>
       typeof value === "number" ? value : null;
     /**
@@ -1029,7 +1023,7 @@ export function aggregateSheet(
       ...derivedOf(group),
     ];
     if (capture !== undefined)
-      for (const group of ordered) capture(rowOf(group), group.rows);
+      for (const group of ordered) capture(index, rowOf(group), group.rows);
     const rows = page.map((group) => rowOf(group).map(presentScalar));
     if (rows.length === 0 && set.columns.length === 0 && !hasPivot) {
       const empty = [
@@ -1038,7 +1032,7 @@ export function aggregateSheet(
         ),
         ...derivedOf(undefined),
       ];
-      capture?.(empty, 0);
+      capture?.(index, empty, 0);
       rows.push(empty);
     }
     const returnedMatchedRows = page.reduce(
@@ -1090,8 +1084,8 @@ export function aggregateSheet(
         : {}),
     };
   };
-  const main = finishGrouping(primary);
-  const sets = additional.map(finishGrouping);
+  const main = finishGrouping(primary, 0);
+  const sets = additional.map((set, at) => finishGrouping(set, at + 1));
   const stats: Record<string, Partial<Census>> = {};
   for (const [column, tally] of census) {
     const reported = reportCensus(tally);
