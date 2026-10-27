@@ -1,5 +1,9 @@
 # Phase 7 implementation status
 
+Current review status, 2026-10-27: runtime fixes `0e20250` and `87c0707` reopen acceptance. The [review follow-up](review-followup.md) records the confirmed blank-INDEX and destructive pivot-refresh defects, narrow executed evidence and remaining review/validation gaps. The [acceptance record](acceptance-record.json) separates this review from historical evidence. The new owner tests have not yet run; fresh PR CI passed Excel build/types/lint but stopped at stale generated-reference validation before formatting and Vitest. This is not a merge-readiness sign-off.
+
+## Historical closure before the review follow-up
+
 Status, 2026-10-27: implementation and acceptance are complete for all eight approved families on `codex/excel-phase4-bulk`, submitted to [PR #73](https://github.com/sezzlee/mcp/pull/73). Final local acceptance and [full native/installed-package CI](https://github.com/sezzlee/mcp/actions/runs/40486596417) passed. The [plan](implementation-plan.md) defines the support profiles; the [machine-readable acceptance record](acceptance-record.json) binds the evidence to the actual runtime.
 
 ## Delivered support

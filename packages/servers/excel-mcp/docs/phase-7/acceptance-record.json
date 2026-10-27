@@ -1,7 +1,52 @@
 {
   "phase": 7,
   "date": "2026-10-27",
-  "status": "complete",
+  "status": "revalidation_required",
+  "evidenceScope": "The runtime, implementation, checks, corpus, model and ci fields below retain historical baseline evidence. They do not accept the changed runtime identified by review.sourceHead.",
+  "review": {
+    "sourceHead": "87c0707b6243b6b495f3d2ab91ad1795f81d717d",
+    "fixCommits": [
+      "0e20250b22207b7708e20fdc84a981a1f20cdc26",
+      "87c0707b6243b6b495f3d2ab91ad1795f81d717d"
+    ],
+    "report": "review-followup.md",
+    "coverage": "Partial multi-layer review; remaining document/code and cross-feature coverage is explicit in the report.",
+    "newOwnerTests": {
+      "files": 2,
+      "cases": 6,
+      "executed": false
+    },
+    "narrowEvidence": {
+      "indexSavedXmlAnswers": 8,
+      "indexIndependentUncachedLibreOfficeAnswers": 8,
+      "pivotFormatControls": 4,
+      "pivotIndependentXmlArtifacts": 2,
+      "nativeLinuxX64Probes": 8,
+      "formatHarnessUsesReviewAdapters": true,
+      "cleanNpmInstall": false,
+      "officialFinalRuntimeFingerprint": null
+    },
+    "ci": {
+      "runId": 40492867042,
+      "url": "https://github.com/sezzlee/mcp/actions/runs/40492867042",
+      "checkout": "51aa21f8779092363e5fe5135691f8d4c6c8a8d3",
+      "integrationBase": "a2323e47eb13d2348c22c9e13953e4f48e66c5b4",
+      "status": "failed_generated_reference",
+      "excelBuildTypesLint": "passed",
+      "formatting": "not_run_after_validation_failure",
+      "vitest": "not_run_after_validation_failure",
+      "nativeAndPack": "skipped"
+    },
+    "pending": [
+      "reference regeneration on intended integrated source",
+      "new owner tests and formatting",
+      "configured corpus and full Excel/lab regression",
+      "independent oracle self-tests and application/visual/Open XML SDK acceptance",
+      "Qwen TR/EN acceptance",
+      "resource and installed-package/native acceptance",
+      "remaining broad review coverage"
+    ]
+  },
   "pullRequest": "https://github.com/sezzlee/mcp/pull/73",
   "branch": "codex/excel-phase4-bulk",
   "baseRevision": "f42d625ecb8ec5936a3241b58c5ea8d863a4df8c",

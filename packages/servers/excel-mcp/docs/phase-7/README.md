@@ -1,6 +1,6 @@
 # Faz 7: uzman seviye Excel iş akışları
 
-Status, 2026-10-27: all eight approved families are implemented and accepted in the order F7-06 → F7-03 → F7-04 → F7-05 → F7-01 → F7-02 → F7-07 → F7-08. The [implementation and verification plan](implementation-plan.md) records the support profiles and earlier-phase obligations. Local corpus, model, application, schema and resource checks plus full native/installed-package CI passed for [PR #73](https://github.com/sezzlee/mcp/pull/73). See the [implementation status](implementation-status.md) and [acceptance record](acceptance-record.json). The immutable-version decision and [shared roadmap](../README.md) remain applicable.
+Current review status, 2026-10-27: all eight approved families retain their documented support profiles, but runtime fixes `0e20250` and `87c0707` require renewed acceptance. See the [review follow-up](review-followup.md), [implementation status](implementation-status.md) and [acceptance record](acceptance-record.json) for the confirmed defects, executed evidence and open gates. The earlier corpus/model/application/native results are historical, not validation of the changed runtime. The [implementation and verification plan](implementation-plan.md), immutable-version decision and [shared roadmap](../README.md) remain applicable.
 
 ## Hedef
 
