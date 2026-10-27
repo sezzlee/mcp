@@ -465,8 +465,9 @@ export function evaluateCalculation(
       if (mode !== 0) return unsupported("Approximate lookup is unsupported.");
       const column = name === "MATCH" ? 1 : numeric(atom(2));
       if (typeof column !== "number") return column;
-      if (column < 1) return error("#VALUE!");
-      if (column > range.columns) return error("#REF!");
+      const selectedColumn = Math.trunc(column);
+      if (selectedColumn < 1) return error("#VALUE!");
+      if (selectedColumn > range.columns) return error("#REF!");
       if (name === "MATCH" && range.rows !== 1 && range.columns !== 1)
         return error("#N/A");
       for (
@@ -481,8 +482,7 @@ export function evaluateCalculation(
         if (typeof value === typeof lookup && compare(value, lookup) === 0)
           return name === "MATCH"
             ? i + 1
-            : (range.values[i * range.columns + Math.trunc(column) - 1] ??
-                null);
+            : (range.values[i * range.columns + selectedColumn - 1] ?? null);
       }
       return error("#N/A");
     }

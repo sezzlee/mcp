@@ -36,6 +36,8 @@ const answers: readonly (readonly [
   ["INDEX(Inputs!A1:C1,2)", "kept"],
   ["INDEX(Inputs!A1:C1,3)", false],
   ["INDEX(Inputs!A2:B2,2)", 0],
+  ["VLOOKUP(7,Inputs!A2:B2,2.9,0)", 0],
+  ["VLOOKUP(7,Inputs!A2:B2,1.9,0)", 7],
 ];
 
 async function fixture(staleCache: boolean) {
@@ -67,8 +69,8 @@ function check(bytes: Buffer, preserveFormulas = true) {
   });
 }
 
-describe("scalar INDEX blank references", () => {
-  it("publishes correct scalar INDEX caches and refuses array results without successful stale caches", async () => {
+describe("scalar lookup references", () => {
+  it("publishes correct scalar lookup caches and refuses array results without successful stale caches", async () => {
     const directory = await mkdtemp(join(tmpdir(), "excel-index-"));
     await mkdir(join(directory, "out"));
     const source = await fixture(true);
