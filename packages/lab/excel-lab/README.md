@@ -21,6 +21,8 @@ SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 node packages/lab/excel-lab
 
 It writes `manifest.json` (server build and lab source digests, the model, each scenario's catalog and budget), one `results.jsonl` line per trial, `summary.json`, and a `trace.jsonl` in each trial directory. Scenario ids are namespaced: `calc/calculate`, `edit/write`, `bulk/update`, `expert/report`.
 
+The `read` suite runs the 104 reading tasks of `src/agent/catalog.json` as `read/<task>` and needs `--corpus` or `SEZZLEE_CORPUS`: the catalog files are copied and verified once into a shared read-only workspace, and every trial gets its own read-mode server over it. Scripted trials run each task's plan and grade the derived answer; model trials use the reading runner unchanged and also write `runs.jsonl` and `events.jsonl`, which `src/agent/report-cli.ts` and `compare-cli.ts` read.
+
 ## Phase 7 expert report acceptance
 
 The [Phase 7 plan](../../servers/excel-mcp/docs/phase-7/implementation-plan.md) composes names/templates, validation, conditional formats, links/notes/images, charts, real pivots, protection and recurring report jobs. The `expert` suite of the [unified runner](#unified-agent-runner) always runs a deterministic report first. Optional model trials repeat the report in Turkish and English, using the same registered tools and independent output grading.

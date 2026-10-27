@@ -1,6 +1,10 @@
 import { mkdir } from "node:fs/promises";
 import { setTimeout as wait } from "node:timers/promises";
-import { toolSpecsOf } from "../agent/agent-run.ts";
+import {
+  toolSpecsOf,
+  type RunRecord,
+  type TrialEvent,
+} from "../agent/agent-run.ts";
 import {
   assistantMessage,
   budgetNotice,
@@ -28,6 +32,7 @@ export interface ModelPolicy {
 
 export interface Fixtures {
   readonly corpus: string | undefined;
+  readonly readingWorkspace?: string;
 }
 
 export interface Brief {
@@ -107,6 +112,10 @@ export interface TrialInput {
   readonly answerHost?: ModelHost;
   readonly temperature?: number;
   readonly retryDelayMs?: number;
+  readonly manifestHash?: string;
+  readonly repetition?: number;
+  readonly onRunRecord?: (record: RunRecord) => Promise<void>;
+  readonly onEvent?: (event: TrialEvent) => Promise<void>;
 }
 
 export interface LabScenario {

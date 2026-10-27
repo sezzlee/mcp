@@ -124,6 +124,51 @@ function judge(
 }
 
 /**
+ * Runs one task's plan through a connected client, derives the answer from
+ * named places in the responses, and compares it with the task's answer.
+ */
+export async function runPlan(
+  client: Client,
+  task: Task,
+): Promise<TaskBaseline> {
+  const steps: StepRecord[] = [];
+  for (const planned of task.plan.steps) {
+    const before = performance.now();
+    const result = await client.callTool({
+      name: planned.tool,
+      arguments: planned.args,
+    });
+    const ms = performance.now() - before;
+    const text = result.content
+      .flatMap((block) => (block.type === "text" ? [block.text] : []))
+      .join("\n");
+    steps.push({
+      tool: planned.tool,
+      role: planned.role,
+      args: planned.args,
+      expectError: planned.expectError ?? null,
+      error: errorCodeOf(result.isError === true, text),
+      bytes: Buffer.byteLength(text, "utf8"),
+      ms,
+      text,
+    });
+  }
+  const { outcome, derived } = judge(task, steps);
+  return {
+    id: task.id,
+    level: task.level,
+    knowledge: task.knowledge,
+    outcome,
+    calls: steps.length,
+    answerCalls: steps.filter((step) => step.role === "answer").length,
+    bytes: steps.reduce((sum, step) => sum + step.bytes, 0),
+    ms: steps.reduce((sum, step) => sum + step.ms, 0),
+    derived,
+    steps,
+  };
+}
+
+/**
  * Runs every task's plan against one in-process server rooted at the
  * workspace, derives the answer from named places in the responses, and
  * compares it with the task's answer.
@@ -147,41 +192,7 @@ export async function runBaseline({
   ]);
   const results: TaskBaseline[] = [];
   for (const task of catalog.tasks) {
-    const steps: StepRecord[] = [];
-    for (const planned of task.plan.steps) {
-      const before = performance.now();
-      const result = await client.callTool({
-        name: planned.tool,
-        arguments: planned.args,
-      });
-      const ms = performance.now() - before;
-      const text = result.content
-        .flatMap((block) => (block.type === "text" ? [block.text] : []))
-        .join("\n");
-      steps.push({
-        tool: planned.tool,
-        role: planned.role,
-        args: planned.args,
-        expectError: planned.expectError ?? null,
-        error: errorCodeOf(result.isError === true, text),
-        bytes: Buffer.byteLength(text, "utf8"),
-        ms,
-        text,
-      });
-    }
-    const { outcome, derived } = judge(task, steps);
-    const result: TaskBaseline = {
-      id: task.id,
-      level: task.level,
-      knowledge: task.knowledge,
-      outcome,
-      calls: steps.length,
-      answerCalls: steps.filter((step) => step.role === "answer").length,
-      bytes: steps.reduce((sum, step) => sum + step.bytes, 0),
-      ms: steps.reduce((sum, step) => sum + step.ms, 0),
-      derived,
-      steps,
-    };
+    const result = await runPlan(client, task);
     results.push(result);
     onTask?.(result);
   }

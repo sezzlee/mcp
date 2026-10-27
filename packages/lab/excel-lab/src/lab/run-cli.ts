@@ -7,6 +7,9 @@ import { OllamaHost } from "../agent/ollama.ts";
 import { prepareOutRoot } from "../run.ts";
 import { labIdentity, serverIdentity } from "./runtime.ts";
 import { suites } from "./suites/index.ts";
+import { readCatalogFiles } from "./suites/read.ts";
+import { buildWorkspace } from "../agent/workspace.ts";
+import { canonicalHash } from "../agent/manifest.ts";
 import type { LabScenario } from "./trial.ts";
 import { runLab } from "./runner.ts";
 
@@ -69,28 +72,40 @@ const languages = z
   .parse(options.languages.split(","));
 
 const out = await prepareOutRoot(options.out);
-const fixtures = { corpus: options.corpus };
+const reading = selected.some((scenario) => scenario.id.startsWith("read/"));
+if (reading)
+  assert(
+    options.corpus !== undefined,
+    "Reading tasks need --corpus or SEZZLEE_CORPUS.",
+  );
+const fixtures = {
+  corpus: options.corpus,
+  ...(reading && options.corpus !== undefined
+    ? {
+        readingWorkspace: await buildWorkspace({
+          files: readCatalogFiles,
+          corpusRoot: options.corpus,
+          outRoot: out,
+        }),
+      }
+    : {}),
+};
 const server = await serverIdentity();
-await writeFile(
-  join(out, "manifest.json"),
-  JSON.stringify(
-    {
-      server,
-      lab: await labIdentity(),
-      node: process.version,
-      model: options.model ?? null,
-      think: options.think ?? null,
-      finalThink: options["final-think"] ?? null,
-      scenarios: selected.map(({ id, scriptedLanguages, policy }) => ({
-        id,
-        scriptedLanguages,
-        policy,
-      })),
-    },
-    null,
-    2,
-  ),
-);
+const manifest = {
+  server,
+  lab: await labIdentity(),
+  node: process.version,
+  model: options.model ?? null,
+  think: options.think ?? null,
+  finalThink: options["final-think"] ?? null,
+  scenarios: selected.map(({ id, scriptedLanguages, policy }) => ({
+    id,
+    scriptedLanguages,
+    policy,
+  })),
+};
+await writeFile(join(out, "manifest.json"), JSON.stringify(manifest, null, 2));
+const manifestHash = canonicalHash(manifest);
 
 const hosts = new Map<string, OllamaHost>();
 const hostOf = (think: boolean | string | undefined): OllamaHost => {
@@ -121,6 +136,13 @@ const run = await runLab({
     ? {}
     : { answerThink: options["final-think"] }),
   hostOf,
+  trial: {
+    manifestHash,
+    onRunRecord: (record) =>
+      appendFile(join(out, "runs.jsonl"), JSON.stringify(record) + "\n"),
+    onEvent: (event) =>
+      appendFile(join(out, "events.jsonl"), JSON.stringify(event) + "\n"),
+  },
   async onRecord(trial) {
     await appendFile(join(out, "results.jsonl"), JSON.stringify(trial) + "\n");
     process.stdout.write(
