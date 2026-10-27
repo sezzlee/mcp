@@ -113,26 +113,28 @@ export const insertedCellSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
+export const insertRowsFields = {
+  kind: z.literal("insert_rows"),
+  sheetName: sheetNameSchema,
+  at: rowIndex,
+  count: z.int().min(1).max(1_000_000).optional(),
+  startColumn: z
+    .string()
+    .regex(/^[A-Za-z]{1,3}$/)
+    .optional(),
+  values: z
+    .array(z.array(insertedCellSchema).min(1).max(16_384))
+    .min(1)
+    .max(authoringLimits.maxCells)
+    .optional(),
+};
+
 export const sourceEditChangeSchema = z.discriminatedUnion("kind", [
   ...workbookChangeSchema.options,
   ...presentationChangeSchema.options,
   ...sheetChanges,
   z
-    .strictObject({
-      kind: z.literal("insert_rows"),
-      sheetName: sheetNameSchema,
-      at: rowIndex,
-      count: z.int().min(1).max(1_000_000).optional(),
-      startColumn: z
-        .string()
-        .regex(/^[A-Za-z]{1,3}$/)
-        .optional(),
-      values: z
-        .array(z.array(insertedCellSchema).min(1).max(16_384))
-        .min(1)
-        .max(authoringLimits.maxCells)
-        .optional(),
-    })
+    .strictObject(insertRowsFields)
     .refine(
       (change) =>
         (change.count === undefined) !== (change.values === undefined),

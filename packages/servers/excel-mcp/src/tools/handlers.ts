@@ -1,4 +1,4 @@
-import { json, measureJson } from "@sezzlee/file-core";
+import { asciiUpper, json, measureJson } from "@sezzlee/file-core";
 import { limits, modePolicy } from "../platform/limits.js";
 import {
   listWorkbooks,
@@ -35,6 +35,7 @@ import {
   createResultCapture,
   createResultStore,
   type ResultCapture,
+  type ResultStore,
 } from "./retained-results.js";
 import {
   assertHeaderScan,
@@ -100,9 +101,9 @@ type ToolCondition = NonNullable<ToolInput<"aggregate_sheet">["where"]>[number];
 
 export function createHandlers(
   root: WorkbookRoot,
+  results: ResultStore = createResultStore(),
 ): ToolHandlers & { readonly dispose: () => void } {
   const cache = createDocumentCache(root.real);
-  const results = createResultStore();
   let disposed = false;
   const openXlsx = createXlsxOpener(root, cache);
   const openFor = async (path: string, csv: CsvOptions = {}) =>
@@ -513,11 +514,28 @@ export function createHandlers(
           const [primary = mismatch(), ...rest] = captures;
           if (rest.length !== sets.length) mismatch();
           const memberSourceVersions = [...context.memberVersions].sort();
+          const explicitDates = (args.columns ?? []).filter(
+            (spec) => spec.type === "date",
+          );
           const request = (
             capture: ResultCapture,
             grouping: GroupingResult,
           ) => ({
             capture,
+            dateColumns: grouping.columns.flatMap((column, at) =>
+              column.kindUsed === "date" ||
+              (column.role === "group" &&
+                column.by === undefined &&
+                column.bins === undefined &&
+                column.width === undefined &&
+                explicitDates.some(
+                  (spec) =>
+                    spec.column === column.label ||
+                    asciiUpper(spec.column) === column.letter,
+                ))
+                ? [at + 1]
+                : [],
+            ),
             metadata: withAggregateEnvelope(
               {
                 ...shared,

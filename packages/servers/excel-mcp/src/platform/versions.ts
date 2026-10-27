@@ -33,8 +33,38 @@ export const editPlacementSchema = z.strictObject({
   range: z.string().min(2).max(21),
 });
 
+const sourcedBlock = {
+  at: z.string().min(1).max(64),
+  rows: z.int().nonnegative(),
+  columns: z.int().positive(),
+};
+
+export const blockSourceReceiptSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("range"),
+    ...sourcedBlock,
+    version: workbookVersionSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("records"),
+    ...sourcedBlock,
+    version: workbookVersionSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("aggregate"),
+    ...sourcedBlock,
+    version: workbookVersionSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("result"),
+    ...sourcedBlock,
+    resultId: z.string().min(1).max(128),
+  }),
+]);
+
 export const mutationReceiptSchema = versionReceiptSchema.extend({
   placements: z.array(editPlacementSchema).min(1).optional(),
+  sources: z.array(blockSourceReceiptSchema).min(1).optional(),
   editing: z
     .strictObject({
       operations: z.int().nonnegative(),
@@ -64,6 +94,7 @@ export type WorkbookVersion = z.infer<typeof workbookVersionSchema>;
 export type VersionReceipt = z.infer<typeof versionReceiptSchema>;
 export type MutationReceipt = z.infer<typeof mutationReceiptSchema>;
 export type EditPlacement = z.infer<typeof editPlacementSchema>;
+export type BlockSourceReceipt = z.infer<typeof blockSourceReceiptSchema>;
 
 export type WorkbookOrigin =
   | { readonly kind: "new" }

@@ -171,12 +171,33 @@ export type RetainedPreview = RetainedPage & {
 export interface RetainRequest {
   readonly capture: ResultCapture;
   readonly metadata: ResultMetadata;
+  readonly dateColumns?: readonly number[];
 }
 
 interface StoredResult extends CapturedResult {
   readonly id: string;
   readonly expiresAt: number;
   readonly metadata: ResultMetadata;
+  readonly dateColumns: ReadonlySet<number>;
+  index?: ReadonlyMap<string, readonly number[]>;
+}
+
+export interface ResultRowsQuery extends Omit<ResultQuery, "maxRows"> {
+  readonly maxRows?: number;
+}
+
+export interface ResultRows {
+  readonly resultId: string;
+  readonly labels: readonly string[];
+  readonly dates: readonly boolean[];
+  readonly rows: readonly (readonly CellScalar[])[];
+}
+
+interface Selection {
+  readonly columns: readonly number[];
+  readonly offset: number;
+  readonly matching: readonly CapturedRow[];
+  readonly matchingSourceRows: number;
 }
 
 interface Candidate {
@@ -208,18 +229,11 @@ function invalid(message: string, recovery?: string): never {
   throw new SezzleeExcelError("invalid_argument", message, recovery);
 }
 
-function planOf(
+function selectionOf(
   entry: StoredResult,
-  query: Omit<ResultQuery, "resultId">,
-): PagePlan {
-  const maxRows = query.maxRows ?? limits.maxGroupsDefault;
+  query: Omit<ResultRowsQuery, "resultId" | "maxRows">,
+): Selection {
   const offset = query.offset ?? 0;
-  if (
-    !Number.isSafeInteger(maxRows) ||
-    maxRows < 1 ||
-    maxRows > limits.maxGroupsHard
-  )
-    invalid(`maxRows must be between 1 and ${limits.maxGroupsHard}.`);
   if (!Number.isSafeInteger(offset) || offset < 0)
     invalid("offset must be a non-negative integer.");
   const columns =
@@ -275,6 +289,24 @@ function planOf(
       "offset exceeds the matching result rows.",
       "Start at offset 0 or use nextOffset with the same filters and columns.",
     );
+  return { columns, offset, matching, matchingSourceRows };
+}
+
+function planOf(
+  entry: StoredResult,
+  query: Omit<ResultQuery, "resultId">,
+): PagePlan {
+  const maxRows = query.maxRows ?? limits.maxGroupsDefault;
+  if (
+    !Number.isSafeInteger(maxRows) ||
+    maxRows < 1 ||
+    maxRows > limits.maxGroupsHard
+  )
+    invalid(`maxRows must be between 1 and ${limits.maxGroupsHard}.`);
+  const { columns, offset, matching, matchingSourceRows } = selectionOf(
+    entry,
+    query,
+  );
   const candidates = matching
     .slice(offset, offset + maxRows)
     .map((row): Candidate => {
@@ -443,6 +475,67 @@ function fit(
   }
 }
 
+const maxCandidates = 8;
+const maxComparedCells = 64;
+const repeatedRun = 3;
+
+function scalarKey(value: CellScalar): string {
+  return JSON.stringify(value);
+}
+
+function indexOf(entry: StoredResult): ReadonlyMap<string, readonly number[]> {
+  if (entry.index !== undefined) return entry.index;
+  const index = new Map<string, number[]>();
+  for (const [at, row] of entry.rows.entries()) {
+    const first = (JSON.parse(row.json) as CellScalar[])[0];
+    if (first === undefined || first === null) continue;
+    const key = scalarKey(first);
+    const bucket = index.get(key) ?? [];
+    if (bucket.length < maxCandidates) bucket.push(at);
+    index.set(key, bucket);
+  }
+  entry.index = index;
+  return index;
+}
+
+/**
+ * Guard: a written row counts as a copy only when it holds at least two
+ * values and every one of them appears in one stored row, so a single total
+ * or a coincidental label never refuses a write. Lookups use the stored row's
+ * first value, a bounded number of candidates and a bounded width, keeping
+ * the check linear in the written rows.
+ */
+function copiesRow(
+  entry: StoredResult,
+  index: ReadonlyMap<string, readonly number[]>,
+  row: readonly CellScalar[],
+): boolean {
+  const written = row
+    .slice(0, maxComparedCells)
+    .filter((value) => value !== null)
+    .map(scalarKey);
+  if (written.length < 2) return false;
+  for (const key of written)
+    for (const at of index.get(key) ?? []) {
+      const stored = entry.rows[at];
+      if (stored === undefined) continue;
+      const remaining = new Map<string, number>();
+      for (const value of JSON.parse(stored.json) as CellScalar[]) {
+        const valueKey = scalarKey(value);
+        remaining.set(valueKey, (remaining.get(valueKey) ?? 0) + 1);
+      }
+      if (
+        written.every((valueKey) => {
+          const left = remaining.get(valueKey) ?? 0;
+          remaining.set(valueKey, left - 1);
+          return left > 0;
+        })
+      )
+        return true;
+    }
+  return false;
+}
+
 function slotOf(plan: PagePlan): Slot {
   return { plan, shape: { width: plan.columns.length, rows: 0 } };
 }
@@ -453,6 +546,8 @@ export interface ResultStore {
     maxRows: number,
   ): RetainedPreview;
   query(query: ResultQuery): RetainedPage;
+  rows(query: ResultRowsQuery): ResultRows;
+  repeated(rows: readonly (readonly CellScalar[])[]): string | undefined;
   clear(): void;
 }
 
@@ -466,11 +561,26 @@ export function createResultStore(): ResultStore {
         sizeBytes -= entry.sizeBytes;
       }
   };
+  const live = (resultId: string): StoredResult => {
+    expire(Date.now());
+    const entry = entries.get(resultId);
+    if (entry === undefined)
+      throw new SezzleeExcelError(
+        "result_unavailable",
+        "The result is unknown, expired, or belongs to another server instance.",
+        "Run aggregate_sheet with resultMode retained in this server instance to create a new result.",
+      );
+    return entry;
+  };
   return {
     retain([first, ...rest], maxRows) {
       const now = Date.now();
       expire(now);
-      const prepare = ({ capture, metadata }: RetainRequest): StoredResult => {
+      const prepare = ({
+        capture,
+        metadata,
+        dateColumns = [],
+      }: RetainRequest): StoredResult => {
         const captured = capture.snapshot();
         if (
           captured.width !== undefined &&
@@ -491,6 +601,7 @@ export function createResultStore(): ResultStore {
           id: createResultId(),
           expiresAt: now + limits.resultTtlMs,
           metadata: JSON.parse(JSON.stringify(metadata)) as ResultMetadata,
+          dateColumns: new Set(dateColumns),
         };
       };
       const primary = prepare(first);
@@ -523,14 +634,7 @@ export function createResultStore(): ResultStore {
       return preview;
     },
     query(query) {
-      expire(Date.now());
-      const entry = entries.get(query.resultId);
-      if (entry === undefined)
-        throw new SezzleeExcelError(
-          "result_unavailable",
-          "The result is unknown, expired, or belongs to another server instance.",
-          "Run aggregate_sheet with resultMode retained in this server instance to create a new result.",
-        );
+      const entry = live(query.resultId);
       const slot = slotOf(planOf(entry, query));
       fit(
         [slot],
@@ -539,6 +643,40 @@ export function createResultStore(): ResultStore {
         "Select fewer result columns, or use a filter that selects shorter values.",
       );
       return pageOf(slot, false);
+    },
+    rows(query) {
+      const entry = live(query.resultId);
+      const maxRows = query.maxRows ?? limits.maxResultRows;
+      if (
+        !Number.isSafeInteger(maxRows) ||
+        maxRows < 1 ||
+        maxRows > limits.maxResultRows
+      )
+        invalid(`maxRows must be between 1 and ${limits.maxResultRows}.`);
+      const { columns, offset, matching } = selectionOf(entry, query);
+      return {
+        resultId: entry.id,
+        labels: columns.map(
+          (column) => entry.metadata.columns[column - 1]?.label ?? "",
+        ),
+        dates: columns.map((column) => entry.dateColumns.has(column)),
+        rows: matching.slice(offset, offset + maxRows).map((row) => {
+          const stored = JSON.parse(row.json) as CellScalar[];
+          return columns.map((column) => stored[column - 1] ?? null);
+        }),
+      };
+    },
+    repeated(rows) {
+      expire(Date.now());
+      for (const entry of entries.values()) {
+        const index = indexOf(entry);
+        let run = 0;
+        for (const row of rows) {
+          run = copiesRow(entry, index, row) ? run + 1 : 0;
+          if (run >= repeatedRun) return entry.id;
+        }
+      }
+      return undefined;
     },
     clear() {
       entries.clear();

@@ -9371,7 +9371,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
 
 ## `prepare_edit`
 
-Inspect an edit request without publishing an output. Accept .xlsx filePath, optional expectedVersion, and changes. Returns exact source {filePath, versionId}, a fingerprint binding normalized changes, source feature counts, and ready or blocked with policy reasons. Pass source and the same changes to edit_workbook. Canonical and preservation-supported external workbooks can be ready. Supports scalar, sheet, copy/move and row/column edits, plus edit_workbook formatting/layout/formula/table authoring. Copy requires explicit values/formulas/formatting/all mode. No source file is changed. Enabled protection, macros, signatures, Strict markup or unsupported affected dependencies refuse editing. Preparation is not permission to edit changed bytes. No recalculation occurs. Every sheetName and A1 address names the source as it was read, never a position produced by another change in the request: unprotection runs first, other changes apply at source coordinates, row/column insertions and deletions then move them, and renames, sheet deletions, reorders and protection follow. insert_rows takes count, or values rows with optional startColumn (default A) whose cells may be {kind:formula,formula} using {row} for the inserted row, for example B{row}_C{row}; every other reference is a source address. Copies read the source as it was read. Every read result carries version {filePath,versionId}: pass it as source (or expectedVersion) so the edit applies to the bytes that were read. describe_workbook definedNames give name, scope, sheetName and range for define_name/delete_name, and get_charts series data give sheetName and range for set_chart series. A change touching cells another change deletes, copies or moves, two insertions at one position, an insertion inside a deleted band, or a new sheet name equal to a source sheet blocks the request. placements report the output sheet and range of each target that moved or was renamed. Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]_[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically. Advanced changes: define_name uses sheetName,name,range,scope workbook/sheet; replacement requires overwrite:true. write_named_range uses the exact name/scope and a typed values rectangle of the same shape; delete_name refuses live formula dependencies. set_validation uses range and rule {type:list,items:[...]}, {type:whole/decimal/date/textLength,operator,bounds:[...]}, or {type:custom,formula}; date bounds are workbook serials, rules guide interactive Excel input and do not enforce all server writes. remove_validation takes the exact old range, or ranges copied from one get_data_validations rule. set_conditional_format uses range,priority,rule {type:expression,formula} or {type:cellIs,operator,formulas:[...]}, appearance {font,fill},stopIfTrue. Replace a priority explicitly with overwrite:true; remove_conditional_format uses priority. set_hyperlink uses cell,target {kind:external,url} for HTTPS or {kind:internal,location}; set_note uses cell,text,author; set_image uses name,cell,mime image/png or image/jpeg,data canonical base64,width,height in pixels. Their remove_* operations select the same cell or image name; get_images reports that name. set_chart uses name,chartType column/bar/line/pie,title,cell and series [{name,sheetName,categories,values}] with one-row/column A1 ranges; formula sources have no invented cache and require refresh. remove_chart uses name. set_pivot creates/refreshes a real PivotTable using name,cell,sourceSheet,sourceRange including headers,rowColumn and measures [{column,function:sum/count/min/max,name}]; source cells must be literal, count counts nonblank values. set_pivot overwrite:true refreshes/replaces an existing private cache and clears its old result tail. protect_sheet/protect_workbook optionally use a legacy Excel protection password of up to 15 characters; this is not encryption. Unprotect every locked target with authenticated unprotect_workbook/unprotect_sheet changes. format_cells style.protection {locked,hidden} controls cell protection. Strong-hash, encrypted, signed and macro-enabled editing remains refused. Originals never change. Appearance and source changes distinguish current chart/pivot caches from refreshRequired.
+Inspect an edit request without publishing an output. Accept .xlsx filePath, optional expectedVersion, and changes. Returns exact source {filePath, versionId}, a fingerprint binding normalized changes, source feature counts, and ready or blocked with policy reasons. Pass source and the same changes to edit_workbook. Canonical and preservation-supported external workbooks can be ready. Supports scalar, sheet, copy/move and row/column edits, plus edit_workbook formatting/layout/formula/table authoring. Copy requires explicit values/formulas/formatting/all mode. No source file is changed. Enabled protection, macros, signatures, Strict markup or unsupported affected dependencies refuse editing. Preparation is not permission to edit changed bytes. No recalculation occurs. Every sheetName and A1 address names the source as it was read, never a position produced by another change in the request: unprotection runs first, other changes apply at source coordinates, row/column insertions and deletions then move them, and renames, sheet deletions, reorders and protection follow. insert_rows takes count, or values rows with optional startColumn (default A) whose cells may be {kind:formula,formula} using {row} for the inserted row, for example B{row}_C{row}; every other reference is a source address. Copies read the source as it was read. Every read result carries version {filePath,versionId}: pass it as source (or expectedVersion) so the edit applies to the bytes that were read. describe_workbook definedNames give name, scope, sheetName and range for define_name/delete_name, and get_charts series data give sheetName and range for set_chart series. A change touching cells another change deletes, copies or moves, two insertions at one position, an insertion inside a deleted band, or a new sheet name equal to a source sheet blocks the request. placements report the output sheet and range of each target that moved or was renamed. Never retype rows a read returned. Instead of values, a create_workbook block, write_cells or insert_rows takes source: {kind:result,resultId,columns?,where?,offset?,maxRows?} for a retained aggregate_sheet result, or {kind:range|records|aggregate,filePath,versionId?,...} with prepare_transfer selection fields. The server writes the selected rows as typed cells, starting with the source's own header row (result and aggregate labels, records includeHeaders); header:[...] replaces it or adds one. Literal values that repeat three rows of a retained result are refused. Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]_[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically. Advanced changes: define_name uses sheetName,name,range,scope workbook/sheet; replacement requires overwrite:true. write_named_range uses the exact name/scope and a typed values rectangle of the same shape; delete_name refuses live formula dependencies. set_validation uses range and rule {type:list,items:[...]}, {type:whole/decimal/date/textLength,operator,bounds:[...]}, or {type:custom,formula}; date bounds are workbook serials, rules guide interactive Excel input and do not enforce all server writes. remove_validation takes the exact old range, or ranges copied from one get_data_validations rule. set_conditional_format uses range,priority,rule {type:expression,formula} or {type:cellIs,operator,formulas:[...]}, appearance {font,fill},stopIfTrue. Replace a priority explicitly with overwrite:true; remove_conditional_format uses priority. set_hyperlink uses cell,target {kind:external,url} for HTTPS or {kind:internal,location}; set_note uses cell,text,author; set_image uses name,cell,mime image/png or image/jpeg,data canonical base64,width,height in pixels. Their remove_* operations select the same cell or image name; get_images reports that name. set_chart uses name,chartType column/bar/line/pie,title,cell and series [{name,sheetName,categories,values}] with one-row/column A1 ranges; formula sources have no invented cache and require refresh. remove_chart uses name. set_pivot creates/refreshes a real PivotTable using name,cell,sourceSheet,sourceRange including headers,rowColumn and measures [{column,function:sum/count/min/max,name}]; source cells must be literal, count counts nonblank values. set_pivot overwrite:true refreshes/replaces an existing private cache and clears its old result tail. protect_sheet/protect_workbook optionally use a legacy Excel protection password of up to 15 characters; this is not encryption. Unprotect every locked target with authenticated unprotect_workbook/unprotect_sheet changes. format_cells style.protection {locked,hidden} controls cell protection. Strong-hash, encrypted, signed and macro-enabled editing remains refused. Originals never change. Appearance and source changes distinguish current chart/pivot caches from refreshRequired.
 
 Annotations: read-only, idempotent, closed world.
 
@@ -9563,11 +9563,1284 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "overwrite": {
                 "default": false,
                 "type": "boolean"
+              },
+              "source": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "range"
+                      },
+                      "sheetName": {
+                        "description": "Exact sheet; default first visible.",
+                        "type": "string"
+                      },
+                      "range": {
+                        "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                        "type": "string"
+                      },
+                      "table": {
+                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "visibleOnly": {
+                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "type": "boolean"
+                      },
+                      "headerRow": {
+                        "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "columnMode": {
+                        "description": "Column references: auto (default), header text or A1 letter.",
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "header",
+                          "letter"
+                        ]
+                      },
+                      "caseSensitive": {
+                        "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                        "type": "boolean"
+                      },
+                      "columns": {
+                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "minItems": 1,
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "number",
+                                "date",
+                                "boolean",
+                                "time",
+                                "duration",
+                                "text"
+                              ],
+                              "description": "How to read the column."
+                            },
+                            "missingValues": {
+                              "description": "Missing-text tokens.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "decimal": {
+                              "description": "Decimal separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                ".",
+                                ","
+                              ]
+                            },
+                            "group": {
+                              "description": "Thousands separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                ".",
+                                ",",
+                                " ",
+                                "'"
+                              ]
+                            },
+                            "locale": {
+                              "description": "File locale, for number or date.",
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            },
+                            "numberingSystem": {
+                              "description": "Numbering system, for number.",
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 32
+                            },
+                            "identifiers": {
+                              "description": "Whether to read digit identifiers, for number.",
+                              "type": "string",
+                              "enum": [
+                                "refuse",
+                                "read"
+                              ]
+                            },
+                            "format": {
+                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "order": {
+                              "description": "Day/month order without a format, for date.",
+                              "type": "string",
+                              "enum": [
+                                "dmy",
+                                "mdy"
+                              ]
+                            },
+                            "trueValues": {
+                              "description": "True-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "falseValues": {
+                              "description": "False-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "mergedCells": {
+                        "description": "Merged values and header detection policy, default master.",
+                        "type": "string",
+                        "enum": [
+                          "master",
+                          "repeat"
+                        ]
+                      },
+                      "delimiter": {
+                        "description": "CSV separator; sniffed when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "comma",
+                          "semicolon",
+                          "tab",
+                          "pipe"
+                        ]
+                      },
+                      "encoding": {
+                        "description": "CSV encoding; BOM or utf-8 when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "utf-16le",
+                          "utf-16be",
+                          "windows-1254",
+                          "iso-8859-9",
+                          "windows-1252",
+                          "windows-1251",
+                          "windows-1256",
+                          "shift_jis",
+                          "gb18030",
+                          "big5",
+                          "euc-kr"
+                        ]
+                      },
+                      "locale": {
+                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 64
+                      },
+                      "numberingSystem": {
+                        "description": "Numbering system such as arab; needs locale.",
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 32
+                      },
+                      "missingValues": {
+                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "trueValues": {
+                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "falseValues": {
+                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "selectColumns": {
+                        "minItems": 1,
+                        "maxItems": 16384,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32767
+                        }
+                      },
+                      "filePath": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32768
+                      },
+                      "versionId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "filePath"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "records"
+                      },
+                      "sheetName": {
+                        "description": "Exact sheet; default first visible.",
+                        "type": "string"
+                      },
+                      "range": {
+                        "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                        "type": "string"
+                      },
+                      "table": {
+                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "visibleOnly": {
+                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "type": "boolean"
+                      },
+                      "headerRow": {
+                        "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "columnMode": {
+                        "description": "Column references: auto (default), header text or A1 letter.",
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "header",
+                          "letter"
+                        ]
+                      },
+                      "caseSensitive": {
+                        "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                        "type": "boolean"
+                      },
+                      "columns": {
+                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "minItems": 1,
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "number",
+                                "date",
+                                "boolean",
+                                "time",
+                                "duration",
+                                "text"
+                              ],
+                              "description": "How to read the column."
+                            },
+                            "missingValues": {
+                              "description": "Missing-text tokens.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "decimal": {
+                              "description": "Decimal separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                ".",
+                                ","
+                              ]
+                            },
+                            "group": {
+                              "description": "Thousands separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                ".",
+                                ",",
+                                " ",
+                                "'"
+                              ]
+                            },
+                            "locale": {
+                              "description": "File locale, for number or date.",
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            },
+                            "numberingSystem": {
+                              "description": "Numbering system, for number.",
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 32
+                            },
+                            "identifiers": {
+                              "description": "Whether to read digit identifiers, for number.",
+                              "type": "string",
+                              "enum": [
+                                "refuse",
+                                "read"
+                              ]
+                            },
+                            "format": {
+                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "order": {
+                              "description": "Day/month order without a format, for date.",
+                              "type": "string",
+                              "enum": [
+                                "dmy",
+                                "mdy"
+                              ]
+                            },
+                            "trueValues": {
+                              "description": "True-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "falseValues": {
+                              "description": "False-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "mergedCells": {
+                        "description": "Merged values and header detection policy, default master.",
+                        "type": "string",
+                        "enum": [
+                          "master",
+                          "repeat"
+                        ]
+                      },
+                      "delimiter": {
+                        "description": "CSV separator; sniffed when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "comma",
+                          "semicolon",
+                          "tab",
+                          "pipe"
+                        ]
+                      },
+                      "encoding": {
+                        "description": "CSV encoding; BOM or utf-8 when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "utf-16le",
+                          "utf-16be",
+                          "windows-1254",
+                          "iso-8859-9",
+                          "windows-1252",
+                          "windows-1251",
+                          "windows-1256",
+                          "shift_jis",
+                          "gb18030",
+                          "big5",
+                          "euc-kr"
+                        ]
+                      },
+                      "locale": {
+                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 64
+                      },
+                      "numberingSystem": {
+                        "description": "Numbering system such as arab; needs locale.",
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 32
+                      },
+                      "missingValues": {
+                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "trueValues": {
+                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "falseValues": {
+                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "selectColumns": {
+                        "minItems": 1,
+                        "maxItems": 16384,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32767
+                        }
+                      },
+                      "where": {
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                "eq",
+                                "ne",
+                                "lt",
+                                "lte",
+                                "gt",
+                                "gte",
+                                "contains",
+                                "startsWith",
+                                "endsWith",
+                                "in",
+                                "between",
+                                "isEmpty",
+                                "isNotEmpty",
+                                "isError",
+                                "isNumber",
+                                "isText"
+                              ]
+                            },
+                            "value": {
+                              "description": "Operand.",
+                              "type": [
+                                "string",
+                                "number",
+                                "boolean"
+                              ]
+                            },
+                            "values": {
+                              "description": "Operands of in, or [low, high] of between.",
+                              "minItems": 1,
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": [
+                                  "string",
+                                  "number",
+                                  "boolean"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "op"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "match": {
+                        "default": "all",
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "any"
+                        ]
+                      },
+                      "scope": {
+                        "default": {
+                          "kind": "all"
+                        },
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "all"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "rows"
+                              },
+                              "rows": {
+                                "minItems": 1,
+                                "maxItems": 10000,
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1048576
+                                }
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "rows"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "includeHeaders": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "filePath": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32768
+                      },
+                      "versionId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "filePath"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "aggregate"
+                      },
+                      "sheetName": {
+                        "description": "Exact sheet; default first visible.",
+                        "type": "string"
+                      },
+                      "range": {
+                        "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                        "type": "string"
+                      },
+                      "table": {
+                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "visibleOnly": {
+                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "type": "boolean"
+                      },
+                      "headerRow": {
+                        "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "columnMode": {
+                        "description": "Column references: auto (default), header text or A1 letter.",
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "header",
+                          "letter"
+                        ]
+                      },
+                      "caseSensitive": {
+                        "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                        "type": "boolean"
+                      },
+                      "columns": {
+                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "minItems": 1,
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "number",
+                                "date",
+                                "boolean",
+                                "time",
+                                "duration",
+                                "text"
+                              ],
+                              "description": "How to read the column."
+                            },
+                            "missingValues": {
+                              "description": "Missing-text tokens.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "decimal": {
+                              "description": "Decimal separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                ".",
+                                ","
+                              ]
+                            },
+                            "group": {
+                              "description": "Thousands separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                ".",
+                                ",",
+                                " ",
+                                "'"
+                              ]
+                            },
+                            "locale": {
+                              "description": "File locale, for number or date.",
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            },
+                            "numberingSystem": {
+                              "description": "Numbering system, for number.",
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 32
+                            },
+                            "identifiers": {
+                              "description": "Whether to read digit identifiers, for number.",
+                              "type": "string",
+                              "enum": [
+                                "refuse",
+                                "read"
+                              ]
+                            },
+                            "format": {
+                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "order": {
+                              "description": "Day/month order without a format, for date.",
+                              "type": "string",
+                              "enum": [
+                                "dmy",
+                                "mdy"
+                              ]
+                            },
+                            "trueValues": {
+                              "description": "True-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "falseValues": {
+                              "description": "False-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "mergedCells": {
+                        "description": "Merged values and header detection policy, default master.",
+                        "type": "string",
+                        "enum": [
+                          "master",
+                          "repeat"
+                        ]
+                      },
+                      "delimiter": {
+                        "description": "CSV separator; sniffed when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "comma",
+                          "semicolon",
+                          "tab",
+                          "pipe"
+                        ]
+                      },
+                      "encoding": {
+                        "description": "CSV encoding; BOM or utf-8 when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "utf-16le",
+                          "utf-16be",
+                          "windows-1254",
+                          "iso-8859-9",
+                          "windows-1252",
+                          "windows-1251",
+                          "windows-1256",
+                          "shift_jis",
+                          "gb18030",
+                          "big5",
+                          "euc-kr"
+                        ]
+                      },
+                      "locale": {
+                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 64
+                      },
+                      "numberingSystem": {
+                        "description": "Numbering system such as arab; needs locale.",
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 32
+                      },
+                      "missingValues": {
+                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "trueValues": {
+                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "falseValues": {
+                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "groupBy": {
+                        "description": "Row grouping keys; omit for a whole-range total. A key is a column, {column, by} for a UTC date part (month includes the year, week is ISO, weekday Monday=1), or {column, bins} or {column, width, origin?} for [lower, upper) bins.",
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "column": {
+                                  "type": "string",
+                                  "description": "Column."
+                                },
+                                "by": {
+                                  "type": "string",
+                                  "enum": [
+                                    "year",
+                                    "quarter",
+                                    "month",
+                                    "week",
+                                    "day",
+                                    "weekday",
+                                    "hour"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "by"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "column": {
+                                  "type": "string",
+                                  "description": "Column."
+                                },
+                                "bins": {
+                                  "minItems": 1,
+                                  "maxItems": 128,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "bins"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "column": {
+                                  "type": "string",
+                                  "description": "Column."
+                                },
+                                "width": {
+                                  "type": "number",
+                                  "minimum": 5e-324
+                                },
+                                "origin": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "width"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      },
+                      "orderBy": {
+                        "description": "Sort by group key (default) or selected metric.",
+                        "type": "string",
+                        "enum": [
+                          "group",
+                          "metric"
+                        ]
+                      },
+                      "orderByMetric": {
+                        "description": "One-based index into metrics, default 1. Cannot exceed the actual metrics count.",
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 8
+                      },
+                      "descending": {
+                        "description": "Descending sort, default false.",
+                        "type": "boolean"
+                      },
+                      "metrics": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "fn": {
+                              "type": "string",
+                              "enum": [
+                                "count",
+                                "countValues",
+                                "countDistinct",
+                                "countTrue",
+                                "countFalse",
+                                "trueRatio",
+                                "sum",
+                                "avg",
+                                "min",
+                                "max",
+                                "stddev",
+                                "median",
+                                "p50",
+                                "p90",
+                                "percentile"
+                              ],
+                              "description": "count counts matched rows, countValues non-empty cells, countDistinct distinct values; trueRatio is true over valid booleans. Numeric functions read numeric text and skip identifiers; percentiles are PERCENTILE.INC; stddev is the sample deviation."
+                            },
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "percentile": {
+                              "description": "Fraction 0 to 1, for fn percentile.",
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 1
+                            },
+                            "round": {
+                              "description": "Decimal places, half away from zero as ROUND.",
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 10
+                            },
+                            "where": {
+                              "maxItems": 16,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "column": {
+                                    "type": "string",
+                                    "description": "Column."
+                                  },
+                                  "op": {
+                                    "type": "string",
+                                    "enum": [
+                                      "eq",
+                                      "ne",
+                                      "lt",
+                                      "lte",
+                                      "gt",
+                                      "gte",
+                                      "contains",
+                                      "startsWith",
+                                      "endsWith",
+                                      "in",
+                                      "between",
+                                      "isEmpty",
+                                      "isNotEmpty",
+                                      "isError",
+                                      "isNumber",
+                                      "isText"
+                                    ]
+                                  },
+                                  "value": {
+                                    "description": "Operand.",
+                                    "type": [
+                                      "string",
+                                      "number",
+                                      "boolean"
+                                    ]
+                                  },
+                                  "values": {
+                                    "description": "Operands of in, or [low, high] of between.",
+                                    "minItems": 1,
+                                    "maxItems": 64,
+                                    "type": "array",
+                                    "items": {
+                                      "type": [
+                                        "string",
+                                        "number",
+                                        "boolean"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "column",
+                                  "op"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "fn"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "where": {
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                "eq",
+                                "ne",
+                                "lt",
+                                "lte",
+                                "gt",
+                                "gte",
+                                "contains",
+                                "startsWith",
+                                "endsWith",
+                                "in",
+                                "between",
+                                "isEmpty",
+                                "isNotEmpty",
+                                "isError",
+                                "isNumber",
+                                "isText"
+                              ]
+                            },
+                            "value": {
+                              "description": "Operand.",
+                              "type": [
+                                "string",
+                                "number",
+                                "boolean"
+                              ]
+                            },
+                            "values": {
+                              "description": "Operands of in, or [low, high] of between.",
+                              "minItems": 1,
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": [
+                                  "string",
+                                  "number",
+                                  "boolean"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "op"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "match": {
+                        "default": "all",
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "any"
+                        ]
+                      },
+                      "filePath": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32768
+                      },
+                      "versionId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "metrics",
+                      "filePath"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "result"
+                      },
+                      "resultId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128,
+                        "description": "Opaque identifier from this server instance."
+                      },
+                      "columns": {
+                        "description": "One-based original result columns in output order; default all.",
+                        "minItems": 1,
+                        "maxItems": 10012,
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 10012
+                        }
+                      },
+                      "where": {
+                        "description": "AND equality over every retained row.",
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10012,
+                              "description": "One-based original column, before projection."
+                            },
+                            "equals": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 4096
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "Exact scalar; no coercion or text normalization."
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "equals"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "offset": {
+                        "description": "Zero-based offset among matches; default 0, then nextOffset.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000
+                      },
+                      "maxRows": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100000
+                      },
+                      "includeHeaders": {
+                        "default": true,
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "resultId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ],
+                "type": "object"
+              },
+              "header": {
+                "minItems": 1,
+                "maxItems": 16384,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 32767
+                }
               }
             },
             "required": [
               "startCell",
-              "values",
               "kind",
               "sheetName"
             ],
@@ -12310,6 +13583,1280 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                       }
                     ]
                   }
+                }
+              },
+              "source": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "range"
+                      },
+                      "sheetName": {
+                        "description": "Exact sheet; default first visible.",
+                        "type": "string"
+                      },
+                      "range": {
+                        "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                        "type": "string"
+                      },
+                      "table": {
+                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "visibleOnly": {
+                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "type": "boolean"
+                      },
+                      "headerRow": {
+                        "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "columnMode": {
+                        "description": "Column references: auto (default), header text or A1 letter.",
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "header",
+                          "letter"
+                        ]
+                      },
+                      "caseSensitive": {
+                        "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                        "type": "boolean"
+                      },
+                      "columns": {
+                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "minItems": 1,
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "number",
+                                "date",
+                                "boolean",
+                                "time",
+                                "duration",
+                                "text"
+                              ],
+                              "description": "How to read the column."
+                            },
+                            "missingValues": {
+                              "description": "Missing-text tokens.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "decimal": {
+                              "description": "Decimal separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                ".",
+                                ","
+                              ]
+                            },
+                            "group": {
+                              "description": "Thousands separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                ".",
+                                ",",
+                                " ",
+                                "'"
+                              ]
+                            },
+                            "locale": {
+                              "description": "File locale, for number or date.",
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            },
+                            "numberingSystem": {
+                              "description": "Numbering system, for number.",
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 32
+                            },
+                            "identifiers": {
+                              "description": "Whether to read digit identifiers, for number.",
+                              "type": "string",
+                              "enum": [
+                                "refuse",
+                                "read"
+                              ]
+                            },
+                            "format": {
+                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "order": {
+                              "description": "Day/month order without a format, for date.",
+                              "type": "string",
+                              "enum": [
+                                "dmy",
+                                "mdy"
+                              ]
+                            },
+                            "trueValues": {
+                              "description": "True-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "falseValues": {
+                              "description": "False-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "mergedCells": {
+                        "description": "Merged values and header detection policy, default master.",
+                        "type": "string",
+                        "enum": [
+                          "master",
+                          "repeat"
+                        ]
+                      },
+                      "delimiter": {
+                        "description": "CSV separator; sniffed when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "comma",
+                          "semicolon",
+                          "tab",
+                          "pipe"
+                        ]
+                      },
+                      "encoding": {
+                        "description": "CSV encoding; BOM or utf-8 when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "utf-16le",
+                          "utf-16be",
+                          "windows-1254",
+                          "iso-8859-9",
+                          "windows-1252",
+                          "windows-1251",
+                          "windows-1256",
+                          "shift_jis",
+                          "gb18030",
+                          "big5",
+                          "euc-kr"
+                        ]
+                      },
+                      "locale": {
+                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 64
+                      },
+                      "numberingSystem": {
+                        "description": "Numbering system such as arab; needs locale.",
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 32
+                      },
+                      "missingValues": {
+                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "trueValues": {
+                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "falseValues": {
+                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "selectColumns": {
+                        "minItems": 1,
+                        "maxItems": 16384,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32767
+                        }
+                      },
+                      "filePath": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32768
+                      },
+                      "versionId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "filePath"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "records"
+                      },
+                      "sheetName": {
+                        "description": "Exact sheet; default first visible.",
+                        "type": "string"
+                      },
+                      "range": {
+                        "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                        "type": "string"
+                      },
+                      "table": {
+                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "visibleOnly": {
+                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "type": "boolean"
+                      },
+                      "headerRow": {
+                        "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "columnMode": {
+                        "description": "Column references: auto (default), header text or A1 letter.",
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "header",
+                          "letter"
+                        ]
+                      },
+                      "caseSensitive": {
+                        "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                        "type": "boolean"
+                      },
+                      "columns": {
+                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "minItems": 1,
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "number",
+                                "date",
+                                "boolean",
+                                "time",
+                                "duration",
+                                "text"
+                              ],
+                              "description": "How to read the column."
+                            },
+                            "missingValues": {
+                              "description": "Missing-text tokens.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "decimal": {
+                              "description": "Decimal separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                ".",
+                                ","
+                              ]
+                            },
+                            "group": {
+                              "description": "Thousands separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                ".",
+                                ",",
+                                " ",
+                                "'"
+                              ]
+                            },
+                            "locale": {
+                              "description": "File locale, for number or date.",
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            },
+                            "numberingSystem": {
+                              "description": "Numbering system, for number.",
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 32
+                            },
+                            "identifiers": {
+                              "description": "Whether to read digit identifiers, for number.",
+                              "type": "string",
+                              "enum": [
+                                "refuse",
+                                "read"
+                              ]
+                            },
+                            "format": {
+                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "order": {
+                              "description": "Day/month order without a format, for date.",
+                              "type": "string",
+                              "enum": [
+                                "dmy",
+                                "mdy"
+                              ]
+                            },
+                            "trueValues": {
+                              "description": "True-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "falseValues": {
+                              "description": "False-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "mergedCells": {
+                        "description": "Merged values and header detection policy, default master.",
+                        "type": "string",
+                        "enum": [
+                          "master",
+                          "repeat"
+                        ]
+                      },
+                      "delimiter": {
+                        "description": "CSV separator; sniffed when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "comma",
+                          "semicolon",
+                          "tab",
+                          "pipe"
+                        ]
+                      },
+                      "encoding": {
+                        "description": "CSV encoding; BOM or utf-8 when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "utf-16le",
+                          "utf-16be",
+                          "windows-1254",
+                          "iso-8859-9",
+                          "windows-1252",
+                          "windows-1251",
+                          "windows-1256",
+                          "shift_jis",
+                          "gb18030",
+                          "big5",
+                          "euc-kr"
+                        ]
+                      },
+                      "locale": {
+                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 64
+                      },
+                      "numberingSystem": {
+                        "description": "Numbering system such as arab; needs locale.",
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 32
+                      },
+                      "missingValues": {
+                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "trueValues": {
+                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "falseValues": {
+                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "selectColumns": {
+                        "minItems": 1,
+                        "maxItems": 16384,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32767
+                        }
+                      },
+                      "where": {
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                "eq",
+                                "ne",
+                                "lt",
+                                "lte",
+                                "gt",
+                                "gte",
+                                "contains",
+                                "startsWith",
+                                "endsWith",
+                                "in",
+                                "between",
+                                "isEmpty",
+                                "isNotEmpty",
+                                "isError",
+                                "isNumber",
+                                "isText"
+                              ]
+                            },
+                            "value": {
+                              "description": "Operand.",
+                              "type": [
+                                "string",
+                                "number",
+                                "boolean"
+                              ]
+                            },
+                            "values": {
+                              "description": "Operands of in, or [low, high] of between.",
+                              "minItems": 1,
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": [
+                                  "string",
+                                  "number",
+                                  "boolean"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "op"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "match": {
+                        "default": "all",
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "any"
+                        ]
+                      },
+                      "scope": {
+                        "default": {
+                          "kind": "all"
+                        },
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "all"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "rows"
+                              },
+                              "rows": {
+                                "minItems": 1,
+                                "maxItems": 10000,
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1048576
+                                }
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "rows"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "includeHeaders": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "filePath": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32768
+                      },
+                      "versionId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "filePath"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "aggregate"
+                      },
+                      "sheetName": {
+                        "description": "Exact sheet; default first visible.",
+                        "type": "string"
+                      },
+                      "range": {
+                        "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                        "type": "string"
+                      },
+                      "table": {
+                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "visibleOnly": {
+                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "type": "boolean"
+                      },
+                      "headerRow": {
+                        "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "columnMode": {
+                        "description": "Column references: auto (default), header text or A1 letter.",
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "header",
+                          "letter"
+                        ]
+                      },
+                      "caseSensitive": {
+                        "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                        "type": "boolean"
+                      },
+                      "columns": {
+                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "minItems": 1,
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "number",
+                                "date",
+                                "boolean",
+                                "time",
+                                "duration",
+                                "text"
+                              ],
+                              "description": "How to read the column."
+                            },
+                            "missingValues": {
+                              "description": "Missing-text tokens.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "decimal": {
+                              "description": "Decimal separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                ".",
+                                ","
+                              ]
+                            },
+                            "group": {
+                              "description": "Thousands separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                ".",
+                                ",",
+                                " ",
+                                "'"
+                              ]
+                            },
+                            "locale": {
+                              "description": "File locale, for number or date.",
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            },
+                            "numberingSystem": {
+                              "description": "Numbering system, for number.",
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 32
+                            },
+                            "identifiers": {
+                              "description": "Whether to read digit identifiers, for number.",
+                              "type": "string",
+                              "enum": [
+                                "refuse",
+                                "read"
+                              ]
+                            },
+                            "format": {
+                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "order": {
+                              "description": "Day/month order without a format, for date.",
+                              "type": "string",
+                              "enum": [
+                                "dmy",
+                                "mdy"
+                              ]
+                            },
+                            "trueValues": {
+                              "description": "True-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "falseValues": {
+                              "description": "False-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "mergedCells": {
+                        "description": "Merged values and header detection policy, default master.",
+                        "type": "string",
+                        "enum": [
+                          "master",
+                          "repeat"
+                        ]
+                      },
+                      "delimiter": {
+                        "description": "CSV separator; sniffed when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "comma",
+                          "semicolon",
+                          "tab",
+                          "pipe"
+                        ]
+                      },
+                      "encoding": {
+                        "description": "CSV encoding; BOM or utf-8 when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "utf-16le",
+                          "utf-16be",
+                          "windows-1254",
+                          "iso-8859-9",
+                          "windows-1252",
+                          "windows-1251",
+                          "windows-1256",
+                          "shift_jis",
+                          "gb18030",
+                          "big5",
+                          "euc-kr"
+                        ]
+                      },
+                      "locale": {
+                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 64
+                      },
+                      "numberingSystem": {
+                        "description": "Numbering system such as arab; needs locale.",
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 32
+                      },
+                      "missingValues": {
+                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "trueValues": {
+                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "falseValues": {
+                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "groupBy": {
+                        "description": "Row grouping keys; omit for a whole-range total. A key is a column, {column, by} for a UTC date part (month includes the year, week is ISO, weekday Monday=1), or {column, bins} or {column, width, origin?} for [lower, upper) bins.",
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "column": {
+                                  "type": "string",
+                                  "description": "Column."
+                                },
+                                "by": {
+                                  "type": "string",
+                                  "enum": [
+                                    "year",
+                                    "quarter",
+                                    "month",
+                                    "week",
+                                    "day",
+                                    "weekday",
+                                    "hour"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "by"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "column": {
+                                  "type": "string",
+                                  "description": "Column."
+                                },
+                                "bins": {
+                                  "minItems": 1,
+                                  "maxItems": 128,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "bins"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "column": {
+                                  "type": "string",
+                                  "description": "Column."
+                                },
+                                "width": {
+                                  "type": "number",
+                                  "minimum": 5e-324
+                                },
+                                "origin": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "width"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      },
+                      "orderBy": {
+                        "description": "Sort by group key (default) or selected metric.",
+                        "type": "string",
+                        "enum": [
+                          "group",
+                          "metric"
+                        ]
+                      },
+                      "orderByMetric": {
+                        "description": "One-based index into metrics, default 1. Cannot exceed the actual metrics count.",
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 8
+                      },
+                      "descending": {
+                        "description": "Descending sort, default false.",
+                        "type": "boolean"
+                      },
+                      "metrics": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "fn": {
+                              "type": "string",
+                              "enum": [
+                                "count",
+                                "countValues",
+                                "countDistinct",
+                                "countTrue",
+                                "countFalse",
+                                "trueRatio",
+                                "sum",
+                                "avg",
+                                "min",
+                                "max",
+                                "stddev",
+                                "median",
+                                "p50",
+                                "p90",
+                                "percentile"
+                              ],
+                              "description": "count counts matched rows, countValues non-empty cells, countDistinct distinct values; trueRatio is true over valid booleans. Numeric functions read numeric text and skip identifiers; percentiles are PERCENTILE.INC; stddev is the sample deviation."
+                            },
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "percentile": {
+                              "description": "Fraction 0 to 1, for fn percentile.",
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 1
+                            },
+                            "round": {
+                              "description": "Decimal places, half away from zero as ROUND.",
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 10
+                            },
+                            "where": {
+                              "maxItems": 16,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "column": {
+                                    "type": "string",
+                                    "description": "Column."
+                                  },
+                                  "op": {
+                                    "type": "string",
+                                    "enum": [
+                                      "eq",
+                                      "ne",
+                                      "lt",
+                                      "lte",
+                                      "gt",
+                                      "gte",
+                                      "contains",
+                                      "startsWith",
+                                      "endsWith",
+                                      "in",
+                                      "between",
+                                      "isEmpty",
+                                      "isNotEmpty",
+                                      "isError",
+                                      "isNumber",
+                                      "isText"
+                                    ]
+                                  },
+                                  "value": {
+                                    "description": "Operand.",
+                                    "type": [
+                                      "string",
+                                      "number",
+                                      "boolean"
+                                    ]
+                                  },
+                                  "values": {
+                                    "description": "Operands of in, or [low, high] of between.",
+                                    "minItems": 1,
+                                    "maxItems": 64,
+                                    "type": "array",
+                                    "items": {
+                                      "type": [
+                                        "string",
+                                        "number",
+                                        "boolean"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "column",
+                                  "op"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "fn"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "where": {
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                "eq",
+                                "ne",
+                                "lt",
+                                "lte",
+                                "gt",
+                                "gte",
+                                "contains",
+                                "startsWith",
+                                "endsWith",
+                                "in",
+                                "between",
+                                "isEmpty",
+                                "isNotEmpty",
+                                "isError",
+                                "isNumber",
+                                "isText"
+                              ]
+                            },
+                            "value": {
+                              "description": "Operand.",
+                              "type": [
+                                "string",
+                                "number",
+                                "boolean"
+                              ]
+                            },
+                            "values": {
+                              "description": "Operands of in, or [low, high] of between.",
+                              "minItems": 1,
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": [
+                                  "string",
+                                  "number",
+                                  "boolean"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "op"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "match": {
+                        "default": "all",
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "any"
+                        ]
+                      },
+                      "filePath": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32768
+                      },
+                      "versionId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "metrics",
+                      "filePath"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "result"
+                      },
+                      "resultId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128,
+                        "description": "Opaque identifier from this server instance."
+                      },
+                      "columns": {
+                        "description": "One-based original result columns in output order; default all.",
+                        "minItems": 1,
+                        "maxItems": 10012,
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 10012
+                        }
+                      },
+                      "where": {
+                        "description": "AND equality over every retained row.",
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10012,
+                              "description": "One-based original column, before projection."
+                            },
+                            "equals": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 4096
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "Exact scalar; no coercion or text normalization."
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "equals"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "offset": {
+                        "description": "Zero-based offset among matches; default 0, then nextOffset.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000
+                      },
+                      "maxRows": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100000
+                      },
+                      "includeHeaders": {
+                        "default": true,
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "resultId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ],
+                "type": "object"
+              },
+              "header": {
+                "minItems": 1,
+                "maxItems": 16384,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 32767
                 }
               }
             },
@@ -14981,7 +17528,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
 
 ## `create_workbook`
 
-Create one immutable .xlsx from named sheets and rectangular typed value blocks. Each scalar has kind text/number/boolean/blank/date/datetime; text beginning with = stays literal. Optional changes finish the workbook atomically with formatting, layout, merges, formulas and tables before publication. Formula operations write explicit formula text without calculating it. Table range includes its header and optional totals row; use literal unique headers. At least one sheet, up to 1,000,000 touched/stored cells, 64 sheets and 128 changes. Identical requests retain identical outputs; originals never change. Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]*[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically. Advanced changes: define_name uses sheetName,name,range,scope workbook/sheet; replacement requires overwrite:true. write_named_range uses the exact name/scope and a typed values rectangle of the same shape; delete_name refuses live formula dependencies. set_validation uses range and rule {type:list,items:[...]}, {type:whole/decimal/date/textLength,operator,bounds:[...]}, or {type:custom,formula}; date bounds are workbook serials, rules guide interactive Excel input and do not enforce all server writes. remove_validation takes the exact old range, or ranges copied from one get_data_validations rule. set_conditional_format uses range,priority,rule {type:expression,formula} or {type:cellIs,operator,formulas:[...]}, appearance {font,fill},stopIfTrue. Replace a priority explicitly with overwrite:true; remove_conditional_format uses priority. set_hyperlink uses cell,target {kind:external,url} for HTTPS or {kind:internal,location}; set_note uses cell,text,author; set_image uses name,cell,mime image/png or image/jpeg,data canonical base64,width,height in pixels. Their remove_* operations select the same cell or image name; get_images reports that name. set_chart uses name,chartType column/bar/line/pie,title,cell and series [{name,sheetName,categories,values}] with one-row/column A1 ranges; formula sources have no invented cache and require refresh. remove_chart uses name. set_pivot creates/refreshes a real PivotTable using name,cell,sourceSheet,sourceRange including headers,rowColumn and measures [{column,function:sum/count/min/max,name}]; source cells must be literal, count counts nonblank values. set_pivot overwrite:true refreshes/replaces an existing private cache and clears its old result tail. protect_sheet/protect_workbook optionally use a legacy Excel protection password of up to 15 characters; this is not encryption. Unprotect every locked target with authenticated unprotect_workbook/unprotect_sheet changes. format_cells style.protection {locked,hidden} controls cell protection. Strong-hash, encrypted, signed and macro-enabled editing remains refused. Originals never change. Appearance and source changes distinguish current chart/pivot caches from refreshRequired.
+Create one immutable .xlsx from named sheets and rectangular typed value blocks. Each scalar has kind text/number/boolean/blank/date/datetime; text beginning with = stays literal. Optional changes finish the workbook atomically with formatting, layout, merges, formulas and tables before publication. Formula operations write explicit formula text without calculating it. Table range includes its header and optional totals row; use literal unique headers. At least one sheet, up to 1,000,000 touched/stored cells, 64 sheets and 128 changes. Identical requests retain identical outputs; originals never change. Never retype rows a read returned. Instead of values, a create_workbook block, write_cells or insert_rows takes source: {kind:result,resultId,columns?,where?,offset?,maxRows?} for a retained aggregate_sheet result, or {kind:range|records|aggregate,filePath,versionId?,...} with prepare_transfer selection fields. The server writes the selected rows as typed cells, starting with the source's own header row (result and aggregate labels, records includeHeaders); header:[...] replaces it or adds one. Literal values that repeat three rows of a retained result are refused. Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]*[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically. Advanced changes: define_name uses sheetName,name,range,scope workbook/sheet; replacement requires overwrite:true. write_named_range uses the exact name/scope and a typed values rectangle of the same shape; delete_name refuses live formula dependencies. set_validation uses range and rule {type:list,items:[...]}, {type:whole/decimal/date/textLength,operator,bounds:[...]}, or {type:custom,formula}; date bounds are workbook serials, rules guide interactive Excel input and do not enforce all server writes. remove_validation takes the exact old range, or ranges copied from one get_data_validations rule. set_conditional_format uses range,priority,rule {type:expression,formula} or {type:cellIs,operator,formulas:[...]}, appearance {font,fill},stopIfTrue. Replace a priority explicitly with overwrite:true; remove_conditional_format uses priority. set_hyperlink uses cell,target {kind:external,url} for HTTPS or {kind:internal,location}; set_note uses cell,text,author; set_image uses name,cell,mime image/png or image/jpeg,data canonical base64,width,height in pixels. Their remove_* operations select the same cell or image name; get_images reports that name. set_chart uses name,chartType column/bar/line/pie,title,cell and series [{name,sheetName,categories,values}] with one-row/column A1 ranges; formula sources have no invented cache and require refresh. remove_chart uses name. set_pivot creates/refreshes a real PivotTable using name,cell,sourceSheet,sourceRange including headers,rowColumn and measures [{column,function:sum/count/min/max,name}]; source cells must be literal, count counts nonblank values. set_pivot overwrite:true refreshes/replaces an existing private cache and clears its old result tail. protect_sheet/protect_workbook optionally use a legacy Excel protection password of up to 15 characters; this is not encryption. Unprotect every locked target with authenticated unprotect_workbook/unprotect_sheet changes. format_cells style.protection {locked,hidden} controls cell protection. Strong-hash, encrypted, signed and macro-enabled editing remains refused. Originals never change. Appearance and source changes distinguish current chart/pivot caches from refreshRequired.
 
 Annotations: non-destructive, closed world.
 
@@ -15142,11 +17689,1284 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                       ]
                     }
                   }
+                },
+                "source": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "range"
+                        },
+                        "sheetName": {
+                          "description": "Exact sheet; default first visible.",
+                          "type": "string"
+                        },
+                        "range": {
+                          "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                          "type": "string"
+                        },
+                        "table": {
+                          "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        },
+                        "visibleOnly": {
+                          "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                          "type": "boolean"
+                        },
+                        "headerRow": {
+                          "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "columnMode": {
+                          "description": "Column references: auto (default), header text or A1 letter.",
+                          "type": "string",
+                          "enum": [
+                            "auto",
+                            "header",
+                            "letter"
+                          ]
+                        },
+                        "caseSensitive": {
+                          "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                          "type": "boolean"
+                        },
+                        "columns": {
+                          "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                          "minItems": 1,
+                          "maxItems": 64,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "column": {
+                                "type": "string",
+                                "description": "Column."
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "number",
+                                  "date",
+                                  "boolean",
+                                  "time",
+                                  "duration",
+                                  "text"
+                                ],
+                                "description": "How to read the column."
+                              },
+                              "missingValues": {
+                                "description": "Missing-text tokens.",
+                                "maxItems": 64,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                }
+                              },
+                              "decimal": {
+                                "description": "Decimal separator, for number.",
+                                "type": "string",
+                                "enum": [
+                                  ".",
+                                  ","
+                                ]
+                              },
+                              "group": {
+                                "description": "Thousands separator, for number.",
+                                "type": "string",
+                                "enum": [
+                                  "none",
+                                  ".",
+                                  ",",
+                                  " ",
+                                  "'"
+                                ]
+                              },
+                              "locale": {
+                                "description": "File locale, for number or date.",
+                                "type": "string",
+                                "minLength": 2,
+                                "maxLength": 64
+                              },
+                              "numberingSystem": {
+                                "description": "Numbering system, for number.",
+                                "type": "string",
+                                "minLength": 3,
+                                "maxLength": 32
+                              },
+                              "identifiers": {
+                                "description": "Whether to read digit identifiers, for number.",
+                                "type": "string",
+                                "enum": [
+                                  "refuse",
+                                  "read"
+                                ]
+                              },
+                              "format": {
+                                "description": "Date pattern such as dd.MM.yyyy, for date.",
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "order": {
+                                "description": "Day/month order without a format, for date.",
+                                "type": "string",
+                                "enum": [
+                                  "dmy",
+                                  "mdy"
+                                ]
+                              },
+                              "trueValues": {
+                                "description": "True-text tokens, for boolean.",
+                                "maxItems": 64,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                }
+                              },
+                              "falseValues": {
+                                "description": "False-text tokens, for boolean.",
+                                "maxItems": 64,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                }
+                              }
+                            },
+                            "required": [
+                              "column",
+                              "type"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "mergedCells": {
+                          "description": "Merged values and header detection policy, default master.",
+                          "type": "string",
+                          "enum": [
+                            "master",
+                            "repeat"
+                          ]
+                        },
+                        "delimiter": {
+                          "description": "CSV separator; sniffed when omitted.",
+                          "type": "string",
+                          "enum": [
+                            "comma",
+                            "semicolon",
+                            "tab",
+                            "pipe"
+                          ]
+                        },
+                        "encoding": {
+                          "description": "CSV encoding; BOM or utf-8 when omitted.",
+                          "type": "string",
+                          "enum": [
+                            "utf-8",
+                            "utf-16le",
+                            "utf-16be",
+                            "windows-1254",
+                            "iso-8859-9",
+                            "windows-1252",
+                            "windows-1251",
+                            "windows-1256",
+                            "shift_jis",
+                            "gb18030",
+                            "big5",
+                            "euc-kr"
+                          ]
+                        },
+                        "locale": {
+                          "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 64
+                        },
+                        "numberingSystem": {
+                          "description": "Numbering system such as arab; needs locale.",
+                          "type": "string",
+                          "minLength": 3,
+                          "maxLength": 32
+                        },
+                        "missingValues": {
+                          "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                          "maxItems": 64,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "trueValues": {
+                          "description": "True-text tokens; default true, yes, y, Evet, E.",
+                          "maxItems": 64,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "falseValues": {
+                          "description": "False-text tokens; default false, no, n, Hayır, H.",
+                          "maxItems": 64,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "selectColumns": {
+                          "minItems": 1,
+                          "maxItems": 16384,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 32767
+                          }
+                        },
+                        "filePath": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32768
+                        },
+                        "versionId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "filePath"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "records"
+                        },
+                        "sheetName": {
+                          "description": "Exact sheet; default first visible.",
+                          "type": "string"
+                        },
+                        "range": {
+                          "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                          "type": "string"
+                        },
+                        "table": {
+                          "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        },
+                        "visibleOnly": {
+                          "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                          "type": "boolean"
+                        },
+                        "headerRow": {
+                          "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "columnMode": {
+                          "description": "Column references: auto (default), header text or A1 letter.",
+                          "type": "string",
+                          "enum": [
+                            "auto",
+                            "header",
+                            "letter"
+                          ]
+                        },
+                        "caseSensitive": {
+                          "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                          "type": "boolean"
+                        },
+                        "columns": {
+                          "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                          "minItems": 1,
+                          "maxItems": 64,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "column": {
+                                "type": "string",
+                                "description": "Column."
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "number",
+                                  "date",
+                                  "boolean",
+                                  "time",
+                                  "duration",
+                                  "text"
+                                ],
+                                "description": "How to read the column."
+                              },
+                              "missingValues": {
+                                "description": "Missing-text tokens.",
+                                "maxItems": 64,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                }
+                              },
+                              "decimal": {
+                                "description": "Decimal separator, for number.",
+                                "type": "string",
+                                "enum": [
+                                  ".",
+                                  ","
+                                ]
+                              },
+                              "group": {
+                                "description": "Thousands separator, for number.",
+                                "type": "string",
+                                "enum": [
+                                  "none",
+                                  ".",
+                                  ",",
+                                  " ",
+                                  "'"
+                                ]
+                              },
+                              "locale": {
+                                "description": "File locale, for number or date.",
+                                "type": "string",
+                                "minLength": 2,
+                                "maxLength": 64
+                              },
+                              "numberingSystem": {
+                                "description": "Numbering system, for number.",
+                                "type": "string",
+                                "minLength": 3,
+                                "maxLength": 32
+                              },
+                              "identifiers": {
+                                "description": "Whether to read digit identifiers, for number.",
+                                "type": "string",
+                                "enum": [
+                                  "refuse",
+                                  "read"
+                                ]
+                              },
+                              "format": {
+                                "description": "Date pattern such as dd.MM.yyyy, for date.",
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "order": {
+                                "description": "Day/month order without a format, for date.",
+                                "type": "string",
+                                "enum": [
+                                  "dmy",
+                                  "mdy"
+                                ]
+                              },
+                              "trueValues": {
+                                "description": "True-text tokens, for boolean.",
+                                "maxItems": 64,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                }
+                              },
+                              "falseValues": {
+                                "description": "False-text tokens, for boolean.",
+                                "maxItems": 64,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                }
+                              }
+                            },
+                            "required": [
+                              "column",
+                              "type"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "mergedCells": {
+                          "description": "Merged values and header detection policy, default master.",
+                          "type": "string",
+                          "enum": [
+                            "master",
+                            "repeat"
+                          ]
+                        },
+                        "delimiter": {
+                          "description": "CSV separator; sniffed when omitted.",
+                          "type": "string",
+                          "enum": [
+                            "comma",
+                            "semicolon",
+                            "tab",
+                            "pipe"
+                          ]
+                        },
+                        "encoding": {
+                          "description": "CSV encoding; BOM or utf-8 when omitted.",
+                          "type": "string",
+                          "enum": [
+                            "utf-8",
+                            "utf-16le",
+                            "utf-16be",
+                            "windows-1254",
+                            "iso-8859-9",
+                            "windows-1252",
+                            "windows-1251",
+                            "windows-1256",
+                            "shift_jis",
+                            "gb18030",
+                            "big5",
+                            "euc-kr"
+                          ]
+                        },
+                        "locale": {
+                          "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 64
+                        },
+                        "numberingSystem": {
+                          "description": "Numbering system such as arab; needs locale.",
+                          "type": "string",
+                          "minLength": 3,
+                          "maxLength": 32
+                        },
+                        "missingValues": {
+                          "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                          "maxItems": 64,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "trueValues": {
+                          "description": "True-text tokens; default true, yes, y, Evet, E.",
+                          "maxItems": 64,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "falseValues": {
+                          "description": "False-text tokens; default false, no, n, Hayır, H.",
+                          "maxItems": 64,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "selectColumns": {
+                          "minItems": 1,
+                          "maxItems": 16384,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 32767
+                          }
+                        },
+                        "where": {
+                          "maxItems": 16,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "column": {
+                                "type": "string",
+                                "description": "Column."
+                              },
+                              "op": {
+                                "type": "string",
+                                "enum": [
+                                  "eq",
+                                  "ne",
+                                  "lt",
+                                  "lte",
+                                  "gt",
+                                  "gte",
+                                  "contains",
+                                  "startsWith",
+                                  "endsWith",
+                                  "in",
+                                  "between",
+                                  "isEmpty",
+                                  "isNotEmpty",
+                                  "isError",
+                                  "isNumber",
+                                  "isText"
+                                ]
+                              },
+                              "value": {
+                                "description": "Operand.",
+                                "type": [
+                                  "string",
+                                  "number",
+                                  "boolean"
+                                ]
+                              },
+                              "values": {
+                                "description": "Operands of in, or [low, high] of between.",
+                                "minItems": 1,
+                                "maxItems": 64,
+                                "type": "array",
+                                "items": {
+                                  "type": [
+                                    "string",
+                                    "number",
+                                    "boolean"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "column",
+                              "op"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "match": {
+                          "default": "all",
+                          "type": "string",
+                          "enum": [
+                            "all",
+                            "any"
+                          ]
+                        },
+                        "scope": {
+                          "default": {
+                            "kind": "all"
+                          },
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "all"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "rows"
+                                },
+                                "rows": {
+                                  "minItems": 1,
+                                  "maxItems": 10000,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 1048576
+                                  }
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "rows"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "includeHeaders": {
+                          "default": true,
+                          "type": "boolean"
+                        },
+                        "filePath": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32768
+                        },
+                        "versionId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "filePath"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "aggregate"
+                        },
+                        "sheetName": {
+                          "description": "Exact sheet; default first visible.",
+                          "type": "string"
+                        },
+                        "range": {
+                          "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                          "type": "string"
+                        },
+                        "table": {
+                          "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        },
+                        "visibleOnly": {
+                          "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                          "type": "boolean"
+                        },
+                        "headerRow": {
+                          "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "columnMode": {
+                          "description": "Column references: auto (default), header text or A1 letter.",
+                          "type": "string",
+                          "enum": [
+                            "auto",
+                            "header",
+                            "letter"
+                          ]
+                        },
+                        "caseSensitive": {
+                          "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                          "type": "boolean"
+                        },
+                        "columns": {
+                          "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                          "minItems": 1,
+                          "maxItems": 64,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "column": {
+                                "type": "string",
+                                "description": "Column."
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "number",
+                                  "date",
+                                  "boolean",
+                                  "time",
+                                  "duration",
+                                  "text"
+                                ],
+                                "description": "How to read the column."
+                              },
+                              "missingValues": {
+                                "description": "Missing-text tokens.",
+                                "maxItems": 64,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                }
+                              },
+                              "decimal": {
+                                "description": "Decimal separator, for number.",
+                                "type": "string",
+                                "enum": [
+                                  ".",
+                                  ","
+                                ]
+                              },
+                              "group": {
+                                "description": "Thousands separator, for number.",
+                                "type": "string",
+                                "enum": [
+                                  "none",
+                                  ".",
+                                  ",",
+                                  " ",
+                                  "'"
+                                ]
+                              },
+                              "locale": {
+                                "description": "File locale, for number or date.",
+                                "type": "string",
+                                "minLength": 2,
+                                "maxLength": 64
+                              },
+                              "numberingSystem": {
+                                "description": "Numbering system, for number.",
+                                "type": "string",
+                                "minLength": 3,
+                                "maxLength": 32
+                              },
+                              "identifiers": {
+                                "description": "Whether to read digit identifiers, for number.",
+                                "type": "string",
+                                "enum": [
+                                  "refuse",
+                                  "read"
+                                ]
+                              },
+                              "format": {
+                                "description": "Date pattern such as dd.MM.yyyy, for date.",
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "order": {
+                                "description": "Day/month order without a format, for date.",
+                                "type": "string",
+                                "enum": [
+                                  "dmy",
+                                  "mdy"
+                                ]
+                              },
+                              "trueValues": {
+                                "description": "True-text tokens, for boolean.",
+                                "maxItems": 64,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                }
+                              },
+                              "falseValues": {
+                                "description": "False-text tokens, for boolean.",
+                                "maxItems": 64,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                }
+                              }
+                            },
+                            "required": [
+                              "column",
+                              "type"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "mergedCells": {
+                          "description": "Merged values and header detection policy, default master.",
+                          "type": "string",
+                          "enum": [
+                            "master",
+                            "repeat"
+                          ]
+                        },
+                        "delimiter": {
+                          "description": "CSV separator; sniffed when omitted.",
+                          "type": "string",
+                          "enum": [
+                            "comma",
+                            "semicolon",
+                            "tab",
+                            "pipe"
+                          ]
+                        },
+                        "encoding": {
+                          "description": "CSV encoding; BOM or utf-8 when omitted.",
+                          "type": "string",
+                          "enum": [
+                            "utf-8",
+                            "utf-16le",
+                            "utf-16be",
+                            "windows-1254",
+                            "iso-8859-9",
+                            "windows-1252",
+                            "windows-1251",
+                            "windows-1256",
+                            "shift_jis",
+                            "gb18030",
+                            "big5",
+                            "euc-kr"
+                          ]
+                        },
+                        "locale": {
+                          "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 64
+                        },
+                        "numberingSystem": {
+                          "description": "Numbering system such as arab; needs locale.",
+                          "type": "string",
+                          "minLength": 3,
+                          "maxLength": 32
+                        },
+                        "missingValues": {
+                          "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                          "maxItems": 64,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "trueValues": {
+                          "description": "True-text tokens; default true, yes, y, Evet, E.",
+                          "maxItems": 64,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "falseValues": {
+                          "description": "False-text tokens; default false, no, n, Hayır, H.",
+                          "maxItems": 64,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "groupBy": {
+                          "description": "Row grouping keys; omit for a whole-range total. A key is a column, {column, by} for a UTC date part (month includes the year, week is ISO, weekday Monday=1), or {column, bins} or {column, width, origin?} for [lower, upper) bins.",
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "description": "Column."
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "column": {
+                                    "type": "string",
+                                    "description": "Column."
+                                  },
+                                  "by": {
+                                    "type": "string",
+                                    "enum": [
+                                      "year",
+                                      "quarter",
+                                      "month",
+                                      "week",
+                                      "day",
+                                      "weekday",
+                                      "hour"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "column",
+                                  "by"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "column": {
+                                    "type": "string",
+                                    "description": "Column."
+                                  },
+                                  "bins": {
+                                    "minItems": 1,
+                                    "maxItems": 128,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "number"
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "column",
+                                  "bins"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "column": {
+                                    "type": "string",
+                                    "description": "Column."
+                                  },
+                                  "width": {
+                                    "type": "number",
+                                    "minimum": 5e-324
+                                  },
+                                  "origin": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "column",
+                                  "width"
+                                ],
+                                "additionalProperties": false
+                              }
+                            ]
+                          }
+                        },
+                        "orderBy": {
+                          "description": "Sort by group key (default) or selected metric.",
+                          "type": "string",
+                          "enum": [
+                            "group",
+                            "metric"
+                          ]
+                        },
+                        "orderByMetric": {
+                          "description": "One-based index into metrics, default 1. Cannot exceed the actual metrics count.",
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 8
+                        },
+                        "descending": {
+                          "description": "Descending sort, default false.",
+                          "type": "boolean"
+                        },
+                        "metrics": {
+                          "minItems": 1,
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "fn": {
+                                "type": "string",
+                                "enum": [
+                                  "count",
+                                  "countValues",
+                                  "countDistinct",
+                                  "countTrue",
+                                  "countFalse",
+                                  "trueRatio",
+                                  "sum",
+                                  "avg",
+                                  "min",
+                                  "max",
+                                  "stddev",
+                                  "median",
+                                  "p50",
+                                  "p90",
+                                  "percentile"
+                                ],
+                                "description": "count counts matched rows, countValues non-empty cells, countDistinct distinct values; trueRatio is true over valid booleans. Numeric functions read numeric text and skip identifiers; percentiles are PERCENTILE.INC; stddev is the sample deviation."
+                              },
+                              "column": {
+                                "type": "string",
+                                "description": "Column."
+                              },
+                              "percentile": {
+                                "description": "Fraction 0 to 1, for fn percentile.",
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                              },
+                              "round": {
+                                "description": "Decimal places, half away from zero as ROUND.",
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 10
+                              },
+                              "where": {
+                                "maxItems": 16,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "column": {
+                                      "type": "string",
+                                      "description": "Column."
+                                    },
+                                    "op": {
+                                      "type": "string",
+                                      "enum": [
+                                        "eq",
+                                        "ne",
+                                        "lt",
+                                        "lte",
+                                        "gt",
+                                        "gte",
+                                        "contains",
+                                        "startsWith",
+                                        "endsWith",
+                                        "in",
+                                        "between",
+                                        "isEmpty",
+                                        "isNotEmpty",
+                                        "isError",
+                                        "isNumber",
+                                        "isText"
+                                      ]
+                                    },
+                                    "value": {
+                                      "description": "Operand.",
+                                      "type": [
+                                        "string",
+                                        "number",
+                                        "boolean"
+                                      ]
+                                    },
+                                    "values": {
+                                      "description": "Operands of in, or [low, high] of between.",
+                                      "minItems": 1,
+                                      "maxItems": 64,
+                                      "type": "array",
+                                      "items": {
+                                        "type": [
+                                          "string",
+                                          "number",
+                                          "boolean"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "column",
+                                    "op"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "fn"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "where": {
+                          "maxItems": 16,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "column": {
+                                "type": "string",
+                                "description": "Column."
+                              },
+                              "op": {
+                                "type": "string",
+                                "enum": [
+                                  "eq",
+                                  "ne",
+                                  "lt",
+                                  "lte",
+                                  "gt",
+                                  "gte",
+                                  "contains",
+                                  "startsWith",
+                                  "endsWith",
+                                  "in",
+                                  "between",
+                                  "isEmpty",
+                                  "isNotEmpty",
+                                  "isError",
+                                  "isNumber",
+                                  "isText"
+                                ]
+                              },
+                              "value": {
+                                "description": "Operand.",
+                                "type": [
+                                  "string",
+                                  "number",
+                                  "boolean"
+                                ]
+                              },
+                              "values": {
+                                "description": "Operands of in, or [low, high] of between.",
+                                "minItems": 1,
+                                "maxItems": 64,
+                                "type": "array",
+                                "items": {
+                                  "type": [
+                                    "string",
+                                    "number",
+                                    "boolean"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "column",
+                              "op"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "match": {
+                          "default": "all",
+                          "type": "string",
+                          "enum": [
+                            "all",
+                            "any"
+                          ]
+                        },
+                        "filePath": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32768
+                        },
+                        "versionId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "metrics",
+                        "filePath"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "result"
+                        },
+                        "resultId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "description": "Opaque identifier from this server instance."
+                        },
+                        "columns": {
+                          "description": "One-based original result columns in output order; default all.",
+                          "minItems": 1,
+                          "maxItems": 10012,
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 10012
+                          }
+                        },
+                        "where": {
+                          "description": "AND equality over every retained row.",
+                          "maxItems": 16,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "column": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10012,
+                                "description": "One-based original column, before projection."
+                              },
+                              "equals": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 4096
+                                  },
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Exact scalar; no coercion or text normalization."
+                              }
+                            },
+                            "required": [
+                              "column",
+                              "equals"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "offset": {
+                          "description": "Zero-based offset among matches; default 0, then nextOffset.",
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000
+                        },
+                        "maxRows": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000
+                        },
+                        "includeHeaders": {
+                          "default": true,
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "resultId"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "type": "object"
+                },
+                "header": {
+                  "minItems": 1,
+                  "maxItems": 16384,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 32767
+                  }
                 }
               },
               "required": [
-                "startCell",
-                "values"
+                "startCell"
               ],
               "additionalProperties": false
             }
@@ -16425,7 +20245,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
 
 ## `edit_workbook`
 
-Apply atomic changes to source {filePath,versionId}; originals/retained outputs never change. write_cells uses typed literal values; occupied data/formula targets require overwrite:true. clear_contents preserves styles. copy_range/move_range use range,targetSheet,startCell; copy requires mode values/formulas/formatting/all. copy_sheet uses name/mode; copy operations optionally accept from {filePath,versionId}, subject to dependency/style compatibility. Sheet rename/reorder/delete and row/column insert/delete preserve supported references or refuse. format_cells patches only specified style fields; null resets a component. set_columns/set_rows use one-based first/last, width in character units/height in points, hidden; freeze_panes uses row/column counts. set_print_layout margins are inches; choose scale or fitWidth/fitHeight. merge_cells defaults to loss:reject; loss:discard_non_anchor explicitly clears other contents; unmerge_cells retains only the anchor. write_formula uses cell/formula; fill_formula uses anchor/range/formula and relative A1/table references. New formulas have no calculated cache; report recalculation required. create_table range includes header/data/optional totals; headers are unique literal text. edit_table can rename name/columns, resize range, set calculatedColumns/totals/style/filter; shrink preserves excluded values unless clearRemovedValues:true. convert_table preserves supported references/appearance or refuses. Table style is SezzleeBlue or none; filter toggles dropdowns, not dataset filtering. Dynamic arrays/external formula links and unsupported affected preservation refuse the whole request. Use prepare_edit first for scope/effects. Retry the same source/changes for the same result; select an earlier source to undo/branch. Every sheetName and A1 address names the source as it was read, never a position produced by another change in the request: unprotection runs first, other changes apply at source coordinates, row/column insertions and deletions then move them, and renames, sheet deletions, reorders and protection follow. insert_rows takes count, or values rows with optional startColumn (default A) whose cells may be {kind:formula,formula} using {row} for the inserted row, for example B{row}_C{row}; every other reference is a source address. Copies read the source as it was read. Every read result carries version {filePath,versionId}: pass it as source (or expectedVersion) so the edit applies to the bytes that were read. describe_workbook definedNames give name, scope, sheetName and range for define_name/delete_name, and get_charts series data give sheetName and range for set_chart series. A change touching cells another change deletes, copies or moves, two insertions at one position, an insertion inside a deleted band, or a new sheet name equal to a source sheet blocks the request. placements report the output sheet and range of each target that moved or was renamed. Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]_[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically. Advanced changes: define_name uses sheetName,name,range,scope workbook/sheet; replacement requires overwrite:true. write_named_range uses the exact name/scope and a typed values rectangle of the same shape; delete_name refuses live formula dependencies. set_validation uses range and rule {type:list,items:[...]}, {type:whole/decimal/date/textLength,operator,bounds:[...]}, or {type:custom,formula}; date bounds are workbook serials, rules guide interactive Excel input and do not enforce all server writes. remove_validation takes the exact old range, or ranges copied from one get_data_validations rule. set_conditional_format uses range,priority,rule {type:expression,formula} or {type:cellIs,operator,formulas:[...]}, appearance {font,fill},stopIfTrue. Replace a priority explicitly with overwrite:true; remove_conditional_format uses priority. set_hyperlink uses cell,target {kind:external,url} for HTTPS or {kind:internal,location}; set_note uses cell,text,author; set_image uses name,cell,mime image/png or image/jpeg,data canonical base64,width,height in pixels. Their remove_* operations select the same cell or image name; get_images reports that name. set_chart uses name,chartType column/bar/line/pie,title,cell and series [{name,sheetName,categories,values}] with one-row/column A1 ranges; formula sources have no invented cache and require refresh. remove_chart uses name. set_pivot creates/refreshes a real PivotTable using name,cell,sourceSheet,sourceRange including headers,rowColumn and measures [{column,function:sum/count/min/max,name}]; source cells must be literal, count counts nonblank values. set_pivot overwrite:true refreshes/replaces an existing private cache and clears its old result tail. protect_sheet/protect_workbook optionally use a legacy Excel protection password of up to 15 characters; this is not encryption. Unprotect every locked target with authenticated unprotect_workbook/unprotect_sheet changes. format_cells style.protection {locked,hidden} controls cell protection. Strong-hash, encrypted, signed and macro-enabled editing remains refused. Originals never change. Appearance and source changes distinguish current chart/pivot caches from refreshRequired.
+Apply atomic changes to source {filePath,versionId}; originals/retained outputs never change. write_cells uses typed literal values; occupied data/formula targets require overwrite:true. clear_contents preserves styles. copy_range/move_range use range,targetSheet,startCell; copy requires mode values/formulas/formatting/all. copy_sheet uses name/mode; copy operations optionally accept from {filePath,versionId}, subject to dependency/style compatibility. Sheet rename/reorder/delete and row/column insert/delete preserve supported references or refuse. format_cells patches only specified style fields; null resets a component. set_columns/set_rows use one-based first/last, width in character units/height in points, hidden; freeze_panes uses row/column counts. set_print_layout margins are inches; choose scale or fitWidth/fitHeight. merge_cells defaults to loss:reject; loss:discard_non_anchor explicitly clears other contents; unmerge_cells retains only the anchor. write_formula uses cell/formula; fill_formula uses anchor/range/formula and relative A1/table references. New formulas have no calculated cache; report recalculation required. create_table range includes header/data/optional totals; headers are unique literal text. edit_table can rename name/columns, resize range, set calculatedColumns/totals/style/filter; shrink preserves excluded values unless clearRemovedValues:true. convert_table preserves supported references/appearance or refuses. Table style is SezzleeBlue or none; filter toggles dropdowns, not dataset filtering. Dynamic arrays/external formula links and unsupported affected preservation refuse the whole request. Use prepare_edit first for scope/effects. Retry the same source/changes for the same result; select an earlier source to undo/branch. Every sheetName and A1 address names the source as it was read, never a position produced by another change in the request: unprotection runs first, other changes apply at source coordinates, row/column insertions and deletions then move them, and renames, sheet deletions, reorders and protection follow. insert_rows takes count, or values rows with optional startColumn (default A) whose cells may be {kind:formula,formula} using {row} for the inserted row, for example B{row}_C{row}; every other reference is a source address. Copies read the source as it was read. Every read result carries version {filePath,versionId}: pass it as source (or expectedVersion) so the edit applies to the bytes that were read. describe_workbook definedNames give name, scope, sheetName and range for define_name/delete_name, and get_charts series data give sheetName and range for set_chart series. A change touching cells another change deletes, copies or moves, two insertions at one position, an insertion inside a deleted band, or a new sheet name equal to a source sheet blocks the request. placements report the output sheet and range of each target that moved or was renamed. Never retype rows a read returned. Instead of values, a create_workbook block, write_cells or insert_rows takes source: {kind:result,resultId,columns?,where?,offset?,maxRows?} for a retained aggregate_sheet result, or {kind:range|records|aggregate,filePath,versionId?,...} with prepare_transfer selection fields. The server writes the selected rows as typed cells, starting with the source's own header row (result and aggregate labels, records includeHeaders); header:[...] replaces it or adds one. Literal values that repeat three rows of a retained result are refused. Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]_[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically. Advanced changes: define_name uses sheetName,name,range,scope workbook/sheet; replacement requires overwrite:true. write_named_range uses the exact name/scope and a typed values rectangle of the same shape; delete_name refuses live formula dependencies. set_validation uses range and rule {type:list,items:[...]}, {type:whole/decimal/date/textLength,operator,bounds:[...]}, or {type:custom,formula}; date bounds are workbook serials, rules guide interactive Excel input and do not enforce all server writes. remove_validation takes the exact old range, or ranges copied from one get_data_validations rule. set_conditional_format uses range,priority,rule {type:expression,formula} or {type:cellIs,operator,formulas:[...]}, appearance {font,fill},stopIfTrue. Replace a priority explicitly with overwrite:true; remove_conditional_format uses priority. set_hyperlink uses cell,target {kind:external,url} for HTTPS or {kind:internal,location}; set_note uses cell,text,author; set_image uses name,cell,mime image/png or image/jpeg,data canonical base64,width,height in pixels. Their remove_* operations select the same cell or image name; get_images reports that name. set_chart uses name,chartType column/bar/line/pie,title,cell and series [{name,sheetName,categories,values}] with one-row/column A1 ranges; formula sources have no invented cache and require refresh. remove_chart uses name. set_pivot creates/refreshes a real PivotTable using name,cell,sourceSheet,sourceRange including headers,rowColumn and measures [{column,function:sum/count/min/max,name}]; source cells must be literal, count counts nonblank values. set_pivot overwrite:true refreshes/replaces an existing private cache and clears its old result tail. protect_sheet/protect_workbook optionally use a legacy Excel protection password of up to 15 characters; this is not encryption. Unprotect every locked target with authenticated unprotect_workbook/unprotect_sheet changes. format_cells style.protection {locked,hidden} controls cell protection. Strong-hash, encrypted, signed and macro-enabled editing remains refused. Originals never change. Appearance and source changes distinguish current chart/pivot caches from refreshRequired.
 
 Annotations: non-destructive, closed world.
 
@@ -16627,11 +20447,1284 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "overwrite": {
                 "default": false,
                 "type": "boolean"
+              },
+              "source": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "range"
+                      },
+                      "sheetName": {
+                        "description": "Exact sheet; default first visible.",
+                        "type": "string"
+                      },
+                      "range": {
+                        "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                        "type": "string"
+                      },
+                      "table": {
+                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "visibleOnly": {
+                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "type": "boolean"
+                      },
+                      "headerRow": {
+                        "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "columnMode": {
+                        "description": "Column references: auto (default), header text or A1 letter.",
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "header",
+                          "letter"
+                        ]
+                      },
+                      "caseSensitive": {
+                        "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                        "type": "boolean"
+                      },
+                      "columns": {
+                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "minItems": 1,
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "number",
+                                "date",
+                                "boolean",
+                                "time",
+                                "duration",
+                                "text"
+                              ],
+                              "description": "How to read the column."
+                            },
+                            "missingValues": {
+                              "description": "Missing-text tokens.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "decimal": {
+                              "description": "Decimal separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                ".",
+                                ","
+                              ]
+                            },
+                            "group": {
+                              "description": "Thousands separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                ".",
+                                ",",
+                                " ",
+                                "'"
+                              ]
+                            },
+                            "locale": {
+                              "description": "File locale, for number or date.",
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            },
+                            "numberingSystem": {
+                              "description": "Numbering system, for number.",
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 32
+                            },
+                            "identifiers": {
+                              "description": "Whether to read digit identifiers, for number.",
+                              "type": "string",
+                              "enum": [
+                                "refuse",
+                                "read"
+                              ]
+                            },
+                            "format": {
+                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "order": {
+                              "description": "Day/month order without a format, for date.",
+                              "type": "string",
+                              "enum": [
+                                "dmy",
+                                "mdy"
+                              ]
+                            },
+                            "trueValues": {
+                              "description": "True-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "falseValues": {
+                              "description": "False-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "mergedCells": {
+                        "description": "Merged values and header detection policy, default master.",
+                        "type": "string",
+                        "enum": [
+                          "master",
+                          "repeat"
+                        ]
+                      },
+                      "delimiter": {
+                        "description": "CSV separator; sniffed when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "comma",
+                          "semicolon",
+                          "tab",
+                          "pipe"
+                        ]
+                      },
+                      "encoding": {
+                        "description": "CSV encoding; BOM or utf-8 when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "utf-16le",
+                          "utf-16be",
+                          "windows-1254",
+                          "iso-8859-9",
+                          "windows-1252",
+                          "windows-1251",
+                          "windows-1256",
+                          "shift_jis",
+                          "gb18030",
+                          "big5",
+                          "euc-kr"
+                        ]
+                      },
+                      "locale": {
+                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 64
+                      },
+                      "numberingSystem": {
+                        "description": "Numbering system such as arab; needs locale.",
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 32
+                      },
+                      "missingValues": {
+                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "trueValues": {
+                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "falseValues": {
+                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "selectColumns": {
+                        "minItems": 1,
+                        "maxItems": 16384,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32767
+                        }
+                      },
+                      "filePath": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32768
+                      },
+                      "versionId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "filePath"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "records"
+                      },
+                      "sheetName": {
+                        "description": "Exact sheet; default first visible.",
+                        "type": "string"
+                      },
+                      "range": {
+                        "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                        "type": "string"
+                      },
+                      "table": {
+                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "visibleOnly": {
+                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "type": "boolean"
+                      },
+                      "headerRow": {
+                        "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "columnMode": {
+                        "description": "Column references: auto (default), header text or A1 letter.",
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "header",
+                          "letter"
+                        ]
+                      },
+                      "caseSensitive": {
+                        "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                        "type": "boolean"
+                      },
+                      "columns": {
+                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "minItems": 1,
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "number",
+                                "date",
+                                "boolean",
+                                "time",
+                                "duration",
+                                "text"
+                              ],
+                              "description": "How to read the column."
+                            },
+                            "missingValues": {
+                              "description": "Missing-text tokens.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "decimal": {
+                              "description": "Decimal separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                ".",
+                                ","
+                              ]
+                            },
+                            "group": {
+                              "description": "Thousands separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                ".",
+                                ",",
+                                " ",
+                                "'"
+                              ]
+                            },
+                            "locale": {
+                              "description": "File locale, for number or date.",
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            },
+                            "numberingSystem": {
+                              "description": "Numbering system, for number.",
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 32
+                            },
+                            "identifiers": {
+                              "description": "Whether to read digit identifiers, for number.",
+                              "type": "string",
+                              "enum": [
+                                "refuse",
+                                "read"
+                              ]
+                            },
+                            "format": {
+                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "order": {
+                              "description": "Day/month order without a format, for date.",
+                              "type": "string",
+                              "enum": [
+                                "dmy",
+                                "mdy"
+                              ]
+                            },
+                            "trueValues": {
+                              "description": "True-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "falseValues": {
+                              "description": "False-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "mergedCells": {
+                        "description": "Merged values and header detection policy, default master.",
+                        "type": "string",
+                        "enum": [
+                          "master",
+                          "repeat"
+                        ]
+                      },
+                      "delimiter": {
+                        "description": "CSV separator; sniffed when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "comma",
+                          "semicolon",
+                          "tab",
+                          "pipe"
+                        ]
+                      },
+                      "encoding": {
+                        "description": "CSV encoding; BOM or utf-8 when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "utf-16le",
+                          "utf-16be",
+                          "windows-1254",
+                          "iso-8859-9",
+                          "windows-1252",
+                          "windows-1251",
+                          "windows-1256",
+                          "shift_jis",
+                          "gb18030",
+                          "big5",
+                          "euc-kr"
+                        ]
+                      },
+                      "locale": {
+                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 64
+                      },
+                      "numberingSystem": {
+                        "description": "Numbering system such as arab; needs locale.",
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 32
+                      },
+                      "missingValues": {
+                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "trueValues": {
+                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "falseValues": {
+                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "selectColumns": {
+                        "minItems": 1,
+                        "maxItems": 16384,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32767
+                        }
+                      },
+                      "where": {
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                "eq",
+                                "ne",
+                                "lt",
+                                "lte",
+                                "gt",
+                                "gte",
+                                "contains",
+                                "startsWith",
+                                "endsWith",
+                                "in",
+                                "between",
+                                "isEmpty",
+                                "isNotEmpty",
+                                "isError",
+                                "isNumber",
+                                "isText"
+                              ]
+                            },
+                            "value": {
+                              "description": "Operand.",
+                              "type": [
+                                "string",
+                                "number",
+                                "boolean"
+                              ]
+                            },
+                            "values": {
+                              "description": "Operands of in, or [low, high] of between.",
+                              "minItems": 1,
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": [
+                                  "string",
+                                  "number",
+                                  "boolean"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "op"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "match": {
+                        "default": "all",
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "any"
+                        ]
+                      },
+                      "scope": {
+                        "default": {
+                          "kind": "all"
+                        },
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "all"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "rows"
+                              },
+                              "rows": {
+                                "minItems": 1,
+                                "maxItems": 10000,
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1048576
+                                }
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "rows"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "includeHeaders": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "filePath": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32768
+                      },
+                      "versionId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "filePath"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "aggregate"
+                      },
+                      "sheetName": {
+                        "description": "Exact sheet; default first visible.",
+                        "type": "string"
+                      },
+                      "range": {
+                        "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                        "type": "string"
+                      },
+                      "table": {
+                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "visibleOnly": {
+                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "type": "boolean"
+                      },
+                      "headerRow": {
+                        "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "columnMode": {
+                        "description": "Column references: auto (default), header text or A1 letter.",
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "header",
+                          "letter"
+                        ]
+                      },
+                      "caseSensitive": {
+                        "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                        "type": "boolean"
+                      },
+                      "columns": {
+                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "minItems": 1,
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "number",
+                                "date",
+                                "boolean",
+                                "time",
+                                "duration",
+                                "text"
+                              ],
+                              "description": "How to read the column."
+                            },
+                            "missingValues": {
+                              "description": "Missing-text tokens.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "decimal": {
+                              "description": "Decimal separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                ".",
+                                ","
+                              ]
+                            },
+                            "group": {
+                              "description": "Thousands separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                ".",
+                                ",",
+                                " ",
+                                "'"
+                              ]
+                            },
+                            "locale": {
+                              "description": "File locale, for number or date.",
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            },
+                            "numberingSystem": {
+                              "description": "Numbering system, for number.",
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 32
+                            },
+                            "identifiers": {
+                              "description": "Whether to read digit identifiers, for number.",
+                              "type": "string",
+                              "enum": [
+                                "refuse",
+                                "read"
+                              ]
+                            },
+                            "format": {
+                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "order": {
+                              "description": "Day/month order without a format, for date.",
+                              "type": "string",
+                              "enum": [
+                                "dmy",
+                                "mdy"
+                              ]
+                            },
+                            "trueValues": {
+                              "description": "True-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "falseValues": {
+                              "description": "False-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "mergedCells": {
+                        "description": "Merged values and header detection policy, default master.",
+                        "type": "string",
+                        "enum": [
+                          "master",
+                          "repeat"
+                        ]
+                      },
+                      "delimiter": {
+                        "description": "CSV separator; sniffed when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "comma",
+                          "semicolon",
+                          "tab",
+                          "pipe"
+                        ]
+                      },
+                      "encoding": {
+                        "description": "CSV encoding; BOM or utf-8 when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "utf-16le",
+                          "utf-16be",
+                          "windows-1254",
+                          "iso-8859-9",
+                          "windows-1252",
+                          "windows-1251",
+                          "windows-1256",
+                          "shift_jis",
+                          "gb18030",
+                          "big5",
+                          "euc-kr"
+                        ]
+                      },
+                      "locale": {
+                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 64
+                      },
+                      "numberingSystem": {
+                        "description": "Numbering system such as arab; needs locale.",
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 32
+                      },
+                      "missingValues": {
+                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "trueValues": {
+                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "falseValues": {
+                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "groupBy": {
+                        "description": "Row grouping keys; omit for a whole-range total. A key is a column, {column, by} for a UTC date part (month includes the year, week is ISO, weekday Monday=1), or {column, bins} or {column, width, origin?} for [lower, upper) bins.",
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "column": {
+                                  "type": "string",
+                                  "description": "Column."
+                                },
+                                "by": {
+                                  "type": "string",
+                                  "enum": [
+                                    "year",
+                                    "quarter",
+                                    "month",
+                                    "week",
+                                    "day",
+                                    "weekday",
+                                    "hour"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "by"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "column": {
+                                  "type": "string",
+                                  "description": "Column."
+                                },
+                                "bins": {
+                                  "minItems": 1,
+                                  "maxItems": 128,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "bins"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "column": {
+                                  "type": "string",
+                                  "description": "Column."
+                                },
+                                "width": {
+                                  "type": "number",
+                                  "minimum": 5e-324
+                                },
+                                "origin": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "width"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      },
+                      "orderBy": {
+                        "description": "Sort by group key (default) or selected metric.",
+                        "type": "string",
+                        "enum": [
+                          "group",
+                          "metric"
+                        ]
+                      },
+                      "orderByMetric": {
+                        "description": "One-based index into metrics, default 1. Cannot exceed the actual metrics count.",
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 8
+                      },
+                      "descending": {
+                        "description": "Descending sort, default false.",
+                        "type": "boolean"
+                      },
+                      "metrics": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "fn": {
+                              "type": "string",
+                              "enum": [
+                                "count",
+                                "countValues",
+                                "countDistinct",
+                                "countTrue",
+                                "countFalse",
+                                "trueRatio",
+                                "sum",
+                                "avg",
+                                "min",
+                                "max",
+                                "stddev",
+                                "median",
+                                "p50",
+                                "p90",
+                                "percentile"
+                              ],
+                              "description": "count counts matched rows, countValues non-empty cells, countDistinct distinct values; trueRatio is true over valid booleans. Numeric functions read numeric text and skip identifiers; percentiles are PERCENTILE.INC; stddev is the sample deviation."
+                            },
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "percentile": {
+                              "description": "Fraction 0 to 1, for fn percentile.",
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 1
+                            },
+                            "round": {
+                              "description": "Decimal places, half away from zero as ROUND.",
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 10
+                            },
+                            "where": {
+                              "maxItems": 16,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "column": {
+                                    "type": "string",
+                                    "description": "Column."
+                                  },
+                                  "op": {
+                                    "type": "string",
+                                    "enum": [
+                                      "eq",
+                                      "ne",
+                                      "lt",
+                                      "lte",
+                                      "gt",
+                                      "gte",
+                                      "contains",
+                                      "startsWith",
+                                      "endsWith",
+                                      "in",
+                                      "between",
+                                      "isEmpty",
+                                      "isNotEmpty",
+                                      "isError",
+                                      "isNumber",
+                                      "isText"
+                                    ]
+                                  },
+                                  "value": {
+                                    "description": "Operand.",
+                                    "type": [
+                                      "string",
+                                      "number",
+                                      "boolean"
+                                    ]
+                                  },
+                                  "values": {
+                                    "description": "Operands of in, or [low, high] of between.",
+                                    "minItems": 1,
+                                    "maxItems": 64,
+                                    "type": "array",
+                                    "items": {
+                                      "type": [
+                                        "string",
+                                        "number",
+                                        "boolean"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "column",
+                                  "op"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "fn"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "where": {
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                "eq",
+                                "ne",
+                                "lt",
+                                "lte",
+                                "gt",
+                                "gte",
+                                "contains",
+                                "startsWith",
+                                "endsWith",
+                                "in",
+                                "between",
+                                "isEmpty",
+                                "isNotEmpty",
+                                "isError",
+                                "isNumber",
+                                "isText"
+                              ]
+                            },
+                            "value": {
+                              "description": "Operand.",
+                              "type": [
+                                "string",
+                                "number",
+                                "boolean"
+                              ]
+                            },
+                            "values": {
+                              "description": "Operands of in, or [low, high] of between.",
+                              "minItems": 1,
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": [
+                                  "string",
+                                  "number",
+                                  "boolean"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "op"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "match": {
+                        "default": "all",
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "any"
+                        ]
+                      },
+                      "filePath": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32768
+                      },
+                      "versionId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "metrics",
+                      "filePath"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "result"
+                      },
+                      "resultId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128,
+                        "description": "Opaque identifier from this server instance."
+                      },
+                      "columns": {
+                        "description": "One-based original result columns in output order; default all.",
+                        "minItems": 1,
+                        "maxItems": 10012,
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 10012
+                        }
+                      },
+                      "where": {
+                        "description": "AND equality over every retained row.",
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10012,
+                              "description": "One-based original column, before projection."
+                            },
+                            "equals": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 4096
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "Exact scalar; no coercion or text normalization."
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "equals"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "offset": {
+                        "description": "Zero-based offset among matches; default 0, then nextOffset.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000
+                      },
+                      "maxRows": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100000
+                      },
+                      "includeHeaders": {
+                        "default": true,
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "resultId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ],
+                "type": "object"
+              },
+              "header": {
+                "minItems": 1,
+                "maxItems": 16384,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 32767
+                }
               }
             },
             "required": [
               "startCell",
-              "values",
               "kind",
               "sheetName"
             ],
@@ -19374,6 +24467,1280 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                       }
                     ]
                   }
+                }
+              },
+              "source": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "range"
+                      },
+                      "sheetName": {
+                        "description": "Exact sheet; default first visible.",
+                        "type": "string"
+                      },
+                      "range": {
+                        "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                        "type": "string"
+                      },
+                      "table": {
+                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "visibleOnly": {
+                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "type": "boolean"
+                      },
+                      "headerRow": {
+                        "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "columnMode": {
+                        "description": "Column references: auto (default), header text or A1 letter.",
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "header",
+                          "letter"
+                        ]
+                      },
+                      "caseSensitive": {
+                        "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                        "type": "boolean"
+                      },
+                      "columns": {
+                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "minItems": 1,
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "number",
+                                "date",
+                                "boolean",
+                                "time",
+                                "duration",
+                                "text"
+                              ],
+                              "description": "How to read the column."
+                            },
+                            "missingValues": {
+                              "description": "Missing-text tokens.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "decimal": {
+                              "description": "Decimal separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                ".",
+                                ","
+                              ]
+                            },
+                            "group": {
+                              "description": "Thousands separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                ".",
+                                ",",
+                                " ",
+                                "'"
+                              ]
+                            },
+                            "locale": {
+                              "description": "File locale, for number or date.",
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            },
+                            "numberingSystem": {
+                              "description": "Numbering system, for number.",
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 32
+                            },
+                            "identifiers": {
+                              "description": "Whether to read digit identifiers, for number.",
+                              "type": "string",
+                              "enum": [
+                                "refuse",
+                                "read"
+                              ]
+                            },
+                            "format": {
+                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "order": {
+                              "description": "Day/month order without a format, for date.",
+                              "type": "string",
+                              "enum": [
+                                "dmy",
+                                "mdy"
+                              ]
+                            },
+                            "trueValues": {
+                              "description": "True-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "falseValues": {
+                              "description": "False-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "mergedCells": {
+                        "description": "Merged values and header detection policy, default master.",
+                        "type": "string",
+                        "enum": [
+                          "master",
+                          "repeat"
+                        ]
+                      },
+                      "delimiter": {
+                        "description": "CSV separator; sniffed when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "comma",
+                          "semicolon",
+                          "tab",
+                          "pipe"
+                        ]
+                      },
+                      "encoding": {
+                        "description": "CSV encoding; BOM or utf-8 when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "utf-16le",
+                          "utf-16be",
+                          "windows-1254",
+                          "iso-8859-9",
+                          "windows-1252",
+                          "windows-1251",
+                          "windows-1256",
+                          "shift_jis",
+                          "gb18030",
+                          "big5",
+                          "euc-kr"
+                        ]
+                      },
+                      "locale": {
+                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 64
+                      },
+                      "numberingSystem": {
+                        "description": "Numbering system such as arab; needs locale.",
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 32
+                      },
+                      "missingValues": {
+                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "trueValues": {
+                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "falseValues": {
+                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "selectColumns": {
+                        "minItems": 1,
+                        "maxItems": 16384,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32767
+                        }
+                      },
+                      "filePath": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32768
+                      },
+                      "versionId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "filePath"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "records"
+                      },
+                      "sheetName": {
+                        "description": "Exact sheet; default first visible.",
+                        "type": "string"
+                      },
+                      "range": {
+                        "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                        "type": "string"
+                      },
+                      "table": {
+                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "visibleOnly": {
+                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "type": "boolean"
+                      },
+                      "headerRow": {
+                        "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "columnMode": {
+                        "description": "Column references: auto (default), header text or A1 letter.",
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "header",
+                          "letter"
+                        ]
+                      },
+                      "caseSensitive": {
+                        "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                        "type": "boolean"
+                      },
+                      "columns": {
+                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "minItems": 1,
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "number",
+                                "date",
+                                "boolean",
+                                "time",
+                                "duration",
+                                "text"
+                              ],
+                              "description": "How to read the column."
+                            },
+                            "missingValues": {
+                              "description": "Missing-text tokens.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "decimal": {
+                              "description": "Decimal separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                ".",
+                                ","
+                              ]
+                            },
+                            "group": {
+                              "description": "Thousands separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                ".",
+                                ",",
+                                " ",
+                                "'"
+                              ]
+                            },
+                            "locale": {
+                              "description": "File locale, for number or date.",
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            },
+                            "numberingSystem": {
+                              "description": "Numbering system, for number.",
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 32
+                            },
+                            "identifiers": {
+                              "description": "Whether to read digit identifiers, for number.",
+                              "type": "string",
+                              "enum": [
+                                "refuse",
+                                "read"
+                              ]
+                            },
+                            "format": {
+                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "order": {
+                              "description": "Day/month order without a format, for date.",
+                              "type": "string",
+                              "enum": [
+                                "dmy",
+                                "mdy"
+                              ]
+                            },
+                            "trueValues": {
+                              "description": "True-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "falseValues": {
+                              "description": "False-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "mergedCells": {
+                        "description": "Merged values and header detection policy, default master.",
+                        "type": "string",
+                        "enum": [
+                          "master",
+                          "repeat"
+                        ]
+                      },
+                      "delimiter": {
+                        "description": "CSV separator; sniffed when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "comma",
+                          "semicolon",
+                          "tab",
+                          "pipe"
+                        ]
+                      },
+                      "encoding": {
+                        "description": "CSV encoding; BOM or utf-8 when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "utf-16le",
+                          "utf-16be",
+                          "windows-1254",
+                          "iso-8859-9",
+                          "windows-1252",
+                          "windows-1251",
+                          "windows-1256",
+                          "shift_jis",
+                          "gb18030",
+                          "big5",
+                          "euc-kr"
+                        ]
+                      },
+                      "locale": {
+                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 64
+                      },
+                      "numberingSystem": {
+                        "description": "Numbering system such as arab; needs locale.",
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 32
+                      },
+                      "missingValues": {
+                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "trueValues": {
+                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "falseValues": {
+                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "selectColumns": {
+                        "minItems": 1,
+                        "maxItems": 16384,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32767
+                        }
+                      },
+                      "where": {
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                "eq",
+                                "ne",
+                                "lt",
+                                "lte",
+                                "gt",
+                                "gte",
+                                "contains",
+                                "startsWith",
+                                "endsWith",
+                                "in",
+                                "between",
+                                "isEmpty",
+                                "isNotEmpty",
+                                "isError",
+                                "isNumber",
+                                "isText"
+                              ]
+                            },
+                            "value": {
+                              "description": "Operand.",
+                              "type": [
+                                "string",
+                                "number",
+                                "boolean"
+                              ]
+                            },
+                            "values": {
+                              "description": "Operands of in, or [low, high] of between.",
+                              "minItems": 1,
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": [
+                                  "string",
+                                  "number",
+                                  "boolean"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "op"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "match": {
+                        "default": "all",
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "any"
+                        ]
+                      },
+                      "scope": {
+                        "default": {
+                          "kind": "all"
+                        },
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "all"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "rows"
+                              },
+                              "rows": {
+                                "minItems": 1,
+                                "maxItems": 10000,
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 1048576
+                                }
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "rows"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "includeHeaders": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "filePath": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32768
+                      },
+                      "versionId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "filePath"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "aggregate"
+                      },
+                      "sheetName": {
+                        "description": "Exact sheet; default first visible.",
+                        "type": "string"
+                      },
+                      "range": {
+                        "description": "A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.",
+                        "type": "string"
+                      },
+                      "table": {
+                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "visibleOnly": {
+                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "type": "boolean"
+                      },
+                      "headerRow": {
+                        "description": "Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "columnMode": {
+                        "description": "Column references: auto (default), header text or A1 letter.",
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "header",
+                          "letter"
+                        ]
+                      },
+                      "caseSensitive": {
+                        "description": "Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.",
+                        "type": "boolean"
+                      },
+                      "columns": {
+                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "minItems": 1,
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "number",
+                                "date",
+                                "boolean",
+                                "time",
+                                "duration",
+                                "text"
+                              ],
+                              "description": "How to read the column."
+                            },
+                            "missingValues": {
+                              "description": "Missing-text tokens.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "decimal": {
+                              "description": "Decimal separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                ".",
+                                ","
+                              ]
+                            },
+                            "group": {
+                              "description": "Thousands separator, for number.",
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                ".",
+                                ",",
+                                " ",
+                                "'"
+                              ]
+                            },
+                            "locale": {
+                              "description": "File locale, for number or date.",
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            },
+                            "numberingSystem": {
+                              "description": "Numbering system, for number.",
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 32
+                            },
+                            "identifiers": {
+                              "description": "Whether to read digit identifiers, for number.",
+                              "type": "string",
+                              "enum": [
+                                "refuse",
+                                "read"
+                              ]
+                            },
+                            "format": {
+                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "order": {
+                              "description": "Day/month order without a format, for date.",
+                              "type": "string",
+                              "enum": [
+                                "dmy",
+                                "mdy"
+                              ]
+                            },
+                            "trueValues": {
+                              "description": "True-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            },
+                            "falseValues": {
+                              "description": "False-text tokens, for boolean.",
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "type"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "mergedCells": {
+                        "description": "Merged values and header detection policy, default master.",
+                        "type": "string",
+                        "enum": [
+                          "master",
+                          "repeat"
+                        ]
+                      },
+                      "delimiter": {
+                        "description": "CSV separator; sniffed when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "comma",
+                          "semicolon",
+                          "tab",
+                          "pipe"
+                        ]
+                      },
+                      "encoding": {
+                        "description": "CSV encoding; BOM or utf-8 when omitted.",
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "utf-16le",
+                          "utf-16be",
+                          "windows-1254",
+                          "iso-8859-9",
+                          "windows-1252",
+                          "windows-1251",
+                          "windows-1256",
+                          "shift_jis",
+                          "gb18030",
+                          "big5",
+                          "euc-kr"
+                        ]
+                      },
+                      "locale": {
+                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 64
+                      },
+                      "numberingSystem": {
+                        "description": "Numbering system such as arab; needs locale.",
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 32
+                      },
+                      "missingValues": {
+                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "trueValues": {
+                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "falseValues": {
+                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "groupBy": {
+                        "description": "Row grouping keys; omit for a whole-range total. A key is a column, {column, by} for a UTC date part (month includes the year, week is ISO, weekday Monday=1), or {column, bins} or {column, width, origin?} for [lower, upper) bins.",
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "column": {
+                                  "type": "string",
+                                  "description": "Column."
+                                },
+                                "by": {
+                                  "type": "string",
+                                  "enum": [
+                                    "year",
+                                    "quarter",
+                                    "month",
+                                    "week",
+                                    "day",
+                                    "weekday",
+                                    "hour"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "by"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "column": {
+                                  "type": "string",
+                                  "description": "Column."
+                                },
+                                "bins": {
+                                  "minItems": 1,
+                                  "maxItems": 128,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "bins"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "column": {
+                                  "type": "string",
+                                  "description": "Column."
+                                },
+                                "width": {
+                                  "type": "number",
+                                  "minimum": 5e-324
+                                },
+                                "origin": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "width"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      },
+                      "orderBy": {
+                        "description": "Sort by group key (default) or selected metric.",
+                        "type": "string",
+                        "enum": [
+                          "group",
+                          "metric"
+                        ]
+                      },
+                      "orderByMetric": {
+                        "description": "One-based index into metrics, default 1. Cannot exceed the actual metrics count.",
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 8
+                      },
+                      "descending": {
+                        "description": "Descending sort, default false.",
+                        "type": "boolean"
+                      },
+                      "metrics": {
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "fn": {
+                              "type": "string",
+                              "enum": [
+                                "count",
+                                "countValues",
+                                "countDistinct",
+                                "countTrue",
+                                "countFalse",
+                                "trueRatio",
+                                "sum",
+                                "avg",
+                                "min",
+                                "max",
+                                "stddev",
+                                "median",
+                                "p50",
+                                "p90",
+                                "percentile"
+                              ],
+                              "description": "count counts matched rows, countValues non-empty cells, countDistinct distinct values; trueRatio is true over valid booleans. Numeric functions read numeric text and skip identifiers; percentiles are PERCENTILE.INC; stddev is the sample deviation."
+                            },
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "percentile": {
+                              "description": "Fraction 0 to 1, for fn percentile.",
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 1
+                            },
+                            "round": {
+                              "description": "Decimal places, half away from zero as ROUND.",
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 10
+                            },
+                            "where": {
+                              "maxItems": 16,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "column": {
+                                    "type": "string",
+                                    "description": "Column."
+                                  },
+                                  "op": {
+                                    "type": "string",
+                                    "enum": [
+                                      "eq",
+                                      "ne",
+                                      "lt",
+                                      "lte",
+                                      "gt",
+                                      "gte",
+                                      "contains",
+                                      "startsWith",
+                                      "endsWith",
+                                      "in",
+                                      "between",
+                                      "isEmpty",
+                                      "isNotEmpty",
+                                      "isError",
+                                      "isNumber",
+                                      "isText"
+                                    ]
+                                  },
+                                  "value": {
+                                    "description": "Operand.",
+                                    "type": [
+                                      "string",
+                                      "number",
+                                      "boolean"
+                                    ]
+                                  },
+                                  "values": {
+                                    "description": "Operands of in, or [low, high] of between.",
+                                    "minItems": 1,
+                                    "maxItems": 64,
+                                    "type": "array",
+                                    "items": {
+                                      "type": [
+                                        "string",
+                                        "number",
+                                        "boolean"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "column",
+                                  "op"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "fn"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "where": {
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "string",
+                              "description": "Column."
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                "eq",
+                                "ne",
+                                "lt",
+                                "lte",
+                                "gt",
+                                "gte",
+                                "contains",
+                                "startsWith",
+                                "endsWith",
+                                "in",
+                                "between",
+                                "isEmpty",
+                                "isNotEmpty",
+                                "isError",
+                                "isNumber",
+                                "isText"
+                              ]
+                            },
+                            "value": {
+                              "description": "Operand.",
+                              "type": [
+                                "string",
+                                "number",
+                                "boolean"
+                              ]
+                            },
+                            "values": {
+                              "description": "Operands of in, or [low, high] of between.",
+                              "minItems": 1,
+                              "maxItems": 64,
+                              "type": "array",
+                              "items": {
+                                "type": [
+                                  "string",
+                                  "number",
+                                  "boolean"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "op"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "match": {
+                        "default": "all",
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "any"
+                        ]
+                      },
+                      "filePath": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32768
+                      },
+                      "versionId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "metrics",
+                      "filePath"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "result"
+                      },
+                      "resultId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128,
+                        "description": "Opaque identifier from this server instance."
+                      },
+                      "columns": {
+                        "description": "One-based original result columns in output order; default all.",
+                        "minItems": 1,
+                        "maxItems": 10012,
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 10012
+                        }
+                      },
+                      "where": {
+                        "description": "AND equality over every retained row.",
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "column": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10012,
+                              "description": "One-based original column, before projection."
+                            },
+                            "equals": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 4096
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "Exact scalar; no coercion or text normalization."
+                            }
+                          },
+                          "required": [
+                            "column",
+                            "equals"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "offset": {
+                        "description": "Zero-based offset among matches; default 0, then nextOffset.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000
+                      },
+                      "maxRows": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100000
+                      },
+                      "includeHeaders": {
+                        "default": true,
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "resultId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ],
+                "type": "object"
+              },
+              "header": {
+                "minItems": 1,
+                "maxItems": 16384,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 32767
                 }
               }
             },

@@ -18,6 +18,12 @@
 - `get_charts` series data carry `sheetName` and `range` beside `ref`, the fields `set_chart` series take. `get_images` reports a picture's drawing `name`, which `remove_image` selects.
 - `remove_conditional_format` matches a stored priority by its number, so a rule written as `priority="01"` is found by `priority: 1`.
 
+### Writing from a source
+
+- A create_workbook block, `write_cells` and `insert_rows` take `source` instead of `values`: a retained result (`kind: "result"` with `resultId` and query_result's `columns`, `where`, `offset`, plus `maxRows`), or a prepare_transfer selection (`range`, `records`, `aggregate`) over `filePath` with an optional `versionId`. The rows are written as typed cells, starting with the source's own header row or `header`.
+- Receipts and `prepare_edit` list `sources`: each sourced block's position, kind, version or `resultId`, and row and column counts. Source files are checked again before publication.
+- A literal block that repeats three consecutive rows of a retained result is refused with `invalid_argument`, naming the `source` that writes them.
+
 ### Retained aggregate results
 
 - `aggregate_sheet` takes `resultMode: "retained"`: the complete calculation is kept for 15 minutes in this server instance and answered with a byte-bounded preview and a `resultId`. Inline remains the default and is unchanged.
