@@ -378,7 +378,7 @@ budget errors, and preparation schemas contain blocker/conflict payloads
 [bulk preparation][bulk-schemas]). A constructor without an explicit hint does not
 by itself prove that the final wire error has no hint; the shared error conversion
 and a real response must also be inspected. Do not label a schema rejection as a
-schema *design defect* solely because it rejected invalid arguments.
+schema _design defect_ solely because it rejected invalid arguments.
 
 ### Adjacency evidence available without execution
 
@@ -392,7 +392,7 @@ scripts use aggregate then one or more result queries ([retained path][result-ta
 
 These are authored paths, not observed model transition frequencies. The complete
 reading-plan adjacency counts and per-scenario ideal lengths are not yet extracted.
-None of these examples establishes that a pair *always* occurs across the lab.
+None of these examples establishes that a pair _always_ occurs across the lab.
 
 ## Excel 0.13 chain gaps
 
