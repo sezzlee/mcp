@@ -257,6 +257,19 @@ export function applyPivotChange(
     )[0]?.attributes.get("ref");
     if (!oldRange)
       invalidPresentation("The prior pivot output location is absent.");
+    if (sheet.name === workbook.sheet(change.sourceSheet).name) {
+      const previous = boundsOf(oldRange),
+        source = boundsOf(change.sourceRange);
+      if (
+        previous.top <= source.bottom &&
+        previous.bottom >= source.top &&
+        previous.left <= source.right &&
+        previous.right >= source.left
+      )
+        invalidPresentation(
+          "Clearing the previous pivot output would overlap its source.",
+        );
+    }
     workbook.apply([
       { kind: "clear_contents", sheetName: sheet.name, range: oldRange },
     ]);
