@@ -14,7 +14,12 @@ import {
 } from "../../agent/agent-run.ts";
 import { runPlan } from "../../agent/baseline.ts";
 import { readCatalog, type Task } from "../../agent/task.ts";
-import type { LabScenario, ModelPolicy, TrialRecord } from "../trial.ts";
+import {
+  underCondition,
+  type LabScenario,
+  type ModelPolicy,
+  type TrialRecord,
+} from "../trial.ts";
 
 const catalog = await readCatalog();
 
@@ -111,6 +116,7 @@ function scenario(task: Task): LabScenario {
           repetition: input.repetition ?? 0,
         };
         const manifestHash = input.manifestHash ?? "unpinned";
+        const condition = underCondition(policy, input.condition);
         const record = await runTask({
           task,
           key,
@@ -121,8 +127,10 @@ function scenario(task: Task): LabScenario {
           catalog,
           host: input.host,
           client: session.client,
-          tools: await toolSpecsOf(session.client),
-          window: policy.window,
+          tools: (await toolSpecsOf(session.client)).filter((tool) =>
+            condition.catalog.includes(tool.function.name),
+          ),
+          window: condition.window,
           temperature: input.temperature ?? 0,
           thinking: policy.thinking,
           callBudget: policy.calls,
