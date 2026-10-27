@@ -38,6 +38,23 @@ def rows(values):
     return [[grid.get(row, {}).get(column) for column in range(1, width + 1)] for row in range(1, max(grid) + 1)]
 
 
+def summed_cells(formula):
+    inner = re.fullmatch(r'SUM\((.*)\)', formula)
+    if inner is None:
+        return None
+    cells = set()
+    for part in inner.group(1).split(','):
+        bounds = re.fullmatch(r'([A-Z]+[0-9]+)(?::([A-Z]+[0-9]+))?', part)
+        if bounds is None:
+            return None
+        first, last = bounds.group(1), bounds.group(2) or bounds.group(1)
+        (top, left), (bottom, right) = split(first), split(last)
+        for row in range(top, bottom + 1):
+            for column in range(left, right + 1):
+                cells.add(f'{wb.column_letters(column)}{row}')
+    return cells
+
+
 def opened(path):
     assert path is not None, 'no output'
     return wb.Workbook(path)
@@ -82,27 +99,41 @@ def summary_formulas(source, output, extra):
     assert book.values('Sales') == original.values('Sales'), 'sales data changed'
     assert 'Summary' in book.order, ('no Summary sheet', book.order)
     cells = book.cells('Summary')
+
+    def beside(reference):
+        row, column = split(reference)
+        return [
+            (key, wb.normalized(cell['formula']))
+            for key, cell in cells.items()
+            if split(key)[0] == row and split(key)[1] > column and cell['formula'] is not None
+        ]
+
     labels = {}
     for reference, cell in cells.items():
         if cell['formula'] is None and isinstance(cell['value'], str):
-            labels[cell['value'].strip().casefold()] = split(reference)
+            labels.setdefault(cell['value'].strip().casefold(), []).append(reference)
     linked = {}
-    for label in ('food', 'toys', 'books', 'total'):
+    categories = set()
+    for label in ('food', 'toys', 'books'):
         assert label in labels, ('missing label', label, sorted(labels))
-        row, column = labels[label]
-        found = [
-            wb.normalized(cell['formula'])
-            for reference, cell in cells.items()
-            if split(reference)[0] == row and split(reference)[1] > column and cell['formula'] is not None
-        ]
+        found = [item for reference in labels[label] for item in beside(reference)]
         assert len(found) == 1, ('one formula beside', label, found)
-        formula = found[0]
-        assert 'SALES!' in formula, ('not linked to Sales', label, formula)
-        if label == 'total':
-            assert 'SUM' in formula, ('total is not a sum', formula)
-        else:
-            assert 'SUMIF' in formula, ('category total is not conditional', label, formula)
+        key, formula = found[0]
+        assert 'SALES!' in formula and 'SUMIF' in formula, ('category total is not a conditional sum of Sales', label, formula)
+        categories.add(key)
         linked[label] = formula
+    totals = [
+        item
+        for label in ('total', 'grand total', 'toplam', 'genel toplam')
+        for reference in labels.get(label, [])
+        for item in beside(reference)
+    ]
+    assert len(totals) == 1, ('one grand total formula', totals)
+    formula = totals[0][1]
+    assert formula.startswith('SUM('), ('total is not a sum', formula)
+    if 'SALES!' not in formula:
+        assert summed_cells(formula) == categories, ('total does not sum the category totals', formula, sorted(categories))
+    linked['total'] = formula
     numbers = [
         reference for reference, cell in cells.items()
         if cell['formula'] is None and isinstance(cell['value'], (int, float)) and not isinstance(cell['value'], bool)
