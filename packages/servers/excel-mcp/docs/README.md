@@ -6,6 +6,8 @@ Phase 5, 2026-10-26: formats, layout, safe merge, the full table lifecycle and o
 
 ## Hedef ve dayanak
 
+Phase 6, 2026-10-27: bounded server-side formula calculation is implemented with results in both tool responses and new immutable `.xlsx` versions. The [plan](phase-6/implementation-plan.md) audits earlier-phase obligations; the [implementation status](phase-6/implementation-status.md) records independent semantics, model/output checks and acceptance gates. It joins the existing Phase 4–5 PR. Phase 7 remains separate.
+
 Agent yeni Excel oluşturabilmeli, doğrudan verilen veya önceden okunan verilerle doldurabilmeli, konuşma boyunca düzenlemeye devam edebilmeli ve basitten uzman seviyesine kadar toplu işlemler yapabilmeli.
 
 Bütün hedef ve fazlar birlikte değerlendirilir; kodlama bu plana göre faz faz yapılır. Belgeler Türkçedir. Kütüphane, motor ve araç adları ihtiyaçlar yerine geçmez; bu plan bunları peşinen seçmez.

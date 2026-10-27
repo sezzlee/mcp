@@ -4,7 +4,12 @@
     "build": { "inputs": ["$TURBO_DEFAULT$", "!test/**", "!vitest.config.ts"] },
     "test": {
       "dependsOn": ["build"],
-      "env": ["SEZZLEE_CORPUS", "SEZZLEE_TYPED_FUZZ_SEED", "TZ"]
+      "env": [
+        "SEZZLEE_CORPUS",
+        "SEZZLEE_TYPED_FUZZ_SEED",
+        "SEZZLEE_CALCULATION_ORACLE",
+        "TZ"
+      ]
     },
     "test:coverage": {
       "dependsOn": ["build"],

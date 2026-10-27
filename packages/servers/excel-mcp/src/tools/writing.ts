@@ -49,6 +49,7 @@ import {
   bulkJobStatusInputSchema,
 } from "./bulk-job-schemas.js";
 import { prepareBulkJob, runBulkJob, getBulkJob } from "./bulk-jobs.js";
+import { calculateWorkbook } from "../calculation/workbook.js";
 
 const finishAdvice =
   'Optional job.finish is at the job root, never inside group: [{"output":"report","changes":[{"kind":"format_cells","sheetName":"S","range":"C2:C4","style":{"numberFormat":"0.00"}}]}]. For independent jobs each finish entry additionally names job. Changes use edit_workbook authoring kinds and run after data rendering, before the existing atomic publication. Formula changes require formula text and never calculate results. ';
@@ -56,6 +57,12 @@ const tableAdvice =
   ' Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]*[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically.';
 
 export const writingToolDefinitions = {
+  calculate_workbook: {
+    description:
+      "Calculate supported formulas from an exact .xlsx source version and save typed cached results in a new immutable version. Returns bounded cell results, completion and unavailable diagnostics. Recomputes the workbook within strict budgets; no Excel installation or external access. Unsupported formulas, cycles and unavailable dependencies lose stale caches. Formula errors remain typed Excel errors. Only the advertised functions and rectangular A1/static named/table references are supported. Shared/array formulas, volatile functions, external links and iterative calculation are unsupported. Read omitted or long results from the returned output version. The saved workbook conservatively requests recalculation when opened in Excel.",
+    inputSchema: z.strictObject({ source: workbookVersionSchema }),
+    annotations: ownOutput,
+  },
   prepare_bulk_job: {
     description:
       finishAdvice +
@@ -227,6 +234,32 @@ export function createWritingHandlers(
     return { snapshots, buffers };
   }
   return {
+    calculate_workbook: guardWriting<
+      typeof writingToolDefinitions,
+      "calculate_workbook"
+    >(root, "calculate_workbook", (args, _name, signal) =>
+      admitted(async () => {
+        await checkpoint(signal);
+        const snapshot = await readWorkbookSnapshot(
+          root,
+          args.source.filePath,
+          args.source.versionId,
+        );
+        const calculated = calculateWorkbook(snapshot.bytes);
+        await checkpoint(signal);
+        await readWorkbookSnapshot(
+          root,
+          snapshot.version.filePath,
+          snapshot.version.versionId,
+        );
+        await checkpoint(signal);
+        const receipt = await output.publish(calculated.bytes, {
+          kind: "source",
+          version: snapshot.version,
+        });
+        return json({ ...receipt, calculation: calculated.calculation });
+      }),
+    ),
     prepare_bulk_job: guardWriting<
       typeof writingToolDefinitions,
       "prepare_bulk_job"

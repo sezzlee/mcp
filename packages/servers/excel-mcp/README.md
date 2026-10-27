@@ -41,7 +41,19 @@ Table range resizing changes the row extent while retaining header position and 
 
 Bulk jobs can finish each selected output with ordered presentation/formula changes before atomic publication. A failed group leaves no partially finished report. Independent groups retain their successful outputs and report partial status; identical retries reuse durable results.
 
-Formulas are written without fabricated cached results. The server does not calculate them; receipts report required recalculation. Dynamic spilling arrays and new external workbook formula links remain outside this authoring profile. See [Phase 5 acceptance](docs/phase-5/implementation-status.md) for measured results and remaining platform gates.
+Authoring writes formulas without fabricated cached results and reports required recalculation. Use the separate `calculate_workbook` tool to evaluate the explicitly supported formula subset and save typed caches in a new version. Dynamic spilling arrays and new external workbook formula links remain outside this authoring profile. See [Phase 5 acceptance](docs/phase-5/implementation-status.md) and the [Phase 6 contract](docs/phase-6/implementation-plan.md).
+
+### Explicit formula calculation
+
+In writing mode, `calculate_workbook({source: {filePath, versionId}})` recalculates the selected workbook from its actual inputs. It returns a new immutable version, a calculation summary and up to 20 cell results. Longer string results and additional cells remain available in the saved workbook; the response reports omissions. Formula text, supported formatting, tables and unrelated package parts are preserved.
+
+The `bounded-excel-v1` engine supports ordinary arithmetic, percent, concatenation and comparisons; SUM, AVERAGE, MIN, MAX, COUNT, COUNTA, COUNTBLANK, IF, IFERROR, AND, OR, NOT, SUMIF, COUNTIF, ABS, ROUND, ROUNDUP, ROUNDDOWN, exact VLOOKUP, exact MATCH and scalar INDEX. References include rectangular A1 ranges, quoted/cross-sheet references, absolute static names with sheet scope and supported Phase 5 structured table references. Dates retain the workbook's numeric 1900/1904 serial system. Literal formula-looking text stays text.
+
+`calculation.complete` describes whether every formula was evaluated within this subset; typed Excel errors count as evaluated results. Unsupported formulas, cycles and unavailable dependencies have distinct diagnostics and no retained stale caches. `cacheStatus` is `current` or `partial`. The saved file conservatively requests full recalculation when opened by a spreadsheet application; `recalculationRequired: true` describes that file setting, not a claim that successful server results came from an old cache. A later ordinary edit invalidates formula caches again.
+
+Shared formulas are reported unavailable with caches cleared. Array/data-table groups, iterative calculation, precision-as-displayed, R1C1 formulas and unsupported preservation profiles are refused without publishing. Volatile functions, external workbooks, UDFs, dynamic arrays, approximate lookups, wildcard lookups, formula-defined names and relative name anchors are unsupported. SUMIF requires equally shaped ranges. Localized date/currency text coercion is outside the numeric-text subset.
+
+Calculation is bounded to 128 sheets, 100,000 stored cells, 10,000 formula cells, 10,000 names, 8,192 formula characters, 100,000 cells per expanded range, combined depth 128 and 1,000,000 work steps. Limit exhaustion preserves the source and all retained outputs. Calculation is a separate version operation after a bulk job; it does not change that job's atomic publication boundary. No Excel installation or additional runtime package is required.
 
 ## Tools
 
@@ -404,11 +416,12 @@ mkdir -p /absolute/workbooks/out
 sezzlee-excel /absolute/workbooks --write out
 ```
 
-This adds five own-output tools, four read-only preparation tools and one read-only status tool. They never overwrite a source or an existing output. Single-version names use SHA-256 content versions; bulk groups use an immutable job directory containing content-addressed workbooks and a completion manifest. Identical requests reuse verified outputs. All writing-mode tools share one admission slot per server.
+This adds six own-output tools, four read-only preparation tools and one read-only status tool. They never overwrite a source or an existing output. Single-version names use SHA-256 content versions; bulk groups use an immutable job directory containing content-addressed workbooks and a completion manifest. Identical requests reuse verified outputs. All writing-mode tools share one admission slot per server.
 
 | Tool                    | Behavior                                                                                                                                                                                                                             |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | create_workbook         | Create an immutable .xlsx from a non-empty ordered list of named sheets. Each sheet may contain rectangular blocks with an explicit A1 startCell. Omit blocks for an empty sheet.                                                    |
+| calculate_workbook      | Evaluate the supported formula subset from an exact source version, return bounded results and diagnostics, and save typed caches in a new immutable .xlsx.                                                                        |
 | edit_workbook           | Atomically edit an exact .xlsx version: values, clear, sheets, ranges and rows/columns, preserving supported existing content and dependencies.                                                                                      |
 | create_workbook_version | Validate and prepare an immutable copy of an existing .xlsx, without changing sheets or cells. Its optional expectedVersion rejects a changed source. Copying an external workbook does not make it eligible for Phase 1 editing.    |
 | prepare_transfer        | Select complete range values, filtered/projected records or a grouped summary from .xlsx/.xlsm/CSV. Returns a version-pinned transfer reference and counts, without returning the dataset or writing a file.                         |

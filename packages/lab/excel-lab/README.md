@@ -19,6 +19,8 @@ bulk-agent-cli runs scripted baselines before optional actual-model trials. Publ
 
 After a successful bulk-bench run, run `python3 scripts/bulk-application-oracle.py <run-directory>` from this package. It first checks the independent bulk oracle, then opens every unique selected output in actual LibreOffice Calc, converts it to ODS and compares all scalar coordinates, types, values and order with the independently checked OOXML. It verifies that application opening leaves original workbook bytes unchanged and writes application-oracle.json. The soffice executable must be on PATH. This is selected application acceptance, not a whole-corpus compatibility claim.
 
+The harness also includes [server-side calculation acceptance](CALCULATION.md), with independent cache checks and optional live Ollama scenarios.
+
 The corpus harness for `@sezzlee/excel-mcp`. It runs the built server over a local corpus of
 real-world workbooks and records, per file, what every tool call answered, how long it took and
 how much memory the process needed.
