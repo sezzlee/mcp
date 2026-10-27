@@ -1,4 +1,4 @@
-import { json, measureJson } from "@sezzlee/file-core";
+import { asciiUpper, json, measureJson } from "@sezzlee/file-core";
 import { limits, modePolicy } from "../platform/limits.js";
 import {
   listWorkbooks,
@@ -22,7 +22,7 @@ import {
   type LoadedDocument,
   sheetSource,
 } from "../format/document.js";
-import { aggregateSheet } from "../grid/aggregate.js";
+import { aggregateSheet, type GroupingResult } from "../grid/aggregate.js";
 import type { ColumnMode } from "../grid/columns.js";
 import { columnMembers } from "../grid/members.js";
 import type { Condition } from "../grid/predicate.js";
@@ -32,6 +32,12 @@ import { inheritCursorOptions, decodeCursor } from "../grid/cursor.js";
 import type { ToolHandlers, ToolInput } from "./definitions.js";
 import { guard } from "./guard.js";
 import {
+  createResultCapture,
+  createResultStore,
+  type ResultCapture,
+  type ResultStore,
+} from "./retained-results.js";
+import {
   assertHeaderScan,
   assertPictureKind,
   createXlsxOpener,
@@ -40,7 +46,7 @@ import {
 import { resolveHeaderRow } from "./coerce.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import {
-  modeEnvelopeBytes,
+  sourceEnvelopeBytes,
   withAggregateEnvelope,
   withCsv,
   withMode,
@@ -93,8 +99,12 @@ function worksheetsWithData(loaded: LoadedDocument): string[] {
 
 type ToolCondition = NonNullable<ToolInput<"aggregate_sheet">["where"]>[number];
 
-export function createHandlers(root: WorkbookRoot): ToolHandlers {
+export function createHandlers(
+  root: WorkbookRoot,
+  results: ResultStore = createResultStore(),
+): ToolHandlers & { readonly dispose: () => void } {
   const cache = createDocumentCache(root.real);
+  let disposed = false;
   const openXlsx = createXlsxOpener(root, cache);
   const openFor = async (path: string, csv: CsvOptions = {}) =>
     cache.load(await resolveWorkbookPath(root, path), csv);
@@ -111,6 +121,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
       readonly columnMode: ColumnMode;
       readonly mergedCells: "master" | "repeat";
       readonly caseSensitive: boolean;
+      readonly memberVersions: Set<string>;
     },
   ): Promise<Condition[] | undefined> => {
     if (conditions === undefined) return undefined;
@@ -146,6 +157,8 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
           source.filePath === undefined
             ? context.loaded
             : await openFor(source.filePath);
+        if (target.stamp !== context.loaded.stamp)
+          context.memberVersions.add(target.stamp);
         const sourceArgs = {
           ...(source.sheetName === undefined
             ? {}
@@ -174,6 +187,11 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
   };
 
   return {
+    dispose: () => {
+      disposed = true;
+      results.clear();
+      cache.clear();
+    },
     list_workbooks: guard(
       { root: root.real, tool: "list_workbooks" },
       async (args) => {
@@ -204,7 +222,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               },
               args.includeDefinedNames ?? true,
             ),
-            loaded.mode,
+            loaded,
           ),
         );
       },
@@ -229,7 +247,8 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         withCsv(
           readSheet(sheetSource(loaded), {
             ...gridSelection(loaded, args),
-            extraEnvelopeBytes: csvEnvelope(report) + modeEnvelopeBytes,
+            extraEnvelopeBytes:
+              csvEnvelope(report) + sourceEnvelopeBytes(loaded),
             ...(args.sheetName === undefined
               ? {}
               : { sheetName: args.sheetName }),
@@ -257,7 +276,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
             includeHyperlinks: args.includeHyperlinks ?? false,
           }),
           report,
-          loaded.mode,
+          loaded,
         ),
       );
     }),
@@ -284,7 +303,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               maxColumns: args.maxColumns ?? limits.maxProfileColumnsDefault,
             }),
             csvReportOf(loaded),
-            loaded.mode,
+            loaded,
           ),
         );
       },
@@ -297,10 +316,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         const sheet = documentSheet(loaded, args.sheetName);
         const merges = sheet.merges;
         return json(
-          withMode(
-            { sheet: sheet.name, merges, count: merges.length },
-            loaded.mode,
-          ),
+          withMode({ sheet: sheet.name, merges, count: merges.length }, loaded),
         );
       },
     ),
@@ -313,7 +329,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         return json(
           withMode(
             collectValidations(sheet, loaded.workbook.facts(sheet).validations),
-            loaded.mode,
+            loaded,
           ),
         );
       },
@@ -327,7 +343,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
         return json(
           withMode(
             collectTables(sheet, loaded.workbook.facts(sheet).tables),
-            loaded.mode,
+            loaded,
           ),
         );
       },
@@ -344,7 +360,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               sheet,
               loaded.workbook.facts(sheet).conditionalFormats,
             ),
-            loaded.mode,
+            loaded,
           ),
         );
       },
@@ -363,7 +379,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               loaded.workbook.facts(sheet).images,
               loaded.workbook.media,
             ),
-            loaded.mode,
+            loaded,
           ),
         );
       },
@@ -389,7 +405,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
                   : { maxPoints: args.maxPoints }),
               },
             ),
-            loaded.mode,
+            loaded,
           ),
         );
       },
@@ -398,6 +414,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
     aggregate_sheet: guard(
       { root: root.real, tool: "aggregate_sheet" },
       async (args) => {
+        const retained = args.resultMode === "retained";
         assertHeaderScan(args, args.filePath);
         const loaded = await openFor(args.filePath, csvOptionsOf(args));
         const context = {
@@ -405,6 +422,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
           columnMode: args.columnMode ?? "auto",
           mergedCells: args.mergedCells ?? "master",
           caseSensitive: args.caseSensitive ?? false,
+          memberVersions: new Set<string>(),
         } as const;
         const where = await withMembers(args.where, context);
         const metrics = await Promise.all(
@@ -415,45 +433,157 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               : { ...metric, where: resolved };
           }),
         );
+        const captures = retained
+          ? [undefined, ...(args.groupingSets ?? [])].map(() =>
+              createResultCapture(),
+            )
+          : undefined;
+        const result = aggregateSheet(
+          sheetSource(loaded),
+          {
+            ...gridSelection(loaded, args),
+            ...readingHintsOf(args),
+            ...(args.sheetName === undefined
+              ? {}
+              : { sheetName: args.sheetName }),
+            ...(args.range === undefined ? {} : { range: args.range }),
+            ...(args.groupBy === undefined ? {} : { groupBy: args.groupBy }),
+            ...(args.pivotBy === undefined ? {} : { pivotBy: args.pivotBy }),
+            ...(args.groupingSets === undefined
+              ? {}
+              : { groupingSets: args.groupingSets }),
+            metrics,
+            ...(where === undefined ? {} : { where }),
+            match: args.match ?? "all",
+            ...resolveHeaderRow(loaded, args),
+            columnMode: args.columnMode ?? "auto",
+            caseSensitive: args.caseSensitive ?? false,
+            ...(args.columns === undefined ? {} : { columns: args.columns }),
+            mergedCells: args.mergedCells ?? "master",
+            orderBy: args.orderBy ?? "group",
+            ...(args.orderByMetric === undefined
+              ? {}
+              : { orderByMetric: args.orderByMetric }),
+            ...(args.orderByDerived === undefined
+              ? {}
+              : { orderByDerived: args.orderByDerived }),
+            ...(args.derived === undefined ? {} : { derived: args.derived }),
+            descending: args.descending ?? false,
+            maxGroups: args.maxGroups ?? limits.maxGroupsDefault,
+          },
+          captures === undefined
+            ? undefined
+            : (grouping, row, matchedRows) => {
+                const capture = captures[grouping];
+                if (capture === undefined)
+                  throw new SezzleeExcelError(
+                    "internal_error",
+                    "The calculated result has no capture for a grouping.",
+                  );
+                capture.add(row, matchedRows);
+              },
+        );
+        if (captures !== undefined) {
+          if (disposed)
+            throw new SezzleeExcelError(
+              "result_unavailable",
+              "This server instance has closed.",
+              "Start a new server instance and repeat the aggregate.",
+            );
+          const {
+            rows: _rows,
+            returnedGroups: _returnedGroups,
+            returnedMatchedRows: _returnedMatchedRows,
+            omittedMatchedRows: _omittedMatchedRows,
+            truncated: _truncated,
+            truncationReason: _truncationReason,
+            hint: _hint,
+            groupingSets: sets = [],
+            columns: _columns,
+            groupCount: _groupCount,
+            ungroupedRows: _ungroupedRows,
+            pivotBy: _pivotBy,
+            ...shared
+          } = result;
+          const mismatch = (): never => {
+            throw new SezzleeExcelError(
+              "internal_error",
+              "The calculated groupings do not match their captures.",
+            );
+          };
+          const [primary = mismatch(), ...rest] = captures;
+          if (rest.length !== sets.length) mismatch();
+          const memberSourceVersions = [...context.memberVersions].sort();
+          const explicitDates = (args.columns ?? []).filter(
+            (spec) => spec.type === "date",
+          );
+          const request = (
+            capture: ResultCapture,
+            grouping: GroupingResult,
+          ) => ({
+            capture,
+            dateColumns: grouping.columns.flatMap((column, at) =>
+              column.kindUsed === "date" ||
+              (column.role === "group" &&
+                column.by === undefined &&
+                column.bins === undefined &&
+                column.width === undefined &&
+                explicitDates.some(
+                  (spec) =>
+                    spec.column === column.label ||
+                    asciiUpper(spec.column) === column.letter,
+                ))
+                ? [at + 1]
+                : [],
+            ),
+            metadata: withAggregateEnvelope(
+              {
+                ...shared,
+                columns: grouping.columns,
+                groupCount: grouping.groupCount,
+                ...(grouping.ungroupedRows === undefined
+                  ? {}
+                  : { ungroupedRows: grouping.ungroupedRows }),
+                ...(grouping.pivotBy === undefined
+                  ? {}
+                  : { pivotBy: grouping.pivotBy }),
+                sourceVersion: loaded.stamp,
+                sourcePolicy: "snapshot" as const,
+                ...(memberSourceVersions.length === 0
+                  ? {}
+                  : { memberSourceVersions }),
+              },
+              csvReportOf(loaded),
+              loaded,
+              args.compact ?? false,
+            ),
+          });
+          return json(
+            results.retain(
+              [
+                request(primary, result),
+                ...sets.map((grouping, at) =>
+                  request(rest[at] ?? mismatch(), grouping),
+                ),
+              ],
+              args.maxGroups ?? limits.maxGroupsDefault,
+            ),
+          );
+        }
         return json(
           withAggregateEnvelope(
-            aggregateSheet(sheetSource(loaded), {
-              ...gridSelection(loaded, args),
-              ...readingHintsOf(args),
-              ...(args.sheetName === undefined
-                ? {}
-                : { sheetName: args.sheetName }),
-              ...(args.range === undefined ? {} : { range: args.range }),
-              ...(args.groupBy === undefined ? {} : { groupBy: args.groupBy }),
-              ...(args.pivotBy === undefined ? {} : { pivotBy: args.pivotBy }),
-              ...(args.groupingSets === undefined
-                ? {}
-                : { groupingSets: args.groupingSets }),
-              metrics,
-              ...(where === undefined ? {} : { where }),
-              match: args.match ?? "all",
-              ...resolveHeaderRow(loaded, args),
-              columnMode: args.columnMode ?? "auto",
-              caseSensitive: args.caseSensitive ?? false,
-              ...(args.columns === undefined ? {} : { columns: args.columns }),
-              mergedCells: args.mergedCells ?? "master",
-              orderBy: args.orderBy ?? "group",
-              ...(args.orderByMetric === undefined
-                ? {}
-                : { orderByMetric: args.orderByMetric }),
-              ...(args.orderByDerived === undefined
-                ? {}
-                : { orderByDerived: args.orderByDerived }),
-              ...(args.derived === undefined ? {} : { derived: args.derived }),
-              descending: args.descending ?? false,
-              maxGroups: args.maxGroups ?? limits.maxGroupsDefault,
-            }),
+            result,
             csvReportOf(loaded),
-            loaded.mode,
+            loaded,
             args.compact ?? false,
           ),
         );
       },
+    ),
+
+    query_result: guard(
+      { root: root.real, tool: "query_result" },
+      async (args) => json(results.query(args)),
     ),
 
     find_in_sheet: guard(
@@ -485,7 +615,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
             await find({
               ...gridSelection(loaded, args),
               extraEnvelopeBytes:
-                modeEnvelopeBytes +
+                sourceEnvelopeBytes(loaded) +
                 (csvReportOf(loaded) === undefined
                   ? 0
                   : measureJson({ csv: csvReportOf(loaded) })),
@@ -505,7 +635,7 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
               maxResults: args.maxResults ?? limits.defaultFindResults,
             }),
             csvReportOf(loaded),
-            loaded.mode,
+            loaded,
           ),
         );
       },

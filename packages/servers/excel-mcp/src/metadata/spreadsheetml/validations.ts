@@ -164,16 +164,6 @@ function rangesOf(sqref: string | undefined): string[] {
     .map(cleanRange);
 }
 
-function identityOf(draft: Draft): string {
-  return JSON.stringify([
-    draft.type,
-    draft.formulae,
-    Object.entries(draft.attributes).sort(([left], [right]) =>
-      left < right ? -1 : left > right ? 1 : 0,
-    ),
-  ]);
-}
-
 export function validationScan(date1904: boolean): PartScan<OoxmlValidations> {
   const drafts: Draft[] = [];
   let current: Draft | undefined;
@@ -241,25 +231,21 @@ export function validationScan(date1904: boolean): PartScan<OoxmlValidations> {
   return { visitor, finish: () => validationsOf(drafts) };
 }
 
+/**
+ * Guard: each stored `<dataValidation>` stays one rule, even when another has
+ * the same type and formulas, because `remove_validation` selects exactly one
+ * stored rule by its ranges. Merged rules reported ranges no change could name.
+ */
 function validationsOf(drafts: readonly Draft[]): OoxmlValidations {
-  const grouped = new Map<string, Draft>();
   let coveredCellCount = 0;
-  for (const draft of drafts) {
+  for (const draft of drafts)
     coveredCellCount += draft.ranges.reduce(
       (total, range) => total + areaOf(range),
       0,
     );
-    const key = identityOf(draft);
-    const existing = grouped.get(key);
-    if (existing === undefined) {
-      grouped.set(key, draft);
-    } else {
-      existing.ranges.push(...draft.ranges);
-    }
-  }
 
   let rangesTruncated = false;
-  const rules = [...grouped.values()].map((draft): OoxmlValidationRule => {
+  const rules = drafts.map((draft): OoxmlValidationRule => {
     const truncated = draft.ranges.length > limits.maxRangesPerRule;
     rangesTruncated = rangesTruncated || truncated;
     return {

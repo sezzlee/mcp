@@ -1,6 +1,12 @@
 import type { PresentationChange } from "../authoring/presentation.js";
 import type { PreservedWorkbook } from "./preserved-workbook.js";
 import { boundsOf } from "./preserved-workbook.js";
+import {
+  maxColumn,
+  maxRow,
+  resolveRange,
+  type GridBounds,
+} from "../grid/range.js";
 import { intersectsRange } from "./presentation-workbook.js";
 import { validateAuthoredFormula } from "./formula-authoring.js";
 import { StyleAuthoring } from "./style-authoring.js";
@@ -27,6 +33,38 @@ type ConditionalChange = Extract<
   { kind: "set_conditional_format" | "remove_conditional_format" }
 >;
 
+const wholeSheet: GridBounds = {
+  top: 1,
+  left: 1,
+  bottom: maxRow,
+  right: maxColumn,
+};
+
+export function sqrefAreaBounds(area: string): GridBounds {
+  return resolveRange(wholeSheet, area.replaceAll("$", ""));
+}
+
+function areaKey(bounds: GridBounds): string {
+  return `${bounds.top}:${bounds.left}:${bounds.bottom}:${bounds.right}`;
+}
+
+function sameAreas(
+  left: readonly GridBounds[],
+  right: readonly GridBounds[],
+): boolean {
+  const keys = (areas: readonly GridBounds[]) =>
+    [...new Set(areas.map(areaKey))].sort().join(" ");
+  return keys(left) === keys(right);
+}
+
+export function validationTargets(change: ValidationChange): GridBounds[] {
+  if (change.kind === "remove_validation" && change.ranges !== undefined)
+    return change.ranges.map(sqrefAreaBounds);
+  if (change.range === undefined)
+    invalidPresentation("Select the validation rule by range or ranges.");
+  return [boundsOf(rectangle(change.range))];
+}
+
 function rectangle(range: string): string {
   const bounds = boundsOf(range);
   if (
@@ -42,33 +80,31 @@ export function applyValidationChange(
   change: ValidationChange,
 ): void {
   const part = workbook.sheet(change.sheetName).part;
-  const range = rectangle(change.range);
-  const target = boundsOf(range);
+  const targets = validationTargets(change);
   const xml = workbook.xml(part);
   const rules = xmlNodes(xml, "dataValidation", "dataValidations");
-  const overlapping = rules.filter((node) => {
-    const areas = (node.attributes.get("sqref") ?? "").split(/\s+/);
-    return areas.some((area) => intersectsRange(boundsOf(area), target));
-  });
+  const areasOf = (node: (typeof rules)[number]) =>
+    (node.attributes.get("sqref") ?? "")
+      .split(/\s+/)
+      .filter((area) => area !== "")
+      .map(sqrefAreaBounds);
+  const overlapping = rules.filter((node) =>
+    areasOf(node).some((area) =>
+      targets.some((target) => intersectsRange(area, target)),
+    ),
+  );
   if (
     overlapping.length > 1 ||
-    overlapping.some((node) => {
-      const area = node.attributes.get("sqref") ?? "";
-      if (/\s/.test(area)) return true;
-      const b = boundsOf(area);
-      return (
-        b.left !== target.left ||
-        b.top !== target.top ||
-        b.right !== target.right ||
-        b.bottom !== target.bottom
-      );
-    })
+    overlapping.some((node) => !sameAreas(areasOf(node), targets))
   )
     invalidPresentation(
       "A validation change must exactly select one existing rule; partial or multi-area overlap is unsupported.",
     );
   if (change.kind === "remove_validation" && overlapping.length !== 1)
     invalidPresentation("No validation rule exists at the selected range.");
+  const [target] = targets;
+  if (target === undefined)
+    invalidPresentation("Select the validation rule by range or ranges.");
   if (
     change.kind === "set_validation" &&
     overlapping.length &&
@@ -123,7 +159,7 @@ export function applyValidationChange(
         invalidPresentation("Text-length bounds cannot be negative.");
       formulas = rule.bounds.map(String);
     }
-    let raw = `<dataValidation xmlns="${main}" type="${rule.type}" sqref="${xmlEscape(range)}" allowBlank="${change.allowBlank ? 1 : 0}" showErrorMessage="1" errorStyle="${change.errorStyle}"${rule.type === "list" ? ' showDropDown="0"' : ""}${"operator" in rule ? ` operator="${rule.operator}"` : ""}>${formulas.map((formula, i) => `<formula${i + 1}>${xmlEscape(formula)}</formula${i + 1}>`).join("")}</dataValidation>`;
+    let raw = `<dataValidation xmlns="${main}" type="${rule.type}" sqref="${xmlEscape(change.range)}" allowBlank="${change.allowBlank ? 1 : 0}" showErrorMessage="1" errorStyle="${change.errorStyle}"${rule.type === "list" ? ' showDropDown="0"' : ""}${"operator" in rule ? ` operator="${rule.operator}"` : ""}>${formulas.map((formula, i) => `<formula${i + 1}>${xmlEscape(formula)}</formula${i + 1}>`).join("")}</dataValidation>`;
     for (const key of ["errorTitle", "error", "promptTitle", "prompt"] as const)
       if (change[key] !== undefined) raw = attribute(raw, key, change[key]);
     if (change.prompt !== undefined || change.promptTitle !== undefined)
@@ -153,7 +189,9 @@ export function applyConditionalChange(
   const groups = xmlNodes(xml, "conditionalFormatting", "worksheet");
   const rules = xmlNodes(xml, "cfRule", "conditionalFormatting");
   const selected = rules.filter(
-    (node) => node.attributes.get("priority") === String(change.priority),
+    (node) =>
+      Number.parseInt(node.attributes.get("priority") ?? "", 10) ===
+      change.priority,
   );
   if (selected.length > 1)
     invalidPresentation("The conditional-format priority is ambiguous.");

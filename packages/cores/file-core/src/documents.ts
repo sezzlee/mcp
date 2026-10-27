@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { stat } from "node:fs/promises";
 import { relative } from "node:path";
 import {
@@ -7,11 +8,7 @@ import {
   knownRoot,
   pinRoot,
 } from "./access.js";
-import {
-  contentFingerprint,
-  fingerprintFromDigest,
-  type Fingerprint,
-} from "@sezzlee/mcp-core";
+import { fingerprintFromDigest, type Fingerprint } from "@sezzlee/mcp-core";
 import { type CoreErrorCode, type ErrorFactory } from "./errors.js";
 import { modeFor, type ModePolicy, type SourceMode } from "./mode.js";
 import type { SandboxedPath } from "./paths.js";
@@ -41,6 +38,8 @@ async function tooLargeMessage(
 
 export interface OpenedFile {
   readonly stamp: Fingerprint;
+  /** Lowercase hex SHA-256 of the exact bytes the document was parsed from. */
+  readonly contentDigest: string;
   readonly sizeBytes: number;
   readonly modifiedAt: string;
   readonly mode: SourceMode;
@@ -184,12 +183,14 @@ export function createDocumentStore<Loaded, Options>(
         assertSnapshot(read, maxBytes);
         return read;
       });
-      const stamp = contentFingerprint(path, snapshot.bytes, variant);
+      const digest = createHash("sha256").update(snapshot.bytes).digest();
+      const stamp = fingerprintFromDigest(path, digest, variant);
       if (cached !== undefined && unchanged(stamp, snapshot.modifiedMs))
         return remember(key, cached);
       const modifiedAt = new Date(snapshot.modifiedMs).toISOString();
       const opened: OpenedFile = {
         stamp,
+        contentDigest: digest.toString("hex"),
         sizeBytes: snapshot.size,
         modifiedAt,
         mode: modeFor(snapshot.size, spec.mode),

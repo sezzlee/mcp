@@ -122,6 +122,40 @@ export interface EditInspection {
   readonly cellsRequested: number;
 }
 
+export function workbookSheetNames(bytes: Buffer): string[] {
+  const opc = openOpcPackage(zipSource(bytes));
+  const entry = [...opc.packageRelationships.values()].find((candidate) =>
+    officeDocument.has(candidate.type),
+  );
+  if (entry?.kind !== "internal")
+    throw new SezzleeExcelError(
+      "not_a_workbook",
+      "The package must have one internal workbook entry point.",
+    );
+  const names: string[] = [];
+  const stack: string[] = [];
+  opc.scanPart(entry.target, {
+    onOpen(node) {
+      const parent = stack.at(-1);
+      const main = transitionalNamespace(node.uri) === namespaces.spreadsheetml;
+      stack.push(main ? node.local : "");
+      const name = node.attr("name");
+      if (
+        main &&
+        stack.length === 3 &&
+        parent === "sheets" &&
+        node.local === "sheet" &&
+        name !== undefined
+      )
+        names.push(unescapeXstring(name));
+    },
+    onClose() {
+      stack.pop();
+    },
+  });
+  return names;
+}
+
 export function inspectWorkbookEdit(
   bytes: Buffer,
   changes: readonly EditChange[],

@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import JSZip from "jszip";
 import { describe, expect, inject, it } from "vitest";
 import { loadDocument, type LoadedWorkbook } from "../src/format/document.js";
 import { collectImages } from "../src/metadata/images.js";
@@ -65,11 +67,26 @@ describe("collectImages", () => {
     }
   });
 
-  it("invents neither a name nor an alt text, because neither is parsed", async () => {
+  it("reports each picture's stored drawing name and invents no alt text", async () => {
+    const zip = await JSZip.loadAsync(
+      await readFile(await pathTo("facets.xlsx")),
+    );
+    const drawings = await Promise.all(
+      Object.keys(zip.files)
+        .filter((part) => /^xl\/drawings\/drawing\d+\.xml$/.test(part))
+        .sort()
+        .map(async (part) => (await zip.file(part)?.async("string")) ?? ""),
+    );
+    const stored = drawings.flatMap((xml) =>
+      [
+        ...xml.matchAll(/<xdr:pic>[\s\S]*?<xdr:cNvPr\b[^>]*\bname="([^"]*)"/g),
+      ].map((match) => match[1]),
+    );
     const report = await facets("Resimler");
+    expect(stored).toHaveLength(2);
+    expect(report.images.map((image) => image.name)).toEqual(stored);
     for (const image of report.images) {
-      expect("name" in image).toBe(false);
-      expect("descr" in image).toBe(false);
+      expect("altText" in image).toBe(false);
       expect("buffer" in image).toBe(false);
     }
   });

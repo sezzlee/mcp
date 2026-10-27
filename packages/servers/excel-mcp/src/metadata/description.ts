@@ -38,15 +38,19 @@ export interface SheetSummary {
 
 export interface WorkbookDescription {
   readonly limitations?: readonly MetadataLimitation[];
-  readonly definedNamesComplete?: false;
   readonly filePath: string;
   readonly sizeBytes: number;
   readonly modifiedAt: string;
   readonly dateSystem: "1900" | "1904" | null;
   readonly sheets: readonly SheetSummary[];
-  readonly definedNames?: readonly {
-    readonly name: string;
-    readonly ranges: readonly string[];
-  }[];
+  readonly definedNames?: readonly DescribedName[];
   readonly guidance?: string;
+}
+
+export interface DescribedName {
+  readonly name: string;
+  readonly ranges: readonly string[];
+  readonly scope: "workbook" | "sheet";
+  readonly sheetName?: string;
+  readonly range?: string;
 }

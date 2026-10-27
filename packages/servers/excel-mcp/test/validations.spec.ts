@@ -60,7 +60,7 @@ describe("compressAddresses", () => {
 });
 
 describe("collectValidations", () => {
-  it("regroups per-cell entries back into ranges", async () => {
+  it("reports each stored rule as its own entry with its sqref ranges", async () => {
     const fixtures = inject("fixtures");
     const root = await createWorkbookRoot(fixtures.root);
     const loaded = await loadXlsx(
@@ -72,12 +72,15 @@ describe("collectValidations", () => {
     );
 
     expect(report.coveredCellCount).toBeGreaterThan(5000);
-    expect(report.count).toBe(2);
+    expect(report.count).toBe(3);
     expect(report.rangesTruncated).toBe(false);
 
-    const list = report.rules.find((rule) => rule.type === "list");
-    expect(list?.ranges).toEqual(["A2:A5000", "C2:C10"]);
-    expect(list?.allowBlank).toBe(true);
+    const lists = report.rules.filter((rule) => rule.type === "list");
+    expect(lists.map((rule) => rule.ranges)).toEqual([
+      ["A2:A5000"],
+      ["C2:C10"],
+    ]);
+    expect(lists.every((rule) => rule.allowBlank === true)).toBe(true);
 
     const whole = report.rules.find((rule) => rule.type === "whole");
     expect(whole?.ranges).toEqual(["E2:E10"]);

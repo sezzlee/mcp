@@ -2,6 +2,7 @@ import { canonical } from "@sezzlee/file-core";
 import { conditionalFormatRuleCountOf } from "../metadata/conditional-formats.js";
 import type { MediaEntry } from "../metadata/images.js";
 import type {
+  DescribedName,
   DocumentMeta,
   SheetSummary,
   WorkbookDescription,
@@ -18,8 +19,10 @@ import {
 } from "../metadata/spreadsheetml/hyperlinks.js";
 import {
   openPackage,
+  type DefinedName,
   type WorkbookPackage,
 } from "../metadata/spreadsheetml/package.js";
+import { plainAreaOf } from "../metadata/spreadsheetml/plain-area.js";
 import { zipSource } from "../metadata/spreadsheetml/reader.js";
 import { readSharedStrings } from "../metadata/spreadsheetml/shared-strings.js";
 import { declaredBounds } from "../metadata/spreadsheetml/sheet-layout.js";
@@ -32,7 +35,6 @@ import {
   readWorksheet,
   type SheetFacts,
 } from "../metadata/spreadsheetml/worksheet.js";
-import { metadataLimitations } from "../metadata/support.js";
 import { declaredTablesOf } from "../metadata/tables.js";
 import type {
   CellArrayFormula,
@@ -511,6 +513,32 @@ export interface DescribeOptions {
   readonly includeDefinedNames: boolean;
 }
 
+function describedName(
+  entry: DefinedName,
+  sheetNames: readonly string[],
+): DescribedName {
+  const scopeSheet =
+    entry.localSheetId === undefined
+      ? undefined
+      : sheetNames[entry.localSheetId];
+  const area = plainAreaOf(entry.ref);
+  const sheetName =
+    entry.localSheetId === undefined ? area?.sheetName : scopeSheet;
+  const range =
+    area !== undefined &&
+    sheetName !== undefined &&
+    canonical(area.sheetName) === canonical(sheetName)
+      ? area.range
+      : undefined;
+  return {
+    name: entry.name,
+    ranges: [entry.ref],
+    scope: entry.localSheetId === undefined ? "workbook" : "sheet",
+    ...(sheetName === undefined ? {} : { sheetName }),
+    ...(range === undefined ? {} : { range }),
+  };
+}
+
 export function describeOoxml(
   loaded: OoxmlWorkbook,
   meta: DocumentMeta,
@@ -593,16 +621,12 @@ export function describeOoxml(
     modifiedAt: meta.modifiedAt,
     dateSystem: loaded.opc.date1904 ? "1904" : "1900",
     sheets,
-    limitations: options.includeDefinedNames
-      ? [metadataLimitations.definedNames]
-      : [],
+    limitations: [],
     ...(options.includeDefinedNames
       ? {
-          definedNames: loaded.opc.definedNames.map(({ name, ref }) => ({
-            name,
-            ranges: [ref],
-          })),
-          definedNamesComplete: false as const,
+          definedNames: loaded.opc.definedNames.map((entry) =>
+            describedName(entry, loaded.sheetNames),
+          ),
         }
       : {}),
     ...(tallest > limits.guidanceRowThreshold

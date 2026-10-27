@@ -759,10 +759,8 @@ describe("Phase 7 authoring through MCP", () => {
       expect(await nextZip.file("xl/workbook.xml")?.async("string")).toContain(
         "workbookProtection",
       );
-      const nextFiles = await readdir(join(directory, "out"));
-      const lockedAgain = await client.callTool({
-        name: "edit_workbook",
-        arguments: {
+      const reprotected = mutationReceiptSchema.parse(
+        await call(client, "edit_workbook", {
           source: next.version,
           changes: [
             {
@@ -780,10 +778,19 @@ describe("Phase 7 authoring through MCP", () => {
               overwrite: true,
             },
           ],
-        },
-      });
-      expect(lockedAgain.isError).toBe(true);
-      expect(await readdir(join(directory, "out"))).toEqual(nextFiles);
+        }),
+      );
+      expect(
+        XLSX.read(await bytes(directory, reprotected), { type: "buffer" })
+          .Sheets.Summary?.A1?.v,
+      ).toBe(99);
+      expect(
+        await (
+          await JSZip.loadAsync(await bytes(directory, reprotected))
+        )
+          .file("xl/worksheets/sheet2.xml")
+          ?.async("string"),
+      ).toContain("sheetProtection");
       expect(
         XLSX.read(await bytes(directory, next), { type: "buffer" }).Sheets
           .Summary?.A1?.v,
@@ -1214,11 +1221,11 @@ describe("Phase 7 authoring through MCP", () => {
             {
               kind: "set_validation",
               sheetName: "Summary",
-              range: "A3:A6",
-              rule: { type: "custom", formula: "LEN(A3)>0" },
+              range: "A2:A5",
+              rule: { type: "custom", formula: "LEN(A2)>0" },
               overwrite: true,
             },
-            { kind: "remove_validation", sheetName: "Summary", range: "B3:B6" },
+            { kind: "remove_validation", sheetName: "Summary", range: "B2:B5" },
             {
               kind: "remove_conditional_format",
               sheetName: "Summary",
@@ -1227,9 +1234,9 @@ describe("Phase 7 authoring through MCP", () => {
             {
               kind: "set_conditional_format",
               sheetName: "Summary",
-              range: "D3:D6",
+              range: "D2:D5",
               priority: 1,
-              rule: { type: "expression", formula: "D3>10" },
+              rule: { type: "expression", formula: "D2>10" },
               appearance: { fill: "00FF00" },
               overwrite: true,
             },
@@ -1447,7 +1454,7 @@ describe("Phase 7 authoring through MCP", () => {
               sheetName: "Sales '26",
               name: "Next Period",
             },
-            { kind: "insert_rows", sheetName: "Next Period", at: 1, count: 2 },
+            { kind: "insert_rows", sheetName: "Sales '26", at: 1, count: 2 },
             {
               kind: "write_named_range",
               sheetName: "Summary",

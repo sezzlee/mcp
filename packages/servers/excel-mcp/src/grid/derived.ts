@@ -1,6 +1,7 @@
 import { SezzleeExcelError } from "../platform/errors.js";
 import { limits } from "../platform/limits.js";
 import type { MetricFunction, MetricRequest } from "./aggregate-metrics.js";
+import { finite } from "./numeric.js";
 
 export interface DerivedTerm {
   /** One-based index into metrics. */
@@ -111,7 +112,7 @@ export function computeDerived(
       const value =
         term.scope === "total" ? totalValue(slot) : groupValue(slot);
       if (value === null) return null;
-      sum += value * (term.factor ?? 1);
+      sum = finite(sum + finite(value * (term.factor ?? 1)));
     }
     return sum;
   };
@@ -122,12 +123,12 @@ export function computeDerived(
     const denominator = add(entry.denominator);
     if (denominator === null) return { kind: "value", value: null };
     if (denominator === 0) return { kind: "divisionByZero" };
-    value = numerator / denominator;
+    value = finite(numerator / denominator);
   }
-  value *= entry.scale ?? 1;
-  if (!Number.isFinite(value)) return { kind: "value", value: null };
+  value = finite(value * (entry.scale ?? 1));
   return {
     kind: "value",
-    value: entry.round === undefined ? value : roundTo(value, entry.round),
+    value:
+      entry.round === undefined ? value : finite(roundTo(value, entry.round)),
   };
 }

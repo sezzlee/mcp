@@ -17,6 +17,7 @@ import { createWorkbookRoot } from "../src/platform/paths.js";
 import {
   createWorkbookOutput,
   mutationReceiptSchema,
+  workbookVersionSchema,
 } from "../src/platform/versions.js";
 import { transferReceiptSchema } from "../src/tools/transfer-schemas.js";
 import { createExcelMcpServer } from "../src/server.js";
@@ -318,8 +319,8 @@ it("renames, reorders and copies sheets while preserving scoped names and indepe
   await workspace(async (directory, client, source) => {
     const receipt = await edit(client, source, [
       { kind: "rename_sheet", sheetName: "Data", name: "Yıl '26" },
-      { kind: "reorder_sheet", sheetName: "Yıl '26", position: 2 },
-      { kind: "copy_sheet", sheetName: "Yıl '26", name: "Copy", mode: "all" },
+      { kind: "reorder_sheet", sheetName: "Data", position: 2 },
+      { kind: "copy_sheet", sheetName: "Data", name: "Copy", mode: "all" },
     ]);
     const result = independentRead(
       await readFile(join(directory, receipt.version.filePath)),
@@ -450,7 +451,7 @@ it("deletes a sheet, updates its references and refuses deletion of the last vis
 
 it("preserves ISO calendar meaning and cell formatting through date copy and explicit number replacement", async () => {
   await workspace(async (directory, client, source) => {
-    const dated = await edit(client, source, [
+    const written = await edit(client, source, [
       {
         kind: "write_cells",
         sheetName: "Data",
@@ -458,6 +459,8 @@ it("preserves ISO calendar meaning and cell formatting through date copy and exp
         overwrite: true,
         values: [[{ kind: "date", value: "2026-10-25" }]],
       },
+    ]);
+    const dated = await edit(client, written.version, [
       {
         kind: "copy_range",
         sheetName: "Data",
@@ -852,3 +855,530 @@ it.each([
     });
   },
 );
+
+it("addresses every change at source coordinates and reports where moved targets landed", async () => {
+  await workspace(async (directory, client, source) => {
+    const receipt = await edit(client, source, [
+      {
+        kind: "insert_rows",
+        sheetName: "Data",
+        at: 3,
+        values: [
+          [
+            { kind: "text", value: "Mid" },
+            { kind: "number", value: 15 },
+            { kind: "formula", formula: "B{row}*$E$1" },
+          ],
+        ],
+      },
+      {
+        kind: "write_cells",
+        sheetName: "Data",
+        startCell: "A5",
+        values: [[{ kind: "text", value: "Moved note" }]],
+        overwrite: true,
+      },
+      { kind: "rename_sheet", sheetName: "Data", name: "Sales" },
+      {
+        kind: "write_cells",
+        sheetName: "Data",
+        startCell: "B3",
+        values: [[{ kind: "number", value: 25 }]],
+        overwrite: true,
+      },
+    ]);
+    const book = independentRead(
+      await readFile(join(directory, receipt.version.filePath)),
+      { type: "buffer", sheetStubs: true },
+    );
+    const sales = book.Sheets.Sales;
+    expect(book.SheetNames).toEqual(["Sales", "Other", "Notes"]);
+    expect(sales?.A3?.v).toBe("Mid");
+    expect(sales?.B3?.v).toBe(15);
+    expect(sales?.C3?.f).toBe("B3*$E$1");
+    expect(sales?.A4?.v).toBe("Two");
+    expect(sales?.B4?.v).toBe(25);
+    expect(sales?.C4?.f).toBe("SUM(B2:B4)");
+    expect(sales?.A6?.v).toBe("Moved note");
+    expect(book.Sheets.Other?.B1?.f).toBe("'Sales'!B2+'Sales'!$C$4");
+    expect(receipt.placements).toEqual([
+      { operation: 0, sheetName: "Sales", range: "A3:C3" },
+      { operation: 1, sheetName: "Sales", range: "A6" },
+      { operation: 3, sheetName: "Sales", range: "B4" },
+    ]);
+  });
+});
+
+it("fills an inserted formula column as one write and keeps references without {row} fixed", async () => {
+  await workspace(async (directory, client, source) => {
+    const count = 120;
+    const receipt = await edit(client, source, [
+      {
+        kind: "insert_rows",
+        sheetName: "Data",
+        at: 3,
+        values: Array.from({ length: count }, (_, index) => [
+          { kind: "text", value: `New ${index}` },
+          { kind: "number", value: index },
+          { kind: "formula", formula: "B{row}*$E$1" },
+          { kind: "formula", formula: "=B{row}+E1" },
+        ]),
+      },
+    ]);
+    const data = independentRead(
+      await readFile(join(directory, receipt.version.filePath)),
+      { type: "buffer", sheetStubs: true },
+    ).Sheets.Data;
+    for (let row = 3; row < 3 + count; row += 1) {
+      expect(data?.[`C${row}`]?.f).toBe(`B${row}*$E$1`);
+      expect(data?.[`D${row}`]?.f).toBe(`B${row}+E1`);
+    }
+    expect(data?.[`A${3 + count}`]?.v).toBe("Two");
+  });
+});
+
+it("refuses inserted rows whose formulas need more writes than one request allows", async () => {
+  await workspace(async (_directory, client, source) => {
+    const response = await client.callTool({
+      name: "edit_workbook",
+      arguments: {
+        source,
+        changes: [
+          {
+            kind: "insert_rows",
+            sheetName: "Data",
+            at: 3,
+            startColumn: "D",
+            values: Array.from({ length: 129 }, () => [
+              { kind: "formula", formula: "B{row}+E1" },
+            ]),
+          },
+        ],
+      },
+    });
+    expect(response.isError).toBe(true);
+    expect(payload(response)).toMatchObject({ error: "resource_limit" });
+  });
+});
+
+it("copies a sheet as the source was read, before other changes to it", async () => {
+  await workspace(async (directory, client, source) => {
+    const receipt = await edit(client, source, [
+      {
+        kind: "write_cells",
+        sheetName: "Data",
+        startCell: "B2",
+        values: [[{ kind: "number", value: 99 }]],
+        overwrite: true,
+      },
+      { kind: "copy_sheet", sheetName: "Data", name: "Archive", mode: "all" },
+    ]);
+    const book = independentRead(
+      await readFile(join(directory, receipt.version.filePath)),
+      { type: "buffer" },
+    );
+    expect(book.Sheets.Data?.B2?.v).toBe(99);
+    expect(book.Sheets.Archive?.B2?.v).toBe(10);
+  });
+});
+
+it.each([
+  {
+    name: "a write into a row the same request deletes",
+    changes: [
+      { kind: "delete_rows", sheetName: "Data", at: 3, count: 1 },
+      {
+        kind: "write_cells",
+        sheetName: "Data",
+        startCell: "A3",
+        values: [[{ kind: "text", value: "Lost" }]],
+        overwrite: true,
+      },
+    ],
+    blockers: [
+      { kind: "operation", operationIndex: 1, code: "target_deleted" },
+    ],
+  },
+  {
+    name: "a formula reading a row the same request deletes",
+    changes: [
+      {
+        kind: "write_formula",
+        sheetName: "Data",
+        cell: "D2",
+        formula: "B3*2",
+      },
+      { kind: "delete_rows", sheetName: "Data", at: 3, count: 1 },
+    ],
+    blockers: [
+      { kind: "operation", operationIndex: 0, code: "target_deleted" },
+    ],
+  },
+  {
+    name: "an insertion inside a deleted band",
+    changes: [
+      { kind: "delete_rows", sheetName: "Data", at: 2, count: 3 },
+      { kind: "insert_rows", sheetName: "Data", at: 3, count: 1 },
+    ],
+    blockers: [
+      { kind: "operation", operationIndex: 1, code: "conflicting_structure" },
+    ],
+  },
+  {
+    name: "a write to the cells a copy reads",
+    changes: [
+      {
+        kind: "copy_range",
+        sheetName: "Data",
+        range: "A2:B3",
+        targetSheet: "Notes",
+        startCell: "C1",
+        mode: "values",
+      },
+      {
+        kind: "write_cells",
+        sheetName: "Data",
+        startCell: "B2",
+        values: [[{ kind: "number", value: 1 }]],
+        overwrite: true,
+      },
+    ],
+    blockers: [
+      { kind: "operation", operationIndex: 1, code: "overlapping_writes" },
+    ],
+  },
+  {
+    name: "a new sheet named like a source sheet in another case",
+    changes: [
+      { kind: "rename_sheet", sheetName: "Data", name: "Archive" },
+      { kind: "add_sheet", name: "other" },
+    ],
+    blockers: [{ kind: "operation", operationIndex: 1, code: "name_conflict" }],
+  },
+])("blocks $name and publishes nothing", async ({ changes, blockers }) => {
+  await workspace(async (directory, client, source) => {
+    const prepared = payload(
+      await client.callTool({
+        name: "prepare_edit",
+        arguments: { filePath: source.filePath, changes },
+      }),
+    );
+    expect(prepared).toMatchObject({ kind: "blocked", blockers });
+    const response = await client.callTool({
+      name: "edit_workbook",
+      arguments: { source, changes },
+    });
+    expect(response.isError).toBe(true);
+    expect(payload(response)).toMatchObject({ error: "invalid_argument" });
+    expect(await readdir(join(directory, "out"))).toEqual([]);
+  });
+});
+
+it("refuses a sheet addressed by the name a rename in the same request gives it", async () => {
+  await workspace(async (_directory, client, source) => {
+    const response = await client.callTool({
+      name: "edit_workbook",
+      arguments: {
+        source,
+        changes: [
+          { kind: "rename_sheet", sheetName: "Data", name: "Sales" },
+          {
+            kind: "write_cells",
+            sheetName: "Sales",
+            startCell: "A1",
+            values: [[{ kind: "text", value: "x" }]],
+            overwrite: true,
+          },
+        ],
+      },
+    });
+    expect(response.isError).toBe(true);
+    expect(payload(response)).toMatchObject({ error: "unknown_sheet" });
+  });
+});
+
+async function readTool(
+  client: Client,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const response = await client.callTool({ name, arguments: args });
+  const value = payload(response);
+  expect(response.isError, JSON.stringify(value)).not.toBe(true);
+  if (typeof value !== "object" || value === null)
+    throw new Error("Expected a JSON object");
+  return Object.fromEntries(Object.entries(value));
+}
+async function rewritten(
+  directory: string,
+  source: { filePath: string; versionId: string },
+  part: string,
+  change: (xml: string) => string,
+): Promise<{ filePath: string; versionId: string }> {
+  const zip = await JSZip.loadAsync(
+    await readFile(join(directory, source.filePath)),
+  );
+  const xml = await zip.file(part)?.async("string");
+  if (xml === undefined) throw new Error(`Missing ${part}`);
+  zip.file(part, change(xml));
+  const bytes = await zip.generateAsync({
+    type: "nodebuffer",
+    compression: "DEFLATE",
+  });
+  await writeFile(join(directory, source.filePath), bytes);
+  return {
+    ...source,
+    versionId: createHash("sha256").update(bytes).digest("hex"),
+  };
+}
+
+it("returns the version of the bytes a read parsed, which an edit takes as its source until the file changes", async () => {
+  await workspace(async (directory, client, source) => {
+    const described = await readTool(client, "describe_workbook", {
+      filePath: source.filePath,
+    });
+    expect(described.version).toEqual(source);
+    expect(
+      (
+        await readTool(client, "read_sheet", {
+          filePath: source.filePath,
+          sheetName: "Data",
+          range: "A1:B2",
+        })
+      ).version,
+    ).toEqual(source);
+    const write = [
+      {
+        kind: "write_cells",
+        sheetName: "Data",
+        startCell: "G1",
+        values: [[{ kind: "text", value: "Seen" }]],
+      },
+    ];
+    await edit(client, workbookVersionSchema.parse(described.version), write);
+    const changed = await rewritten(
+      directory,
+      source,
+      "xl/worksheets/sheet3.xml",
+      (xml) => xml.replace("Keep these exact bytes.", "Changed."),
+    );
+    const stale = await client.callTool({
+      name: "edit_workbook",
+      arguments: { source: described.version, changes: write },
+    });
+    expect(stale.isError).toBe(true);
+    expect(payload(stale)).toMatchObject({ error: "file_changed" });
+    expect(
+      (
+        await readTool(client, "describe_workbook", {
+          filePath: source.filePath,
+        })
+      ).version,
+    ).toEqual(changed);
+  });
+});
+
+it("removes multi-area and whole-column validation rules by the ranges get_data_validations reports", async () => {
+  await workspace(async (directory, client, source) => {
+    const selected = await rewritten(
+      directory,
+      source,
+      "xl/worksheets/sheet1.xml",
+      (xml) =>
+        xml.replace(
+          /<dataValidations[\s\S]*<\/dataValidations>/,
+          '<dataValidations count="2"><dataValidation type="whole" sqref="B2:B3 D2:D3"><formula1>1</formula1><formula2>100</formula2></dataValidation><dataValidation type="list" sqref="$F:$F"><formula1>"a,b"</formula1></dataValidation></dataValidations>',
+        ),
+    );
+    const report = await readTool(client, "get_data_validations", {
+      filePath: selected.filePath,
+      sheetName: "Data",
+    });
+    expect(report).toMatchObject({
+      count: 2,
+      rules: [{ ranges: ["B2:B3", "D2:D3"] }, { ranges: ["F:F"] }],
+    });
+    const rules = report.rules as readonly { ranges: readonly string[] }[];
+    const receipt = await edit(client, selected, [
+      ...rules.map((rule) => ({
+        kind: "remove_validation",
+        sheetName: "Data",
+        ranges: rule.ranges,
+      })),
+      {
+        kind: "set_validation",
+        sheetName: "Data",
+        range: "A2:A3",
+        rule: { type: "list", items: ["x", "y"] },
+      },
+    ]);
+    expect(
+      await readTool(client, "get_data_validations", {
+        filePath: receipt.version.filePath,
+        sheetName: "Data",
+      }),
+    ).toMatchObject({ count: 1, rules: [{ ranges: ["A2:A3"], type: "list" }] });
+  });
+});
+
+it("reports defined names in the shape delete_name takes", async () => {
+  await workspace(async (_directory, client, source) => {
+    const described = await readTool(client, "describe_workbook", {
+      filePath: source.filePath,
+    });
+    expect(described.definedNames).toEqual([
+      {
+        name: "Amounts",
+        ranges: ["Data!$B$2:$B$3"],
+        scope: "workbook",
+        sheetName: "Data",
+        range: "B2:B3",
+      },
+      {
+        name: "_xlnm.Print_Area",
+        ranges: ["Data!$A$1:$E$5"],
+        scope: "sheet",
+        sheetName: "Data",
+        range: "A1:E5",
+      },
+    ]);
+    const [amounts] = described.definedNames as readonly {
+      name: string;
+      scope: string;
+      sheetName: string;
+    }[];
+    const receipt = await edit(client, source, [
+      {
+        kind: "delete_name",
+        name: amounts?.name,
+        scope: amounts?.scope,
+        sheetName: amounts?.sheetName,
+      },
+    ]);
+    const after = await readTool(client, "describe_workbook", {
+      filePath: receipt.version.filePath,
+    });
+    expect(after.definedNames).toEqual([
+      expect.objectContaining({ name: "_xlnm.Print_Area" }),
+    ]);
+  });
+});
+
+it("reports chart series data as the sheetName and range set_chart takes", async () => {
+  await workspace(async (_directory, client, source) => {
+    const charts = await readTool(client, "get_charts", {
+      filePath: source.filePath,
+      sheetName: "Data",
+    });
+    expect(charts).toMatchObject({
+      charts: [
+        {
+          plots: [
+            {
+              series: [
+                {
+                  values: {
+                    ref: "Data!$B$2:$B$3",
+                    sheetName: "Data",
+                    range: "B2:B3",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const [chart] = charts.charts as readonly {
+      plots: readonly {
+        series: readonly { values: { sheetName: string; range: string } }[];
+      }[];
+    }[];
+    const values = chart?.plots[0]?.series[0]?.values;
+    const receipt = await edit(client, source, [
+      {
+        kind: "set_chart",
+        sheetName: "Other",
+        name: "Again",
+        chartType: "column",
+        cell: "D2",
+        series: [
+          {
+            name: "Amount",
+            sheetName: values?.sheetName,
+            categories: values?.range,
+            values: values?.range,
+          },
+        ],
+      },
+    ]);
+    expect(
+      await readTool(client, "get_charts", {
+        filePath: receipt.version.filePath,
+        sheetName: "Other",
+      }),
+    ).toMatchObject({ count: 1, charts: [{ name: "Again" }] });
+  }, true);
+});
+
+it("reports a picture's drawing name, which remove_image selects", async () => {
+  await workspace(async (_directory, client, source) => {
+    const placed = await edit(client, source, [
+      {
+        kind: "set_image",
+        sheetName: "Data",
+        name: "Logo",
+        cell: "G2",
+        mime: "image/png",
+        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=",
+        width: 16,
+        height: 16,
+      },
+    ]);
+    const images = await readTool(client, "get_images", {
+      filePath: placed.version.filePath,
+      sheetName: "Data",
+    });
+    expect(images).toMatchObject({ count: 1, images: [{ name: "Logo" }] });
+    const [image] = images.images as readonly { name: string }[];
+    const removed = await edit(client, placed.version, [
+      { kind: "remove_image", sheetName: "Data", name: image?.name },
+    ]);
+    expect(
+      await readTool(client, "get_images", {
+        filePath: removed.version.filePath,
+        sheetName: "Data",
+      }),
+    ).toMatchObject({ count: 0 });
+  });
+});
+
+it("removes a conditional format whose stored priority has a leading zero by the priority the read reports", async () => {
+  await workspace(async (directory, client, source) => {
+    const selected = await rewritten(
+      directory,
+      source,
+      "xl/worksheets/sheet1.xml",
+      (xml) => xml.replace('priority="1"', 'priority="01"'),
+    );
+    const formats = await readTool(client, "get_conditional_formats", {
+      filePath: selected.filePath,
+      sheetName: "Data",
+    });
+    expect(formats).toMatchObject({ rules: [{ priority: 1 }] });
+    const [rule] = formats.rules as readonly { priority: number }[];
+    const receipt = await edit(client, selected, [
+      {
+        kind: "remove_conditional_format",
+        sheetName: "Data",
+        priority: rule?.priority,
+      },
+    ]);
+    expect(
+      await readTool(client, "get_conditional_formats", {
+        filePath: receipt.version.filePath,
+        sheetName: "Data",
+      }),
+    ).toMatchObject({ rules: [] });
+  });
+});

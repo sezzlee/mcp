@@ -25,6 +25,7 @@ import {
 } from "../src/platform/versions.js";
 import { createExcelMcpServer } from "../src/server.js";
 import { createWritingHandlers } from "../src/tools/writing.js";
+import { createResultStore } from "../src/tools/retained-results.js";
 
 async function workspace(
   run: (directory: string) => Promise<void>,
@@ -395,7 +396,7 @@ it("bounds concurrent preparations before reading source bytes and allows a safe
   await workspace(async (directory) => {
     const root = await createWorkbookRoot(directory);
     const output = await createWorkbookOutput(root, "out");
-    const handlers = createWritingHandlers(root, output);
+    const handlers = createWritingHandlers(root, output, createResultStore());
     const first = handlers.create_workbook_version({ filePath: "source.xlsx" });
     const second = await handlers.create_workbook_version({
       filePath: "source.xlsx",

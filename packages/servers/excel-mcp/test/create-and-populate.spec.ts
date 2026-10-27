@@ -24,6 +24,7 @@ import {
   createWritingHandlers,
   writingToolDefinitions,
 } from "../src/tools/writing.js";
+import { createResultStore } from "../src/tools/retained-results.js";
 
 function payload(result: { readonly content: readonly unknown[] }): unknown {
   const block = result.content[0];
@@ -496,6 +497,7 @@ it("shares admission across all writing tools and honors cancellation before pub
     const handlers = createWritingHandlers(
       root,
       await createWorkbookOutput(root, "out"),
+      createResultStore(),
     );
     const args = writingToolDefinitions.create_workbook.inputSchema.parse({
       sheets: [{ name: "S" }],

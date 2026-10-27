@@ -4,6 +4,7 @@ import { createFileSourceServer } from "@sezzlee/file-core";
 import type { WorkbookRoot } from "./platform/paths.js";
 import { toolDefinitions } from "./tools/definitions.js";
 import { createHandlers } from "./tools/handlers.js";
+import { createResultStore } from "./tools/retained-results.js";
 import { closeRegexWorkers } from "./platform/regex.js";
 import { createMcpOutputServer } from "./platform/writing.js";
 import type { WorkbookOutput } from "./platform/versions.js";
@@ -31,17 +32,22 @@ export function createExcelMcpServer(
   options: ExcelMcpServerOptions = { mode: "read" },
 ): McpServer {
   const identity = { name: "sezzlee-excel", version: manifest.version };
-  const handlers = createHandlers(root);
+  const results = createResultStore();
+  const { dispose, ...handlers } = createHandlers(root, results);
   const server =
     options.mode === "read"
       ? createFileSourceServer(identity, toolDefinitions, handlers)
       : createMcpOutputServer(
           identity,
           { ...toolDefinitions, ...writingToolDefinitions },
-          { ...handlers, ...createWritingHandlers(root, options.output) },
+          {
+            ...handlers,
+            ...createWritingHandlers(root, options.output, results),
+          },
         );
   const close = server.close.bind(server);
   server.close = async () => {
+    dispose();
     await closeRegexWorkers();
     await close();
   };

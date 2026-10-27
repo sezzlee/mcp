@@ -17,7 +17,12 @@ import {
 import { assertReadableFormat, type WorkbookRoot } from "../platform/paths.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { prepareWorkbookVersion } from "../format/version.js";
-import { authoringLimits, newSheetSchema } from "../authoring/workbook.js";
+import {
+  authoringLimits,
+  newSheetSchema,
+  type ValueBlock,
+} from "../authoring/workbook.js";
+import type { SourceEditChange } from "../authoring/edit.js";
 import { presentationWireChangeSchema } from "../authoring/presentation.js";
 import {
   createAuthoredWorkbook,
@@ -33,14 +38,27 @@ import {
 } from "./transfer-schemas.js";
 import { materializeTransfer, transferChanges } from "./transfer.js";
 import { PreservedWorkbook } from "../format/preserved-workbook.js";
-import { applyWorkbookChanges } from "../format/edit-workbook.js";
+import {
+  applyPlannedEdit,
+  applyWorkbookChanges,
+  planWorkbookEdit,
+  refuseBlockedPlan,
+} from "../format/edit-workbook.js";
 import { inspectWorkbookEdit } from "../format/edit-inspection.js";
 import {
   prepareEditSchema,
   editPreparationSchema,
   editWireChangesSchema,
+  valueBlockWireSchema,
   type EditWireChange,
 } from "./edit-schemas.js";
+import {
+  createSourceResolver,
+  refuseCopiedRows,
+  type BlockSource,
+  type SourceResolver,
+} from "./block-sources.js";
+import type { ResultStore } from "./retained-results.js";
 import { limits } from "../platform/limits.js";
 import { prepareBulkSchema } from "./bulk-schemas.js";
 import { prepareBulk } from "./bulk.js";
@@ -55,8 +73,12 @@ const finishAdvice =
   'Optional job.finish is at the job root, never inside group: [{"output":"report","changes":[{"kind":"format_cells","sheetName":"S","range":"C2:C4","style":{"numberFormat":"0.00"}}]}]. For independent jobs each finish entry additionally names job. Changes use edit_workbook authoring kinds and run after data rendering, before the existing atomic publication. Formula changes require formula text and never calculate results. ';
 const tableAdvice =
   ' Table ranges include the header and requested totals row. A real calculated column uses calculatedColumns:[{column:"Amount",formula:"[@Qty]*[@Price]"}]; filling cells alone does not define table calculated-column metadata. Bare Qty*Price refers to defined names. Totals labels are explicit, for example totals:[{kind:"label",column:"Item",text:"Total"},{kind:"function",column:"Amount",function:"sum"}]; a sum function does not create a Total label automatically.';
+const sourceFrameAdvice =
+  " Every sheetName and A1 address names the source as it was read, never a position produced by another change in the request: unprotection runs first, other changes apply at source coordinates, row/column insertions and deletions then move them, and renames, sheet deletions, reorders and protection follow. insert_rows takes count, or values rows with optional startColumn (default A) whose cells may be {kind:formula,formula} using {row} for the inserted row, for example B{row}*C{row}; every other reference is a source address. Copies read the source as it was read. Every read result carries version {filePath,versionId}: pass it as source (or expectedVersion) so the edit applies to the bytes that were read. describe_workbook definedNames give name, scope, sheetName and range for define_name/delete_name, and get_charts series data give sheetName and range for set_chart series. A change touching cells another change deletes, copies or moves, two insertions at one position, an insertion inside a deleted band, or a new sheet name equal to a source sheet blocks the request. placements report the output sheet and range of each target that moved or was renamed.";
+const sourceBlockAdvice =
+  " Never retype rows a read returned. Instead of values, a create_workbook block, write_cells or insert_rows takes source: {kind:result,resultId,columns?,where?,offset?,maxRows?} for a retained aggregate_sheet result, or {kind:range|records|aggregate,filePath,versionId?,...} with prepare_transfer selection fields. The server writes the selected rows as typed cells, starting with the source's own header row (result and aggregate labels, records includeHeaders); header:[...] replaces it or adds one. Literal values that repeat three rows of a retained result are refused.";
 const expertAdvice =
-  " Advanced changes: define_name uses sheetName,name,range,scope workbook/sheet; replacement requires overwrite:true. write_named_range uses the exact name/scope and a typed values rectangle of the same shape; delete_name refuses live formula dependencies. set_validation uses range and rule {type:list,items:[...]}, {type:whole/decimal/date/textLength,operator,bounds:[...]}, or {type:custom,formula}; date bounds are workbook serials, rules guide interactive Excel input and do not enforce all server writes. remove_validation requires the exact old range. set_conditional_format uses range,priority,rule {type:expression,formula} or {type:cellIs,operator,formulas:[...]}, appearance {font,fill},stopIfTrue. Replace a priority explicitly with overwrite:true; remove_conditional_format uses priority. set_hyperlink uses cell,target {kind:external,url} for HTTPS or {kind:internal,location}; set_note uses cell,text,author; set_image uses name,cell,mime image/png or image/jpeg,data canonical base64,width,height in pixels. Their remove_* operations select the same cell or image name. set_chart uses name,chartType column/bar/line/pie,title,cell and series [{name,sheetName,categories,values}] with one-row/column A1 ranges; formula sources have no invented cache and require refresh. remove_chart uses name. set_pivot creates/refreshes a real PivotTable using name,cell,sourceSheet,sourceRange including headers,rowColumn and measures [{column,function:sum/count/min/max,name}]; source cells must be literal, count counts nonblank values. set_pivot overwrite:true refreshes/replaces an existing private cache and clears its old result tail. protect_sheet/protect_workbook optionally use a legacy Excel protection password of up to 15 characters; this is not encryption. Unprotect every locked target with authenticated unprotect_workbook/unprotect_sheet changes at the start of a request before other edits. format_cells style.protection {locked,hidden} controls cell protection. Strong-hash, encrypted, signed and macro-enabled editing remains refused. Originals never change. Appearance and source changes distinguish current chart/pivot caches from refreshRequired.";
+  " Advanced changes: define_name uses sheetName,name,range,scope workbook/sheet; replacement requires overwrite:true. write_named_range uses the exact name/scope and a typed values rectangle of the same shape; delete_name refuses live formula dependencies. set_validation uses range and rule {type:list,items:[...]}, {type:whole/decimal/date/textLength,operator,bounds:[...]}, or {type:custom,formula}; date bounds are workbook serials, rules guide interactive Excel input and do not enforce all server writes. remove_validation takes the exact old range, or ranges copied from one get_data_validations rule. set_conditional_format uses range,priority,rule {type:expression,formula} or {type:cellIs,operator,formulas:[...]}, appearance {font,fill},stopIfTrue. Replace a priority explicitly with overwrite:true; remove_conditional_format uses priority. set_hyperlink uses cell,target {kind:external,url} for HTTPS or {kind:internal,location}; set_note uses cell,text,author; set_image uses name,cell,mime image/png or image/jpeg,data canonical base64,width,height in pixels. Their remove_* operations select the same cell or image name; get_images reports that name. set_chart uses name,chartType column/bar/line/pie,title,cell and series [{name,sheetName,categories,values}] with one-row/column A1 ranges; formula sources have no invented cache and require refresh. remove_chart uses name. set_pivot creates/refreshes a real PivotTable using name,cell,sourceSheet,sourceRange including headers,rowColumn and measures [{column,function:sum/count/min/max,name}]; source cells must be literal, count counts nonblank values. set_pivot overwrite:true refreshes/replaces an existing private cache and clears its old result tail. protect_sheet/protect_workbook optionally use a legacy Excel protection password of up to 15 characters; this is not encryption. Unprotect every locked target with authenticated unprotect_workbook/unprotect_sheet changes. format_cells style.protection {locked,hidden} controls cell protection. Strong-hash, encrypted, signed and macro-enabled editing remains refused. Originals never change. Appearance and source changes distinguish current chart/pivot caches from refreshRequired.";
 
 export const writingToolDefinitions = {
   calculate_workbook: {
@@ -93,7 +115,9 @@ export const writingToolDefinitions = {
   },
   prepare_edit: {
     description:
-      "Inspect an ordered edit request without publishing an output. Accept .xlsx filePath, optional expectedVersion, and changes. Returns exact source {filePath, versionId}, a fingerprint binding normalized changes, source feature counts, and ready or blocked with policy reasons. Pass source and the same changes to edit_workbook. Canonical and preservation-supported external workbooks can be ready. Supports scalar, sheet, copy/move and row/column edits, plus edit_workbook formatting/layout/formula/table authoring. Copy requires explicit values/formulas/formatting/all mode. No source file is changed. Enabled protection, macros, signatures, Strict markup or unsupported affected dependencies refuse editing. Preparation is not permission to edit changed bytes. No recalculation occurs." +
+      "Inspect an edit request without publishing an output. Accept .xlsx filePath, optional expectedVersion, and changes. Returns exact source {filePath, versionId}, a fingerprint binding normalized changes, source feature counts, and ready or blocked with policy reasons. Pass source and the same changes to edit_workbook. Canonical and preservation-supported external workbooks can be ready. Supports scalar, sheet, copy/move and row/column edits, plus edit_workbook formatting/layout/formula/table authoring. Copy requires explicit values/formulas/formatting/all mode. No source file is changed. Enabled protection, macros, signatures, Strict markup or unsupported affected dependencies refuse editing. Preparation is not permission to edit changed bytes. No recalculation occurs." +
+      sourceFrameAdvice +
+      sourceBlockAdvice +
       tableAdvice +
       expertAdvice,
     inputSchema: prepareEditSchema,
@@ -120,10 +144,21 @@ export const writingToolDefinitions = {
   create_workbook: {
     description:
       "Create one immutable .xlsx from named sheets and rectangular typed value blocks. Each scalar has kind text/number/boolean/blank/date/datetime; text beginning with = stays literal. Optional changes finish the workbook atomically with formatting, layout, merges, formulas and tables before publication. Formula operations write explicit formula text without calculating it. Table range includes its header and optional totals row; use literal unique headers. At least one sheet, up to 1,000,000 touched/stored cells, 64 sheets and 128 changes. Identical requests retain identical outputs; originals never change." +
+      sourceBlockAdvice +
       tableAdvice +
       expertAdvice,
     inputSchema: z.strictObject({
-      sheets: z.array(newSheetSchema).min(1).max(authoringLimits.maxSheets),
+      sheets: z
+        .array(
+          newSheetSchema.extend({
+            blocks: z
+              .array(valueBlockWireSchema)
+              .max(authoringLimits.maxOperations)
+              .default([]),
+          }),
+        )
+        .min(1)
+        .max(authoringLimits.maxSheets),
       changes: z
         .array(presentationWireChangeSchema)
         .max(authoringLimits.maxOperations)
@@ -133,7 +168,9 @@ export const writingToolDefinitions = {
   },
   edit_workbook: {
     description:
-      "Apply ordered atomic changes to source {filePath,versionId}; originals/retained outputs never change. write_cells uses typed literal values; occupied data/formula targets require overwrite:true. clear_contents preserves styles. copy_range/move_range use range,targetSheet,startCell; copy requires mode values/formulas/formatting/all. copy_sheet uses name/mode; copy operations optionally accept from {filePath,versionId}, subject to dependency/style compatibility. Sheet rename/reorder/delete and row/column insert/delete preserve supported references or refuse. format_cells patches only specified style fields; null resets a component. set_columns/set_rows use one-based first/last, width in character units/height in points, hidden; freeze_panes uses row/column counts. set_print_layout margins are inches; choose scale or fitWidth/fitHeight. merge_cells defaults to loss:reject; loss:discard_non_anchor explicitly clears other contents; unmerge_cells retains only the anchor. write_formula uses cell/formula; fill_formula uses anchor/range/formula and relative A1/table references. New formulas have no calculated cache; report recalculation required. create_table range includes header/data/optional totals; headers are unique literal text. edit_table can rename name/columns, resize range, set calculatedColumns/totals/style/filter; shrink preserves excluded values unless clearRemovedValues:true. convert_table preserves supported references/appearance or refuses. Table style is SezzleeBlue or none; filter toggles dropdowns, not dataset filtering. Dynamic arrays/external formula links and unsupported affected preservation refuse the whole request. Use prepare_edit first for scope/effects. Retry the same source/changes for the same result; select an earlier source to undo/branch." +
+      "Apply atomic changes to source {filePath,versionId}; originals/retained outputs never change. write_cells uses typed literal values; occupied data/formula targets require overwrite:true. clear_contents preserves styles. copy_range/move_range use range,targetSheet,startCell; copy requires mode values/formulas/formatting/all. copy_sheet uses name/mode; copy operations optionally accept from {filePath,versionId}, subject to dependency/style compatibility. Sheet rename/reorder/delete and row/column insert/delete preserve supported references or refuse. format_cells patches only specified style fields; null resets a component. set_columns/set_rows use one-based first/last, width in character units/height in points, hidden; freeze_panes uses row/column counts. set_print_layout margins are inches; choose scale or fitWidth/fitHeight. merge_cells defaults to loss:reject; loss:discard_non_anchor explicitly clears other contents; unmerge_cells retains only the anchor. write_formula uses cell/formula; fill_formula uses anchor/range/formula and relative A1/table references. New formulas have no calculated cache; report recalculation required. create_table range includes header/data/optional totals; headers are unique literal text. edit_table can rename name/columns, resize range, set calculatedColumns/totals/style/filter; shrink preserves excluded values unless clearRemovedValues:true. convert_table preserves supported references/appearance or refuses. Table style is SezzleeBlue or none; filter toggles dropdowns, not dataset filtering. Dynamic arrays/external formula links and unsupported affected preservation refuse the whole request. Use prepare_edit first for scope/effects. Retry the same source/changes for the same result; select an earlier source to undo/branch." +
+      sourceFrameAdvice +
+      sourceBlockAdvice +
       tableAdvice +
       expertAdvice,
     inputSchema: z.strictObject({
@@ -153,9 +190,14 @@ export const writingToolDefinitions = {
   },
 } as const satisfies ToolCatalog;
 
+type ResolvedEditChange =
+  | Exclude<EditWireChange, { kind: "write_cells" | "insert_rows" }>
+  | Extract<SourceEditChange, { kind: "write_cells" | "insert_rows" }>;
+
 export function createWritingHandlers(
   root: WorkbookRoot,
   output: WorkbookOutput,
+  results: ResultStore,
 ): HandlersOf<typeof writingToolDefinitions> {
   /**
    * Guard: a preparation retains file-sized source and output buffers, so
@@ -200,7 +242,85 @@ export function createWritingHandlers(
         "The write request was cancelled before publication.",
       );
   }
-  async function copySources(changes: readonly EditWireChange[]) {
+  async function blockValues(
+    sources: SourceResolver,
+    block: {
+      readonly values?: ValueBlock["values"] | undefined;
+      readonly source?: BlockSource | undefined;
+      readonly header?: readonly string[] | undefined;
+    },
+    at: string,
+  ): Promise<ValueBlock["values"]> {
+    if (block.source !== undefined)
+      return sources.resolve(block.source, block.header, at);
+    if (block.values === undefined)
+      throw new SezzleeExcelError(
+        "invalid_argument",
+        "A block needs values or source.",
+      );
+    refuseCopiedRows(results, block.values);
+    return block.values;
+  }
+  async function resolveChanges(
+    changes: readonly EditWireChange[],
+    sources: SourceResolver,
+  ): Promise<ResolvedEditChange[]> {
+    const resolved: ResolvedEditChange[] = [];
+    for (const [index, change] of changes.entries()) {
+      const at = `changes[${index}]`;
+      const source = "source" in change ? change.source : undefined;
+      const header = "header" in change ? change.header : undefined;
+      if (change.kind === "write_cells")
+        resolved.push({
+          kind: change.kind,
+          sheetName: change.sheetName,
+          startCell: change.startCell,
+          overwrite: change.overwrite,
+          values: await blockValues(
+            sources,
+            { values: change.values, source, header },
+            at,
+          ),
+        });
+      else if (change.kind === "insert_rows") {
+        if (source === undefined && change.values !== undefined)
+          refuseCopiedRows(results, change.values);
+        const values =
+          source === undefined
+            ? change.values
+            : await sources.resolve(source, header, at);
+        resolved.push({
+          kind: change.kind,
+          sheetName: change.sheetName,
+          at: change.at,
+          ...(change.count === undefined ? {} : { count: change.count }),
+          ...(change.startColumn === undefined
+            ? {}
+            : { startColumn: change.startColumn }),
+          ...(values === undefined ? {} : { values }),
+        });
+      } else resolved.push(change);
+    }
+    return resolved;
+  }
+  function withSources(sources: SourceResolver) {
+    return sources.receipts.length === 0
+      ? {}
+      : { sources: [...sources.receipts] };
+  }
+  function externalCopies(changes: readonly ResolvedEditChange[]): Set<number> {
+    return new Set(
+      [...changes.entries()]
+        .filter(
+          ([, change]) =>
+            (change.kind === "copy_range" || change.kind === "copy_sheet") &&
+            "from" in change &&
+            change.from !== undefined,
+        )
+        .map(([index]) => index),
+    );
+  }
+  async function copySources(changes: readonly ResolvedEditChange[]) {
     const snapshots: Awaited<ReturnType<typeof readWorkbookSnapshot>>[] = [];
     const buffers = new Map<number, Buffer>();
     let bytes = 0;
@@ -314,16 +434,33 @@ export function createWritingHandlers(
             args.expectedVersion,
           );
           assertReadableFormat(snapshot.bytes, snapshot.version.filePath);
-          const inspection = inspectWorkbookEdit(snapshot.bytes, args.changes);
+          const sources = createSourceResolver(root, results);
+          const changes = await resolveChanges(args.changes, sources);
+          const plan = planWorkbookEdit(
+            snapshot.bytes,
+            changes,
+            externalCopies(changes),
+          );
+          const inspection = inspectWorkbookEdit(
+            snapshot.bytes,
+            plan.kind === "planned"
+              ? plan.changes.map((entry) => entry.change)
+              : changes.filter((change) => change.kind !== "insert_rows"),
+          );
+          const blockers = [
+            ...inspection.blockers,
+            ...(plan.kind === "blocked" ? plan.blockers : []),
+          ];
           const copies =
-            inspection.blockers.length === 0
-              ? await copySources(args.changes)
+            blockers.length === 0
+              ? await copySources(changes)
               : { snapshots: [], buffers: new Map<number, Buffer>() };
           const prepared =
-            inspection.blockers.length === 0
-              ? applyWorkbookChanges(
+            plan.kind === "planned" && blockers.length === 0
+              ? applyPlannedEdit(
                   snapshot.bytes,
-                  args.changes,
+                  plan,
+                  args.changes.length,
                   copies.buffers,
                 )
               : undefined;
@@ -339,13 +476,18 @@ export function createWritingHandlers(
               source.version.filePath,
               source.version.versionId,
             );
+          await sources.verify();
           await checkpoint(signal);
           const common = {
             source: snapshot.version,
             requestFingerprint: contentFingerprint(
               snapshot.version.filePath,
               snapshot.bytes,
-              JSON.stringify(args.changes),
+              JSON.stringify(
+                sources.receipts.length === 0
+                  ? args.changes
+                  : { changes: args.changes, sources: sources.receipts },
+              ),
             ),
             operations: args.changes.length,
             cellsRequested: inspection.cellsRequested,
@@ -354,10 +496,14 @@ export function createWritingHandlers(
             ...(prepared?.editing === undefined
               ? {}
               : { effects: prepared.editing }),
+            ...(prepared === undefined || prepared.placements.length === 0
+              ? {}
+              : { placements: prepared.placements }),
+            ...withSources(sources),
           };
           return json(
             editPreparationSchema.parse(
-              inspection.blockers.length === 0
+              blockers.length === 0
                 ? {
                     kind: "ready",
                     ...common,
@@ -366,7 +512,7 @@ export function createWritingHandlers(
                         ? "canonical_values"
                         : "preserved_package",
                   }
-                : { kind: "blocked", ...common, blockers: inspection.blockers },
+                : { kind: "blocked", ...common, blockers },
             ),
           );
         }),
@@ -479,7 +625,22 @@ export function createWritingHandlers(
       admitted(async () => {
         checkInput(args);
         await checkpoint(signal);
-        const { workbook, changes } = createAuthoredWorkbook(args.sheets);
+        const sources = createSourceResolver(root, results);
+        const sheets = [];
+        for (const [sheetIndex, sheet] of args.sheets.entries()) {
+          const blocks: ValueBlock[] = [];
+          for (const [blockIndex, block] of sheet.blocks.entries())
+            blocks.push({
+              startCell: block.startCell,
+              values: await blockValues(
+                sources,
+                block,
+                `sheets[${sheetIndex}].blocks[${blockIndex}]`,
+              ),
+            });
+          sheets.push({ name: sheet.name, blocks });
+        }
+        const { workbook, changes } = createAuthoredWorkbook(sheets);
         const initial = serializeAuthoredWorkbook(workbook);
         const applied =
           args.changes.length === 0
@@ -487,6 +648,7 @@ export function createWritingHandlers(
             : applyWorkbookChanges(initial, args.changes);
         const bytes = applied?.bytes ?? initial;
         await checkpoint(signal);
+        await sources.verify();
         const receipt = await output.publish(bytes, { kind: "new" });
         return json(
           mutationReceiptSchema.parse({
@@ -501,6 +663,7 @@ export function createWritingHandlers(
             ...(applied?.editing === undefined
               ? {}
               : { editing: applied.editing }),
+            ...withSources(sources),
           }),
         );
       }),
@@ -517,10 +680,20 @@ export function createWritingHandlers(
             args.source.filePath,
             args.source.versionId,
           );
-          const copies = await copySources(args.changes);
-          const applied = applyWorkbookChanges(
+          const sources = createSourceResolver(root, results);
+          const resolved = await resolveChanges(args.changes, sources);
+          const plan = refuseBlockedPlan(
+            planWorkbookEdit(
+              snapshot.bytes,
+              resolved,
+              externalCopies(resolved),
+            ),
+          );
+          const copies = await copySources(resolved);
+          const applied = applyPlannedEdit(
             snapshot.bytes,
-            args.changes,
+            plan,
+            args.changes.length,
             copies.buffers,
           );
           const { changes, bytes } = applied;
@@ -536,6 +709,7 @@ export function createWritingHandlers(
               source.version.filePath,
               source.version.versionId,
             );
+          await sources.verify();
           await checkpoint(signal);
           const receipt = await output.publish(bytes, {
             kind: "source",
@@ -548,6 +722,10 @@ export function createWritingHandlers(
               ...(applied.editing === undefined
                 ? {}
                 : { editing: applied.editing }),
+              ...(applied.placements.length === 0
+                ? {}
+                : { placements: applied.placements }),
+              ...withSources(sources),
             }),
           );
         }),

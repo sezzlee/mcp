@@ -97,9 +97,11 @@ async function loadSnapshot(
   const { bytes, version } = snapshot;
   const meta = {
     stamp: contentFingerprint(version.filePath, bytes),
+    contentDigest: version.versionId,
     sizeBytes: bytes.length,
     modifiedAt: "",
     mode: "resident" as const,
+    version,
   };
   const format = formats.formatFor(version.filePath);
   if (format === "csv") {

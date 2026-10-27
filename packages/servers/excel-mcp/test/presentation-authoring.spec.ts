@@ -161,18 +161,18 @@ describe("Phase 5 authoring through MCP", () => {
         await call(client, "edit_workbook", {
           source: source.version,
           changes: [
-            { kind: "insert_rows", sheetName: "S", at: 4, count: 1 },
             {
-              kind: "write_cells",
+              kind: "insert_rows",
               sheetName: "S",
-              startCell: "A4",
-              values: [[text("C"), number(4), number(2)]],
-            },
-            {
-              kind: "write_formula",
-              sheetName: "S",
-              cell: "D4",
-              formula: "B4*C4",
+              at: 4,
+              values: [
+                [
+                  text("C"),
+                  number(4),
+                  number(2),
+                  { kind: "formula", formula: "B{row}*C{row}" },
+                ],
+              ],
             },
           ],
         }),
@@ -181,6 +181,10 @@ describe("Phase 5 authoring through MCP", () => {
         table = await output.part("xl/tables/table1.xml");
       expect(table).toContain('ref="A1:D5"');
       expect(table).toMatch(/<autoFilter\b[^>]*ref="A1:D4"/);
+      expect(output.excel.getWorksheet("S")?.getCell("A4").value).toBe("C");
+      expect(output.excel.getWorksheet("S")?.getCell("D4").value).toEqual({
+        formula: "B4*C4",
+      });
       expect(output.excel.getWorksheet("S")?.getCell("A5").value).toBe("Total");
       expect(output.excel.getWorksheet("S")?.getCell("D5").value).toEqual({
         formula: "SUBTOTAL(109,Orders[Amount])",

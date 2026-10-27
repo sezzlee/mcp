@@ -32,6 +32,10 @@ export async function createWorkbookRoot(raw: string): Promise<WorkbookRoot> {
 }
 
 export const resolveWorkbookPath = resolveSourcePath;
+
+export function portablePath(rootRelative: string): string {
+  return rootRelative.split("\\").join("/");
+}
 export const listWorkbooks = listSources;
 
 export function assertReadableFormat(magic: Buffer, requested: string): void {
