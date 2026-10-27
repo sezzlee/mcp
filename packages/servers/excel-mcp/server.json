@@ -2,19 +2,19 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.sezzlee/excel",
   "title": "Sezzlee Excel",
-  "description": "Read spreadsheets; optionally create, transfer and edit immutable .xlsx versions in a sandbox.",
+  "description": "Read spreadsheets; build immutable reports with bulk preparation, calculation, charts and pivots.",
   "websiteUrl": "https://docs.sezzlee.app/docs/excel-mcp/quickstart",
   "repository": {
     "url": "https://github.com/sezzlee/mcp",
     "source": "github",
     "subfolder": "packages/servers/excel-mcp"
   },
-  "version": "0.11.0",
+  "version": "0.12.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@sezzlee/excel-mcp",
-      "version": "0.11.0",
+      "version": "0.12.0",
       "transport": {
         "type": "stdio"
       },

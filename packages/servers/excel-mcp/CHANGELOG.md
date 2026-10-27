@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.12.0 — 2026-10-27
+
+### Report authoring and calculation
+
+- Add ordered bulk preparation, complete version-pinned selections, atomic dependent groups and durable independent-job retry/recovery.
+- Add cell formatting, layout, safe merging, explicit formulas and the supported Excel table lifecycle with structured references and totals.
+- Add bounded server-side formula calculation, typed saved caches and explicit unsupported, cycle, dependency and resource diagnostics.
+- Add scoped template names, validation and conditional formatting, links, legacy notes, embedded PNG/JPEG, column/bar/line/pie charts, categorical PivotTables and legacy workbook/sheet protection.
+- Preserve unrelated feature caches and invalidate affected ones. Formula calculation, chart caches and pivot refresh remain separate states.
+- Refuse pivot refresh before clearing an old output that overlaps its new source. Correct blank/horizontal INDEX results, unsupported-array cache handling and fractional VLOOKUP selectors.
+- Require `@sezzlee/file-core-native` 0.3.1 and `@sezzlee/file-core` 0.3.5 or later through the published dependency ranges for atomic bulk-directory publication and the Windows handle-close fix.
 
 ### Reading fixes
 

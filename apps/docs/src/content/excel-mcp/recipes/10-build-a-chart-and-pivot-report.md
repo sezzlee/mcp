@@ -2,7 +2,7 @@
 
 Build a report from typed sales records, with a chart, a real PivotTable and a calculated total. Fill a named template target, add interactive rules and notes, then protect the finished report.
 
-Use the current repository build of `sezzlee-excel` on your `PATH`; [run the server from source](/docs/excel-mcp/run-the-server-from-source) until a package release includes these writing tools. Install the MCP Inspector and [jq](https://jqlang.org) as described in the [quickstart](/docs/excel-mcp/quickstart).
+Use `sezzlee-excel` from `@sezzlee/excel-mcp` 0.12.0 or later on your `PATH`, or [run the server from source](/docs/excel-mcp/run-the-server-from-source). Install the MCP Inspector and [jq](https://jqlang.org) as described in the [quickstart](/docs/excel-mcp/quickstart).
 
 ## Enable writing
 

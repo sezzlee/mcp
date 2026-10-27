@@ -1,8 +1,8 @@
 {
   "name": "@sezzlee/excel-mcp",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "mcpName": "io.github.sezzlee/excel",
-  "description": "Read local Excel workbooks (.xlsx, .xlsm, .csv), with optional sandboxed creation, value transfer and lossless supported edits to immutable .xlsx versions.",
+  "description": "Read spreadsheets and build immutable Excel reports with bulk preparation, formatting, bounded formula calculation, charts, pivots and templates in a sandbox.",
   "keywords": [
     "mcp",
     "mcp-server",

@@ -4,7 +4,7 @@ Create a report with number formats, cell appearance, formulas and real Excel ta
 
 Enable writing with `--write <relative-output-directory>` after the workbook root. The output directory is inside that root. The default server remains read-only. The [generated tool contracts](/docs/excel-mcp/tools) include the writing tools and their complete registered input schemas.
 
-These writing workflows require the current repository build. Until a package release includes them, [run the server from source](/docs/excel-mcp/run-the-server-from-source).
+These writing workflows require `@sezzlee/excel-mcp` 0.12.0 or later. Install the current npm release, or [run the server from source](/docs/excel-mcp/run-the-server-from-source).
 
 ## Select the source and prepare the change
 
