@@ -239,12 +239,18 @@ describe("server-side calculation", () => {
       "IFERROR(A1,99)",
       "VLOOKUP(7,Inputs!A1:C3,2,TRUE)",
       "'[other.xlsx]S'!A1",
+      '"$4.00"+1',
+      '"50%"+1',
+      '"1,000"+1',
+      '"6/1/2001"+1',
+      'COUNT("50%")',
+      'COUNTIF(Inputs!A1:A3,"50%")',
     ];
     const calculated = calculateWorkbook(await fixture(formulas));
     expect(calculated.calculation).toMatchObject({
       complete: false,
       calculatedCells: 0,
-      unavailableCells: 8,
+      unavailableCells: 14,
     });
     expect(calculated.calculation.results.map((cell) => cell.result)).toEqual([
       expect.objectContaining({ kind: "unsupported" }),
@@ -253,6 +259,12 @@ describe("server-side calculation", () => {
       expect.objectContaining({ kind: "cycle" }),
       expect.objectContaining({ kind: "unsupported" }),
       expect.objectContaining({ kind: "dependency" }),
+      expect.objectContaining({ kind: "unsupported" }),
+      expect.objectContaining({ kind: "unsupported" }),
+      expect.objectContaining({ kind: "unsupported" }),
+      expect.objectContaining({ kind: "unsupported" }),
+      expect.objectContaining({ kind: "unsupported" }),
+      expect.objectContaining({ kind: "unsupported" }),
       expect.objectContaining({ kind: "unsupported" }),
       expect.objectContaining({ kind: "unsupported" }),
     ]);

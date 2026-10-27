@@ -36,6 +36,10 @@ The first model run completed five of six cases. The Turkish partial-result case
 
 ## Gates still to record
 
+The stricter second model run exposed two otherwise correct Turkish JSON answers with trailing Qwen protocol closing tags. The answer checker now accepts only an exact whitelist of these empty closing tags, records `protocolSuffixStripped`, and preserves the raw trace. Extra prose, multiple JSON objects, unknown tags and invalid numeric types remain failures. Numeric claims and workbook contents are unchanged by this normalization; it is not counted as a clean raw answer.
+
+Final review also demonstrated that formatted numeric/date text had been incorrectly classified as a calculated Excel error. These conversions are outside the declared plain decimal/scientific subset, so the evaluator now reports them unavailable instead. Arithmetic, COUNT and COUNTIF cases cover that boundary; IFERROR cannot hide it. The failing classification was observed before the fix.
+
 - Full Excel/lab regression using the recovered Phase 5 corpus and independent calculation oracle.
 - Final build, types, lint, formatting and boundary checks.
 - Final scripted/model output package validation and exact source identity.

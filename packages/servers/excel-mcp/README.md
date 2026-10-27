@@ -57,6 +57,8 @@ Calculation is bounded to 128 sheets, 100,000 stored cells, 10,000 formula cells
 
 ## Tools
 
+Numeric text coercion is limited to plain decimal/scientific strings. Formatted numeric, percentage, currency and date text that requires another conversion profile is reported unsupported, including in direct COUNT arguments and numeric criteria. It is not reported as an invented Excel error or hidden by IFERROR. Ordinary nonnumeric text retains the documented Excel error behavior.
+
 | Tool                      | What it does                                                                                                                                     |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `list_workbooks`          | Lists readable files under the root; the `filePath` it returns is passed to other tools verbatim                                                 |

@@ -46,6 +46,10 @@ function scalar(value: CalculationValue): CalculationAtom {
     : value;
 }
 
+function formattedNumericText(value: string): boolean {
+  return /\p{N}/u.test(value) && /^[\s\p{N}+\-.,/%:$€£¥TZ]+$/u.test(value);
+}
+
 function numeric(
   value: CalculationAtom,
 ): number | Exclude<CalculationAtom, string | number | boolean | null> {
@@ -54,8 +58,13 @@ function numeric(
   if (typeof value === "number") return value;
   if (typeof value === "boolean") return value ? 1 : 0;
   const text = value.trim();
-  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?$/.test(text))
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?$/.test(text)) {
+    if (formattedNumericText(text))
+      return unsupported(
+        "Formatted numeric or date text coercion is unsupported.",
+      );
     return { kind: "error", code: "#VALUE!" };
+  }
   const result = Number(text);
   return Number.isFinite(result) ? result : { kind: "error", code: "#NUM!" };
 }
@@ -204,6 +213,8 @@ function criterion(
   )
     ? Number(operand)
     : undefined;
+  if (asNumber === undefined && formattedNumericText(operand))
+    return unsupported("Formatted numeric or date criteria are unsupported.");
   if (asNumber !== undefined)
     return (value) => {
       if (special(value) || typeof value === "boolean") return false;
@@ -501,11 +512,12 @@ export function evaluateCalculation(
             if (value.kind !== "error") return value;
             continue;
           }
-          if (
-            typeof value === "number" ||
-            (!range && value !== null && typeof numeric(value) === "number")
-          )
-            count += 1;
+          if (typeof value === "number") count += 1;
+          else if (!range && value !== null) {
+            const coerced = numeric(value);
+            if (typeof coerced === "number") count += 1;
+            else if (coerced.kind !== "error") return coerced;
+          }
           continue;
         }
         if (special(value)) return value;
