@@ -437,11 +437,11 @@ export function evaluateCalculation(
         if (row < 0 || column < 0) return error("#VALUE!");
         if (Math.trunc(row) > range.rows || Math.trunc(column) > range.columns)
           return error("#REF!");
-        return (
+        const value =
           range.values[
             (Math.trunc(row) - 1) * range.columns + Math.trunc(column) - 1
-          ] ?? error("#REF!")
-        );
+          ];
+        return value === undefined ? error("#REF!") : value;
       }
       if (args.length !== (name === "MATCH" ? 3 : 4))
         return unsupported("Lookup requires an explicit exact-match mode.");
