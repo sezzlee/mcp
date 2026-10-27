@@ -4,7 +4,7 @@
 
 The descriptions are the text the server publishes to every client, so your agent reads exactly what this page shows. Every input schema is closed: an argument a tool does not list here, or a value of the wrong type, is refused with `invalid_argument` and never silently ignored.
 
-22 tools: `list_workbooks`, `describe_workbook`, `read_sheet`, `profile_sheet`, `get_merged_ranges`, `get_data_validations`, `get_tables`, `get_conditional_formats`, `get_images`, `get_charts`, `aggregate_sheet`, `find_in_sheet`, `prepare_bulk_job`, `run_bulk_job`, `get_bulk_job`, `prepare_bulk`, `prepare_edit`, `prepare_transfer`, `transfer_data`, `create_workbook`, `edit_workbook`, `create_workbook_version`.
+23 tools: `list_workbooks`, `describe_workbook`, `read_sheet`, `profile_sheet`, `get_merged_ranges`, `get_data_validations`, `get_tables`, `get_conditional_formats`, `get_images`, `get_charts`, `aggregate_sheet`, `find_in_sheet`, `calculate_workbook`, `prepare_bulk_job`, `run_bulk_job`, `get_bulk_job`, `prepare_bulk`, `prepare_edit`, `prepare_transfer`, `transfer_data`, `create_workbook`, `edit_workbook`, `create_workbook_version`.
 
 ## `list_workbooks`
 
@@ -313,6 +313,50 @@ Annotations: read-only, idempotent, closed world.
 | `maxResults`                | integer (1–200)                                                                                                                                                                                       |          | Maximum returned matches, default 50. Does not increase the regex deadline.                                                                                                                                             |
 | `delimiter`                 | `"comma"` \| `"semicolon"` \| `"tab"` \| `"pipe"`                                                                                                                                                     |          | CSV separator; sniffed when omitted.                                                                                                                                                                                    |
 | `encoding`                  | `"utf-8"` \| `"utf-16le"` \| `"utf-16be"` \| `"windows-1254"` \| `"iso-8859-9"` \| `"windows-1252"` \| `"windows-1251"` \| `"windows-1256"` \| `"shift_jis"` \| `"gb18030"` \| `"big5"` \| `"euc-kr"` |          | CSV encoding; BOM or utf-8 when omitted.                                                                                                                                                                                |
+
+## `calculate_workbook`
+
+Calculate supported formulas from an exact .xlsx source version and save typed cached results in a new immutable version. Returns bounded cell results, completion and unavailable diagnostics. Recomputes the workbook within strict budgets; no Excel installation or external access. Unsupported formulas, cycles and unavailable dependencies lose stale caches. Formula errors remain typed Excel errors. Only the advertised functions and rectangular A1/static named/table references are supported. Shared/array formulas, volatile functions, external links and iterative calculation are unsupported. Read omitted or long results from the returned output version. The saved workbook conservatively requests recalculation when opened in Excel.
+
+Annotations: non-destructive, closed world.
+
+Available only with `--write <relative-output-directory>`. The registered JSON Schema below is the exact wire contract; nested operation variants are validated by the server.
+
+:::details[Input JSON Schema]
+
+```json
+{
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "source": {
+      "type": "object",
+      "properties": {
+        "filePath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32768
+        },
+        "versionId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "filePath",
+        "versionId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "source"
+  ],
+  "additionalProperties": false
+}
+```
+
+:::
 
 ## `prepare_bulk_job`
 
