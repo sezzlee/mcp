@@ -297,13 +297,11 @@ describe("Phase 7 authoring through MCP", () => {
           ],
         }),
       );
-      const source = versionReceiptSchema
-        .passthrough()
-        .parse(
-          await call(client, "calculate_workbook", {
-            source: composed.version,
-          }),
-        );
+      const source = versionReceiptSchema.passthrough().parse(
+        await call(client, "calculate_workbook", {
+          source: composed.version,
+        }),
+      );
       const sourceBytes = await bytes(directory, source);
       expect(
         XLSX.read(sourceBytes, { type: "buffer" }).Sheets.Summary?.B8,
@@ -389,13 +387,11 @@ describe("Phase 7 authoring through MCP", () => {
       );
       expect(refreshed.editing?.refreshRequired ?? []).not.toContain("charts");
       expect(refreshed.editing?.refreshRequired ?? []).not.toContain("pivots");
-      const recalculated = versionReceiptSchema
-        .passthrough()
-        .parse(
-          await call(client, "calculate_workbook", {
-            source: refreshed.version,
-          }),
-        );
+      const recalculated = versionReceiptSchema.passthrough().parse(
+        await call(client, "calculate_workbook", {
+          source: refreshed.version,
+        }),
+      );
       const current = await JSZip.loadAsync(
         await bytes(directory, recalculated),
       );
