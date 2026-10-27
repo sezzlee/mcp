@@ -1,6 +1,6 @@
 # Faz 7: uzman seviye Excel iş akışları
 
-Status, 2026-10-27: all eight approved families are implemented in the order F7-06 → F7-03 → F7-04 → F7-05 → F7-01 → F7-02 → F7-07 → F7-08. The [implementation and verification plan](implementation-plan.md) records the support profiles and earlier-phase obligations. Final local corpus, model, application, schema and resource acceptance passed; full native/installed-package CI is pending for [PR #73](https://github.com/sezzlee/mcp/pull/73). See the [implementation status](implementation-status.md) and [acceptance record](acceptance-record.json). The immutable-version decision and [shared roadmap](../README.md) remain applicable.
+Status, 2026-10-27: all eight approved families are implemented and accepted in the order F7-06 → F7-03 → F7-04 → F7-05 → F7-01 → F7-02 → F7-07 → F7-08. The [implementation and verification plan](implementation-plan.md) records the support profiles and earlier-phase obligations. Local corpus, model, application, schema and resource checks plus full native/installed-package CI passed for [PR #73](https://github.com/sezzlee/mcp/pull/73). See the [implementation status](implementation-status.md) and [acceptance record](acceptance-record.json). The immutable-version decision and [shared roadmap](../README.md) remain applicable.
 
 ## Hedef
 
@@ -55,4 +55,4 @@ The approved implementation order and concrete work packages are recorded in the
 
 ## Açık kararlar
 
-A-10 priority and family selection were approved on 2026-10-27: all eight families, in the order recorded above. The plan defines bounded `.xlsx` support profiles; detailed operation contracts and independent acceptance remain implementation gates. Macro preservation, editing and execution are separate capabilities, never implied by family inclusion.
+A-10 priority and family selection were approved on 2026-10-27: all eight families, in the order recorded above. The plan defines bounded `.xlsx` support profiles; the [capability matrix and acceptance status](implementation-status.md) separate reading, authoring, preservation and refresh. Macro preservation, editing and execution are separate capabilities, never implied by family inclusion.

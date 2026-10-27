@@ -1,6 +1,6 @@
 # Phase 7 implementation status
 
-Status, 2026-10-27: all eight approved families are implemented on `codex/excel-phase4-bulk` for [PR #73](https://github.com/sezzlee/mcp/pull/73). Final local acceptance passed. Full native and installed-package CI remains pending before closure. The [plan](implementation-plan.md) defines the support profiles; the [machine-readable acceptance record](acceptance-record.json) binds the evidence to the actual runtime.
+Status, 2026-10-27: implementation and acceptance are complete for all eight approved families on `codex/excel-phase4-bulk`, submitted to [PR #73](https://github.com/sezzlee/mcp/pull/73). Final local acceptance and [full native/installed-package CI](https://github.com/sezzlee/mcp/actions/runs/40486596417) passed. The [plan](implementation-plan.md) defines the support profiles; the [machine-readable acceptance record](acceptance-record.json) binds the evidence to the actual runtime.
 
 ## Delivered support
 
@@ -16,6 +16,21 @@ Status, 2026-10-27: all eight approved families are implemented on `codex/excel-
 | F7-08 recurring reports      | Existing bulk finishing accepts all new operations. Two periods, shorter replacement, replay, retained versions and late-failure atomicity are exercised.                           |
 
 The package README documents exact limits and refusals. Chart refresh, PivotTable refresh and formula calculation remain distinct states. Affected source edits invalidate caches; unrelated formatting retains them. Existing immutable publication, transfer, structural-edit and preservation rules continue to apply.
+
+## Capability matrix
+
+Preservation means an unrelated supported edit retains the existing feature. Affected unsupported dependencies refuse atomically; preservation does not promise that arbitrary existing objects can be replaced or refreshed.
+
+| Family              | Reading                                                                                             | Create/edit                                                                         | Preservation and refresh                                                                                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Names/templates     | `describe_workbook` exposes a partial list; existing sheet-local scope limitation remains explicit. | Static scoped names and typed rectangular fill.                                     | Retain unrelated names; update supported references or refuse. Fill resolves scope independently of the partial metadata list.                                            |
+| Validation          | Existing bounded `get_data_validations`.                                                            | Documented rule profiles, whole-range replacement/removal.                          | Retain unrelated rules; supported structural reference transforms or refusal. No server-side enforcement on later writes.                                                 |
+| Conditional formats | Existing bounded `get_conditional_formats`; formula-threshold limitation remains explicit.          | Comparison/expression rules with font/fill, priority and stop flag.                 | Retain unrelated/unsupported rules; transform supported dependencies or refuse. Consumer evaluates appearance.                                                            |
+| Content             | `get_images` for images; no new standalone note/link reader.                                        | Embedded PNG/JPEG, HTTPS/internal links and legacy notes.                           | Retain unrelated parts; explicit replacement/removal and unshared-part cleanup. No remote image refresh or threaded-comment support.                                      |
+| Charts              | Existing bounded `get_charts`.                                                                      | Column/bar/line/pie objects with explicit literal vectors.                          | Retain unrelated caches; source changes invalidate affected caches. Explicit replacement rebuilds; formula sources require consumer refresh.                              |
+| Pivots              | Saved result cells are readable; no new standalone pivot-cache reader.                              | One categorical row field, up to eight documented measures and private real caches. | Retain unrelated caches; affected sources mark refresh. Explicit `set_pivot` replacement refreshes its supported literal source; arbitrary existing/shared caches refuse. |
+| Protection          | Edit inspection reports blockers; no new password/security reader.                                  | Legacy sheet/workbook protection and cell locking.                                  | Supported password removal must be explicit/authenticated. Unsupported hashes, encryption/signatures and macro editing refuse.                                            |
+| Recurring reports   | Existing bulk status/results and ordinary workbook readers.                                         | Existing bulk preparation/finish with new expert operations.                        | Version-pinned inputs, replay and atomic publication; formula/chart/pivot refresh states remain separate.                                                                 |
 
 ## Final local acceptance
 
@@ -44,8 +59,10 @@ Earlier model trials failed exact period/note requirements. Prompts were clarifi
 
 LibreOffice drops the deterministic report's `stopIfTrue` flag on export. The produced original flag and relative/effective rules are independently checked; the application record exposes this consumer limitation. Microsoft Excel desktop interaction and all possible workbook/advanced-feature combinations are not claimed. Macros are never executed; encrypted, signed and unsupported protection edits refuse.
 
-## Remaining closure
+## CI closure and release boundary
 
 Seven fresh local tarballs passed dependency/content audit. A clean npm installation on darwin-arm64 Node 24.12.0 passed the expanded expert-report smoke and existing edit/transfer/calculate/retry/restore scenarios. The expert smoke independently checks named fill, validation, conditional rules, notes/links/images, chart caches/visible-color metadata, pivot results and protection. Its initial single-cell spelling assertion was corrected to accept semantically equivalent A1 range forms; other assertions were retained.
 
-Push this implementation to PR #73, run full native/platform/Node and installed-tarball CI, then bind those green results to the unchanged runtime here. Package publication, website deployment and private runtime rollout remain separate.
+Full CI passed all 15 jobs on `5c8157a9c34014d9f30f7e3fe0d6628cc89b8fbd`: ten native platform/Node legs, both NestJS host generations, combined checks, planning and merged-prebuild packing/clean installation. Linux x64/arm64, macOS x64/arm64 and Windows x64 were checked on Node 22 and 24, including the new installed expert-report smoke. The earlier full run was superseded when this smoke was added.
+
+All 129 validated server modules retain SHA-256 `9abd27742e21704b6da3500bc6d239e4f8f9430391f455525aad300b19da5b52`, matching final deterministic and TR/EN model/application evidence. The closing update changes documentation only and uses `[skip ci]` at the user's request. Review and merge belong to the user. Package publication, website deployment and private runtime rollout remain separate.

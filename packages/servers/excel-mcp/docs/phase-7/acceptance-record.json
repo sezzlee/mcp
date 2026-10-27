@@ -1,7 +1,7 @@
 {
   "phase": 7,
   "date": "2026-10-27",
-  "status": "local-acceptance-passed-ci-pending",
+  "status": "complete",
   "pullRequest": "https://github.com/sezzlee/mcp/pull/73",
   "branch": "codex/excel-phase4-bulk",
   "baseRevision": "f42d625ecb8ec5936a3241b58c5ea8d863a4df8c",
@@ -189,9 +189,25 @@
     ]
   },
   "ci": {
-    "status": "pending",
+    "status": "passed",
     "workflow": "ci.yml",
     "full": true,
+    "runId": 40486596417,
+    "url": "https://github.com/sezzlee/mcp/actions/runs/40486596417",
+    "validatedRevision": "5c8157a9c34014d9f30f7e3fe0d6628cc89b8fbd",
+    "passedJobs": 15,
+    "failedJobs": 0,
+    "nativeLegs": 10,
+    "platforms": [
+      "linux-x64",
+      "linux-arm64",
+      "darwin-x64",
+      "darwin-arm64",
+      "win32-x64"
+    ],
+    "nodeMajors": [22, 24],
+    "installedExpertSmokeSha256": "2d3af14aca9a82e15c131a64e0170e4cca26b522c493918de13c82d0e7e28b82",
+    "closure": "Final closure changes documentation only and retains the validated runtime. Per user instruction, its commit uses [skip ci].",
     "runtimeRevision": "86db134da32bd48bc77a3e77d962b5be51508cff",
     "localInstalledPackage": {
       "tarballsAudited": 7,
@@ -199,7 +215,7 @@
       "platform": "darwin-arm64",
       "node": "24.12.0",
       "expertReportSmoke": true,
-      "scenario": "Scoped target fill, validation, conditional formatting, note/link/image, literal-source chart, pivot aggregation/cache and protection through a clean npm tarball install; independent XML/value assertions and source bytes checked.",
+      "scenario": "Scoped target fill, validation, conditional formatting, note/link/image, literal-source chart, pivot aggregation and protection through a clean npm tarball install; independent XML/value assertions and source bytes checked.",
       "testCorrection": "The first smoke expected only a single-cell A1 spelling. It now accepts both equivalent B1 and B1:B1 spellings; all value/object checks are retained."
     },
     "required": [

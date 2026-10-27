@@ -1,6 +1,6 @@
 # Phase 7 implementation and verification plan
 
-Status, 2026-10-27: scope and order approved; implementation and acceptance are pending. All eight F7 families belong to this phase. This document does not mark a family complete merely because its unsupported cases are documented.
+Status, 2026-10-27: implementation and acceptance are complete for all eight approved F7 families and their documented profiles. The [status](implementation-status.md) and [acceptance record](acceptance-record.json) bind local corpus/model/application/schema/resource checks and full native/installed-package CI to the final runtime. PR #73 remains for user review; publication and consumer rollout are separate.
 
 ## Recorded decisions
 
@@ -8,7 +8,7 @@ Status, 2026-10-27: scope and order approved; implementation and acceptance are 
 - Finish Excel authoring and its acceptance in the existing [PR #73](https://github.com/sezzlee/mcp/pull/73), alongside Phases 4–6. Review and merge belong to the user. Publication and private consumer rollout remain separate.
 - Reuse immutable versions, the preservation editor, bounded MCP responses, bulk jobs and existing lab runners. Never edit an input workbook or a retained output in place.
 - Use deterministic acceptance first; use the available Ollama/Qwen model for Turkish and English tool-use acceptance after output correctness is established.
-- Support is explicit and bounded. The profiles below are engineering proposals within the approved families, not a promise of all Excel features. Record any later scope change here before claiming acceptance.
+- Support is explicit and bounded. The profiles below define the accepted support within the approved families. Record any later scope change here before claiming acceptance.
 
 ## Earlier-phase obligations
 
@@ -25,7 +25,7 @@ Status, 2026-10-27: scope and order approved; implementation and acceptance are 
 
 The earlier explicit deferrals of charts, pivots and conditional-format authoring now enter this phase. Phase 2 transpose is a separate deferred capability, not required by these families. Existing macro-enabled/encrypted/protected edit refusals must be reconciled explicitly in P7-07; removing a blocker alone is never support. No npm publication, website deployment or private runtime rollout is implied.
 
-## Proposed support profiles
+## Support profiles
 
 | Family                       | Initial authoring profile                                                                                                                                                                                      | Required continuation and bounds                                                                                                                                                                                                                                                                  |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -91,4 +91,4 @@ Maintain `implementation-status.md` and a sanitized `acceptance-record.json` as 
 - [x] F7-08 recurring reporting implemented and accepted.
 - [x] Earlier-phase obligations and cross-feature preservation accepted on the changed runtime.
 - [x] Deterministic, independent, corpus, resource and TR/EN model gates recorded.
-- [ ] Generated docs and native/installed-package CI green; changes pushed to PR #73 for user review.
+- [x] Generated docs and native/installed-package CI green; changes pushed to PR #73 for user review.
