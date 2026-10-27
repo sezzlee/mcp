@@ -23,6 +23,48 @@ It writes `manifest.json` (server build and lab source digests, the model, each 
 
 The `read` suite runs the 104 reading tasks of `src/agent/catalog.json` as `read/<task>` and needs `--corpus` or `SEZZLEE_CORPUS`: the catalog files are copied and verified once into a shared read-only workspace, and every trial gets its own read-mode server over it. Scripted trials run each task's plan and grade the derived answer; model trials use the reading runner unchanged and also write `runs.jsonl` and `events.jsonl`, which `src/agent/report-cli.ts` and `compare-cli.ts` read.
 
+The `chain` suite holds the 0.13 read→write tasks, `chain/<name>`, with neutral prompts that name no tool: a read version passed to an edit, recovery after the file changed, validation ranges, scoped names, image names and conditional-format priorities reused from reads, a source-frame restructure, inserted `{row}` formulas, linked summary formulas, a grouped report and a filtered copy written from a source, a correction across two files, and the `expectedVersion` shape. Fixtures are made through the server; `scripts/chain-oracle.py` grades each output with the standard library, and `test-chain-edit-oracle.py` and `test-chain-source-oracle.py` pin it with known answers and corrupted outputs. Each trial directory keeps `chain.json`: every saved output, every write and whether it took a `source`, and the error codes the model met.
+
+## Night runs
+
+`src/lab/night-cli.ts` runs one matrix over a night. The scripted baseline of every selected scenario runs first; when any of them fails, no model host is built and the night stops. Then, for each model, it waits for the host within the time limit and runs every condition, scenario, language and repetition in order, one trial at a time. A model directory holds `host.json` and one directory per condition with `results.jsonl`, `trials.jsonl`, `runs.jsonl`, `events.jsonl` and the trial directories. Run the same command again to resume: finished trials are skipped, host failures run again, and a directory whose manifest (server build, lab sources, oracles, matrix) differs is refused. No trial starts after the time limit.
+
+```sh
+caffeinate -dims env SEZZLEE_CORPUS=/path/to/corpus SEZZLEE_AGENT_LAB_OLLAMA_URL=http://MODEL_HOST:11434 \
+  node packages/lab/excel-lab/src/lab/night-cli.ts --out ~/excel-lab-runs/night-1 --matrix /path/to/matrix.json
+node packages/lab/excel-lab/src/lab/morning-cli.ts ~/excel-lab-runs/night-1 [--against ~/excel-lab-runs/night-0]
+```
+
+Keep the matrix outside the repository. A short smoke matrix, one model and both languages over the writing and chain suites:
+
+```json
+{
+  "suites": ["chain", "calc", "edit"],
+  "hours": 1,
+  "models": [{ "name": "MODEL" }]
+}
+```
+
+A full matrix adds the reading tasks, repetitions and the catalog and window conditions; a `hide` condition removes tools from every scenario's offered catalog and refuses them if called:
+
+```json
+{
+  "suites": ["read", "edit", "bulk", "expert", "calc", "chain"],
+  "languages": ["tr", "en"],
+  "repetitions": 2,
+  "hours": 10,
+  "conditions": [
+    { "name": "full" },
+    { "name": "small-window", "window": 32768 },
+    { "name": "no-prepare-edit", "hide": ["prepare_edit"] },
+    { "name": "no-query-result", "hide": ["query_result"] }
+  ],
+  "models": [{ "name": "MODEL" }, { "name": "OTHER_MODEL", "think": false }]
+}
+```
+
+`morning-cli.ts` writes `report.md` and `report.json` into the night directory: pass rates per model and condition, suite and language, mean calls, catalog and budget refusals, sourced against literal writes, calls and error codes per tool, the most common failures, and with `--against` the trials that changed since the previous night and McNemar's exact p over the paired trials.
+
 ## Phase 7 expert report acceptance
 
 The [Phase 7 plan](../../servers/excel-mcp/docs/phase-7/implementation-plan.md) composes names/templates, validation, conditional formats, links/notes/images, charts, real pivots, protection and recurring report jobs. The `expert` suite of the [unified runner](#unified-agent-runner) always runs a deterministic report first. Optional model trials repeat the report in Turkish and English, using the same registered tools and independent output grading.

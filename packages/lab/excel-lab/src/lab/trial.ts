@@ -116,6 +116,26 @@ export interface TrialInput {
   readonly repetition?: number;
   readonly onRunRecord?: (record: RunRecord) => Promise<void>;
   readonly onEvent?: (event: TrialEvent) => Promise<void>;
+  readonly condition?: Condition;
+}
+
+/** A run axis: tools hidden from every scenario's catalog, and the window. */
+export interface Condition {
+  readonly hide?: readonly string[];
+  readonly window?: number;
+}
+
+/** A scenario's catalog and window under a condition. */
+export function underCondition(
+  policy: ModelPolicy,
+  condition: Condition | undefined,
+): { readonly catalog: readonly string[]; readonly window: number } {
+  return {
+    catalog: policy.catalog.filter(
+      (name) => !(condition?.hide ?? []).includes(name),
+    ),
+    window: condition?.window ?? policy.window,
+  };
 }
 
 export interface LabScenario {
@@ -215,8 +235,9 @@ export function defineScenario<Context, State>(
           if (input.host === undefined)
             throw new Error("A model trial needs a host.");
           const { policy } = spec;
+          const { catalog, window } = underCondition(policy, input.condition);
           const offered = (await toolSpecsOf(session.client)).filter((tool) =>
-            policy.catalog.includes(tool.function.name),
+            catalog.includes(tool.function.name),
           );
           await session.trace({ offered: offered.map((t) => t.function.name) });
           const brief = spec.brief(context, input.language);
@@ -235,7 +256,7 @@ export function defineScenario<Context, State>(
               {
                 messages,
                 tools: offered,
-                window: policy.window,
+                window,
                 temperature: input.temperature ?? 0,
                 timeoutMs: policy.timeoutMs,
                 numPredict: policy.numPredict,
@@ -259,7 +280,7 @@ export function defineScenario<Context, State>(
               counts.requested += 1;
               const name = toolCall.function.name;
               let content: string;
-              if (!policy.catalog.includes(name)) {
+              if (!catalog.includes(name)) {
                 counts.refusedCatalog += 1;
                 content = notOffered;
                 await session.trace({ refused: "catalog", tool: name });
@@ -289,7 +310,10 @@ export function defineScenario<Context, State>(
             })
           ).output ?? null;
       } catch (error) {
-        failure = message(error);
+        failure =
+          error instanceof HostRequestError
+            ? `host: ${error.failure}: ${error.message}`
+            : message(error);
       } finally {
         await session.close();
       }
