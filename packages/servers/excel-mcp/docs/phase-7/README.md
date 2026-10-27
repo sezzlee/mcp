@@ -1,6 +1,6 @@
 # Faz 7: uzman seviye Excel iş akışları
 
-Current review status, 2026-10-27: all eight approved families retain their documented support profiles, but runtime fixes `0e20250` and `87c0707` require renewed acceptance. See the [review follow-up](review-followup.md), [implementation status](implementation-status.md) and [acceptance record](acceptance-record.json) for the confirmed defects, executed evidence and open gates. The earlier corpus/model/application/native results are historical, not validation of the changed runtime. The [implementation and verification plan](implementation-plan.md), immutable-version decision and [shared roadmap](../README.md) remain applicable.
+Current review status, 2026-10-27: all eight approved families and the post-review fixes have fresh acceptance on the integrated runtime. The [review closure](review-closure.md), [implementation status](implementation-status.md) and [acceptance record](acceptance-record.json) close LOCAL-001–LOCAL-008 with current corpus/model/application/schema/resource, installed-package and 15/15 native CI evidence. The requested docs deployment is live. Earlier results remain historical for their original runtime. The [implementation plan](implementation-plan.md), immutable-version decision and [shared roadmap](../README.md) remain applicable; PR #73 is ready for user merge review within the documented profiles.
 
 ## Hedef
 

@@ -1,5 +1,7 @@
 # Phase 6 implementation status
 
+Post-review lookup corrections and fresh acceptance are recorded in the [Phase 7 review closure](../phase-7/review-closure.md). The original Phase 6 counts, models and runtime identity below remain historical evidence; they are not carried forward as acceptance of the corrected runtime.
+
 Historical Phase 6 closure is recorded below. Phase 7 was subsequently authorized on the same PR; its [current status](../phase-7/implementation-status.md) supersedes the earlier deferral statements without changing this phase's evidence.
 
 Status, 2026-10-27: capability implementation and acceptance are complete. [Full CI](https://github.com/sezzlee/mcp/actions/runs/40467382979) passed all 15 jobs on `2f723da248a4e179870f49942e0b04664910984d`, including all ten native Node 22/24 legs and merged-prebuild packing/clean installation. The [sanitized acceptance record](acceptance-record.json) retains exact identities and results. Publication and consumer rollout remain separate; Phase 7 remains future work.

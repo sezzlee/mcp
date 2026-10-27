@@ -1,89 +1,99 @@
 {
   "phase": 7,
   "date": "2026-10-27",
-  "status": "revalidation_required",
-  "evidenceScope": "The runtime, implementation, checks, corpus, model and ci fields below retain historical baseline evidence. They do not accept the changed runtime identified by review.sourceHead.",
-  "review": {
-    "sourceHead": "87c0707b6243b6b495f3d2ab91ad1795f81d717d",
-    "fixCommits": [
-      "0e20250b22207b7708e20fdc84a981a1f20cdc26",
-      "87c0707b6243b6b495f3d2ab91ad1795f81d717d"
-    ],
-    "report": "review-followup.md",
-    "coverage": "Partial multi-layer review; remaining document/code and cross-feature coverage is explicit in the report.",
-    "newOwnerTests": {
-      "files": 2,
-      "cases": 6,
-      "executed": false
-    },
-    "narrowEvidence": {
-      "indexSavedXmlAnswers": 8,
-      "indexIndependentUncachedLibreOfficeAnswers": 8,
-      "pivotFormatControls": 4,
-      "pivotIndependentXmlArtifacts": 2,
-      "nativeLinuxX64Probes": 8,
-      "formatHarnessUsesReviewAdapters": true,
-      "cleanNpmInstall": false,
-      "officialFinalRuntimeFingerprint": null
-    },
-    "ci": {
-      "runId": 40492867042,
-      "url": "https://github.com/sezzlee/mcp/actions/runs/40492867042",
-      "checkout": "51aa21f8779092363e5fe5135691f8d4c6c8a8d3",
-      "integrationBase": "a2323e47eb13d2348c22c9e13953e4f48e66c5b4",
-      "status": "failed_generated_reference",
-      "excelBuildTypesLint": "passed",
-      "formatting": "not_run_after_validation_failure",
-      "vitest": "not_run_after_validation_failure",
-      "nativeAndPack": "skipped"
-    },
-    "pending": [
-      "reference regeneration on intended integrated source",
-      "new owner tests and formatting",
-      "configured corpus and full Excel/lab regression",
-      "independent oracle self-tests and application/visual/Open XML SDK acceptance",
-      "Qwen TR/EN acceptance",
-      "resource and installed-package/native acceptance",
-      "remaining broad review coverage"
-    ]
-  },
+  "status": "complete",
+  "readiness": "ready_for_user_merge_review",
   "pullRequest": "https://github.com/sezzlee/mcp/pull/73",
   "branch": "codex/excel-phase4-bulk",
-  "baseRevision": "f42d625ecb8ec5936a3241b58c5ea8d863a4df8c",
+  "scope": "Documented bounded authoring profiles and prior-phase continuation; no claim of general Excel compatibility or exhaustive workbook coverage.",
+  "source": {
+    "externalReviewHead": "d5253343943aa667ed02214f308bb0216140b6cc",
+    "integratedMain": "a2323e47eb13d2348c22c9e13953e4f48e66c5b4",
+    "runtimeCodeRevision": "f6d356aea0420e483b7333a351cc288df37ad923",
+    "validatedHead": "70caabc6e038cc5887b0b6e59cfc8c66bdfdb9ac",
+    "changedCodeFilesFingerprint": {
+      "files": 89,
+      "sha256": "a83f70fabc72443c87d8a75363fddd320e951621f7a254ac080aa5544dfcbf61",
+      "algorithm": "SHA-256 over sorted changed .ts/.tsx/.mjs/.js/.py/.cc paths relative to repository root, each path + NUL + bytes + NUL; diff integratedMain..validatedHead."
+    },
+    "closure": "The following closure commit changes documentation only and uses [skip ci] at the user's request."
+  },
   "runtime": {
     "modules": 129,
-    "sha256": "9abd27742e21704b6da3500bc6d239e4f8f9430391f455525aad300b19da5b52",
-    "algorithm": "Sorted relative dist JavaScript paths: SHA-256(path + NUL + file bytes + NUL)."
+    "sha256": "9f0a54c8ba58be8875df897e10a1b48229a69b75ec23024ffe342be876c1bc8f",
+    "algorithm": "SHA-256 over sorted relative dist JavaScript paths, each path + NUL + file bytes + NUL.",
+    "beforeAfterEqual": true,
+    "modelRuntimeEqual": true
   },
-  "implementation": {
-    "changedTypeScriptAndPythonFiles": 28,
-    "sha256": "06d273a51e783e3e12a03c239f73dd5cf4a52deb20d11d03a14828a19cc14b6c",
-    "algorithm": "Sorted changed/new .ts and .py paths relative to vendor root: SHA-256(path + NUL + file bytes + NUL). Excludes documentation."
-  },
-  "families": [
-    "F7-06",
-    "F7-03",
-    "F7-04",
-    "F7-05",
-    "F7-01",
-    "F7-02",
-    "F7-07",
-    "F7-08"
+  "findings": [
+    {
+      "id": "R-001",
+      "severity": "P1",
+      "fixedBy": "87c0707",
+      "issue": "Refreshing a pivot could clear its new source when that source overlaps the prior output.",
+      "proof": "Four real MCP regression cases pass; overlapping full/partial sources refuse atomically; shorter non-overlapping refresh remains supported."
+    },
+    {
+      "id": "R-002",
+      "severity": "P2",
+      "fixedBy": "0e20250",
+      "issue": "A valid blank INDEX result was confused with an absent reference.",
+      "proof": "17 fixed scalar lookup answers now pass production-cache and independent uncached LibreOffice checks."
+    },
+    {
+      "id": "R-003",
+      "severity": "P2",
+      "fixedBy": "289774c",
+      "issue": "Single-row INDEX scalar selectors failed and an omitted-column multidimensional array was falsely complete/current.",
+      "proof": "Before the vector fix errorCells was 6 instead of 3; before the array refusal complete was true with zero unavailable cells. Final scalar results pass; unavailable output preserves formula without a cache."
+    },
+    {
+      "id": "R-004",
+      "severity": "P2",
+      "fixedBy": "f6d356a",
+      "issue": "VLOOKUP checked fractional selectors against bounds before truncation.",
+      "proof": "A 2.9 selector in two columns produced a fourth error before the fix; the fixed blank and scalar results agree with LibreOffice. Clean installed-package smoke also checks a 2.9 selector."
+    },
+    {
+      "id": "R-005",
+      "severity": "P2",
+      "fixedBy": "dc061e7",
+      "issue": "The documentation runner reported success for failed shell commands.",
+      "proof": "An unpaired exit 17 example returned runner exit 0 before the fix and exit 1 after. Explicit negative Inspector examples handle observed tool-error exit 5 while retaining exact error transcripts."
+    },
+    {
+      "id": "R-006",
+      "severity": "integration",
+      "fixedBy": "dc061e7",
+      "issue": "Generated tool reference drifted after integration with main and the public recipe still claimed the server could not calculate formulas.",
+      "proof": "Actual integrated schema generation/check passed. New public recipe executes through MCP Inspector. Production HTTPS confirms updated text and tool contracts."
+    }
   ],
   "checks": {
-    "excel": {
-      "command": "SEZZLEE_CORPUS=<external-corpus> SEZZLEE_CALCULATION_ORACLE=1 pnpm turbo run test --filter=@sezzlee/excel-mcp --concurrency=1 --ui=stream -- --maxWorkers=1",
-      "files": 81,
-      "passed": 6520,
+    "focused": {
+      "files": 3,
+      "passed": 35,
       "skipped": 0,
-      "durationSeconds": 227.79,
-      "expertOwnerTests": 29
+      "originalReviewRegressionCases": 6,
+      "independentLookupKnownAnswers": 17,
+      "unsupportedArrayCacheAbsence": true,
+      "composedFreshnessAndDrawingContinuation": true,
+      "authenticatedReprotectionAndLateRefusal": true
+    },
+    "excel": {
+      "files": 84,
+      "passed": 6530,
+      "skipped": 0,
+      "durationSeconds": 249.64,
+      "corpusEnabled": true,
+      "calculationOracleEnabled": true,
+      "command": "SEZZLEE_CORPUS=<authorized-corpus> SEZZLEE_CALCULATION_ORACLE=1 pnpm turbo run test --filter=@sezzlee/excel-mcp --concurrency=1 --ui=stream -- --maxWorkers=1"
     },
     "lab": {
-      "command": "pnpm turbo run test --filter=@sezzlee/excel-lab --concurrency=1 --ui=stream -- --maxWorkers=1",
       "files": 17,
       "passed": 136,
-      "skipped": 0
+      "skipped": 0,
+      "command": "pnpm turbo run test --filter=@sezzlee/excel-lab --concurrency=1 --ui=stream -- --maxWorkers=1"
     },
     "pythonOracleSelfTests": {
       "expert": 6,
@@ -91,69 +101,110 @@
       "authoring": 12,
       "bulk": 11,
       "scanner": 8,
+      "total": 40,
       "passed": true
     },
-    "buildTypesLint": {
-      "command": "pnpm turbo run build check-types lint --filter=@sezzlee/excel-mcp --filter=@sezzlee/excel-lab --concurrency=1 --ui=stream",
-      "tasks": 13,
-      "passed": true
+    "buildTypesLintValidate": {
+      "tasks": 27,
+      "passed": true,
+      "command": "pnpm turbo run build check-types lint validate --filter=@sezzlee/excel-mcp --filter=@sezzlee/excel-lab --filter=@sezzlee/docs --concurrency=1 --ui=stream"
+    },
+    "format": {
+      "passed": true,
+      "wholeRepository": true
     },
     "boundaries": {
-      "files": 1703,
-      "packages": 23,
-      "issues": 0
+      "passed": true,
+      "files": 1706,
+      "packages": 23
     },
     "reference": {
-      "command": "node apps/docs/scripts/gen-reference.mjs --check",
-      "passed": true
-    },
-    "catalogBytes": {
-      "limit": 50000,
-      "prepare_bulk_job": 47549,
-      "run_bulk_job": 46099
-    },
-    "openXmlSdk": {
-      "outputs": 4,
-      "errors": 0,
-      "selections": [
-        "scripted-report",
-        "tr-report",
-        "en-report",
-        "scale-report"
-      ]
-    },
-    "application": {
-      "reports": 3,
       "passed": true,
-      "compared": [
-        "typed values",
-        "independent pivot aggregation/cache",
-        "chart types/series",
-        "relative/effective conditional rules",
-        "notes",
-        "links",
-        "images",
-        "protection",
-        "unlocked cells",
-        "source hashes"
+      "source": "Actual built integrated servers; generated file not hand-authored."
+    },
+    "docsExamples": {
+      "passed": 26,
+      "skipped": [
+        "skip  apps/docs/src/content/pdf-mcp/recipes/03-read-scanned-pages-with-ocr.md (set SEZZLEE_DOCS_OLLAMA to host:port, or local)",
+        "skip  apps/docs/src/content/llm-mcp/00-quickstart.md (set SEZZLEE_LLM_MODEL)",
+        "skip  apps/docs/src/content/llm-mcp/recipes/01-summarise-a-document-longer-than-the-models-window.md (set SEZZLEE_LLM_MODEL)",
+        "skip  apps/docs/src/content/llm-mcp/recipes/02-get-a-structured-answer-from-the-model.md (set SEZZLEE_LLM_MODEL)",
+        "skip  apps/docs/src/content/llm-mcp/recipes/03-label-the-rows-of-a-csv-file.md (set SEZZLEE_LLM_MODEL)"
       ],
-      "consumer": "LibreOffice",
-      "desktopExcelChecked": false,
-      "stopIfTrueRoundtrip": {
-        "scripted": false,
-        "tr": true,
-        "en": true
-      }
+      "allChangedExcelExamplesPassed": true,
+      "modifiedLlmNegativeCommand": {
+        "passed": true,
+        "inspectorExit": 5,
+        "error": "input_too_large",
+        "modelCallRequired": false
+      },
+      "skipScope": "Five model/OCR-dependent narrative pages were skipped in the generic docs run; these are not Excel acceptance skips. The changed negative LLM call was executed separately and passed."
     },
-    "visual": {
-      "passed": true,
-      "scriptedSeriesPixelCounts": [56374, 72845, 2795, 43377],
-      "trSeriesPixelCounts": [75527],
-      "enSeriesPixelCounts": [75527],
-      "oldInvisibleChartRejected": true,
-      "oldSeriesPixelCounts": [0, 0, 0, 0],
-      "method": "Calc SinglePageSheets PDF; Report page rendered at 2400 pixels; independent stdlib PNG decode and per-chart visible-series threshold. Synthetic fixture only.",
-      "humanImageReview": true
+    "schema": {
+      "validator": "Open XML SDK",
+      "selectedOutputs": 4,
+      "uniqueWorkbookContents": 3,
+      "errors": 0,
+      "reportOutputs": [
+        {
+          "language": "scripted",
+          "errors": 0
+        },
+        {
+          "language": "tr",
+          "errors": 0
+        },
+        {
+          "language": "en",
+          "errors": 0
+        }
+      ],
+      "scaleErrors": 0
+    },
+    "applicationAndVisual": {
+      "reports": [
+        {
+          "language": "scripted",
+          "passed": true,
+          "sha256": "49cfe7a7d0a15cf67b288716527a6c1e9399fa23239e33d24735b7a8b07d1ccd",
+          "sdkExit": 0,
+          "sdkErrors": 0,
+          "applicationPassed": true,
+          "sourceUnchanged": true,
+          "stopIfTruePreserved": false,
+          "chartBands": 4,
+          "seriesPixels": [56374, 72845, 2795, 43377]
+        },
+        {
+          "language": "tr",
+          "passed": true,
+          "sha256": "b66f21ef68f97e3991a742de5922417f56d997ef3eed171e6644119e1c884ccc",
+          "sdkExit": 0,
+          "sdkErrors": 0,
+          "applicationPassed": true,
+          "sourceUnchanged": true,
+          "stopIfTruePreserved": true,
+          "chartBands": 1,
+          "seriesPixels": [75527]
+        },
+        {
+          "language": "en",
+          "passed": true,
+          "sha256": "b66f21ef68f97e3991a742de5922417f56d997ef3eed171e6644119e1c884ccc",
+          "sdkExit": 0,
+          "sdkErrors": 0,
+          "applicationPassed": true,
+          "sourceUnchanged": true,
+          "stopIfTruePreserved": true,
+          "chartBands": 1,
+          "seriesPixels": [75527]
+        }
+      ],
+      "independentPivotAggregation": true,
+      "originalSourceHashesUnchanged": true,
+      "humanReportAndConditionalColorReview": true,
+      "desktopExcelInteractionChecked": false,
+      "consumerLimitation": "LibreOffice drops stopIfTrue for the deterministic report on export; original flag and relative/effective rules remain independently checked."
     },
     "scale": {
       "passed": true,
@@ -161,35 +212,37 @@
       "records": 24999,
       "pivotGroups": 100,
       "chartPoints": 10000,
-      "runtimeMs": 4646.298042,
-      "maxRSSKiB": 498400,
+      "runtimeMs": 5943.960999999999,
+      "maxRSSKiB": 529776,
       "sourceUnchanged": true,
-      "timingScope": "create source plus expert edit; excludes Python oracle",
       "nodeHeapMiB": 1024,
-      "performanceGuarantee": false
+      "timingScope": "Create source and expert edit; excludes Python oracle.",
+      "portablePerformanceGuarantee": false
+    },
+    "installedPackages": {
+      "passed": true,
+      "freshTarballs": 7,
+      "platform": "darwin-arm64",
+      "node": "24.12.0",
+      "auditPassed": true,
+      "cleanNpmInstall": true,
+      "expertReportSmoke": true,
+      "horizontalIndexAndArrayCacheRefusal": true,
+      "fractionalVlookup": true,
+      "existingEditTransferCalculationRetryRestore": true
     }
-  },
-  "corpus": {
-    "external": true,
-    "inputs": 10713,
-    "csv": 9762,
-    "xlsx": 947,
-    "xlsm": 4,
-    "selection": "Existing suite discovery/selection rules; input inventory is not an edit count."
   },
   "model": {
     "provider": "ollama",
     "name": "qwen3.8:latest",
     "digest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
     "hostVersion": "0.40.7",
-    "parent": "qwen3.8:27b-q4_K_M",
-    "endpointAvailable": true,
     "think": false,
     "temperature": 0,
     "window": 65536,
     "numPredict": 8192,
     "callBudget": 16,
-    "finalBatch": "model-final-04",
+    "batch": "review-closure-model-03",
     "results": [
       {
         "language": "scripted",
@@ -207,42 +260,31 @@
         "sha256": "b66f21ef68f97e3991a742de5922417f56d997ef3eed171e6644119e1c884ccc"
       }
     ],
-    "grading": "Whole artifact plus application and visible-chart oracles; final runtime identity above.",
-    "historicalAttempts": [
+    "grading": "Whole saved artifact, independent source/pivot/cache checks, actual LibreOffice export and visible-series oracle.",
+    "earlierNonFinalBatches": [
       {
-        "batch": "model-01",
-        "scripted": true,
-        "tr": true,
-        "en": false,
-        "reason": "Period emitted as a date instead of exact literal text."
-      },
-      {
-        "batch": "model-final-02",
-        "scripted": true,
-        "tr": true,
-        "en": false,
-        "reason": "Note author/text differed from exact requirements."
-      },
-      {
-        "batch": "model-final-03",
-        "scripted": true,
-        "tr": true,
-        "en": true,
+        "batch": "review-closure-model-01",
+        "passed": 3,
         "finalAcceptance": false,
-        "reason": "Predates final visible-chart runtime fix."
+        "reason": "Predates additional selector fixes."
+      },
+      {
+        "batch": "review-closure-model-02",
+        "passed": 3,
+        "finalAcceptance": false,
+        "reason": "Predates fractional VLOOKUP fix."
       }
     ]
   },
   "ci": {
-    "status": "passed",
-    "workflow": "ci.yml",
-    "full": true,
-    "runId": 40486596417,
-    "url": "https://github.com/sezzlee/mcp/actions/runs/40486596417",
-    "validatedRevision": "5c8157a9c34014d9f30f7e3fe0d6628cc89b8fbd",
+    "id": 40502797716,
+    "url": "https://github.com/sezzlee/mcp/actions/runs/40502797716",
+    "validatedRevision": "70caabc6e038cc5887b0b6e59cfc8c66bdfdb9ac",
+    "conclusion": "success",
     "passedJobs": 15,
     "failedJobs": 0,
     "nativeLegs": 10,
+    "nodeMajors": [22, 24],
     "platforms": [
       "linux-x64",
       "linux-arm64",
@@ -250,32 +292,228 @@
       "darwin-arm64",
       "win32-x64"
     ],
-    "nodeMajors": [22, 24],
-    "installedExpertSmokeSha256": "2d3af14aca9a82e15c131a64e0170e4cca26b522c493918de13c82d0e7e28b82",
-    "closure": "Final closure changes documentation only and retains the validated runtime. Per user instruction, its commit uses [skip ci].",
-    "runtimeRevision": "86db134da32bd48bc77a3e77d962b5be51508cff",
-    "localInstalledPackage": {
-      "tarballsAudited": 7,
-      "passed": true,
-      "platform": "darwin-arm64",
-      "node": "24.12.0",
-      "expertReportSmoke": true,
-      "scenario": "Scoped target fill, validation, conditional formatting, note/link/image, literal-source chart, pivot aggregation and protection through a clean npm tarball install; independent XML/value assertions and source bytes checked.",
-      "testCorrection": "The first smoke expected only a single-cell A1 spelling. It now accepts both equivalent B1 and B1:B1 spellings; all value/object checks are retained."
+    "jobs": [
+      {
+        "name": "plan",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "build, lint, types, fixtures",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "NestJS host (nest10-express4)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "NestJS host (nest12-express5)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "secure files (darwin-x64, Node 22)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "secure files (linux-x64, Node 24)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "secure files (linux-arm64, Node 22)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "secure files (linux-arm64, Node 24)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "secure files (darwin-arm64, Node 22)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "secure files (linux-x64, Node 22)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "secure files (win32-x64, Node 24)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "secure files (darwin-arm64, Node 24)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "secure files (darwin-x64, Node 24)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "secure files (win32-x64, Node 22)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "pack",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "reviewObligations": {
+    "LOCAL-001": {
+      "status": "closed",
+      "scope": "integrated generated reference and format",
+      "evidence": "See checks and review-closure.md."
     },
-    "required": [
-      "all native platform/Node legs",
-      "both NestJS host generations",
-      "combined checks",
-      "installed-tarball pack/smoke"
+    "LOCAL-002": {
+      "status": "closed",
+      "scope": "six real MCP regressions",
+      "evidence": "See checks and review-closure.md."
+    },
+    "LOCAL-003": {
+      "status": "closed",
+      "scope": "fresh corpus lab oracle and runtime fingerprint",
+      "evidence": "See checks and review-closure.md."
+    },
+    "LOCAL-004": {
+      "status": "closed",
+      "scope": "application schema and visual verification",
+      "evidence": "See checks and review-closure.md."
+    },
+    "LOCAL-005": {
+      "status": "closed",
+      "scope": "fresh TR/EN Qwen saved-output acceptance",
+      "evidence": "See checks and review-closure.md."
+    },
+    "LOCAL-006": {
+      "status": "closed",
+      "scope": "resource ceiling and independent artifact",
+      "evidence": "See checks and review-closure.md."
+    },
+    "LOCAL-007": {
+      "status": "closed",
+      "scope": "fresh installed/native package matrix",
+      "evidence": "See checks and review-closure.md."
+    },
+    "LOCAL-008": {
+      "status": "closed",
+      "scope": "remaining phase/native/oracle and cross-feature coverage",
+      "evidence": "See checks and review-closure.md."
+    }
+  },
+  "documentationDeployment": {
+    "status": "published",
+    "worker": "sezzlee-docs",
+    "wranglerVersion": "4.140.0",
+    "sourceRevision": "70caabc6e038cc5887b0b6e59cfc8c66bdfdb9ac",
+    "deploymentId": "771c86dc-9693-4985-ad83-b27fdbabb4d0",
+    "versionId": "ac361d9f-12ab-43f8-ae24-704f8c74b1cf",
+    "trafficPercent": 100,
+    "createdAt": "2026-10-27T12:27:24.061245Z",
+    "dryRunPassed": true,
+    "confirmation": "Cloudflare deployment API plus HTTPS content checks; the CLI call initially yielded before completion.",
+    "https": [
+      {
+        "url": "https://docs.sezzlee.app/docs/excel-mcp/build-a-chart-and-pivot-report",
+        "status": 200,
+        "expectedContentPassed": true,
+        "staleCalculationClaimAbsent": true
+      },
+      {
+        "url": "https://docs.sezzlee.app/docs/excel-mcp/build-a-formatted-report",
+        "status": 200,
+        "expectedContentPassed": true,
+        "staleCalculationClaimAbsent": true
+      },
+      {
+        "url": "https://docs.sezzlee.app/docs/excel-mcp/tools",
+        "status": 200,
+        "expectedContentPassed": true,
+        "staleCalculationClaimAbsent": true
+      },
+      {
+        "url": "https://docs.sezzlee.app/docs/excel-mcp/read-a-csv-export",
+        "status": 200,
+        "expectedContentPassed": true,
+        "staleCalculationClaimAbsent": true
+      },
+      {
+        "url": "https://docs.sezzlee.app/docs/excel-mcp/read-formulas-tables-and-rules",
+        "status": 200,
+        "expectedContentPassed": true,
+        "staleCalculationClaimAbsent": true
+      },
+      {
+        "url": "https://docs.sezzlee.app/docs/xml-mcp/count-and-total-records-without-paging",
+        "status": 200,
+        "expectedContentPassed": true,
+        "staleCalculationClaimAbsent": true
+      },
+      {
+        "url": "https://docs.sezzlee.app/docs/xml-mcp/read-a-document-larger-than-8-mb",
+        "status": 200,
+        "expectedContentPassed": true,
+        "staleCalculationClaimAbsent": true
+      },
+      {
+        "url": "https://docs.sezzlee.app/docs/pdf-mcp/read-a-document-a-few-pages-at-a-time",
+        "status": 200,
+        "expectedContentPassed": true,
+        "staleCalculationClaimAbsent": true
+      },
+      {
+        "url": "https://docs.sezzlee.app/docs/llm-mcp/summarise-a-document-longer-than-the-models-window",
+        "status": 200,
+        "expectedContentPassed": true,
+        "staleCalculationClaimAbsent": true
+      },
+      {
+        "url": "https://docs.sezzlee.app/",
+        "status": 200,
+        "expectedContentPassed": true,
+        "staleCalculationClaimAbsent": true
+      }
+    ],
+    "packageReleaseRequiredNotice": true
+  },
+  "historicalEvidence": {
+    "previousAcceptance": "https://github.com/sezzlee/mcp/blob/d5253343943aa667ed02214f308bb0216140b6cc/packages/servers/excel-mcp/docs/phase-7/acceptance-record.json",
+    "initialReviewReport": "See review-followup.md for the external review's limited sandbox evidence and original open gates.",
+    "supersededCi": [
+      {
+        "id": 40492867042,
+        "result": "failed generated reference",
+        "finalAcceptance": false
+      },
+      {
+        "id": 40500524008,
+        "result": "cancelled after format failure",
+        "finalAcceptance": false
+      },
+      {
+        "id": 40501458695,
+        "result": "15 jobs passed on earlier runtime; later VLOOKUP fix requires final run above",
+        "finalAcceptance": false
+      }
     ]
   },
   "limits": [
-    "Bounded initial profiles documented in package README.",
-    "LibreOffice export can drop stopIfTrue; original OOXML and effective rules checked independently.",
-    "No desktop Excel interaction claim.",
-    "Macros never execute; encrypted/signed/unsupported protection edits refuse.",
-    "Publication, website deployment and private consumer rollout are separate."
+    "The package capability matrix defines bounded read/create/edit/preserve/refresh support.",
+    "No desktop Excel interaction claim; recorded LibreOffice stopIfTrue export limit remains.",
+    "Five unrelated model/OCR narrative docs were not replayed in the generic docs run; changed LLM negative command passed separately.",
+    "Macros never execute; encrypted/signed/unsupported-protection edits refuse.",
+    "No merge, npm publication or private product rollout was performed. Requested documentation deployment is complete."
   ],
-  "privateArtifactsCommitted": false
+  "privateEndpointsCredentialsCorpusOrWorkbooksCommitted": false
 }

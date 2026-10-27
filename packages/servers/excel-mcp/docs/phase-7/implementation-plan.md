@@ -1,5 +1,7 @@
 # Phase 7 implementation and verification plan
 
+Post-review closure: all required gates were renewed after current-main integration and pivot/lookup fixes. See [review-closure.md](review-closure.md) for the completed review coverage and [acceptance-record.json](acceptance-record.json) for final runtime/native/model and live-docs evidence. Earlier measurements below are historical unless explicitly renewed there.
+
 Status, 2026-10-27: implementation and acceptance are complete for all eight approved F7 families and their documented profiles. The [status](implementation-status.md) and [acceptance record](acceptance-record.json) bind local corpus/model/application/schema/resource checks and full native/installed-package CI to the final runtime. PR #73 remains for user review; publication and consumer rollout are separate.
 
 ## Recorded decisions

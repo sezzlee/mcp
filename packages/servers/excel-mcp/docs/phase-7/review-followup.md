@@ -1,6 +1,6 @@
 # PR 73 review follow-up
 
-Status, 2026-10-27: two confirmed runtime defects have been fixed on the existing branch. Acceptance is reopened for the changed runtime; this is not a merge-readiness sign-off. No merge, publication, deployment or private-consumer rollout was performed.
+Historical external-review snapshot, 2026-10-27: the two fixes below originally reopened acceptance. The subsequent [review closure](review-closure.md) and fresh [acceptance record](acceptance-record.json) close the required gates and record the requested docs deployment. The sandbox evidence and pending instructions below remain historical; they are not the current task list. No PR merge, npm publication or private-consumer rollout was performed.
 
 ## Revisions and evidence boundaries
 
