@@ -1,12 +1,12 @@
 # Excel oluşturma ve düzenleme: araştırmaya dayalı faz planı
 
-Status: Phases 0–4 are implemented with closed acceptance gates. The [Phase 3 plan](phase-3/implementation-plan.md) records preserved-package editing and required formula/formatting copy. The [Phase 4 plan](phase-4/implementation-plan.md) records ordered bulk operations, atomic dependent groups, independent-job recovery and completed corpus/model/platform/installed-package acceptance. Publication and consumer rollout are separate. New formula/style authoring remains Phase 5 and calculation Phase 6.
+Status: Phases 0–6 are implemented with closed acceptance gates for their documented support profiles. The [Phase 3 plan](phase-3/implementation-plan.md) records preserved-package editing and required formula/formatting copy. The [Phase 4 plan](phase-4/implementation-plan.md) records ordered bulk operations, atomic dependent groups and independent-job recovery. Phase 5 and Phase 6 closure is recorded below. Publication and consumer rollout remain separate; Phase 7 remains future work.
 
 Phase 5, 2026-10-26: formats, layout, safe merge, the full table lifecycle and ordinary/structured formula authoring are implemented and accepted. The [implementation and verification plan](phase-5/implementation-plan.md) includes previous-phase integration work; the [acceptance status](phase-5/implementation-status.md) records local regression, model/replay, independent package/application/scale checks and the green full native/packed-package CI run. Publication and consumer rollout remain separate.
 
-## Hedef ve dayanak
+Phase 6, 2026-10-27: bounded server-side formula calculation is implemented and accepted, with results in both tool responses and new immutable `.xlsx` versions. The [plan](phase-6/implementation-plan.md) audits earlier-phase obligations; the [implementation status](phase-6/implementation-status.md) records independent semantics, model/output checks and completed native/packed CI acceptance. It joins the existing Phase 4–5 PR. Phase 7 remains separate.
 
-Phase 6, 2026-10-27: bounded server-side formula calculation is implemented with results in both tool responses and new immutable `.xlsx` versions. The [plan](phase-6/implementation-plan.md) audits earlier-phase obligations; the [implementation status](phase-6/implementation-status.md) records independent semantics, model/output checks and acceptance gates. It joins the existing Phase 4–5 PR. Phase 7 remains separate.
+## Hedef ve dayanak
 
 Agent yeni Excel oluşturabilmeli, doğrudan verilen veya önceden okunan verilerle doldurabilmeli, konuşma boyunca düzenlemeye devam edebilmeli ve basitten uzman seviyesine kadar toplu işlemler yapabilmeli.
 

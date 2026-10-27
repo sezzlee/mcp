@@ -1,6 +1,6 @@
 # Phase 6 implementation plan: server-side formula calculation
 
-Status: planned. Implementation and acceptance remain open.
+Status: implemented and accepted. Local, independent, model, native and packed-install acceptance is recorded in the [implementation status](implementation-status.md) and [acceptance record](acceptance-record.json).
 
 Baseline: `64b85b50ef488308cf329569d194d59d737a66d0`, the Phase 5 acceptance closure on `codex/excel-phase4-bulk`. Phase 6 joins the existing [Phase 4–5 pull request](https://github.com/sezzlee/mcp/pull/73). Phase 7 remains separate. Do not merge or publish as part of this work.
 
@@ -10,7 +10,7 @@ Baseline: `64b85b50ef488308cf329569d194d59d737a66d0`, the Phase 5 acceptance clo
 - Excel installation must not be a runtime dependency. An independent spreadsheet application may validate fixtures and outputs.
 - Support is explicit and bounded. Unsupported formulas never acquire guessed values. Formula errors, unsupported calculation, cycles, stale caches and resource exhaustion are distinct states.
 - Existing formula authoring is not calculation. Existing successful authoring and editing contracts remain regression gates.
-- The initial function list below is a proposed implementation contract. An engine name or its advertised function count is not evidence of Excel compatibility.
+- The function list below is the implemented support contract. An engine name or its advertised function count is not evidence of Excel compatibility.
 
 ## Earlier-phase obligations
 
@@ -52,6 +52,8 @@ Function inclusion is conditional on independent semantic cases. Unsupported syn
 | Bounded package-owned evaluator | Adds no runtime license dependency; can represent the exact support and budget contract.             | Preferred fallback if permissive candidates fail the required probes. Implement only the declared grammar/functions; fail closed on everything else.                                                                          |
 
 Sources: [HyperFormula](https://github.com/handsontable/hyperformula), [fast-formula-parser](https://github.com/LesterLyu/fast-formula-parser), [Formula.js](https://github.com/formulajs/formulajs). Metadata checked 2026-10-27. Record the actual selected engine, version, transitive dependencies and measured limits before closing P6-01.
+
+Selected: the package-owned `bounded-excel-v1` evaluator, with zero new runtime dependencies. The final support contract, independently checked cases, exact limits and exceptions are recorded in the implementation status. P6-00–P6-07 and F6-01–F6-07 are closed by that evidence and the successful full native/packed CI run.
 
 ## Work packages and acceptance
 

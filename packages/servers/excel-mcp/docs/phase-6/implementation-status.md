@@ -1,6 +1,6 @@
 # Phase 6 implementation status
 
-Status, 2026-10-27: implementation present; final regression, model and CI gates are being recorded. No closed acceptance claim yet.
+Status, 2026-10-27: capability implementation and acceptance are complete. [Full CI](https://github.com/sezzlee/mcp/actions/runs/40467382979) passed all 15 jobs on `2f723da248a4e179870f49942e0b04664910984d`, including all ten native Node 22/24 legs and merged-prebuild packing/clean installation. The [sanitized acceptance record](acceptance-record.json) retains exact identities and results. Publication and consumer rollout remain separate; Phase 7 remains future work.
 
 ## Implemented contract
 
@@ -34,15 +34,26 @@ The calculation lab uses the existing Ollama host/protocol with explicit thinkin
 
 The first model run completed five of six cases. The Turkish partial-result case exhausted its call budget while repeatedly reading cells and did not produce a final answer. The harness now states that an explicitly reported partial calculation completes that reporting task and reports budget exhaustion directly. Final rerun evidence remains separate from that first failure.
 
-## Gates still to record
+## Final acceptance
 
 The stricter second model run exposed two otherwise correct Turkish JSON answers with trailing Qwen protocol closing tags. The answer checker now accepts only an exact whitelist of these empty closing tags, records `protocolSuffixStripped`, and preserves the raw trace. Extra prose, multiple JSON objects, unknown tags and invalid numeric types remain failures. Numeric claims and workbook contents are unchanged by this normalization; it is not counted as a clean raw answer.
 
 Final review also demonstrated that formatted numeric/date text had been incorrectly classified as a calculated Excel error. These conversions are outside the declared plain decimal/scientific subset, so the evaluator now reports them unavailable instead. Arithmetic, COUNT and COUNTIF cases cover that boundary; IFERROR cannot hide it. The failing classification was observed before the fix.
 
-- Full Excel/lab regression using the recovered Phase 5 corpus and independent calculation oracle.
-- Final build, types, lint, formatting and boundary checks.
-- Final scripted/model output package validation and exact source identity.
-- PR #73 final native/packed CI results. No merge or publication.
+| Gate                                                | Final result                                                                                                                                                                                                                                                                            |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full configured Phase 5 corpus and Excel regression | 6,491 tests in 80 files passed; zero skips.                                                                                                                                                                                                                                             |
+| Lab regression                                      | 136 tests in 17 files passed; zero skips.                                                                                                                                                                                                                                               |
+| Calculation owner                                   | 17 cases passed, including 64 known-answer formulas, 56 independent LibreOffice comparisons, the eight separately documented Excel-specific cases, aggregate work/population budgets, and calculated-version edit/recalculate/retained-version continuation.                            |
+| Build, types, lint, formatting and boundaries       | Passed; generated tool reference is current.                                                                                                                                                                                                                                            |
+| Final scripted acceptance                           | Six of six TR/EN scenarios passed independent saved-output and source-hash checks.                                                                                                                                                                                                      |
+| Final Qwen acceptance                               | Six of six TR/EN scenarios passed semantic final-claim and saved-output checks. Five raw final answers were clean; one had explicitly recorded Qwen closing-tag normalization. Historical failed attempts remain recorded; this is not a one-shot success claim.                        |
+| Independent Open XML SDK                            | Twelve selected output paths, three unique content hashes, zero schema errors.                                                                                                                                                                                                          |
+| Local package acceptance                            | Seven tarballs passed dependency/content audit; a clean npm installation passed editing, transfer, authoring, calculation, retry/refusal and retained-version checks on darwin-arm64 Node 24. The calculation check also verifies that unsupported table SUBTOTAL caches remain absent. |
+| Full native and merged-package CI                   | All 15 jobs passed, including Linux x64/arm64, macOS x64/arm64 and Windows x64 on both Node 22 and 24, followed by merged-prebuild packing and a clean installed-package smoke.                                                                                                         |
+
+The final server has 120 JavaScript runtime modules. Its sorted-path/NUL/bytes/NUL SHA-256 is `4ef0b22f86f81adbb5b2b3bb5e7cd3970ba17fbfb3a96b8c7e2b09c65a5f7cef`; it matched before and after both final scripted and model runs and the final local build. The runtime last changed at `3d38e09`; `2f723da` regenerates its tool reference without changing runtime code. The acceptance closure changes documentation only.
+
+The first CI attempt correctly rejected the stale generated reference. Running the repository's documentation generator fixed that omission; the ordinary PR CI then passed, and the explicit full run above supplied the native/packed gates that ordinary PR runs intentionally skip. No merge, publication or website deployment was performed.
 
 Licensed corpus files, endpoint addresses, full model traces and generated output workbooks remain outside the public repository. Phase 7 remains deferred at the user's request.

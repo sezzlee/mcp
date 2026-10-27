@@ -1,6 +1,6 @@
 # Faz 6: sunucuda formül hesaplama
 
-Durum: hesaplama uygulandı; son kabul kapıları [uygulama durumunda](implementation-status.md) izleniyor. [Uygulama planı](implementation-plan.md), önceki fazlardan devreden yükümlülükleri ve test kapılarını içerir. Formül yazma Faz 5'tedir; [ana planda](../README.md) K1-06 ile kayıtlıdır. Faz 6 mevcut Faz 4–5 PR'ına eklenir; Faz 7 sonraya bırakılmıştır.
+Durum: uygulama ve kabul tamamlandı. [Uygulama durumu](implementation-status.md) ile [kabul kaydı](acceptance-record.json), yerel/corpus, bağımsız uygulama, Qwen, native ve paket kurulum sonuçlarını içerir. [Uygulama planı](implementation-plan.md), önceki fazlardan devreden yükümlülükleri kaydeder. Formül yazma Faz 5'tedir; [ana planda](../README.md) K1-06 ile kayıtlıdır. Faz 6 mevcut Faz 4–5 PR'ına eklendi; Faz 7 sonraya bırakılmıştır.
 
 ## Hedef
 
