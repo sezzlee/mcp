@@ -89,7 +89,7 @@ Numeric text coercion is limited to plain decimal/scientific strings. Formatted 
 | `profile_sheet`           | Bounded type and quality profiles with reusable column specifications                                                                            |
 | `read_sheet`              | A cell range as a compact grid: hoisted column headers plus row arrays                                                                           |
 | `aggregate_sheet`         | Grouped summaries, calendar and numeric buckets, bounded pivots, conditional metrics and exact percentiles                                       |
-| `find_in_sheet`           | Cells whose value or formula matches a query                                                                                                     |
+| `find_in_sheet`           | Cells whose value or formula matches a query; without a sheet, in every worksheet                                                                |
 | `get_tables`              | Excel Tables: range, header and totals rows, column names and letters                                                                            |
 | `get_data_validations`    | Validation rules, regrouped into rectangular ranges                                                                                              |
 | `get_conditional_formats` | Conditional formatting rules as predicates                                                                                                       |

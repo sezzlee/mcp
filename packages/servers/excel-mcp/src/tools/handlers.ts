@@ -7,7 +7,7 @@ import {
 } from "../platform/paths.js";
 import { profileSheet } from "../grid/profile-sheet.js";
 import { readingHintsOf } from "../grid/column-spec.js";
-import { findInSheet, readSheet } from "../grid/read-sheet.js";
+import { findInSheet, findInWorkbook, readSheet } from "../grid/read-sheet.js";
 import { collectConditionalFormats } from "../metadata/conditional-formats.js";
 import { collectCharts } from "../metadata/charts.js";
 import { collectImages } from "../metadata/images.js";
@@ -79,6 +79,16 @@ function gridSelection(
       ? {}
       : { visibleOnly: args.visibleOnly }),
   };
+}
+
+function worksheetsWithData(loaded: LoadedDocument): string[] {
+  if (loaded.format === "csv") return [];
+  const { workbook } = loaded;
+  return workbook.sheetNames.filter(
+    (name) =>
+      !workbook.opc.chartSheets.has(name) &&
+      workbook.sheet(name).bounds !== undefined,
+  );
 }
 
 type ToolCondition = NonNullable<ToolInput<"aggregate_sheet">["where"]>[number];
@@ -457,9 +467,22 @@ export function createHandlers(root: WorkbookRoot): ToolHandlers {
           args.searchIn === "values" ? undefined : args.searchIn,
           args.filePath,
         );
+        const sheets =
+          args.sheetName === undefined &&
+          args.range === undefined &&
+          args.table === undefined &&
+          args.columns === undefined
+            ? worksheetsWithData(loaded)
+            : [];
+        const find = (
+          options: Parameters<typeof findInSheet>[1],
+        ): ReturnType<typeof findInSheet | typeof findInWorkbook> =>
+          sheets.length > 1
+            ? findInWorkbook(sheetSource(loaded), sheets, options)
+            : findInSheet(sheetSource(loaded), options);
         return json(
           withCsv(
-            await findInSheet(sheetSource(loaded), {
+            await find({
               ...gridSelection(loaded, args),
               extraEnvelopeBytes:
                 modeEnvelopeBytes +

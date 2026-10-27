@@ -454,7 +454,9 @@ export const toolDefinitions = {
         .describe(
           "Text to find, or a JavaScript regular expression of at most 256 characters when matchMode is regex.",
         ),
-      sheetName,
+      sheetName: sheetName.describe(
+        "Exact worksheet name. Omitted with no range, table or columns: every worksheet is searched and each match names its sheet.",
+      ),
       ...selectionOptions,
       ...profileHeaders,
       ...typedOptions,
