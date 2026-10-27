@@ -67,17 +67,10 @@ try {
     {
       kind: "copy_range",
       sheetName: "Data",
-      range: "A3:B3",
+      range: "A2:B2",
       targetSheet: "Data",
-      startCell: "D3",
+      startCell: "D2",
       mode: "all",
-    },
-    {
-      kind: "write_cells",
-      sheetName: "Data",
-      startCell: "A3",
-      overwrite: true,
-      values: [[{ kind: "number", value: 12 }]],
     },
   ];
   const prepared = await call("prepare_edit", {
@@ -86,9 +79,21 @@ try {
     changes,
   });
   assert.equal(prepared.kind, "ready");
-  const edited = await call("edit_workbook", { source, changes });
-  assert.equal(edited.editing.recalculated, false);
-  assert.equal(edited.editing.recalculationRequired, true);
+  const moved = await call("edit_workbook", { source, changes });
+  assert.equal(moved.editing.recalculated, false);
+  assert.equal(moved.editing.recalculationRequired, true);
+  const edited = await call("edit_workbook", {
+    source: moved.version,
+    changes: [
+      {
+        kind: "write_cells",
+        sheetName: "Data",
+        startCell: "A3",
+        overwrite: true,
+        values: [[{ kind: "number", value: 12 }]],
+      },
+    ],
+  });
   const actual = await sheet(edited.version);
   assert.equal(actual.A3.v, 12);
   assert.equal(actual.A3.z, "0.00");
@@ -110,7 +115,7 @@ try {
   assert.equal(actual.E3.f, "D3*2");
   assert.equal(actual.A6.v, "Keep this note");
   const retried = await call("edit_workbook", { source, changes });
-  assert.deepEqual(retried.version, edited.version);
+  assert.deepEqual(retried.version, moved.version);
   const beforeFailure = await readdir(join(directory, "out"));
   const failed = await client.callTool({
     name: "edit_workbook",
