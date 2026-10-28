@@ -274,6 +274,45 @@ describe("the header row a call that names none reads by", () => {
     ).toEqual({ row: 1, source: "default" });
   });
 
+  it("warns that a default header row of values names the columns, even for an explicit range", () => {
+    const values = sheetOf([
+      [10, 2, 20],
+      [5, 3, 15],
+    ]);
+    expect(
+      headerWarnings(
+        values,
+        { top: 2, left: 3, bottom: 2, right: 3 },
+        1,
+        "default",
+        ["20"],
+        true,
+        "master",
+      ),
+    ).toEqual([
+      {
+        code: "header_row_unnamed",
+        message:
+          "Row 1 holds no text, only values such as numbers or dates, and was read as the header row by default, so those values name the columns. If the row is data rather than a header, pass headerRow 0.",
+      },
+    ]);
+    const years = sheetOf([
+      ["Group", 2005, 2013],
+      ["White", 155.4, 159.6],
+    ]);
+    expect(
+      headerWarnings(
+        years,
+        { top: 2, left: 2, bottom: 2, right: 2 },
+        1,
+        "default",
+        ["2005"],
+        true,
+        "master",
+      ),
+    ).toEqual([]);
+  });
+
   it("keeps row 1 over a table whose every cell is text", () => {
     expect(
       found([

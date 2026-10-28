@@ -20,6 +20,22 @@ export const workbookVersionSchema = z.strictObject({
   versionId: workbookVersionIdSchema,
 });
 
+/** An expected version as its id, or as the version object a read or receipt returned. */
+export const expectedVersionSchema = z.union([
+  workbookVersionIdSchema,
+  workbookVersionSchema,
+]);
+
+/**
+ * The version id an expected version names. Its filePath is not compared:
+ * the id is a content hash, so another file's version fails as a change.
+ */
+export function expectedVersionId(
+  expected: z.infer<typeof expectedVersionSchema>,
+): z.infer<typeof workbookVersionIdSchema> {
+  return typeof expected === "string" ? expected : expected.versionId;
+}
+
 export const versionReceiptSchema = z.strictObject({
   kind: z.literal("complete"),
   version: workbookVersionSchema,

@@ -8,7 +8,7 @@ import {
 import {
   blockSourceReceiptSchema,
   editPlacementSchema,
-  workbookVersionIdSchema,
+  expectedVersionSchema,
   workbookVersionSchema,
   mutationReceiptSchema,
 } from "../platform/versions.js";
@@ -62,8 +62,11 @@ const insertRowsWire = z
     },
   )
   .refine(
-    (change) => change.header === undefined || change.source !== undefined,
-    { message: "header requires source." },
+    (change) => change.header === undefined || change.count === undefined,
+    {
+      message:
+        "header names the columns that values or source write; insert_rows with count writes no cells.",
+    },
   )
   .refine(
     (change) =>
@@ -98,7 +101,7 @@ export type EditWireChange = z.infer<typeof editWireChangesSchema>[number];
 
 export const prepareEditSchema = z.strictObject({
   filePath: z.string().min(1).max(32_768),
-  expectedVersion: workbookVersionIdSchema.optional(),
+  expectedVersion: expectedVersionSchema.optional(),
   changes: editWireChangesSchema,
 });
 

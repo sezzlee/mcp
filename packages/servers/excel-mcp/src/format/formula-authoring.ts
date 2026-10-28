@@ -1,4 +1,4 @@
-import { fold } from "@sezzlee/file-core";
+import { asciiUpper, fold } from "@sezzlee/file-core";
 import type { PresentationChange } from "../authoring/presentation.js";
 import { presentationLimits } from "../authoring/presentation.js";
 import { parseCellRef, formatCellRef, columnToLetters } from "../grid/range.js";
@@ -301,7 +301,7 @@ export function validateAuthoredFormula(
           )
         )
           invalidPresentation(
-            "Dynamic array and named-function authoring is outside Phase 5.",
+            `${asciiUpper(token.text.replace(/^_xlfn\./i, ""))} is a dynamic array or named function, and the server cannot author those formulas.`,
           );
         at++;
         if (tokens[at]?.kind !== "close")

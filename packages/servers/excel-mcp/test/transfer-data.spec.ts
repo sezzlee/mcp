@@ -80,7 +80,7 @@ async function workspace(
   }
 }
 
-it("advertises transfer selections and targets as objects and rejects JSON-encoded strings", async () => {
+it("advertises transfer selections and targets as objects and decodes a JSON-encoded selection once", async () => {
   await workspace(async (directory, client) => {
     const tools = await client.listTools();
     expect(
@@ -100,12 +100,27 @@ it("advertises transfer selections and targets as objects and rejects JSON-encod
       },
     });
     await writeFile(join(directory, "source.csv"), "Amount\n10\n");
+    expect(
+      await call(client, "prepare_transfer", {
+        filePath: "source.csv",
+        selection: '{"kind":"range"}',
+      }),
+    ).toEqual(
+      await call(client, "prepare_transfer", {
+        filePath: "source.csv",
+        selection: { kind: "range" },
+      }),
+    );
     const rejected = await client.callTool({
       name: "prepare_transfer",
-      arguments: { filePath: "source.csv", selection: '{"kind":"range"}' },
+      arguments: { filePath: "source.csv", selection: "range A1:A2" },
     });
     expect(rejected.isError).toBe(true);
-    expect(payload(rejected)).toMatchObject({ error: "invalid_argument" });
+    expect(payload(rejected)).toMatchObject({
+      error: "invalid_argument",
+      message:
+        "Invalid arguments for prepare_transfer: selection: expected an object, received a string; send the object itself, not text that encodes it.",
+    });
   });
 });
 

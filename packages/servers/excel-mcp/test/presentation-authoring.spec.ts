@@ -839,6 +839,49 @@ describe("Phase 5 authoring through MCP", () => {
       });
       expect(oracle.Sheets.S?.A6.v).toBe("Total");
     }));
+  it("names the occupied totals cell and the range that adds the totals row below the data", () =>
+    workspace(async (_directory, client) => {
+      const refused = await client.callTool({
+        name: "create_workbook",
+        arguments: {
+          sheets: [
+            {
+              name: "S",
+              blocks: [
+                {
+                  startCell: "A1",
+                  values: [
+                    [text("Item"), text("Amount")],
+                    [text("A"), number(20)],
+                    [text("B"), number(15)],
+                  ],
+                },
+              ],
+            },
+          ],
+          changes: [
+            {
+              kind: "create_table",
+              sheetName: "S",
+              range: "A1:B3",
+              name: "Sales",
+              totals: [
+                { kind: "label", column: "Item", text: "Total" },
+                { kind: "function", column: "Amount", function: "sum" },
+              ],
+            },
+          ],
+        },
+      });
+      expect(refused.isError).toBe(true);
+      expect(payload(refused)).toEqual({
+        error: "invalid_argument",
+        message:
+          "The totals row is the last row of range A1:B3, and A3 holds a value.",
+        recovery:
+          "A table range includes its header and totals rows: give range A1:B4 to add the totals row below the data. Use overwrite:true only to replace row 3.",
+      });
+    }));
   it("keeps excluded values on table shrink and refuses occupied expansion without explicit overwrite", () =>
     workspace(async (directory, client) => {
       const source = await created(
@@ -874,7 +917,10 @@ describe("Phase 5 authoring through MCP", () => {
         },
       });
       expect(refused.isError).toBe(true);
-      expect(payload(refused)).toMatchObject({ error: "invalid_argument" });
+      expect(payload(refused)).toMatchObject({
+        error: "invalid_argument",
+        message: 'Cell A4 on sheet "S" already holds a value.',
+      });
       const shrunk = mutationReceiptSchema.parse(
           await call(client, "edit_workbook", {
             source: source.version,

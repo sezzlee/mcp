@@ -5,6 +5,8 @@ import type {
 } from "../authoring/presentation.js";
 import { presentationLimits } from "../authoring/presentation.js";
 import { formatCellRef, maxRow } from "../grid/range.js";
+import { SezzleeExcelError } from "../platform/errors.js";
+import { occupiedTarget } from "./occupied.js";
 import { namespaces } from "../metadata/spreadsheetml/xml.js";
 import {
   boundsOf,
@@ -80,6 +82,24 @@ const subtotal = {
 };
 function reference(bounds: ReturnType<typeof boundsOf>): string {
   return `${formatCellRef(bounds.top, bounds.left)}:${formatCellRef(bounds.bottom, bounds.right)}`;
+}
+/**
+ * Guard: an agent that passes the data range alone makes its last data row
+ * the totals row; told only to choose overwrite, it replaced that row. The
+ * refusal names the cell and the range that adds the totals row below.
+ */
+function totalsRowOccupied(
+  bounds: ReturnType<typeof boundsOf>,
+  cell: string,
+): never {
+  const below = { ...bounds, bottom: bounds.bottom + 1 };
+  throw new SezzleeExcelError(
+    "invalid_argument",
+    `The totals row is the last row of range ${reference(bounds)}, and ${cell} holds a value.`,
+    bounds.bottom < maxRow
+      ? `A table range includes its header and totals rows: give range ${reference(below)} to add the totals row below the data. Use overwrite:true only to replace row ${bounds.bottom}.`
+      : `A table range includes its header and totals rows; there is no row below ${reference(bounds)}. Use overwrite:true only to replace row ${bounds.bottom}.`,
+  );
 }
 function validateName(
   workbook: PreservedWorkbook,
@@ -489,15 +509,10 @@ function createTable(
     names.push(cellText(workbook, grid.cells.get(keyOf(bounds.top, col))));
   if (new Set(names.map(fold)).size !== names.length)
     invalidPresentation("Table headers must be unique.");
-  if (totals)
+  if (totals && !change.overwrite)
     for (let col = bounds.left; col <= bounds.right; col++)
-      if (
-        occupiedCell(grid.cells.get(keyOf(bounds.bottom, col))) &&
-        !change.overwrite
-      )
-        invalidPresentation(
-          "The new totals row is occupied. Choose overwrite explicitly.",
-        );
+      if (occupiedCell(grid.cells.get(keyOf(bounds.bottom, col))))
+        totalsRowOccupied(bounds, formatCellRef(bounds.bottom, col));
   const ids = tables.map((t) => Number(t.root.attributes.get("id")));
   if (ids.some((id) => !Number.isInteger(id) || id < 1))
     invalidPresentation("A retained table has an invalid ID.");
@@ -646,9 +661,7 @@ function editTable(
       for (let col = bounds.left; col <= bounds.right; col++) {
         if (original.totalsRows && row === original.bounds.bottom) continue;
         if (occupiedCell(grid.cells.get(keyOf(row, col))) && !change.overwrite)
-          invalidPresentation(
-            "Table growth would overwrite occupied content. Choose overwrite explicitly.",
-          );
+          occupiedTarget(change.sheetName, formatCellRef(row, col));
       }
     if (totals && bounds.bottom !== original.bounds.bottom)
       for (let col = bounds.left; col <= bounds.right; col++)

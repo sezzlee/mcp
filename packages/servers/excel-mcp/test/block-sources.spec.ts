@@ -398,3 +398,78 @@ it("refuses literal rows that retype a retained result and accepts fewer", async
     );
   });
 });
+
+it("writes header as a text row above literal values", async () => {
+  await workspace(async (session) => {
+    const receipt = mutationReceiptSchema.parse(
+      await session.call("create_workbook", {
+        sheets: [
+          {
+            name: "Out",
+            blocks: [
+              {
+                startCell: "B2",
+                header: ["Region", "Amount"],
+                values: [
+                  [
+                    { kind: "text", value: "North" },
+                    { kind: "number", value: 30 },
+                  ],
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const cells = await session.cells(receipt.version.filePath, "Out");
+    expect(
+      Object.fromEntries(
+        Object.entries(cells).map(([key, cell]) => [key, cell.v]),
+      ),
+    ).toEqual({ B2: "Region", C2: "Amount", B3: "North", C3: 30 });
+    expect(
+      await session.refused("create_workbook", {
+        sheets: [
+          {
+            name: "Out",
+            blocks: [
+              {
+                startCell: "A1",
+                header: ["Region"],
+                values: [
+                  [
+                    { kind: "text", value: "North" },
+                    { kind: "number", value: 30 },
+                  ],
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toMatchObject({
+      error: "invalid_argument",
+      message: "header has 1 names but each values row has 2 cells.",
+    });
+    expect(
+      await session.refused("edit_workbook", {
+        source: { filePath: "sales.xlsx", versionId: "0".repeat(64) },
+        changes: [
+          {
+            kind: "insert_rows",
+            sheetName: "Sales",
+            at: 2,
+            count: 1,
+            header: ["Region"],
+          },
+        ],
+      }),
+    ).toMatchObject({
+      error: "invalid_argument",
+      message: expect.stringContaining(
+        "header names the columns that values or source write; insert_rows with count writes no cells.",
+      ),
+    });
+  });
+});

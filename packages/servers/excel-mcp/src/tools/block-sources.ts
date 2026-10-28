@@ -53,22 +53,37 @@ export type BlockSource = z.infer<typeof blockSourceSchema>;
 
 /**
  * Parse rule shared by every block that takes values or a source.
- * @returns whether the block names exactly one of them and gives header only
- * with a source.
+ * @returns whether the block names exactly one of them.
  */
 export function oneBlockInput(block: {
   readonly values?: unknown;
   readonly source?: unknown;
-  readonly header?: unknown;
 }): boolean {
-  return (
-    (block.values === undefined) !== (block.source === undefined) &&
-    (block.header === undefined || block.source !== undefined)
-  );
+  return (block.values === undefined) !== (block.source === undefined);
 }
 
 export const oneBlockInputMessage =
-  "Give either values or source, not both; header requires source.";
+  "Give a block either values or source, not both.";
+
+/**
+ * Literal values under a header row of text cells.
+ * @param header the column names written above the values
+ * @param values the typed rows, each as wide as the header
+ */
+export function headedValues<Cell>(
+  header: readonly string[],
+  values: readonly (readonly Cell[])[],
+): (Cell | Extract<WriteCell, { kind: "text" }>)[][] {
+  const width = values[0]?.length ?? header.length;
+  if (header.length !== width)
+    invalid(
+      `header has ${header.length} names but each values row has ${width} cells.`,
+    );
+  return [
+    header.map((value) => ({ kind: "text" as const, value })),
+    ...values.map((row) => [...row]),
+  ];
+}
 
 function invalid(message: string): never {
   throw new SezzleeExcelError("invalid_argument", message);

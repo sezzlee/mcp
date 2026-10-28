@@ -378,6 +378,16 @@ function declaredUnlessAmbiguous(
  * Guard: an explicit headerRow is the recovery `ambiguous_header_row` names,
  * so a sheet whose tables disagree must not raise that error again here.
  */
+/**
+ * Warnings about the header row a read used.
+ *
+ * Guard: a sheet with no header text still defaults to row 1, so a row of
+ * numbers became the column names ("20") and the range started at row 2; an
+ * agent then re-read the same cells until its call budget ran out. The
+ * warning holds even for an explicit range, because the column names still
+ * come from that row, and it leaves both readings open: a row of years can
+ * be a real header.
+ */
 export function headerWarnings(
   sheet: SheetView,
   bounds: GridBounds,
@@ -397,6 +407,17 @@ export function headerWarnings(
         `Table metadata has missing column names (${malformed.map((table) => table.name).join(", ")}); column positions were preserved.`,
       ),
     ];
+  const used = sheet.bounds;
+  if (headerRowSource === "default" && headerRow > 0 && used !== undefined) {
+    const facts = rowFacts(sheet, used, headerRow, mergePolicy);
+    if (facts.naming === 0 && facts.disqualifying > 0)
+      return [
+        warning(
+          "header_row_unnamed",
+          `Row ${headerRow} holds no text, only values such as numbers or dates, and was read as the header row by default, so those values name the columns. If the row is data rather than a header, pass headerRow 0.`,
+        ),
+      ];
+  }
   const width = bounds.right - bounds.left + 1;
   if (headerRow <= 0 || width < 2 || hasExplicitRange) {
     return [];
