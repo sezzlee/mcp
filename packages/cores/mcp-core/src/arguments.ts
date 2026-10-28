@@ -50,10 +50,10 @@ function decoded(text: string, expected: "array" | "object"): unknown {
  * expects an array or object, or undefined when there is none to decode.
  *
  * Guard: open-weight models served through Ollama send an array argument as
- * the text of its JSON; in the excel lab one model did so 37 times in 576
- * trials and repeated the same call up to nine times after the refusal. Only
- * a string the parse refused as the wrong container is decoded, only when it
- * is that container's JSON, and the result is validated again in full.
+ * text. In the excel lab every such string was malformed JSON, which stays
+ * refused; decoding is limited to well-formed text. Only a string the parse
+ * refused as the wrong container is decoded, only when it is that container's
+ * JSON, and the result is validated again in full.
  */
 export function decodeEncodedArguments(
   args: unknown,
