@@ -149,8 +149,8 @@ export const notOffered = "Not run: this tool is not offered in this task.";
 
 /**
  * Requests one reply, retrying a dropped connection up to three attempts and
- * a timeout once, as the reading runner does; a context or fatal failure
- * ends the trial.
+ * a timeout once, as the reading runner does; a context, malformed or fatal
+ * failure ends the trial.
  */
 async function reply(
   host: ModelHost,
@@ -166,6 +166,7 @@ async function reply(
       if (error.failure === "timeout") timeouts += 1;
       if (
         error.failure === "context" ||
+        error.failure === "malformed" ||
         error.failure === "fatal" ||
         attempt >= 3 ||
         timeouts >= 2
@@ -178,6 +179,31 @@ async function reply(
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function failureOf(error: unknown): string {
+  if (!(error instanceof HostRequestError)) return message(error);
+  return error.failure === "malformed"
+    ? `The model sent a malformed tool call: ${error.message}`
+    : `host: ${error.failure}: ${error.message}`;
+}
+
+/**
+ * Why a model trial ended with no final answer, or null when it has one or
+ * the scenario stopped it on purpose. Guard: grading an empty answer reports
+ * the first claim it lacks, which hides that the window, the request budget
+ * or the output limit ended the trial.
+ */
+function silence(input: {
+  readonly final: string;
+  readonly last: ChatResult | null;
+  readonly stopped: boolean;
+  readonly spent: boolean;
+}): string | null {
+  if (input.final.trim() !== "" || input.stopped) return null;
+  if (input.last?.kind === "reply" && input.last.doneReason === "length")
+    return "the output limit ended the reply";
+  return input.spent ? "every request was spent" : "the reply was empty";
 }
 
 /**
@@ -203,6 +229,8 @@ export function defineScenario<Context, State>(
         refusedBudget: 0,
       };
       let final = "";
+      let last: ChatResult | null = null;
+      let stopped = false;
       let failure: string | null = null;
       let output: Graded["output"] | null = null;
       try {
@@ -264,6 +292,7 @@ export function defineScenario<Context, State>(
               input.retryDelayMs ?? 30_000,
             );
             await session.trace({ request: turns, result });
+            last = result;
             if (result.kind !== "reply")
               throw new Error("Model preflight refused the request.");
             messages.push(
@@ -294,26 +323,38 @@ export function defineScenario<Context, State>(
               }
               messages.push({ role: "tool", tool_name: name, content });
             }
-            if ((await spec.afterTurn?.(state, context, session)) === "stop")
+            if ((await spec.afterTurn?.(state, context, session)) === "stop") {
+              stopped = true;
               break;
+            }
           }
         }
-        output =
-          (
-            await spec.grade({
-              session,
-              context,
-              state,
-              mode: input.mode,
-              language: input.language,
-              final,
-            })
-          ).output ?? null;
+        const graded = await spec
+          .grade({
+            session,
+            context,
+            state,
+            mode: input.mode,
+            language: input.language,
+            final,
+          })
+          .catch((error: unknown) => {
+            const why =
+              input.mode === "model"
+                ? silence({
+                    final,
+                    last,
+                    stopped,
+                    spent: turns >= spec.policy.requests,
+                  })
+                : null;
+            throw why === null
+              ? error
+              : new Error(`No final answer: ${why}. ${message(error)}`);
+          });
+        output = graded.output ?? null;
       } catch (error) {
-        failure =
-          error instanceof HostRequestError
-            ? `host: ${error.failure}: ${error.message}`
-            : message(error);
+        failure = failureOf(error);
       } finally {
         await session.close();
       }

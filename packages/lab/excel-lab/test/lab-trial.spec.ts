@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import {
   budgetNotice,
+  HostRequestError,
   type ChatMessage,
   type ChatRequest,
   type ChatResult,
@@ -234,4 +235,102 @@ it("gives every trial its own server, so a retained result does not leak into th
     ["test/retain", null],
     ["test/later", null],
   ]);
+});
+
+class FixedHost implements ModelHost {
+  readonly model = "stub";
+  readonly endpoint = "stub://host";
+  requests = 0;
+  readonly #answer: () => ChatResult;
+
+  constructor(answer: () => ChatResult) {
+    this.#answer = answer;
+  }
+
+  async identity() {
+    return {
+      provider: "stub",
+      model: this.model,
+      digest: null,
+      version: null,
+      details: null,
+    };
+  }
+
+  async chat(): Promise<ChatResult> {
+    this.requests += 1;
+    return this.#answer();
+  }
+
+  async loadedWindow() {
+    return null;
+  }
+}
+
+function claiming(id: string): LabScenario {
+  return defineScenario<null, null>({
+    id,
+    scriptedLanguages: ["en"],
+    policy,
+    async setup() {
+      return null;
+    },
+    brief: () => ({ system: "system", user: "user" }),
+    start: () => null,
+    observe() {},
+    scripted: async () => "",
+    async grade({ final }) {
+      assert.match(
+        final,
+        /calculat/,
+        "Final answer must disclose calculation.",
+      );
+      return {};
+    },
+  });
+}
+
+it("names an empty final answer instead of the claim it lacks", async () => {
+  const host = new FixedHost(() => ({
+    kind: "reply",
+    content: "",
+    thinking: "long",
+    toolCalls: [],
+    estimatedTokens: 1,
+    usage: null,
+    timing: null,
+    doneReason: "length",
+    ms: 0,
+  }));
+  const trial = await claiming("test/silent").run({
+    mode: "model",
+    language: "en",
+    directory: await temporary(),
+    fixtures: { corpus: undefined },
+    host,
+  });
+  expect(trial.failure).toBe(
+    "No final answer: the output limit ended the reply. Final answer must disclose calculation.",
+  );
+});
+
+it("fails a malformed tool call once as the model's, not the host's", async () => {
+  const host = new FixedHost(() => {
+    throw new HostRequestError(
+      "Ollama: error parsing tool call: raw='[1,]'",
+      "malformed",
+    );
+  });
+  const trial = await claiming("test/malformed").run({
+    mode: "model",
+    language: "en",
+    directory: await temporary(),
+    fixtures: { corpus: undefined },
+    host,
+    retryDelayMs: 0,
+  });
+  expect(host.requests).toBe(1);
+  expect(trial.failure).toBe(
+    "The model sent a malformed tool call: Ollama: error parsing tool call: raw='[1,]'",
+  );
 });
