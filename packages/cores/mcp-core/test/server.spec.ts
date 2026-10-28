@@ -51,6 +51,14 @@ const definitions = {
     inputSchema: z.object({ filePath: z.string() }),
     annotations: readOnly,
   },
+  group_documents: {
+    description: "Group up to two documents.",
+    inputSchema: z.object({
+      filePaths: z.array(z.string()).max(2),
+      options: z.object({ sorted: z.boolean() }).optional(),
+    }),
+    annotations: readOnly,
+  },
   break_document: {
     description: "Throw something the server does not classify.",
     inputSchema: z.object({}),
@@ -78,6 +86,11 @@ const handlers: HandlersOf<Definitions> = {
       }
       return json({ filePath: args.filePath });
     },
+    normalize,
+  ),
+  group_documents: guard<Definitions, "group_documents">(
+    { tool: "group_documents", fail },
+    async (args) => json(args),
     normalize,
   ),
   break_document: guard<Definitions, "break_document">(
@@ -183,6 +196,45 @@ describe("createMcpSourceServer", () => {
     expect(String((body(result) as { message: string }).message)).toContain(
       '"patern"',
     );
+  });
+
+  it("decodes a container sent as the text of its JSON and validates it in full", async () => {
+    const decoded = (await client.callTool({
+      name: "group_documents",
+      arguments: {
+        filePaths: '["a.probe", "b.probe"]',
+        options: '{"sorted": true}',
+      },
+    })) as CallToolResult;
+    expect(body(decoded)).toEqual({
+      filePaths: ["a.probe", "b.probe"],
+      options: { sorted: true },
+    });
+    const tooMany = (await client.callTool({
+      name: "group_documents",
+      arguments: { filePaths: '["a.probe", "b.probe", "c.probe"]' },
+    })) as CallToolResult;
+    expect(body(tooMany)).toEqual({
+      error: "invalid_argument",
+      message:
+        "Invalid arguments for group_documents: filePaths: Too big: expected array to have <=2 items.",
+      recovery:
+        "Only filePaths failed validation; keep the other arguments as they are.",
+    });
+  });
+
+  it("answers text that is not the container's JSON with the type alone, not the container's bounds", async () => {
+    const result = (await client.callTool({
+      name: "group_documents",
+      arguments: { filePaths: "a.probe, b.probe", options: { sorted: "yes" } },
+    })) as CallToolResult;
+    expect(body(result)).toEqual({
+      error: "invalid_argument",
+      message:
+        "Invalid arguments for group_documents: filePaths: expected an array, received a string; send the array itself, not text that encodes it; options.sorted: Invalid input: expected boolean, received string.",
+      recovery:
+        "Only filePaths, options.sorted failed validation; keep the other arguments as they are.",
+    });
   });
 
   it("publishes every input schema as closed to unknown arguments", async () => {

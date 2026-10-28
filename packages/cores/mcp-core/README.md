@@ -59,9 +59,15 @@ is what makes the `mcpCoreLimits.maxPayloadBytes` response budget unbypassable.
 - **Every input schema is closed, and every argument failure is an envelope.** The SDK is handed a
   schema that publishes the tool's schema with `additionalProperties: false` but validates nothing;
   the strict parse runs in `buildServer`, before the handler, and a failure becomes
-  `invalid_argument` whose recovery lists the accepted arguments. Left to the SDK, zod's default
-  object drops an unknown key — a misspelt `caseSensitiv` then succeeds with the default — and a
-  wrong type is answered with plain text that carries no `error` code.
+  `invalid_argument` whose recovery lists the accepted arguments, or names the failing fields when
+  every top-level argument was present. Left to the SDK, zod's default object drops an unknown key
+  — a misspelt `caseSensitiv` then succeeds with the default — and a wrong type is answered with
+  plain text that carries no `error` code.
+- **An array or object sent as the text of its JSON is decoded once and parsed again.** Open-weight
+  models served through Ollama do this often, and repeat the refused call. Only a string the parse
+  refused as that container is decoded, only when it is that container's JSON, and the decoded
+  value is validated in full; any other string keeps its type error, without the container's
+  length bound reported against the string.
 - **`zod` and `@modelcontextprotocol/server` are peer dependencies.** Two resolved copies would
   break `z.infer` type identity, and the SDK's schema introspection does an `instanceof` check.
 - **The `Fingerprint` brand is declared only here.** A second `unique symbol` declaration is not

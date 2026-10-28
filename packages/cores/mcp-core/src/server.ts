@@ -3,6 +3,11 @@ import type { ToolCallback } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import type { StdioServerHandle } from "@modelcontextprotocol/server/stdio";
 import type { z } from "zod";
+import {
+  decodeEncodedArguments,
+  describeIssues,
+  recoveryFor,
+} from "./arguments.js";
 import { mcpCoreLimits } from "./limits.js";
 import { toToolError } from "./tools.js";
 import type {
@@ -41,23 +46,15 @@ const catalogCacheHints = {
   },
 } as const;
 
-function describeIssues(issues: readonly z.core.$ZodIssue[]): string {
-  return issues
-    .map((issue) =>
-      issue.path.length === 0
-        ? issue.message
-        : `${issue.path.map(String).join(".")}: ${issue.message}`,
-    )
-    .join("; ");
-}
-
 /**
  * Guard: the SDK validates arguments itself and answers a failure with plain text, outside the
  * error envelope, and zod's default object drops a key it does not know. Together they let a
  * misspelt option such as `caseSensitiv` vanish while the call succeeds with the default, and give
  * the agent no `error` code when a type is wrong. So the SDK is handed a schema that publishes the
  * strict JSON Schema but passes every value through, and the strict parse happens here, where a
- * failure becomes `invalid_argument` naming the accepted arguments.
+ * failure becomes `invalid_argument` naming the accepted arguments or the failing fields. A
+ * container sent as the text of its JSON is decoded and parsed again, at most three times for
+ * containers nested inside decoded text.
  */
 function strictInput(
   name: string,
@@ -76,15 +73,19 @@ function strictInput(
   } as unknown as SdkInputSchema;
   const run = handler as unknown as (args: unknown, extra: unknown) => unknown;
   const checked = async (args: unknown, extra: unknown): Promise<unknown> => {
-    const parsed = strict.safeParse(args ?? {});
+    let input: unknown = args ?? {};
+    let parsed = strict.safeParse(input);
+    for (let round = 0; !parsed.success && round < 3; round += 1) {
+      const decoded = decodeEncodedArguments(input, parsed.error.issues);
+      if (decoded === undefined) break;
+      input = decoded;
+      parsed = strict.safeParse(input);
+    }
     if (!parsed.success) {
       return toToolError({
         code: "invalid_argument",
-        message: `Invalid arguments for ${name}: ${describeIssues(parsed.error.issues)}.`,
-        recovery:
-          accepted.length === 0
-            ? `${name} takes no arguments.`
-            : `Accepted arguments: ${accepted.join(", ")}.`,
+        message: `Invalid arguments for ${name}: ${describeIssues(input, parsed.error.issues)}.`,
+        recovery: recoveryFor(name, accepted, input, parsed.error.issues),
       });
     }
     return run(parsed.data, extra);
