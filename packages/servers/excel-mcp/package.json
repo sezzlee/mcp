@@ -1,6 +1,6 @@
 {
   "name": "@sezzlee/excel-mcp",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "mcpName": "io.github.sezzlee/excel",
   "description": "Read spreadsheets and build immutable Excel reports with bulk preparation, formatting, bounded formula calculation, charts, pivots and templates in a sandbox.",
   "keywords": [
