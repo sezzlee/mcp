@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.13.1 — 2026-10-28
+
+### Requirements
+
+- Require `@sezzlee/mcp-core` 0.2.2 or later through the published dependency range: an array or object argument sent as the text of its JSON is decoded once and validated in full, a string sent for a bounded array is refused for its type alone, and the recovery names the failing fields when every top-level argument was present.
+
+### Changed
+
+- `header` also goes with `values` in `create_workbook` blocks, `write_cells` and `insert_rows`: it writes a text row above the values, as it does above a source. `insert_rows` with `count` still refuses `header`.
+- `prepare_edit` and `create_workbook_version` take `expectedVersion` as the `{filePath, versionId}` object a read or receipt returns, besides the bare version id.
+- A read whose default header row 1 holds no text warns `header_row_unnamed`, also for an explicit range, because those values then name the columns.
+
+### Fixed
+
+- A refused write, copy or table growth onto an occupied cell names the cell and its sheet, and the recovery puts keeping the contents first.
+- `create_table` refuses an occupied totals row by naming the cell and the range that adds the totals row below the data.
+- The dynamic array and named-function refusal names the function instead of an internal phase.
+- `prepare_edit`'s description refers to `edit_workbook`'s change rules instead of repeating them.
+
 ## 0.13.0 — 2026-10-27
 
 ### Requirements
