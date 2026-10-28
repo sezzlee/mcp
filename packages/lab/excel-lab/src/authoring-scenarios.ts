@@ -209,7 +209,7 @@ export const authoringScenarios = {
   },
   authoring_merge: {
     tr: "Kaynağı ve mevcut sayfaları koru. Yeni Title sayfasında A1 metni Ad, B1 metni Soyad olsun. A1:B1 hücrelerini birleştir. Sol üst dışındaki Soyad içeriğinin silinmesine açıkça izin veriyorum; yalnız Ad kalsın. Birleştirilmiş aralığa sarı arka plan uygula ve yeni çıktı üret.",
-    en: "Preserve the source and existing sheets. Add Title with text Ad in A1 and Soyad in B1. Merge A1:B1. I explicitly authorize discarding the non-anchor Soyad content; retain only Ad. Give the merged range a yellow fill and produce a new output.",
+    en: "Preserve the source and existing sheets. On a new sheet named Title, put the text Ad in A1 and Soyad in B1. Merge A1:B1. I explicitly authorize discarding the non-anchor Soyad content; retain only Ad. Give the merged range a yellow fill and produce a new output.",
     changes: [
       { kind: "add_sheet", name: "Title" },
       {

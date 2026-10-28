@@ -71,6 +71,16 @@ class ChainSourceOracleTests(unittest.TestCase):
         changed[1][1] = 11
         self.refused('summary-formulas', source, self.book({'Sales': changed, 'Summary': summary}))
 
+    def test_summary_total_over_category_cells(self):
+        source = self.book({'Sales': SALES})
+        categories = [
+            [label, f'=SUMIF(Sales!$A$2:$A$1000,$A{row},Sales!$B$2:$B$1000)'] for row, label in enumerate(['Food', 'Toys', 'Books'], 2)
+        ]
+        summary = [['Category', 'Total']] + categories + [['Grand Total', '=SUM(B2:B4)']]
+        self.accepted('summary-formulas', source, self.book({'Sales': SALES, 'Summary': summary}))
+        self.refused('summary-formulas', source, self.book({'Sales': SALES, 'Summary': summary[:4] + [['Grand Total', '=SUM(B2:B3)']]}))
+        self.refused('summary-formulas', source, self.book({'Sales': SALES, 'Summary': summary + [['Toplam', '=SUM(B2:B4)']]}))
+
     def test_grouped_report(self):
         source = self.book({'Sales': REGIONS})
         good = [['Region', 'Amount'], ['East', 3], ['North', 15], ['South', 20], ['West', 7]]

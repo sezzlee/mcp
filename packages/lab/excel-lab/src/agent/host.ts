@@ -75,9 +75,11 @@ export interface HostIdentity {
 
 /**
  * What a failed request means for the run: try again, try once more after a
- * timeout, the window was too small, or give up.
+ * timeout, the window was too small, the model's own tool call could not be
+ * parsed, or give up.
  */
-export type HostFailure = "retryable" | "timeout" | "context" | "fatal";
+export type HostFailure =
+  "retryable" | "timeout" | "context" | "malformed" | "fatal";
 
 export class HostRequestError extends Error {
   readonly failure: HostFailure;

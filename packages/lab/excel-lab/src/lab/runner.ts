@@ -1,3 +1,4 @@
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { ModelHost } from "../agent/host.ts";
 import type {
@@ -23,18 +24,25 @@ export interface TrialKey {
 
 type Shared = Pick<TrialInput, "manifestHash" | "onRunRecord" | "onEvent">;
 
-function directoryOf(
+/**
+ * Guard: a resumed run reuses trial directories, and a fixture written at a
+ * content-addressed path collides with the file a previous run left there, so
+ * every trial starts from an emptied directory.
+ */
+async function directoryOf(
   out: string,
   mode: string,
   scenario: LabScenario,
   language: Language,
   repetition = 0,
-): string {
-  return join(
+): Promise<string> {
+  const directory = join(
     out,
     mode,
     `${scenario.id.replace("/", "-")}-${language}${repetition === 0 ? "" : `-r${repetition}`}`,
   );
+  await rm(directory, { recursive: true, force: true });
+  return directory;
 }
 
 /** Runs every selected scenario's scripted baseline once per scripted language. */
@@ -51,7 +59,7 @@ export async function runScripted(input: {
       const trial = await scenario.run({
         mode: "scripted",
         language,
-        directory: directoryOf(input.out, "scripted", scenario, language),
+        directory: await directoryOf(input.out, "scripted", scenario, language),
         fixtures: input.fixtures,
         ...input.trial,
       });
@@ -100,7 +108,7 @@ export async function runModel(input: {
         const trial = await scenario.run({
           mode: "model",
           language,
-          directory: directoryOf(
+          directory: await directoryOf(
             input.out,
             "model",
             scenario,

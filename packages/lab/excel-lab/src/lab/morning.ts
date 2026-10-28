@@ -75,8 +75,20 @@ function add(rates: Record<string, Rate>, key: string, passed: boolean): void {
   };
 }
 
+/**
+ * Guard: a resumed night appends a second record for every trial whose first
+ * one ended on a host failure, so counting every record puts the superseded
+ * failure in the denominator; only the last record of each trial counts.
+ */
+function latest(trials: readonly NightTrial[]): NightTrial[] {
+  const byKey = new Map<string, NightTrial>();
+  for (const trial of trials) byKey.set(keyOf(trial), trial);
+  return [...byKey.values()];
+}
+
 /** Summarizes one night's model trials. */
-export function summarize(trials: readonly NightTrial[]): Morning {
+export function summarize(recorded: readonly NightTrial[]): Morning {
+  const trials = latest(recorded);
   const models = [...new Set(trials.map((trial) => trial.model))].map(
     (model) => {
       const own = trials.filter((trial) => trial.model === model);
@@ -164,10 +176,12 @@ export function compare(
   before: readonly NightTrial[],
   after: readonly NightTrial[],
 ): Comparison {
-  const earlier = new Map(before.map((trial) => [keyOf(trial), trial.passed]));
+  const earlier = new Map(
+    latest(before).map((trial) => [keyOf(trial), trial.passed]),
+  );
   const changes: { key: string; change: "fixed" | "broke" }[] = [];
   let paired = 0;
-  for (const trial of after) {
+  for (const trial of latest(after)) {
     const key = keyOf(trial);
     const was = earlier.get(key);
     if (was === undefined) continue;

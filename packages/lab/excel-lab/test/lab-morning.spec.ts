@@ -65,6 +65,27 @@ it("summarizes pass rates, sourced writes and tool errors per model", () => {
   ]);
 });
 
+it("counts only the last record of a trial a resumed night ran again", () => {
+  const resumed = [
+    trial({
+      passed: false,
+      failure: "host: retryable: TypeError: fetch failed",
+    }),
+    trial({ id: "chain/b", passed: false, failure: "No output was saved." }),
+    trial({ passed: true }),
+  ];
+  const morning = summarize(resumed);
+  expect(morning.models[0]?.overall).toEqual({ passed: 1, total: 2 });
+  expect(morning.failures).toEqual([
+    { failure: "No output was saved.", count: 1, ids: ["chain/b"] },
+  ]);
+  expect(compare([trial({ passed: false })], resumed)).toMatchObject({
+    paired: 1,
+    fixed: 1,
+    broke: 0,
+  });
+});
+
 it("pairs two nights by trial and counts only the trials that changed", () => {
   const before = [
     trial({ id: "x/1", passed: false }),

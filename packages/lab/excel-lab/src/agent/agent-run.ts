@@ -30,6 +30,7 @@ export type RunOutcome =
   | "callBudget"
   | "preflightRefused"
   | "providerContextError"
+  | "malformedToolCall"
   | "hostError"
   | "interrupted";
 
@@ -208,7 +209,7 @@ type Requested =
   | { readonly kind: "result"; readonly result: ChatResult }
   | {
       readonly kind: "failed";
-      readonly failure: "context" | "host" | "interrupted";
+      readonly failure: "context" | "malformed" | "host" | "interrupted";
       readonly error: string;
     };
 
@@ -330,8 +331,12 @@ export async function runTask(input: {
             failure: "interrupted",
             error: error.message,
           };
-        if (error.failure === "context")
-          return { kind: "failed", failure: "context", error: error.message };
+        if (error.failure === "context" || error.failure === "malformed")
+          return {
+            kind: "failed",
+            failure: error.failure,
+            error: error.message,
+          };
         if (error.failure === "timeout") timeouts += 1;
         if (error.failure === "fatal" || attempt >= 3 || timeouts >= 2)
           return { kind: "failed", failure: "host", error: error.message };
@@ -347,9 +352,11 @@ export async function runTask(input: {
       outcome =
         requested.failure === "context"
           ? "providerContextError"
-          : requested.failure === "interrupted"
-            ? "interrupted"
-            : "hostError";
+          : requested.failure === "malformed"
+            ? "malformedToolCall"
+            : requested.failure === "interrupted"
+              ? "interrupted"
+              : "hostError";
       failure = requested.error;
       break;
     }
