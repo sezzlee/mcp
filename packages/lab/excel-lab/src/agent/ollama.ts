@@ -75,6 +75,17 @@ function contextMessage(text: string): boolean {
 }
 
 /**
+ * Guard: Ollama reports a tool call it could not parse as an error, yet the
+ * unparsable text is the model's own output. At temperature 0 a retry repeats
+ * it, and calling it a host failure would rerun the trial on every resume, so
+ * it is told apart before the raw call text can match the context test.
+ */
+function errorFailure(text: string, otherwise: HostFailure): HostFailure {
+  if (/error parsing tool call/i.test(text)) return "malformed";
+  return contextMessage(text) ? "context" : otherwise;
+}
+
+/**
  * Guard: at temperature 0 a request that timed out repeats the same long
  * generation, so a timeout is retried once and a dropped connection more.
  */
@@ -202,11 +213,7 @@ export class OllamaHost implements ModelHost {
       const text = (await response.text()).slice(0, 300);
       throw new HostRequestError(
         `Ollama answered ${response.status}: ${text}`,
-        contextMessage(text)
-          ? "context"
-          : response.status >= 500
-            ? "retryable"
-            : "fatal",
+        errorFailure(text, response.status >= 500 ? "retryable" : "fatal"),
       );
     }
     if (response.body === null)
@@ -223,7 +230,7 @@ export class OllamaHost implements ModelHost {
       if (chunk.error !== undefined)
         throw new HostRequestError(
           `Ollama: ${chunk.error}`,
-          contextMessage(chunk.error) ? "context" : "retryable",
+          errorFailure(chunk.error, "retryable"),
         );
       content += chunk.message?.content ?? "";
       thinking += chunk.message?.thinking ?? "";

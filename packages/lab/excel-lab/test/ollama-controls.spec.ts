@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { describe, expect, it } from "vitest";
+import { HostRequestError } from "../src/agent/host.ts";
 import { OllamaHost } from "../src/agent/ollama.ts";
 
 describe("Ollama thinking wire control", () => {
@@ -63,4 +64,45 @@ describe("Ollama thinking wire control", () => {
       }
     },
   );
+});
+
+it("tells a tool call the model wrote unparsably apart from a host failure", async () => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { "content-type": "application/x-ndjson" });
+    response.end(
+      JSON.stringify({
+        error:
+          'error parsing tool call: raw=\'{"note":"exceeds the context","values":[[0.08"]]}\', err=invalid character \'"\' after array element',
+      }) + "\n",
+    );
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (address === null || typeof address === "string")
+    throw new Error("Missing test HTTP port");
+  try {
+    const host = new OllamaHost({
+      baseUrl: `http://127.0.0.1:${address.port}`,
+      model: "test-model",
+    });
+    const failure = await host
+      .chat({
+        messages: [{ role: "user", content: "Hi" }],
+        tools: [],
+        window: 4096,
+        temperature: 0,
+        timeoutMs: 5000,
+        numPredict: 64,
+      })
+      .then(
+        () => null,
+        (error: unknown) =>
+          error instanceof HostRequestError ? error.failure : error,
+      );
+    expect(failure).toBe("malformed");
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
 });
