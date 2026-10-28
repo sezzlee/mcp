@@ -7,7 +7,8 @@ import {
   type ToolCatalog,
 } from "../platform/writing.js";
 import {
-  workbookVersionIdSchema,
+  expectedVersionId,
+  expectedVersionSchema,
   workbookVersionSchema,
   mutationReceiptSchema,
   readWorkbookSnapshot,
@@ -54,6 +55,7 @@ import {
 } from "./edit-schemas.js";
 import {
   createSourceResolver,
+  headedValues,
   refuseCopiedRows,
   type BlockSource,
   type SourceResolver,
@@ -76,7 +78,7 @@ const tableAdvice =
 const sourceFrameAdvice =
   " Every sheetName and A1 address names the source as it was read, never a position produced by another change in the request: unprotection runs first, other changes apply at source coordinates, row/column insertions and deletions then move them, and renames, sheet deletions, reorders and protection follow. insert_rows takes count, or values rows with optional startColumn (default A) whose cells may be {kind:formula,formula} using {row} for the inserted row, for example B{row}*C{row}; every other reference is a source address. Copies read the source as it was read. Every read result carries version {filePath,versionId}: pass it as source (or expectedVersion) so the edit applies to the bytes that were read. describe_workbook definedNames give name, scope, sheetName and range for define_name/delete_name, and get_charts series data give sheetName and range for set_chart series. A change touching cells another change deletes, copies or moves, two insertions at one position, an insertion inside a deleted band, or a new sheet name equal to a source sheet blocks the request. placements report the output sheet and range of each target that moved or was renamed.";
 const sourceBlockAdvice =
-  " Never retype rows a read returned. Instead of values, a create_workbook block, write_cells or insert_rows takes source: {kind:result,resultId,columns?,where?,offset?,maxRows?} for a retained aggregate_sheet result, or {kind:range|records|aggregate,filePath,versionId?,...} with prepare_transfer selection fields. The server writes the selected rows as typed cells, starting with the source's own header row (result and aggregate labels, records includeHeaders); header:[...] replaces it or adds one. Literal values that repeat three rows of a retained result are refused.";
+  " Never retype rows a read returned. Instead of values, a create_workbook block, write_cells or insert_rows takes source: {kind:result,resultId,columns?,where?,offset?,maxRows?} for a retained aggregate_sheet result, or {kind:range|records|aggregate,filePath,versionId?,...} with prepare_transfer selection fields. The server writes the selected rows as typed cells, starting with the source's own header row (result and aggregate labels, records includeHeaders); header:[...] replaces it or adds one. With values, header:[...] writes a text row above them. Literal values that repeat three rows of a retained result are refused.";
 const expertAdvice =
   " Advanced changes: define_name uses sheetName,name,range,scope workbook/sheet; replacement requires overwrite:true. write_named_range uses the exact name/scope and a typed values rectangle of the same shape; delete_name refuses live formula dependencies. set_validation uses range and rule {type:list,items:[...]}, {type:whole/decimal/date/textLength,operator,bounds:[...]}, or {type:custom,formula}; date bounds are workbook serials, rules guide interactive Excel input and do not enforce all server writes. remove_validation takes the exact old range, or ranges copied from one get_data_validations rule. set_conditional_format uses range,priority,rule {type:expression,formula} or {type:cellIs,operator,formulas:[...]}, appearance {font,fill},stopIfTrue. Replace a priority explicitly with overwrite:true; remove_conditional_format uses priority. set_hyperlink uses cell,target {kind:external,url} for HTTPS or {kind:internal,location}; set_note uses cell,text,author; set_image uses name,cell,mime image/png or image/jpeg,data canonical base64,width,height in pixels. Their remove_* operations select the same cell or image name; get_images reports that name. set_chart uses name,chartType column/bar/line/pie,title,cell and series [{name,sheetName,categories,values}] with one-row/column A1 ranges; formula sources have no invented cache and require refresh. remove_chart uses name. set_pivot creates/refreshes a real PivotTable using name,cell,sourceSheet,sourceRange including headers,rowColumn and measures [{column,function:sum/count/min/max,name}]; source cells must be literal, count counts nonblank values. set_pivot overwrite:true refreshes/replaces an existing private cache and clears its old result tail. protect_sheet/protect_workbook optionally use a legacy Excel protection password of up to 15 characters; this is not encryption. Unprotect every locked target with authenticated unprotect_workbook/unprotect_sheet changes. format_cells style.protection {locked,hidden} controls cell protection. Strong-hash, encrypted, signed and macro-enabled editing remains refused. Originals never change. Appearance and source changes distinguish current chart/pivot caches from refreshRequired.";
 
@@ -115,11 +117,7 @@ export const writingToolDefinitions = {
   },
   prepare_edit: {
     description:
-      "Inspect an edit request without publishing an output. Accept .xlsx filePath, optional expectedVersion, and changes. Returns exact source {filePath, versionId}, a fingerprint binding normalized changes, source feature counts, and ready or blocked with policy reasons. Pass source and the same changes to edit_workbook. Canonical and preservation-supported external workbooks can be ready. Supports scalar, sheet, copy/move and row/column edits, plus edit_workbook formatting/layout/formula/table authoring. Copy requires explicit values/formulas/formatting/all mode. No source file is changed. Enabled protection, macros, signatures, Strict markup or unsupported affected dependencies refuse editing. Preparation is not permission to edit changed bytes. No recalculation occurs." +
-      sourceFrameAdvice +
-      sourceBlockAdvice +
-      tableAdvice +
-      expertAdvice,
+      "Inspect an edit request without publishing an output. Accept .xlsx filePath, optional expectedVersion, and changes. Returns exact source {filePath, versionId}, a fingerprint binding normalized changes, source feature counts, and ready or blocked with policy reasons. Pass source and the same changes to edit_workbook. Canonical and preservation-supported external workbooks can be ready. Supports scalar, sheet, copy/move and row/column edits, plus edit_workbook formatting/layout/formula/table authoring. Copy requires explicit values/formulas/formatting/all mode. No source file is changed. Enabled protection, macros, signatures, Strict markup or unsupported affected dependencies refuse editing. Preparation is not permission to edit changed bytes. No recalculation occurs. changes is exactly edit_workbook's change list: the edit_workbook description gives the rules of every change, source addressing and source blocks.",
     inputSchema: prepareEditSchema,
     annotations: readOnly,
   },
@@ -184,7 +182,7 @@ export const writingToolDefinitions = {
       "Prepare an immutable .xlsx output version from an existing source. The source is unchanged. Returns its content version and relative output path, not its cells. Repeating the same content reuses the output. This prepares a version; it does not create a new workbook or edit cells.",
     inputSchema: z.object({
       filePath: z.string().min(1).max(32_768),
-      expectedVersion: workbookVersionIdSchema.optional(),
+      expectedVersion: expectedVersionSchema.optional(),
     }),
     annotations: ownOutput,
   },
@@ -259,7 +257,9 @@ export function createWritingHandlers(
         "A block needs values or source.",
       );
     refuseCopiedRows(results, block.values);
-    return block.values;
+    return block.header === undefined
+      ? block.values
+      : headedValues(block.header, block.values);
   }
   async function resolveChanges(
     changes: readonly EditWireChange[],
@@ -286,9 +286,11 @@ export function createWritingHandlers(
         if (source === undefined && change.values !== undefined)
           refuseCopiedRows(results, change.values);
         const values =
-          source === undefined
-            ? change.values
-            : await sources.resolve(source, header, at);
+          source !== undefined
+            ? await sources.resolve(source, header, at)
+            : header === undefined || change.values === undefined
+              ? change.values
+              : headedValues(header, change.values);
         resolved.push({
           kind: change.kind,
           sheetName: change.sheetName,
@@ -431,7 +433,9 @@ export function createWritingHandlers(
           const snapshot = await readWorkbookSnapshot(
             root,
             args.filePath,
-            args.expectedVersion,
+            args.expectedVersion === undefined
+              ? undefined
+              : expectedVersionId(args.expectedVersion),
           );
           assertReadableFormat(snapshot.bytes, snapshot.version.filePath);
           const sources = createSourceResolver(root, results);
@@ -742,7 +746,7 @@ export function createWritingHandlers(
             filePath: args.filePath,
             ...(args.expectedVersion === undefined
               ? {}
-              : { expectedVersion: args.expectedVersion }),
+              : { expectedVersion: expectedVersionId(args.expectedVersion) }),
             ...(signal === undefined ? {} : { signal }),
           }),
         );

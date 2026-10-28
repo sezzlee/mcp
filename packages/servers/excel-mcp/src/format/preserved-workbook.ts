@@ -45,6 +45,7 @@ import { isDateFormat } from "./cell-date.js";
 import { isTimeOnlyFormat } from "./cell-date.js";
 import { numericFormat } from "./number-format.js";
 import { serialToDate } from "../grid/excel-serial.js";
+import { occupiedTarget } from "./occupied.js";
 import {
   copyFormula,
   transformFormula,
@@ -1077,7 +1078,10 @@ export class PreservedWorkbook {
             cell.type === "inlineStr" ||
             cell.type === "s")
         )
-          refuse("The target contains a value. Choose overwrite explicitly.");
+          occupiedTarget(
+            sheetName,
+            formatCellRef(start.row + row, start.column + column),
+          );
         const prefix = cell?.raw.match(/^<([^\s/>]+:)?c/)?.[1] ?? "";
         let body = "";
         let type: string | undefined;
@@ -1939,8 +1943,9 @@ export class PreservedWorkbook {
             prior.type === "inlineStr" ||
             prior.type === "s");
         if (mode !== "formatting" && occupied && !overwrite)
-          refuse(
-            "The copy target contains a value. Choose overwrite explicitly.",
+          occupiedTarget(
+            targetName,
+            formatCellRef(row + rowDelta, column + columnDelta),
           );
         if (cell?.protectedMetadata || prior?.protectedMetadata)
           refuse("Range copying cannot preserve rich cell metadata.");

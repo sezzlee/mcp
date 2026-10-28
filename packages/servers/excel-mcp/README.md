@@ -118,7 +118,9 @@ range, so a call reading a few rows or a single column gets the same header row 
 sheet, and a title band above the columns is skipped without the caller knowing it is there. A CSV
 always reads row 1. `headerScan: true` asks for a strict detection: it refuses when two rows
 qualify or none does. A header cell holding a number or a boolean names its column by its text, so
-a year heading is addressable as `"2008"`.
+a year heading is addressable as `"2008"`. When the default row 1 holds no text at all, the read
+warns `header_row_unnamed`, even for an explicit range, because those values then name the
+columns; `headerRow: 0` reads that row as data.
 
 ## Warnings
 

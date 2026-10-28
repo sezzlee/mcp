@@ -9,6 +9,7 @@ import {
 } from "../authoring/workbook.js";
 import { writeCellSchema, type WriteCell } from "../authoring/values.js";
 import { isoWrite } from "./iso-write.js";
+import { occupiedTarget } from "./occupied.js";
 import { SezzleeExcelError } from "../platform/errors.js";
 import { limits } from "../platform/limits.js";
 import {
@@ -116,8 +117,9 @@ function applyBlock(
         columnOffset -
         1;
       if (!overwrite && sheet.cells.has(key))
-        invalid(
-          "The target contains a value. Choose overwrite explicitly to replace or clear it.",
+        occupiedTarget(
+          sheet.name,
+          formatCellRef(start.row + rowOffset, start.column + columnOffset),
         );
       if (cell.kind === "blank") sheet.cells.delete(key);
       else sheet.cells.set(key, cell);

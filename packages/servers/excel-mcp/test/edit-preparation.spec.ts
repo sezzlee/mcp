@@ -503,7 +503,65 @@ it("rejects occupied canonical targets unless overwrite is explicit", async () =
       },
     });
     expect(result.isError).toBe(true);
-    expect(payload(result)).toMatchObject({ error: "invalid_argument" });
+    expect(payload(result)).toEqual({
+      error: "invalid_argument",
+      message: 'Cell A1 on sheet "Data" already holds a value.',
+      recovery:
+        "Check that this is the intended target. To keep its contents, write to an empty range or a new sheet (add_sheet); set overwrite:true only when the request asks to replace them.",
+    });
+  });
+});
+
+it("takes expectedVersion as the version object a receipt returned", async () => {
+  await workspace(async (_directory, client) => {
+    const created = mutationReceiptSchema.parse(
+      payload(
+        await client.callTool({
+          name: "create_workbook",
+          arguments: {
+            sheets: [
+              {
+                name: "Data",
+                blocks: [
+                  { startCell: "A1", values: [[{ kind: "number", value: 1 }]] },
+                ],
+              },
+            ],
+          },
+        }),
+      ),
+    );
+    const changes = [
+      {
+        kind: "write_cells",
+        sheetName: "Data",
+        startCell: "B1",
+        values: [[{ kind: "number", value: 2 }]],
+      },
+    ];
+    const ready = await client.callTool({
+      name: "prepare_edit",
+      arguments: {
+        filePath: created.version.filePath,
+        expectedVersion: created.version,
+        changes,
+      },
+    });
+    expect(ready.isError, JSON.stringify(payload(ready))).not.toBe(true);
+    expect(payload(ready)).toMatchObject({
+      kind: "ready",
+      source: created.version,
+    });
+    const stale = await client.callTool({
+      name: "prepare_edit",
+      arguments: {
+        filePath: created.version.filePath,
+        expectedVersion: { ...created.version, versionId: "0".repeat(64) },
+        changes,
+      },
+    });
+    expect(stale.isError).toBe(true);
+    expect(payload(stale)).toMatchObject({ error: "file_changed" });
   });
 });
 
