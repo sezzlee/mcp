@@ -53,6 +53,15 @@ async function call(name, args) {
   assert.notEqual(result.isError, true, JSON.stringify(result));
   return JSON.parse(result.content[0].text);
 }
+async function edit(source, changes) {
+  const prepared = await call("prepare_edit", {
+    filePath: source.filePath,
+    expectedVersion: source.versionId,
+    changes,
+  });
+  assert.equal(prepared.kind, "ready");
+  return call("edit_workbook", { preparationId: prepared.preparationId });
+}
 async function sheet(version) {
   return read(await readFile(join(directory, version.filePath)), {
     type: "buffer",
@@ -79,21 +88,22 @@ try {
     changes,
   });
   assert.equal(prepared.kind, "ready");
-  const moved = await call("edit_workbook", { source, changes });
+  assert.equal(prepared.publication, "not_published");
+  assert.deepEqual(await readdir(join(directory, "out")), []);
+  const moved = await call("edit_workbook", {
+    preparationId: prepared.preparationId,
+  });
   assert.equal(moved.editing.recalculated, false);
   assert.equal(moved.editing.recalculationRequired, true);
-  const edited = await call("edit_workbook", {
-    source: moved.version,
-    changes: [
-      {
-        kind: "write_cells",
-        sheetName: "Data",
-        startCell: "A3",
-        overwrite: true,
-        values: [[{ kind: "number", value: 12 }]],
-      },
-    ],
-  });
+  const edited = await edit(moved.version, [
+    {
+      kind: "write_cells",
+      sheetName: "Data",
+      startCell: "A3",
+      overwrite: true,
+      values: [[{ kind: "number", value: 12 }]],
+    },
+  ]);
   const actual = await sheet(edited.version);
   assert.equal(actual.A3.v, 12);
   assert.equal(actual.A3.z, "0.00");
@@ -114,33 +124,34 @@ try {
   assert.equal(actual.D3.z, "0.00");
   assert.equal(actual.E3.f, "D3*2");
   assert.equal(actual.A6.v, "Keep this note");
-  const retried = await call("edit_workbook", { source, changes });
+  const retried = await call("edit_workbook", {
+    preparationId: prepared.preparationId,
+  });
   assert.deepEqual(retried.version, moved.version);
   const beforeFailure = await readdir(join(directory, "out"));
   const failed = await client.callTool({
-    name: "edit_workbook",
+    name: "prepare_edit",
     arguments: {
-      source: edited.version,
+      filePath: edited.version.filePath,
+      expectedVersion: edited.version.versionId,
       changes: [
         { kind: "clear_contents", sheetName: "Data", range: "A3" },
         { kind: "delete_sheet", sheetName: "Data" },
       ],
     },
   });
-  assert.equal(failed.isError, true);
+  assert.notEqual(failed.isError, true, JSON.stringify(failed));
+  assert.equal(JSON.parse(failed.content[0].text).kind, "blocked");
   assert.deepEqual(await readdir(join(directory, "out")), beforeFailure);
-  const branch = await call("edit_workbook", {
-    source,
-    changes: [
-      {
-        kind: "write_cells",
-        sheetName: "Data",
-        startCell: "A2",
-        overwrite: true,
-        values: [[{ kind: "number", value: 77 }]],
-      },
-    ],
-  });
+  const branch = await edit(source, [
+    {
+      kind: "write_cells",
+      sheetName: "Data",
+      startCell: "A2",
+      overwrite: true,
+      values: [[{ kind: "number", value: 77 }]],
+    },
+  ]);
   assert.equal((await sheet(branch.version)).A2.v, 77);
   assert.equal((await sheet(edited.version)).A3.v, 12);
   const restored = await call("create_workbook_version", {
@@ -349,89 +360,86 @@ try {
   const expertBytes = await readFile(
     join(directory, expertSource.version.filePath),
   );
-  const expert = await call("edit_workbook", {
-    source: expertSource.version,
-    changes: [
-      { kind: "define_name", sheetName: "Report", name: "Period", range: "B1" },
-      {
-        kind: "write_named_range",
-        sheetName: "Report",
-        name: "Period",
-        values: [[{ kind: "text", value: "2026-10" }]],
-      },
-      {
-        kind: "set_validation",
-        sheetName: "Data",
-        range: "A2:A4",
-        rule: { type: "list", items: ["North", "South"] },
-      },
-      {
-        kind: "set_conditional_format",
-        sheetName: "Data",
-        range: "B2:B4",
-        priority: 1,
-        rule: { type: "cellIs", operator: "greaterThan", formulas: ["15"] },
-        appearance: { fill: "FF0000" },
-        stopIfTrue: true,
-      },
-      {
-        kind: "set_hyperlink",
-        sheetName: "Report",
-        cell: "D1",
-        target: { kind: "external", url: "https://example.com/report" },
-      },
-      {
-        kind: "set_note",
-        sheetName: "Report",
-        cell: "B1",
-        text: "Reviewed",
-        author: "Finance",
-      },
-      {
-        kind: "set_image",
-        sheetName: "Report",
-        name: "Logo",
-        cell: "E1",
-        mime: "image/png",
-        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
-        width: 48,
-        height: 48,
-      },
-      {
-        kind: "set_pivot",
-        sheetName: "Report",
-        name: "Regional",
-        cell: "A5",
-        sourceSheet: "Data",
-        sourceRange: "A1:B4",
-        rowColumn: "Region",
-        measures: [{ column: "Amount", function: "sum", name: "Total" }],
-      },
-      {
-        kind: "set_chart",
-        sheetName: "Report",
-        name: "Sales",
-        chartType: "column",
-        cell: "E5",
-        series: [
-          {
-            name: "Revenue",
-            sheetName: "Data",
-            categories: "A2:A4",
-            values: "B2:B4",
-          },
-        ],
-      },
-      {
-        kind: "format_cells",
-        sheetName: "Report",
-        range: "B1",
-        style: { protection: { locked: false } },
-      },
-      { kind: "protect_sheet", sheetName: "Report" },
-      { kind: "protect_workbook", sheetName: "Report" },
-    ],
-  });
+  const expert = await edit(expertSource.version, [
+    { kind: "define_name", sheetName: "Report", name: "Period", range: "B1" },
+    {
+      kind: "write_named_range",
+      sheetName: "Report",
+      name: "Period",
+      values: [[{ kind: "text", value: "2026-10" }]],
+    },
+    {
+      kind: "set_validation",
+      sheetName: "Data",
+      range: "A2:A4",
+      rule: { type: "list", items: ["North", "South"] },
+    },
+    {
+      kind: "set_conditional_format",
+      sheetName: "Data",
+      range: "B2:B4",
+      priority: 1,
+      rule: { type: "cellIs", operator: "greaterThan", formulas: ["15"] },
+      appearance: { fill: "FF0000" },
+      stopIfTrue: true,
+    },
+    {
+      kind: "set_hyperlink",
+      sheetName: "Report",
+      cell: "D1",
+      target: { kind: "external", url: "https://example.com/report" },
+    },
+    {
+      kind: "set_note",
+      sheetName: "Report",
+      cell: "B1",
+      text: "Reviewed",
+      author: "Finance",
+    },
+    {
+      kind: "set_image",
+      sheetName: "Report",
+      name: "Logo",
+      cell: "E1",
+      mime: "image/png",
+      data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+      width: 48,
+      height: 48,
+    },
+    {
+      kind: "set_pivot",
+      sheetName: "Report",
+      name: "Regional",
+      cell: "A5",
+      sourceSheet: "Data",
+      sourceRange: "A1:B4",
+      rowColumn: "Region",
+      measures: [{ column: "Amount", function: "sum", name: "Total" }],
+    },
+    {
+      kind: "set_chart",
+      sheetName: "Report",
+      name: "Sales",
+      chartType: "column",
+      cell: "E5",
+      series: [
+        {
+          name: "Revenue",
+          sheetName: "Data",
+          categories: "A2:A4",
+          values: "B2:B4",
+        },
+      ],
+    },
+    {
+      kind: "format_cells",
+      sheetName: "Report",
+      range: "B1",
+      style: { protection: { locked: false } },
+    },
+    { kind: "protect_sheet", sheetName: "Report" },
+    { kind: "protect_workbook", sheetName: "Report" },
+  ]);
   const expertCheck = spawnSync(
     "python3",
     [
