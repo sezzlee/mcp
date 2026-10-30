@@ -59,12 +59,12 @@ async function workspace(run: (session: Session) => Promise<void>) {
     await run({
       directory,
       async call(name, args) {
-        const result = await client.callTool({ name, arguments: args });
+        const result = await preparedCall(client, { name, arguments: args });
         expect(result.isError, JSON.stringify(payload(result))).not.toBe(true);
         return payload(result);
       },
       async refused(name, args) {
-        const result = await client.callTool({ name, arguments: args });
+        const result = await preparedCall(client, { name, arguments: args });
         expect(result.isError).toBe(true);
         return payload(result);
       },
@@ -473,3 +473,4 @@ it("writes header as a text row above literal values", async () => {
     });
   });
 });
+import { preparedCall } from "./fixtures/prepared-call.js";

@@ -128,7 +128,7 @@ async function payload(
   client: Client,
   source: { filePath: string; versionId: string },
 ) {
-  const result = await client.callTool({
+  const result = await preparedCall(client, {
     name: "calculate_workbook",
     arguments: { source },
   });
@@ -140,6 +140,25 @@ async function payload(
 }
 
 describe("server-side calculation", () => {
+  it("distinguishes usable cached results from Excel's on-open recalculation", async () => {
+    const complete = calculateWorkbook(await fixture(["Inputs!A1*2"]));
+    expect(cached(await reopened(complete.bytes), 1)).toBe(14);
+    expect(complete.calculation).toMatchObject({
+      complete: true,
+      cacheStatus: "current",
+      recalculationRequired: false,
+      recalculationOnOpen: true,
+    });
+    const partial = calculateWorkbook(await fixture(["SIN(Inputs!A1)"]));
+    expect(cached(await reopened(partial.bytes), 1)).toBeUndefined();
+    expect(partial.calculation).toMatchObject({
+      complete: false,
+      cacheStatus: "partial",
+      recalculationRequired: true,
+      recalculationOnOpen: true,
+    });
+  });
+
   it.runIf(process.env.SEZZLEE_CALCULATION_ORACLE === "1")(
     "checks the fixed known answers against LibreOffice independently of the production evaluator",
     async () => {
@@ -421,6 +440,15 @@ describe("server-side calculation", () => {
               ),
       );
       const input = await zip.generateAsync({ type: "nodebuffer" });
+      if (kind === "protection")
+        expect(() => calculateWorkbook(input)).toThrowError(
+          expect.objectContaining({
+            message: expect.stringContaining("protected_sheet"),
+            recovery: expect.stringContaining(
+              "calculate before applying protection",
+            ),
+          }),
+        );
       expect(() => calculateWorkbook(input)).toThrow(
         kind === "protection"
           ? /unsupported editing features/
@@ -475,7 +503,7 @@ describe("server-side calculation", () => {
         ),
       ).toBe(10);
       expect(await readFile(join(directory, "source.xlsx"))).toEqual(source);
-      const edited = await client.callTool({
+      const edited = await preparedCall(client, {
         name: "edit_workbook",
         arguments: {
           source: receipt.version,
@@ -548,3 +576,4 @@ describe("server-side calculation", () => {
     }
   });
 });
+import { preparedCall } from "./fixtures/prepared-call.js";

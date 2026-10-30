@@ -11,6 +11,7 @@ import {
   taskRevision,
   toolSpecsOf,
   trialIdOf,
+  type RunOutcome,
 } from "../../agent/agent-run.ts";
 import { runPlan } from "../../agent/baseline.ts";
 import { readCatalog, type Task } from "../../agent/task.ts";
@@ -20,6 +21,18 @@ import {
   type ModelPolicy,
   type TrialRecord,
 } from "../trial.ts";
+import type { Termination } from "../diagnostics.ts";
+
+const terminationOf: Record<RunOutcome, Termination> = {
+  answered: "oracle_failure",
+  noAnswer: "empty_reply",
+  callBudget: "call_budget",
+  preflightRefused: "context_preflight",
+  providerContextError: "context_preflight",
+  malformedToolCall: "malformed_tool_call",
+  hostError: "host_failure",
+  interrupted: "scenario_failure",
+};
 
 const catalog = await readCatalog();
 
@@ -65,12 +78,18 @@ function scenario(task: Task): LabScenario {
         language: input.language,
         directory: input.directory,
         output: null,
+        artifact: { status: "not_applicable" } satisfies NonNullable<
+          TrialRecord["artifact"]
+        >,
+        repeatedErrors: [],
       };
       if (workspace === undefined)
         return {
           ...base,
           passed: false,
           failure: "Reading tasks need the reading workspace.",
+          termination: "scenario_failure",
+          finalAnswer: "not_evaluated",
           turns: 0,
           calls: {
             requested: 0,
@@ -93,6 +112,8 @@ function scenario(task: Task): LabScenario {
           return {
             ...base,
             passed: verified,
+            termination: verified ? "completed" : "oracle_failure",
+            finalAnswer: "not_required",
             failure: verified
               ? null
               : `${result.outcome.kind}: ${"detail" in result.outcome ? result.outcome.detail : ""}`,
@@ -132,7 +153,7 @@ function scenario(task: Task): LabScenario {
           ),
           window: condition.window,
           temperature: input.temperature ?? 0,
-          thinking: policy.thinking,
+          thinking: input.condition?.thinking ?? policy.thinking,
           callBudget: policy.calls,
           timeoutMs: policy.timeoutMs,
           numPredict: policy.numPredict,
@@ -143,6 +164,14 @@ function scenario(task: Task): LabScenario {
         return {
           ...base,
           passed: record.correct,
+          termination: record.correct
+            ? "completed"
+            : terminationOf[record.outcome],
+          finalAnswer: record.correct
+            ? "passed"
+            : record.submission === null
+              ? "missing"
+              : "failed",
           failure: record.correct
             ? null
             : `${record.outcome}${record.failure === null ? "" : `: ${record.failure}`}`,
@@ -160,6 +189,8 @@ function scenario(task: Task): LabScenario {
         return {
           ...base,
           passed: false,
+          termination: "scenario_failure",
+          finalAnswer: "not_evaluated",
           failure: error instanceof Error ? error.message : String(error),
           turns: 0,
           calls: {

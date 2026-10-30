@@ -47,13 +47,20 @@ const writeCellsWire = z
 
 const insertRowsWire = z
   .strictObject({ ...insertRowsFields, ...sourced })
-  .refine(
-    (change) =>
-      [change.count, change.values, change.source].filter(
-        (input) => input !== undefined,
-      ).length === 1,
-    { message: "Give insert_rows exactly one of count, values or source." },
-  )
+  .superRefine((change, context) => {
+    const supplied = ["count", "values", "source"].filter((key) =>
+      key === "count"
+        ? change.count !== undefined
+        : key === "values"
+          ? change.values !== undefined
+          : change.source !== undefined,
+    );
+    if (supplied.length !== 1)
+      context.addIssue({
+        code: "custom",
+        message: `insert_rows received ${supplied.length === 0 ? "none of count, values, source" : supplied.join(" and ")}; give exactly one. Use count:2 for empty rows, or values:[[{kind:"text",value:"Item"}]] for data rows; header may accompany values or source.`,
+      });
+  })
   .refine(
     (change) => change.startColumn === undefined || change.count === undefined,
     {
@@ -105,6 +112,15 @@ export const prepareEditSchema = z.strictObject({
   changes: editWireChangesSchema,
 });
 
+export const preparationIdSchema = z
+  .string()
+  .uuid()
+  .brand<"EditPreparationId">();
+
+export const applyEditSchema = z.strictObject({
+  preparationId: preparationIdSchema,
+});
+
 const common = {
   source: workbookVersionSchema,
   requestFingerprint: z
@@ -123,6 +139,12 @@ const common = {
 export const editPreparationSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("ready"),
+    preparationId: preparationIdSchema,
+    publication: z.literal("not_published"),
+    nextAction: z.strictObject({
+      tool: z.literal("edit_workbook"),
+      arguments: applyEditSchema,
+    }),
     ...common,
     profile: z.enum(["canonical_values", "preserved_package"]),
   }),

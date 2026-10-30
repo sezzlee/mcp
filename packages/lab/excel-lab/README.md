@@ -1,5 +1,15 @@
 # @sezzlee/excel-lab
 
+The unified runner uses the two-call editing contract: `prepare_edit` validates and materializes the changes, and `edit_workbook` receives only the ready `preparationId`. Scripted edit descriptors expand into these two real calls; model calls are validated exactly as sent. Both calls appear in traces and call counts. Scenario catalogs that offer application also offer preparation.
+
+Trial records keep `termination`, `artifact`, `finalAnswer`, and `repeatedErrors` separately from the existing pass/fail result. An independently verified workbook remains an artifact success when the final answer hits an output limit; the trial still fails when its final-answer contract is unmet. Repeated errors are grouped by tool, normalized arguments, error and observed source-state epoch; the runner does not stop them early. Morning reports preserve the last-record counting rule and mark older records without diagnostics as `legacy_unclassified`.
+
+Night conditions may explicitly set `thinking` to `product`, `field`, or `drop`. This overrides only how earlier reasoning is carried into subsequent requests; model generation thinking, output limits and scenario budgets stay unchanged. The condition is recorded in the manifest. Omission preserves the scenario's existing policy.
+
+Authoring-runner conditions may separately set `finalization` to `reserve_last`. This experimental policy reserves the last existing request for a final answer, offers no tools in that request, and requests an earlier final answer if the call budget is exhausted or a published output is followed by an empty reply. It does not increase request or output-token limits and injects no oracle hints. Calls attempted during finalization are refused. The saved-file and final-answer oracles remain unchanged; an incomplete workbook or wrong answer still fails. The default `unchanged` policy preserves the original loop. Reading scenarios use a different submission protocol and refuse this option. This is an explicit lab protocol experiment, not evidence that an application's external agent runtime uses the same loop.
+
+The text grader is v3. Exact text matching remains the default. A task may opt a label into bounded `contains` matching and declare rejected terms; this accepts an explanatory sentence without accepting embedded partial words, negations or declared conflicting alternatives. Prompt and grader revisions must be reported separately from server improvements.
+
 The [unification audit](UNIFICATION_AUDIT.md) records the inventory of the agent harnesses, their scripted baselines, what each tool catalog costs a model, the 0.13 chain gaps and the migration requirements. It is not migration parity or a runnable unified night lab.
 
 Price the tool catalogs from a real `tools/list`, optionally naming extra conditions:

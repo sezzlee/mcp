@@ -1,6 +1,10 @@
 import { mcnemarExact } from "../agent/stats.ts";
+import type { TrialRecord } from "./trial.ts";
 
-export interface NightTrial {
+export interface NightTrial extends Pick<
+  TrialRecord,
+  "termination" | "artifact" | "finalAnswer" | "repeatedErrors"
+> {
   readonly model: string;
   readonly id: string;
   readonly language: string;
@@ -26,6 +30,17 @@ export interface Rate {
 }
 
 export interface Morning {
+  readonly diagnostics: {
+    readonly terminations: Readonly<Record<string, number>>;
+    readonly artifacts: Readonly<Record<string, number>>;
+    readonly finalAnswers: Readonly<Record<string, number>>;
+    readonly repeatedErrors: readonly {
+      readonly trial: string;
+      readonly tool: string;
+      readonly error: string;
+      readonly count: number;
+    }[];
+  };
   readonly models: readonly {
     readonly model: string;
     readonly overall: Rate;
@@ -153,6 +168,25 @@ export function summarize(recorded: readonly NightTrial[]): Morning {
   return {
     models,
     tools,
+    diagnostics: {
+      terminations: tally(
+        trials.map((trial) => trial.termination ?? "legacy_unclassified"),
+      ),
+      artifacts: tally(
+        trials.map((trial) => trial.artifact?.status ?? "legacy_unclassified"),
+      ),
+      finalAnswers: tally(
+        trials.map((trial) => trial.finalAnswer ?? "legacy_unclassified"),
+      ),
+      repeatedErrors: trials.flatMap((trial) =>
+        (trial.repeatedErrors ?? []).map((error) => ({
+          trial: keyOf(trial),
+          tool: error.tool,
+          error: error.error,
+          count: error.count,
+        })),
+      ),
+    },
     failures: [...failures]
       .map(([failure, entry]) => ({
         failure,
@@ -162,6 +196,12 @@ export function summarize(recorded: readonly NightTrial[]): Morning {
       .sort((left, right) => right.count - left.count),
     scenarios,
   };
+}
+
+function tally(values: readonly string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const value of values) counts[value] = (counts[value] ?? 0) + 1;
+  return counts;
 }
 
 function keyOf(trial: NightTrial): string {
@@ -255,6 +295,24 @@ export function render(input: {
           `| ${tool} | ${entry.calls} | ${Object.entries(entry.errors)
             .map(([code, count]) => `${code} ${count}`)
             .join(", ")} |`,
+      ),
+    "",
+    "## Trial diagnostics",
+    "",
+    ...Object.entries(morning.diagnostics.terminations).map(
+      ([reason, count]) => `- Termination ${reason}: ${count}`,
+    ),
+    ...Object.entries(morning.diagnostics.artifacts).map(
+      ([status, count]) => `- Artifact ${status}: ${count}`,
+    ),
+    ...Object.entries(morning.diagnostics.finalAnswers).map(
+      ([status, count]) => `- Final answer ${status}: ${count}`,
+    ),
+    ...morning.diagnostics.repeatedErrors
+      .slice(0, 20)
+      .map(
+        (entry) =>
+          `- ${entry.trial}: ${entry.tool} repeated ${entry.count} times: ${entry.error.replaceAll("|", "\\|").replaceAll("\n", " ")}`,
       ),
     "",
     "## Most common failures",

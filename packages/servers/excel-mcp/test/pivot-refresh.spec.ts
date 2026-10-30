@@ -29,7 +29,7 @@ async function call(
   name: string,
   args: Record<string, unknown>,
 ) {
-  const response = await client.callTool({ name, arguments: args });
+  const response = await preparedCall(client, { name, arguments: args });
   expect(response.isError, JSON.stringify(payload(response))).not.toBe(true);
   return mutationReceiptSchema.parse(payload(response));
 }
@@ -127,7 +127,7 @@ describe("pivot replacement source preservation", () => {
         const sourcePath = join(directory, source.version.filePath);
         const before = await readFile(sourcePath);
         const files = (await readdir(join(directory, "out"))).sort();
-        const response = await client.callTool({
+        const response = await preparedCall(client, {
           name: "edit_workbook",
           arguments: {
             source: source.version,
@@ -205,3 +205,4 @@ describe("pivot replacement source preservation", () => {
     },
   );
 });
+import { preparedCall } from "./fixtures/prepared-call.js";

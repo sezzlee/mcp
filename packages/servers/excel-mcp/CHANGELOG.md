@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.14.0 — 2026-10-30
+
+### Breaking: prepared edits
+
+- `prepare_edit` owns the complete changes schema and returns a session-bound `preparationId` only for a ready plan. `edit_workbook` accepts only that id; source and changes must no longer be repeated on application. The default catalog contains the changes schema once.
+- Plans expire after 15 minutes. Each session retains at most eight pending plans and 72 total plan/receipt entries, with a 32 MiB per-plan and 64 MiB combined byte budget. Source and external file dependencies are checked before first publication. Materialized bytes pin retained-result selections. Applying a plan releases its output buffer; retries verify the immutable output and return the same receipt. Closing the session clears the store.
+- Ready preparations explicitly report `publication: not_published` and the required `nextAction` call. A ready preparation is not a saved workbook.
+
+### Breaking: calculation receipt clarification
+
+- `calculation.recalculationRequired` now means that unavailable formula results still require calculation. A complete current cache reports `false`. The separate `recalculationOnOpen: true` describes the conservative Excel on-open flags, which do not invalidate successfully computed server results.
+
+### Requirements
+
+- Require `@sezzlee/mcp-core` 0.2.3 or later so JSON-container advice is reserved for container-shaped strings. Ordinary scalar text receives its actual type error.
+
+### Fixed
+
+- Unknown formula names identify the name and cell. Table-column names receive a row-context structured-reference recovery instead of a generic refusal.
+- Typed-cell, target sheet name, insert-row input selection, explicit numeric reading, occupied formula/total targets and unsupported calculation refusals explain the relevant correction without weakening validation or suggesting unrequested data replacement.
+- Calculation refusals identify the actual preservation blockers and explain calculating before protection, with an authorized unprotect/calculate/restore route for existing protection. Aggregate transfer descriptions distinguish row counts from non-empty value counts.
+
 ## 0.13.1 — 2026-10-28
 
 ### Requirements

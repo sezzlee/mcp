@@ -73,7 +73,7 @@ async function edit(
   source: { filePath: string; versionId: string },
   changes: readonly unknown[],
 ) {
-  const response = await client.callTool({
+  const response = await preparedCall(client, {
     name: "edit_workbook",
     arguments: { source, changes },
   });
@@ -270,7 +270,7 @@ it("transfers complete Phase 2 values into an external workbook with header mapp
       "Amount,Item,Total\n7,New,9\n",
     );
     const prepared = payload(
-      await client.callTool({
+      await preparedCall(client, {
         name: "prepare_transfer",
         arguments: {
           filePath: "input.csv",
@@ -284,7 +284,7 @@ it("transfers complete Phase 2 values into an external workbook with header mapp
       !("transfer" in prepared)
     )
       throw new Error("Missing transfer reference");
-    const result = await client.callTool({
+    const result = await preparedCall(client, {
       name: "transfer_data",
       arguments: {
         transfer: prepared.transfer,
@@ -407,7 +407,7 @@ it("keeps a transaction atomic, replays retries and branches from retained versi
       ).Sheets.Data?.B2?.v,
     ).toBe(77);
     const before = await readdir(join(directory, "out"));
-    const failure = await client.callTool({
+    const failure = await preparedCall(client, {
       name: "edit_workbook",
       arguments: {
         source,
@@ -437,7 +437,7 @@ it("deletes a sheet, updates its references and refuses deletion of the last vis
     const next = await edit(client, first.version, [
       { kind: "delete_sheet", sheetName: "Notes" },
     ]);
-    const result = await client.callTool({
+    const result = await preparedCall(client, {
       name: "edit_workbook",
       arguments: {
         source: next.version,
@@ -617,7 +617,7 @@ it("refuses stale or incompatible cross-workbook copies atomically without falli
       ["0".repeat(64), "file_changed"],
       [createHash("sha256").update(bytes).digest("hex"), "invalid_argument"],
     ] as const) {
-      const result = await client.callTool({
+      const result = await preparedCall(client, {
         name: "edit_workbook",
         arguments: {
           source,
@@ -662,7 +662,7 @@ it("refuses overlapping copies and partially affected incoming ranges instead of
         startCell: "B7",
       },
     ]) {
-      const result = await client.callTool({
+      const result = await preparedCall(client, {
         name: "edit_workbook",
         arguments: { source, changes: [change] },
       });
@@ -939,7 +939,7 @@ it("fills an inserted formula column as one write and keeps references without {
 
 it("refuses inserted rows whose formulas need more writes than one request allows", async () => {
   await workspace(async (_directory, client, source) => {
-    const response = await client.callTool({
+    const response = await preparedCall(client, {
       name: "edit_workbook",
       arguments: {
         source,
@@ -1058,12 +1058,13 @@ it.each([
 ])("blocks $name and publishes nothing", async ({ changes, blockers }) => {
   await workspace(async (directory, client, source) => {
     const prepared = payload(
-      await client.callTool({
+      await preparedCall(client, {
         name: "prepare_edit",
         arguments: { filePath: source.filePath, changes },
       }),
     );
     expect(prepared).toMatchObject({ kind: "blocked", blockers });
+    expect(prepared).not.toHaveProperty("preparationId");
     const response = await client.callTool({
       name: "edit_workbook",
       arguments: { source, changes },
@@ -1076,7 +1077,7 @@ it.each([
 
 it("refuses a sheet addressed by the name a rename in the same request gives it", async () => {
   await workspace(async (_directory, client, source) => {
-    const response = await client.callTool({
+    const response = await preparedCall(client, {
       name: "edit_workbook",
       arguments: {
         source,
@@ -1102,7 +1103,7 @@ async function readTool(
   name: string,
   args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const response = await client.callTool({ name, arguments: args });
+  const response = await preparedCall(client, { name, arguments: args });
   const value = payload(response);
   expect(response.isError, JSON.stringify(value)).not.toBe(true);
   if (typeof value !== "object" || value === null)
@@ -1162,7 +1163,7 @@ it("returns the version of the bytes a read parsed, which an edit takes as its s
       "xl/worksheets/sheet3.xml",
       (xml) => xml.replace("Keep these exact bytes.", "Changed."),
     );
-    const stale = await client.callTool({
+    const stale = await preparedCall(client, {
       name: "edit_workbook",
       arguments: { source: described.version, changes: write },
     });
@@ -1382,3 +1383,4 @@ it("removes a conditional format whose stored priority has a leading zero by the
     ).toMatchObject({ rules: [] });
   });
 });
+import { preparedCall } from "./fixtures/prepared-call.js";

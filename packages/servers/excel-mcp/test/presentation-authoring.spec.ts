@@ -64,7 +64,7 @@ async function call(
   name: string,
   args: Record<string, unknown>,
 ) {
-  const response = await client.callTool({ name, arguments: args });
+  const response = await preparedCall(client, { name, arguments: args });
   expect(response.isError, JSON.stringify(payload(response))).not.toBe(true);
   return payload(response);
 }
@@ -85,6 +85,94 @@ async function created(
     }),
   );
 }
+
+it("names an unknown calculated-column identifier and gives the structured-reference correction", async () => {
+  await workspace(async (directory, client) => {
+    const args = {
+      sheets: [
+        {
+          name: "S",
+          blocks: [
+            {
+              startCell: "A1",
+              values: [
+                [
+                  { kind: "text", value: "Qty" },
+                  { kind: "text", value: "Price" },
+                  { kind: "text", value: "Amount" },
+                ],
+                [
+                  { kind: "number", value: 2 },
+                  { kind: "number", value: 3 },
+                  { kind: "blank" },
+                ],
+              ],
+            },
+          ],
+        },
+      ],
+      changes: [
+        {
+          kind: "create_table",
+          sheetName: "S",
+          name: "Sales",
+          range: "A1:C2",
+          calculatedColumns: [{ column: "Amount", formula: "Qty*Price" }],
+        },
+      ],
+    };
+    const rejected = await client.callTool({
+      name: "create_workbook",
+      arguments: args,
+    });
+    expect(rejected.isError).toBe(true);
+    expect(payload(rejected)).toMatchObject({
+      message: expect.stringContaining('unknown defined name "Qty"'),
+      recovery: expect.stringContaining("[@Qty]*[@Price]"),
+    });
+    expect(await readdir(join(directory, "out"))).toEqual([]);
+    const corrected = await client.callTool({
+      name: "create_workbook",
+      arguments: {
+        ...args,
+        changes: [
+          {
+            ...args.changes[0],
+            calculatedColumns: [
+              { column: "Amount", formula: "[@Qty]*[@Price]" },
+            ],
+          },
+        ],
+      },
+    });
+    expect(corrected.isError, JSON.stringify(payload(corrected))).not.toBe(
+      true,
+    );
+    const output = mutationReceiptSchema.parse(payload(corrected));
+    const inspected = await files(directory, output);
+    expect(await inspected.part("xl/tables/table1.xml")).toMatch(
+      /<calculatedColumnFormula\b[^>]*>[^<]*Qty[^<]*\*[^<]*Price[^<]*<\/calculatedColumnFormula>/,
+    );
+  });
+});
+
+it("explains typed cell values without mistaking ordinary text for encoded JSON", async () => {
+  await workspace(async (_directory, client) => {
+    const rejected = await client.callTool({
+      name: "create_workbook",
+      arguments: {
+        sheets: [
+          { name: "S", blocks: [{ startCell: "A1", values: [["Item"]] }] },
+        ],
+      },
+    });
+    expect(rejected.isError).toBe(true);
+    expect(JSON.stringify(payload(rejected))).toContain("typed cell");
+    expect(JSON.stringify(payload(rejected))).not.toContain(
+      "text that encodes it",
+    );
+  });
+});
 async function files(
   directory: string,
   receipt: Pick<ReturnType<typeof mutationReceiptSchema.parse>, "version">,
@@ -238,7 +326,7 @@ describe("Phase 5 authoring through MCP", () => {
         zip.file("xl/styles.xml", styles);
         const bytes = await zip.generateAsync({ type: "nodebuffer" });
         await writeFile(join(directory, "styles.xlsx"), bytes);
-        const result = await client.callTool({
+        const result = await preparedCall(client, {
           name: "edit_workbook",
           arguments: {
             source: {
@@ -317,7 +405,7 @@ describe("Phase 5 authoring through MCP", () => {
                 range: "A1:XFD1048576",
                 formula: "1+1",
               };
-        const result = await client.callTool({
+        const result = await preparedCall(client, {
           name: "create_workbook",
           arguments: { sheets: [{ name: "S" }], changes: [change] },
         });
@@ -328,7 +416,7 @@ describe("Phase 5 authoring through MCP", () => {
   );
   it("counts existing cells on other sheets before expanding a formatted range", () =>
     workspace(async (directory, client) => {
-      const result = await client.callTool({
+      const result = await preparedCall(client, {
         name: "create_workbook",
         arguments: {
           sheets: [
@@ -640,7 +728,7 @@ describe("Phase 5 authoring through MCP", () => {
       workspace(async (directory, client) => {
         const source = await created(client, [], [[text("Anchor"), value]]),
           before = await readdir(join(directory, "out"));
-        const refused = await client.callTool({
+        const refused = await preparedCall(client, {
           name: "edit_workbook",
           arguments: {
             source: source.version,
@@ -699,7 +787,7 @@ describe("Phase 5 authoring through MCP", () => {
     "'S'!A1+{1,2}",
   ])("atomically refuses unsupported or malformed formula %s", (formula) =>
     workspace(async (directory, client) => {
-      const response = await client.callTool({
+      const response = await preparedCall(client, {
         name: "create_workbook",
         arguments: {
           sheets: [{ name: "S" }],
@@ -841,7 +929,7 @@ describe("Phase 5 authoring through MCP", () => {
     }));
   it("names the occupied totals cell and the range that adds the totals row below the data", () =>
     workspace(async (_directory, client) => {
-      const refused = await client.callTool({
+      const refused = await preparedCall(client, {
         name: "create_workbook",
         arguments: {
           sheets: [
@@ -902,7 +990,7 @@ describe("Phase 5 authoring through MCP", () => {
           [text("Outside"), number(3)],
         ],
       );
-      const refused = await client.callTool({
+      const refused = await preparedCall(client, {
         name: "edit_workbook",
         arguments: {
           source: source.version,
@@ -1114,7 +1202,7 @@ describe("Phase 5 authoring through MCP", () => {
         },
         { kind: "clear_contents", sheetName: "S", range: "A1:B1" },
       ]) {
-        const result = await client.callTool({
+        const result = await preparedCall(client, {
           name: "edit_workbook",
           arguments: { source: source.version, changes: [change] },
         });
@@ -1210,7 +1298,7 @@ describe("Phase 5 authoring through MCP", () => {
           ],
         ),
         before = await readdir(join(directory, "out"));
-      const response = await client.callTool({
+      const response = await preparedCall(client, {
         name: "edit_workbook",
         arguments: {
           source: second.version,
@@ -1346,7 +1434,7 @@ describe("Phase 5 authoring through MCP", () => {
         before = (await readdir(join(directory, "out"))).filter((n) =>
           n.startsWith("job-"),
         );
-      const refused = await client.callTool({
+      const refused = await preparedCall(client, {
         name: "run_bulk_job",
         arguments: {
           job: {
@@ -1393,3 +1481,4 @@ describe("Phase 5 authoring through MCP", () => {
       expect(repaired.jobs[0]).toEqual(partial.jobs[0]);
     }));
 });
+import { preparedCall } from "./fixtures/prepared-call.js";

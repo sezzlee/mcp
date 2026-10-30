@@ -59,6 +59,32 @@ describe("grading what a submission means", () => {
       "Total (male only)",
       false,
     ],
+    ...(
+      [
+        [
+          "duplicateValues (tekrarlanan değerleri vurgulayan) koşullu biçimlendirme",
+          true,
+        ],
+        ["uniqueValues", false],
+        ["not duplicateValues", false],
+        ["duplicateValues veya uniqueValues", false],
+        ["duplicateValues değil", false],
+        ["preduplicateValuespost", false],
+      ] satisfies readonly (readonly [string, boolean])[]
+    ).map(
+      ([value, correct]) =>
+        [
+          `a declared label in context: ${value}`,
+          {
+            kind: "text",
+            value: "duplicateValues",
+            match: "contains",
+            reject: ["uniqueValues", "not", "değil"],
+          },
+          value,
+          correct,
+        ] satisfies readonly [string, Answer, unknown, boolean],
+    ),
     [
       "English title case matches upper case",
       { kind: "text", value: "SIEMENS FINANCIAL SERVICES LTD" },

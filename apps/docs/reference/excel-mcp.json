@@ -80,6 +80,16 @@
     "module": "packages/servers/excel-mcp/dist/index.js",
     "sections": [
       {
+        "title": "Prepared edits",
+        "keys": {
+          "maxEditPreparations": "Pending edit preparations retained by one server session",
+          "maxEditPreparationEntries": "Combined pending preparations and replay receipts retained by one server session",
+          "maxEditPreparationBytes": "Materialized output and metadata bytes retained by one preparation",
+          "maxEditPreparationStoreBytes": "Combined bytes retained by the session's preparations and replay receipts",
+          "editPreparationTtlMs": "Preparation and replay receipt lifetime in milliseconds; application does not extend it"
+        }
+      },
+      {
         "title": "Files",
         "keys": {
           "maxFileBytes": "Largest `.xlsx` or `.xlsm` file the server opens",

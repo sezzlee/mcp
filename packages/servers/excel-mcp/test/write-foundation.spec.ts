@@ -195,13 +195,13 @@ it("keeps writing unavailable in the default server and declares output writes t
         ),
       ).toBeUndefined();
       await expect(
-        client.callTool({
+        preparedCall(client, {
           name: "create_workbook_version",
           arguments: { filePath: "source.xlsx" },
         }),
       ).rejects.toMatchObject({ code: -32602 });
       await expect(
-        client.callTool({
+        preparedCall(client, {
           name: "create_workbook",
           arguments: { sheets: [{ name: "No" }] },
         }),
@@ -241,7 +241,7 @@ it("prepares an immutable version over MCP, reuses it on retry and continues fro
           name: "create_workbook_version",
           arguments: { filePath: "source.xlsx" },
         };
-        const first = await client.callTool(request);
+        const first = await preparedCall(client, request);
         expect(first.isError).toBeUndefined();
         const receipt = versionReceiptSchema.parse(textResult(first));
         expect(receipt).toEqual({
@@ -256,11 +256,11 @@ it("prepares an immutable version over MCP, reuses it on retry and continues fro
             .map((entry) => entry.text)
             .join("").length,
         ).toBeLessThan(1000);
-        const retried = await client.callTool(request);
+        const retried = await preparedCall(client, request);
         expect(textResult(retried)).toEqual(textResult(first));
         const continued = versionReceiptSchema.parse(
           textResult(
-            await client.callTool({
+            await preparedCall(client, {
               name: "create_workbook_version",
               arguments: {
                 filePath: receipt.version.filePath,
@@ -271,7 +271,7 @@ it("prepares an immutable version over MCP, reuses it on retry and continues fro
         );
         expect(continued.source).toEqual(receipt.version);
         expect(continued.version).toEqual(receipt.version);
-        const read = await client.callTool({
+        const read = await preparedCall(client, {
           name: "read_sheet",
           arguments: {
             filePath: receipt.version.filePath,
@@ -313,7 +313,7 @@ it("refuses a changed source, invalid workbook and unknown arguments before publ
             error: "invalid_argument",
           },
         ]) {
-          const result = await client.callTool({
+          const result = await preparedCall(client, {
             name: "create_workbook_version",
             arguments: args,
           });
@@ -338,7 +338,7 @@ it("never replaces different content occupying the expected output name", async 
     await connected(
       createExcelMcpServer(root, { mode: "write", output }),
       async (client) => {
-        const result = await client.callTool({
+        const result = await preparedCall(client, {
           name: "create_workbook_version",
           arguments: { filePath: "source.xlsx" },
         });
@@ -372,7 +372,7 @@ it("wires the explicit writing mode through the built CLI and stdio transport", 
         );
         expect(tool !== undefined).toBe(write);
         if (write) {
-          const result = await client.callTool({
+          const result = await preparedCall(client, {
             name: "create_workbook_version",
             arguments: { filePath: "source.xlsx" },
           });
@@ -413,3 +413,4 @@ it("bounds concurrent preparations before reading source bytes and allows a safe
     expect((await readdir(join(directory, "out"))).length).toBe(1);
   });
 });
+import { preparedCall } from "./fixtures/prepared-call.js";

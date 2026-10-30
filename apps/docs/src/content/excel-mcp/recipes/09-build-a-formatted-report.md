@@ -4,11 +4,11 @@ Create a report with number formats, cell appearance, formulas and real Excel ta
 
 Enable writing with `--write <relative-output-directory>` after the workbook root. The output directory is inside that root. The default server remains read-only. The [generated tool contracts](/docs/excel-mcp/tools) include the writing tools and their complete registered input schemas.
 
-These writing workflows require `@sezzlee/excel-mcp` 0.12.0 or later. Install the current npm release, or [run the server from source](/docs/excel-mcp/run-the-server-from-source).
+These writing workflows require `@sezzlee/excel-mcp` 0.14.0 or later. Install the current npm release, or [run the server from source](/docs/excel-mcp/run-the-server-from-source).
 
 ## Select the source and prepare the change
 
-Use `prepare_edit` to select the exact source version and inspect blockers before `edit_workbook`. A new report starts with `create_workbook`, which can create values and apply ordered presentation changes in one publication. Continue from the returned version, or select an older retained version to create a separate branch.
+Use `prepare_edit` with the exact source version and complete changes to inspect blockers; pass only its ready `preparationId` to `edit_workbook`. A new report starts with `create_workbook`, which can create values and apply ordered presentation changes in one publication. Continue from the returned version, or select an older retained version to create a separate branch.
 
 Formatting changes display, not stored scalar types. A percentage format displays numeric `0.18` as a percentage; currency formatting does not turn a number into text. Write a date as a typed date. Formula-looking text remains literal text unless a formula operation is requested.
 

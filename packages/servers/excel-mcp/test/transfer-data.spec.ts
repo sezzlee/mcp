@@ -119,7 +119,7 @@ it("advertises transfer selections and targets as objects and decodes a JSON-enc
     expect(payload(rejected)).toMatchObject({
       error: "invalid_argument",
       message:
-        "Invalid arguments for prepare_transfer: selection: expected an object, received a string; send the object itself, not text that encodes it.",
+        "Invalid arguments for prepare_transfer: selection: Invalid input: expected object, received string.",
     });
   });
 });

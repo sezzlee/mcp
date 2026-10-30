@@ -33,7 +33,7 @@ async function call(
   name: string,
   args: Record<string, unknown>,
 ) {
-  const response = await client.callTool({ name, arguments: args });
+  const response = await preparedCall(client, { name, arguments: args });
   expect(response.isError, JSON.stringify(payload(response))).not.toBe(true);
   return payload(response);
 }
@@ -190,7 +190,7 @@ describe("Phase 7 authoring through MCP", () => {
         const source = await create(client);
         const before = await bytes(directory, source),
           files = await readdir(join(directory, "out"));
-        const result = await client.callTool({
+        const result = await preparedCall(client, {
           name: "edit_workbook",
           arguments: {
             source: source.version,
@@ -625,7 +625,7 @@ describe("Phase 7 authoring through MCP", () => {
       const before = (await readdir(join(directory, "out"))).filter((name) =>
         name.startsWith("job-"),
       );
-      const failed = await client.callTool({
+      const failed = await preparedCall(client, {
         name: "run_bulk_job",
         arguments: {
           job: {
@@ -696,7 +696,7 @@ describe("Phase 7 authoring through MCP", () => {
       ).toMatchObject({ locked: false });
       const before = await bytes(directory, source),
         files = await readdir(join(directory, "out"));
-      const denied = await client.callTool({
+      const denied = await preparedCall(client, {
         name: "edit_workbook",
         arguments: {
           source: source.version,
@@ -1332,7 +1332,7 @@ describe("Phase 7 authoring through MCP", () => {
         ]);
         const before = await bytes(directory, source),
           files = await readdir(join(directory, "out"));
-        const response = await client.callTool({
+        const response = await preparedCall(client, {
           name: "edit_workbook",
           arguments: { source: source.version, changes: [change] },
         });
@@ -1641,7 +1641,7 @@ describe("Phase 7 authoring through MCP", () => {
         ]);
         const before = await readdir(join(directory, "out"));
         const original = await bytes(directory, source);
-        const response = await client.callTool({
+        const response = await preparedCall(client, {
           name: "edit_workbook",
           arguments: {
             source: source.version,
@@ -1668,3 +1668,4 @@ describe("Phase 7 authoring through MCP", () => {
     },
   );
 });
+import { preparedCall } from "./fixtures/prepared-call.js";

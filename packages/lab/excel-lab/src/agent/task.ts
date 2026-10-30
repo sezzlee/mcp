@@ -120,6 +120,8 @@ const field = z.discriminatedUnion("kind", [
      * identifier. Each is compared whole, as `value` is.
      */
     accept: z.array(z.string().min(1)).min(1).optional(),
+    match: z.literal("contains").optional(),
+    reject: z.array(z.string().min(1)).min(1).optional(),
   }),
   z.strictObject({
     kind: z.literal("date"),

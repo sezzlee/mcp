@@ -231,7 +231,7 @@ describe("createMcpSourceServer", () => {
     expect(body(result)).toEqual({
       error: "invalid_argument",
       message:
-        "Invalid arguments for group_documents: filePaths: expected an array, received a string; send the array itself, not text that encodes it; options.sorted: Invalid input: expected boolean, received string.",
+        "Invalid arguments for group_documents: filePaths: Invalid input: expected array, received string; options.sorted: Invalid input: expected boolean, received string.",
       recovery:
         "Only filePaths, options.sorted failed validation; keep the other arguments as they are.",
     });

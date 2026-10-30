@@ -34,20 +34,31 @@ export function createExcelMcpServer(
   const identity = { name: "sezzlee-excel", version: manifest.version };
   const results = createResultStore();
   const { dispose, ...handlers } = createHandlers(root, results);
-  const server =
+  const { server, disposeWriting } =
     options.mode === "read"
-      ? createFileSourceServer(identity, toolDefinitions, handlers)
-      : createMcpOutputServer(
-          identity,
-          { ...toolDefinitions, ...writingToolDefinitions },
-          {
-            ...handlers,
-            ...createWritingHandlers(root, options.output, results),
-          },
-        );
+      ? {
+          server: createFileSourceServer(identity, toolDefinitions, handlers),
+          disposeWriting: () => {},
+        }
+      : (() => {
+          const { dispose: disposeWriting, ...writingHandlers } =
+            createWritingHandlers(root, options.output, results);
+          return {
+            disposeWriting,
+            server: createMcpOutputServer(
+              identity,
+              { ...toolDefinitions, ...writingToolDefinitions },
+              {
+                ...handlers,
+                ...writingHandlers,
+              },
+            ),
+          };
+        })();
   const close = server.close.bind(server);
   server.close = async () => {
     dispose();
+    disposeWriting();
     await closeRegexWorkers();
     await close();
   };

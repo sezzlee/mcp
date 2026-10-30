@@ -15,9 +15,20 @@ import {
   type ThinkingPolicy,
 } from "../agent/host.ts";
 import { openSession, type Session, type ToolOutcome } from "./session.ts";
+import { scriptedEdit } from "./scripted-edit.ts";
+import {
+  type Termination,
+  artifactSchema,
+  type finalAnswerSchema,
+  type repeatedErrorSchema,
+} from "./diagnostics.ts";
+import { z } from "zod";
 
 export type Language = "tr" | "en";
 export type Mode = "scripted" | "model";
+
+export const finalizationPolicies = ["unchanged", "reserve_last"] as const;
+export type FinalizationPolicy = (typeof finalizationPolicies)[number];
 
 export interface ModelPolicy {
   readonly catalog: readonly string[];
@@ -101,6 +112,10 @@ export interface TrialRecord {
   readonly final: string;
   readonly ms: number;
   readonly directory: string;
+  readonly termination?: Termination;
+  readonly artifact?: z.infer<typeof artifactSchema>;
+  readonly finalAnswer?: z.infer<typeof finalAnswerSchema>;
+  readonly repeatedErrors?: readonly z.infer<typeof repeatedErrorSchema>[];
 }
 
 export interface TrialInput {
@@ -119,10 +134,12 @@ export interface TrialInput {
   readonly condition?: Condition;
 }
 
-/** A run axis: tools hidden from every scenario's catalog, and the window. */
+/** Run axes for catalog, context, reasoning history and finalization. */
 export interface Condition {
   readonly hide?: readonly string[];
   readonly window?: number;
+  readonly thinking?: ThinkingPolicy;
+  readonly finalization?: FinalizationPolicy;
 }
 
 /** A scenario's catalog and window under a condition. */
@@ -146,6 +163,9 @@ export interface LabScenario {
 }
 
 export const notOffered = "Not run: this tool is not offered in this task.";
+
+const finalizationNotice =
+  "The tool phase is finished within the original request budget. Use the tool results already in this conversation to provide the task's requested final answer now. No tools are available in this request. If work is incomplete, state the specific blocker and what remains unfinished; do not claim a missing result or disclosure was completed.";
 
 /**
  * Requests one reply, retrying a dropped connection up to three attempts and
@@ -213,10 +233,18 @@ function silence(input: {
 export function defineScenario<Context, State>(
   spec: ScenarioSpec<Context, State>,
 ): LabScenario {
+  const policy = {
+    ...spec.policy,
+    catalog:
+      spec.policy.catalog.includes("edit_workbook") &&
+      !spec.policy.catalog.includes("prepare_edit")
+        ? [...spec.policy.catalog, "prepare_edit"]
+        : spec.policy.catalog,
+  };
   return {
     id: spec.id,
     scriptedLanguages: spec.scriptedLanguages,
-    policy: spec.policy,
+    policy,
     async run(input) {
       const started = performance.now();
       await mkdir(input.directory, { recursive: true });
@@ -233,6 +261,16 @@ export function defineScenario<Context, State>(
       let stopped = false;
       let failure: string | null = null;
       let output: Graded["output"] | null = null;
+      let termination: Termination = "completed";
+      let grading = false;
+      let outputProduced = false;
+      const outputReceipt = z.object({
+        kind: z.literal("complete"),
+        version: artifactSchema.options[0].shape.output.optional(),
+        outputs: z
+          .array(z.object({ version: artifactSchema.options[0].shape.output }))
+          .optional(),
+      });
       try {
         const context = await spec.setup(
           session,
@@ -245,24 +283,38 @@ export function defineScenario<Context, State>(
           args: Readonly<Record<string, unknown>>,
         ): Promise<ToolOutcome> => {
           const outcome = await session.call(name, args);
+          const receipt = outputReceipt.safeParse(outcome.body);
+          if (
+            !outcome.isError &&
+            receipt.success &&
+            (receipt.data.version !== undefined ||
+              (receipt.data.outputs?.length ?? 0) > 0)
+          )
+            outputProduced = true;
           spec.observe(state, outcome, context);
           return outcome;
         };
-        if (input.mode === "scripted")
+        if (input.mode === "scripted") {
+          const scriptedCall = (
+            name: string,
+            args: Readonly<Record<string, unknown>>,
+          ) => {
+            counts.requested += 1;
+            counts.dispatched += 1;
+            return call(name, args);
+          };
           final = await spec.scripted(
-            (name, args) => {
-              counts.requested += 1;
-              counts.dispatched += 1;
-              return call(name, args);
-            },
+            (name, args) =>
+              name === "edit_workbook" && args["preparationId"] === undefined
+                ? scriptedEdit(scriptedCall, args)
+                : scriptedCall(name, args),
             context,
             state,
             input.language,
           );
-        else {
+        } else {
           if (input.host === undefined)
             throw new Error("A model trial needs a host.");
-          const { policy } = spec;
           const { catalog, window } = underCondition(policy, input.condition);
           const offered = (await toolSpecsOf(session.client)).filter((tool) =>
             catalog.includes(tool.function.name),
@@ -273,8 +325,27 @@ export function defineScenario<Context, State>(
             { role: "system", content: brief.system },
             { role: "user", content: brief.user },
           ];
+          const reserveFinal = input.condition?.finalization === "reserve_last";
+          let finalizationReason:
+            "request_budget" | "call_budget" | "empty_reply" | undefined;
           while (turns < policy.requests) {
             turns += 1;
+            if (reserveFinal && finalizationReason === undefined) {
+              if (turns === policy.requests)
+                finalizationReason = "request_budget";
+              else if (counts.dispatched >= policy.calls)
+                finalizationReason = "call_budget";
+            }
+            const finalizing = reserveFinal && finalizationReason !== undefined;
+            if (finalizing) {
+              messages.push({ role: "user", content: finalizationNotice });
+              await session.trace({
+                phase: "final_answer",
+                request: turns,
+                reason: finalizationReason,
+                offered: [],
+              });
+            }
             const host =
               (spec.answering?.(state) === true
                 ? input.answerHost
@@ -283,7 +354,7 @@ export function defineScenario<Context, State>(
               host,
               {
                 messages,
-                tools: offered,
+                tools: finalizing ? [] : offered,
                 window,
                 temperature: input.temperature ?? 0,
                 timeoutMs: policy.timeoutMs,
@@ -293,13 +364,28 @@ export function defineScenario<Context, State>(
             );
             await session.trace({ request: turns, result });
             last = result;
-            if (result.kind !== "reply")
+            if (result.kind !== "reply") {
+              termination = "context_preflight";
               throw new Error("Model preflight refused the request.");
+            }
             messages.push(
-              assistantMessage({ ...result, policy: policy.thinking }),
+              assistantMessage({
+                ...result,
+                policy: input.condition?.thinking ?? policy.thinking,
+              }),
             );
             if (result.toolCalls.length === 0) {
               final = result.content;
+              if (finalizing) break;
+              if (
+                reserveFinal &&
+                final.trim() === "" &&
+                outputProduced &&
+                turns < policy.requests
+              ) {
+                finalizationReason = "empty_reply";
+                continue;
+              }
               const reminder = spec.remind?.(state, input.language);
               if (reminder === undefined) break;
               messages.push({ role: "user", content: reminder });
@@ -309,7 +395,7 @@ export function defineScenario<Context, State>(
               counts.requested += 1;
               const name = toolCall.function.name;
               let content: string;
-              if (!catalog.includes(name)) {
+              if (finalizing || !catalog.includes(name)) {
                 counts.refusedCatalog += 1;
                 content = notOffered;
                 await session.trace({ refused: "catalog", tool: name });
@@ -323,12 +409,14 @@ export function defineScenario<Context, State>(
               }
               messages.push({ role: "tool", tool_name: name, content });
             }
+            if (finalizing) break;
             if ((await spec.afterTurn?.(state, context, session)) === "stop") {
               stopped = true;
               break;
             }
           }
         }
+        grading = true;
         const graded = await spec
           .grade({
             session,
@@ -355,6 +443,35 @@ export function defineScenario<Context, State>(
         output = graded.output ?? null;
       } catch (error) {
         failure = failureOf(error);
+        if (error instanceof HostRequestError)
+          termination =
+            error.failure === "malformed"
+              ? "malformed_tool_call"
+              : error.failure === "context"
+                ? "context_preflight"
+                : error.failure === "timeout"
+                  ? "timeout"
+                  : "host_failure";
+        else if (termination === "completed")
+          termination =
+            last?.kind === "reply" && last.doneReason === "length"
+              ? "output_limit"
+              : final.trim() === "" &&
+                  (counts.refusedBudget > 0 ||
+                    counts.dispatched >= policy.calls)
+                ? "call_budget"
+                : input.mode === "model" &&
+                    final.trim() === "" &&
+                    turns >= policy.requests
+                  ? "request_budget"
+                  : input.mode === "model" && final.trim() === ""
+                    ? "empty_reply"
+                    : grading && session.verifiedOutput !== undefined
+                      ? "final_answer_failure"
+                      : grading
+                        ? "oracle_failure"
+                        : "scenario_failure";
+        output = session.verifiedOutput ?? output;
       } finally {
         await session.close();
       }
@@ -370,6 +487,30 @@ export function defineScenario<Context, State>(
         final,
         ms: Math.round(performance.now() - started),
         directory: input.directory,
+        termination,
+        artifact:
+          session.verifiedOutput !== undefined
+            ? { status: "passed", output: session.verifiedOutput }
+            : output !== null
+              ? { status: "passed", output }
+              : grading && failure !== null
+                ? { status: "failed" }
+                : outputProduced
+                  ? { status: "not_verified" }
+                  : failure === null
+                    ? { status: "not_applicable" }
+                    : { status: "not_produced" },
+        finalAnswer:
+          input.mode === "scripted" || stopped
+            ? "not_required"
+            : final.trim() === ""
+              ? "missing"
+              : failure === null
+                ? "passed"
+                : session.verifiedOutput === undefined
+                  ? "not_evaluated"
+                  : "failed",
+        repeatedErrors: session.repeatedErrors,
       };
     },
   };

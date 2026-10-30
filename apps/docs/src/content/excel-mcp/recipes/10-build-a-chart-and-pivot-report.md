@@ -2,7 +2,7 @@
 
 Build a report from typed sales records, with a chart, a real PivotTable and a calculated total. Fill a named template target, add interactive rules and notes, then protect the finished report.
 
-Use `sezzlee-excel` from `@sezzlee/excel-mcp` 0.12.0 or later on your `PATH`, or [run the server from source](/docs/excel-mcp/run-the-server-from-source). Install the MCP Inspector and [jq](https://jqlang.org) as described in the [quickstart](/docs/excel-mcp/quickstart).
+Use `sezzlee-excel` from `@sezzlee/excel-mcp` 0.14.0 or later on your `PATH`, or [run the server from source](/docs/excel-mcp/run-the-server-from-source). Install the MCP Inspector and [jq](https://jqlang.org) as described in the [quickstart](/docs/excel-mcp/quickstart).
 
 ## Enable writing
 
@@ -83,14 +83,53 @@ Inspect unavailable results for unsupported formulas, cycles, dependencies or ex
 
 Leave B1 unlocked for future input, then protect the sheet and workbook structure. These changes retain the calculated formula cache.
 
+Preparation and application must share one server session. The Inspector helper starts a new session for each call, so use the MCP SDK for this pair of calls. Install it beside the script:
+
+```sh
+npm install --prefix ~/sezzlee-sheets --no-save --package-lock=false --ignore-scripts @modelcontextprotocol/sdk >/dev/null
+```
+
 ```sh
 source=$(printf '%s\n' "$calculated" | jq -c '.version')
-protected=$(excelwrite edit_workbook --tool-arg source="$source" \
-  --tool-arg 'changes=[
-    {"kind":"format_cells","sheetName":"Report","range":"B1","style":{"protection":{"locked":false}}},
-    {"kind":"protect_sheet","sheetName":"Report"},
-    {"kind":"protect_workbook","sheetName":"Report"}
-  ]')
+cat > ~/sezzlee-sheets/protect-report.mjs <<'JS'
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+const client = new Client({ name: "protect-report", version: "1.0.0" });
+try {
+  await client.connect(new StdioClientTransport({
+    command: "sezzlee-excel",
+    args: [join(homedir(), "sezzlee-sheets"), "--write", "out"],
+  }));
+  const source = JSON.parse(process.env.SOURCE);
+  const prepared = await client.callTool({
+    name: "prepare_edit",
+    arguments: {
+      filePath: source.filePath,
+      expectedVersion: source,
+      changes: [
+        { kind: "format_cells", sheetName: "Report", range: "B1", style: { protection: { locked: false } } },
+        { kind: "protect_sheet", sheetName: "Report" },
+        { kind: "protect_workbook", sheetName: "Report" },
+      ],
+    },
+  });
+  if (prepared.isError) throw new Error(JSON.stringify(prepared));
+  const preparation = JSON.parse(prepared.content[0].text);
+  if (preparation.kind !== "ready") throw new Error(JSON.stringify(preparation));
+  const applied = await client.callTool({
+    name: preparation.nextAction.tool,
+    arguments: preparation.nextAction.arguments,
+  });
+  if (applied.isError) throw new Error(JSON.stringify(applied));
+  console.log(applied.content[0].text);
+} finally {
+  await client.close();
+}
+JS
+protected=$(SOURCE="$source" node ~/sezzlee-sheets/protect-report.mjs)
 printf '%s\n' "$protected" | jq '.editing | {operations, recalculationRequired}'
 ```
 

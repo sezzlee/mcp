@@ -328,11 +328,6 @@ const report = defineScenario<Context, State>({
   },
   async grade({ session, context, state, mode, final }) {
     const selected = state.selected;
-    if (mode === "model")
-      assert(
-        final.includes(selected.filePath),
-        "Model did not identify its final output",
-      );
     const checked = await exec(
       "python3",
       ["-I", oracle, join(session.directory, selected.filePath)],
@@ -449,6 +444,12 @@ const report = defineScenario<Context, State>({
       join(session.directory, "oracle.json"),
       JSON.stringify(JSON.parse(checked.stdout), null, 2),
     );
+    await session.recordVerifiedOutput(selected);
+    if (mode === "model")
+      assert(
+        final.includes(selected.filePath),
+        "Model did not identify its final output",
+      );
     return { output: selected };
   },
 });
