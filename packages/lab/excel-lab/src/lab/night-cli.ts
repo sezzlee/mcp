@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { setTimeout as wait } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import { z } from "zod";
+import { thinkingPolicies } from "../agent/host.ts";
+import { finalizationPolicies } from "./trial.ts";
 import { lines } from "./jsonl.ts";
 import { prepareOutRoot } from "../run.ts";
 import { runModel, runScripted, type TrialKey } from "./runner.ts";
@@ -31,6 +33,8 @@ const matrixSchema = z.strictObject({
         name: z.string().regex(/^[a-z0-9-]{1,40}$/),
         hide: z.array(z.string().min(1)).min(1).optional(),
         window: z.int().min(4096).max(1_048_576).optional(),
+        thinking: z.enum(thinkingPolicies).optional(),
+        finalization: z.enum(finalizationPolicies).optional(),
       }),
     )
     .min(1)
@@ -76,6 +80,15 @@ const expired = (): boolean => Date.now() >= deadline;
 
 const out = await prepareOutRoot(options.out);
 const scenarios = selectScenarios(matrix.suites, matrix.only);
+if (
+  scenarios.some((scenario) => scenario.id.startsWith("read/")) &&
+  matrix.conditions.some(
+    (condition) => condition.finalization === "reserve_last",
+  )
+)
+  throw new Error(
+    "reserve_last finalization is supported only by the authoring runner, not read scenarios.",
+  );
 const fixtures = await prepareFixtures(out, scenarios, options.corpus);
 const { manifest, server, hash } = await runManifest(scenarios, { matrix });
 const manifestPath = join(out, "manifest.json");
@@ -190,6 +203,12 @@ if (gate)
           ...(condition.window === undefined
             ? {}
             : { window: condition.window }),
+          ...(condition.thinking === undefined
+            ? {}
+            : { thinking: condition.thinking }),
+          ...(condition.finalization === undefined
+            ? {}
+            : { finalization: condition.finalization }),
         },
         async onRecord(trial, key) {
           await writers.onRecord(trial);

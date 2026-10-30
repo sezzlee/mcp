@@ -4,6 +4,12 @@ import { parseArgs } from "node:util";
 import { z } from "zod";
 import { lines } from "./jsonl.ts";
 import { compare, render, summarize, type NightTrial } from "./morning.ts";
+import {
+  terminationSchema,
+  artifactSchema,
+  finalAnswerSchema,
+  repeatedErrorSchema,
+} from "./diagnostics.ts";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -16,6 +22,10 @@ const recordSchema = z.object({
   language: z.string(),
   passed: z.boolean(),
   failure: z.string().nullable(),
+  termination: terminationSchema.optional(),
+  artifact: artifactSchema.optional(),
+  finalAnswer: finalAnswerSchema.optional(),
+  repeatedErrors: z.array(repeatedErrorSchema).optional(),
   directory: z.string(),
   calls: z.object({
     dispatched: z.number(),
@@ -76,6 +86,16 @@ async function conditionTrials(
       repetition: keys[index] ?? 0,
       passed: record.passed,
       failure: record.failure,
+      ...(record.termination === undefined
+        ? {}
+        : { termination: record.termination }),
+      ...(record.artifact === undefined ? {} : { artifact: record.artifact }),
+      ...(record.finalAnswer === undefined
+        ? {}
+        : { finalAnswer: record.finalAnswer }),
+      ...(record.repeatedErrors === undefined
+        ? {}
+        : { repeatedErrors: record.repeatedErrors }),
       dispatched: record.calls.dispatched,
       refusedCatalog: record.calls.refusedCatalog,
       refusedBudget: record.calls.refusedBudget,

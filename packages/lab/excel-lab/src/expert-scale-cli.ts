@@ -43,6 +43,24 @@ const number = (value: number) => ({ kind: "number", value });
 try {
   await Promise.all([client.connect(a), server.connect(b)]);
   async function call(name: string, args: Record<string, unknown>) {
+    if (name === "edit_workbook") {
+      const source = versionSchema.shape.version.parse(args["source"]);
+      const prepared = await client.callTool({
+        name: "prepare_edit",
+        arguments: {
+          filePath: source.filePath,
+          expectedVersion: source.versionId,
+          changes: args["changes"],
+        },
+      });
+      const text = prepared.content[0];
+      assert(text?.type === "text" && !prepared.isError);
+      args = {
+        preparationId: z
+          .object({ kind: z.literal("ready"), preparationId: z.string() })
+          .parse(JSON.parse(text.text)).preparationId,
+      };
+    }
     const response = await client.callTool({ name, arguments: args });
     const first = response.content[0];
     assert(first !== undefined && first.type === "text");

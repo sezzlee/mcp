@@ -18,6 +18,47 @@ function trial(overrides: Partial<NightTrial>): NightTrial {
   };
 }
 
+it("reports artifacts, final answers and repeated errors separately without changing pass rates", () => {
+  const output = { filePath: "out/report.xlsx", versionId: "verified" };
+  const morning = summarize([
+    trial({
+      id: "edit/report",
+      passed: false,
+      failure: "output limit",
+      termination: "output_limit",
+      artifact: { status: "passed", output },
+      finalAnswer: "missing",
+      repeatedErrors: [
+        {
+          tool: "prepare_edit",
+          fingerprint: "same-request",
+          error: "unknown name Qty",
+          count: 4,
+        },
+      ],
+    }),
+    trial({
+      termination: "completed",
+      artifact: { status: "passed", output },
+      finalAnswer: "passed",
+    }),
+  ]);
+  expect(morning.models[0]?.overall).toEqual({ passed: 1, total: 2 });
+  expect(morning.diagnostics).toEqual({
+    terminations: { output_limit: 1, completed: 1 },
+    artifacts: { passed: 2 },
+    finalAnswers: { missing: 1, passed: 1 },
+    repeatedErrors: [
+      {
+        trial: "m edit/report en r0",
+        tool: "prepare_edit",
+        error: "unknown name Qty",
+        count: 4,
+      },
+    ],
+  });
+});
+
 it("summarizes pass rates, sourced writes and tool errors per model", () => {
   const morning = summarize([
     trial({

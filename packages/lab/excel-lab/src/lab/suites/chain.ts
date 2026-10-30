@@ -81,7 +81,7 @@ function observe(state: ChainState, outcome: ToolOutcome): void {
     sourced: sourced(
       outcome.name === "create_workbook"
         ? outcome.args["sheets"]
-        : outcome.args["changes"],
+        : (outcome.preparedEdit?.changes ?? outcome.args["changes"]),
     ),
   });
 }
@@ -213,6 +213,7 @@ export function chainScenario(spec: {
           ),
         },
       });
+      if (output !== null) await session.recordVerifiedOutput(output);
       return output === null ? {} : { output };
     },
   });

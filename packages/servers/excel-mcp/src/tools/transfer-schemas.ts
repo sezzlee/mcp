@@ -151,23 +151,29 @@ export const transferReceiptSchema = mutationReceiptSchema.extend({
   transfer: transferSummarySchema,
 });
 
+const targetSheetNameSchema = sheetNameSchema.clone({
+  ...sheetNameSchema.def,
+  error: () =>
+    "target.sheetName is required and must be text. Use target.sheetName, never target.sheet or target.name; keep the other valid arguments unchanged.",
+});
+
 export const transferTargetSchema = z
   .discriminatedUnion("kind", [
     z.strictObject({
       kind: z.literal("new"),
-      sheetName: sheetNameSchema,
+      sheetName: targetSheetNameSchema,
       startCell: valueBlockSchema.shape.startCell.default("A1"),
     }),
     z.strictObject({
       kind: z.literal("add_sheet"),
       source: workbookVersionSchema,
-      sheetName: sheetNameSchema,
+      sheetName: targetSheetNameSchema,
       startCell: valueBlockSchema.shape.startCell.default("A1"),
     }),
     z.strictObject({
       kind: z.literal("sheet"),
       source: workbookVersionSchema,
-      sheetName: sheetNameSchema,
+      sheetName: targetSheetNameSchema,
       startCell: valueBlockSchema.shape.startCell,
       overwrite: z.boolean().default(false),
       mapping: z

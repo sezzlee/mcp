@@ -101,8 +101,11 @@ export function describeIssues(
     )
     .map((issue) => {
       const expected = containerOf(issue);
+      const actual = at(args, issue.path);
       const message =
-        expected !== null && typeof at(args, issue.path) === "string"
+        expected !== null &&
+        typeof actual === "string" &&
+        actual.trimStart().startsWith(expected === "array" ? "[" : "{")
           ? `expected ${expected === "array" ? "an array" : "an object"}, received a string; send the ${expected} itself, not text that encodes it`
           : issue.message;
       return issue.path.length === 0

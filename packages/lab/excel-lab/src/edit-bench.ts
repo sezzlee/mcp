@@ -191,9 +191,30 @@ async function measure(): Promise<void> {
                 ];
   const calls: { ms: number; requestBytes: number; receiptBytes: number }[] =
     [];
+  let preparationId: string | undefined;
   async function call() {
-    const args = { source, changes };
     const started = performance.now();
+    let requestBytes = 0;
+    if (preparationId === undefined) {
+      const preparationArgs = {
+        filePath: source.filePath,
+        expectedVersion: source.versionId,
+        changes,
+      };
+      const prepared = await client.callTool({
+        name: "prepare_edit",
+        arguments: preparationArgs,
+      });
+      const text = prepared.content
+        .flatMap((item) => (item.type === "text" ? [item.text] : []))
+        .join("\n");
+      assert.notEqual(prepared.isError, true, text);
+      preparationId = z
+        .object({ kind: z.literal("ready"), preparationId: z.string() })
+        .parse(JSON.parse(text)).preparationId;
+      requestBytes += Buffer.byteLength(JSON.stringify(preparationArgs));
+    }
+    const args = { preparationId };
     const result = await client.callTool({
       name: "edit_workbook",
       arguments: args,
@@ -204,7 +225,7 @@ async function measure(): Promise<void> {
     assert.notEqual(result.isError, true, text);
     calls.push({
       ms: performance.now() - started,
-      requestBytes: Buffer.byteLength(JSON.stringify(args)),
+      requestBytes: requestBytes + Buffer.byteLength(JSON.stringify(args)),
       receiptBytes: Buffer.byteLength(text),
     });
     return receipt.parse(JSON.parse(text));

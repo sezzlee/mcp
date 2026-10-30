@@ -43,13 +43,12 @@ import {
   applyPlannedEdit,
   applyWorkbookChanges,
   planWorkbookEdit,
-  refuseBlockedPlan,
 } from "../format/edit-workbook.js";
 import { inspectWorkbookEdit } from "../format/edit-inspection.js";
 import {
   prepareEditSchema,
+  applyEditSchema,
   editPreparationSchema,
-  editWireChangesSchema,
   valueBlockWireSchema,
   type EditWireChange,
 } from "./edit-schemas.js";
@@ -61,6 +60,7 @@ import {
   type SourceResolver,
 } from "./block-sources.js";
 import type { ResultStore } from "./retained-results.js";
+import { createEditPreparations } from "./edit-preparations.js";
 import { limits } from "../platform/limits.js";
 import { prepareBulkSchema } from "./bulk-schemas.js";
 import { prepareBulk } from "./bulk.js";
@@ -85,6 +85,7 @@ const expertAdvice =
 export const writingToolDefinitions = {
   calculate_workbook: {
     description:
+      "For calculated and protected outputs, calculate before applying sheet or workbook protection. When complete:true and cacheStatus:current, the saved results and calculation.results are ready to use; return the requested answer without rereading cells already listed. recalculationRequired means some results still need calculation; recalculationOnOpen only describes Excel's on-open flags and does not invalidate current caches. " +
       "Calculate supported formulas from an exact .xlsx source version and save typed cached results in a new immutable version. Returns bounded cell results, completion and unavailable diagnostics. Recomputes the workbook within strict budgets; no Excel installation or external access. Unsupported formulas, cycles and unavailable dependencies lose stale caches. Formula errors remain typed Excel errors. Only the advertised functions and rectangular A1/static named/table references are supported. Shared/array formulas, volatile functions, external links and iterative calculation are unsupported. Read omitted or long results from the returned output version. The saved workbook conservatively requests recalculation when opened in Excel.",
     inputSchema: z.strictObject({ source: workbookVersionSchema }),
     annotations: ownOutput,
@@ -117,12 +118,18 @@ export const writingToolDefinitions = {
   },
   prepare_edit: {
     description:
-      "Inspect an edit request without publishing an output. Accept .xlsx filePath, optional expectedVersion, and changes. Returns exact source {filePath, versionId}, a fingerprint binding normalized changes, source feature counts, and ready or blocked with policy reasons. Pass source and the same changes to edit_workbook. Canonical and preservation-supported external workbooks can be ready. Supports scalar, sheet, copy/move and row/column edits, plus edit_workbook formatting/layout/formula/table authoring. Copy requires explicit values/formulas/formatting/all mode. No source file is changed. Enabled protection, macros, signatures, Strict markup or unsupported affected dependencies refuse editing. Preparation is not permission to edit changed bytes. No recalculation occurs. changes is exactly edit_workbook's change list: the edit_workbook description gives the rules of every change, source addressing and source blocks.",
+      "Ready means validated in memory, NOT saved: publication:not_published and nextAction give the required edit_workbook call. Only its complete output receipt identifies the saved version. " +
+      "Prepare an atomic edit without publishing an output. Send filePath, optional expectedVersion from the prior read, and changes. A ready response returns preparationId: pass only that id to edit_workbook in this session within 15 minutes. A blocked response cannot be applied. Sources are version-pinned and rechecked before publication; source files never change. Protection, macros, signatures and unsupported affected dependencies refuse editing. write_cells uses typed cells; occupied targets require overwrite:true only when replacement was requested. clear_contents keeps styles. copy_range/move_range use range,targetSheet,startCell; copy requires mode values/formulas/formatting/all and may pin an external from version. copy_sheet uses name/mode. format_cells patches specified fields; null resets a component. set_columns/set_rows use one-based first/last; widths are character units, heights points. freeze_panes uses counts. Print margins are inches; use scale or fitWidth/fitHeight. merge_cells rejects content loss unless loss:discard_non_anchor was requested. write_formula uses cell/formula; fill_formula uses anchor/range/formula. New formulas have no calculated cache: report recalculation required. create_table range includes header/data/optional totals. edit_table can rename columns, resize range and set calculatedColumns/totals/style/filter. Shrinking preserves excluded values unless clearRemovedValues:true. Table style is SezzleeBlue or none. Unsupported dynamic arrays, external links or preservation refuse the whole request. Correcting changes requires a new preparation." +
+      sourceFrameAdvice +
+      sourceBlockAdvice +
+      tableAdvice +
+      expertAdvice,
     inputSchema: prepareEditSchema,
     annotations: readOnly,
   },
   prepare_transfer: {
     description:
+      "For aggregate counts, fn:count counts matching physical rows, including blank cells, even when column is supplied. Use fn:countValues with column for non-empty cells, or filter with op:isNotEmpty before count. " +
       'Prepare a complete version-pinned value selection from an .xlsx, .xlsm or CSV without returning its cells. selection must be a JSON object, never a JSON-encoded string: for example {"kind":"range","sheetName":"Sheet1","range":"A1:C5","headerRow":0}. Returns transfer {source, selection} and exact scope/counts; pass transfer unchanged to transfer_data. range preserves its rectangle; records filters complete data rows and can project/reorder selectColumns, includeHeaders or select explicit physical rows with scope {kind: rows, rows: [...]}. Default scope all includes every matching record even if a previous read showed only a preview. Set headerRow: 0 explicitly when there is no header row, so the first record is retained. Record filters use where as an array of {column, op, value}, for example [{column: Amount, op: gte, value: 100}]. For boolean equality use op: eq and a boolean true/false value; filter and equals are not argument names. scope rows contains one-based physical rows, not zero-based indexes. aggregate uses metrics such as [{fn: count}]; omit groupBy for one total and use where for record conditions. aggregate exports a complete grouped summary with headers. Columns are interpreted only when explicit columns specifications request it. Values only: formulas contribute saved results, never recalculated; missing formula caches and unsupported/lossy values fail. No formula/style copying. Available only in explicit writing mode. The source is unchanged.',
     inputSchema: z.strictObject({
       filePath: z.string().min(1).max(32_768),
@@ -132,6 +139,7 @@ export const writingToolDefinitions = {
   },
   transfer_data: {
     description:
+      "For aggregate selection, fn:count counts rows including blanks; fn:countValues with column counts non-empty cells. " +
       "transfer and target must be JSON objects, never JSON-encoded strings; preserve the nested source and selection objects in the returned transfer reference. Transfer the complete version-pinned value selection from prepare_transfer into a new immutable .xlsx or an existing selected .xlsx target, preserving supported unrelated package content. target new creates a workbook; add_sheet or sheet requires source {filePath,versionId}. sheet uses startCell and optional mapping {kind:headers,headerRow}; choose includeHeaders false when appending. Occupied targets require overwrite true; blank source cells then clear contents. All matching records are transferred, not just an earlier preview. Source and target version changes, unsupported values or preservation failures stop the whole operation. Values only; use explicit edit copy operations for existing formulas and formatting. Nothing is recalculated. Returns provenance/counts, not cell data.",
     inputSchema: z.strictObject({
       transfer: transferReferenceSchema,
@@ -166,15 +174,8 @@ export const writingToolDefinitions = {
   },
   edit_workbook: {
     description:
-      "Apply atomic changes to source {filePath,versionId}; originals/retained outputs never change. write_cells uses typed literal values; occupied data/formula targets require overwrite:true. clear_contents preserves styles. copy_range/move_range use range,targetSheet,startCell; copy requires mode values/formulas/formatting/all. copy_sheet uses name/mode; copy operations optionally accept from {filePath,versionId}, subject to dependency/style compatibility. Sheet rename/reorder/delete and row/column insert/delete preserve supported references or refuse. format_cells patches only specified style fields; null resets a component. set_columns/set_rows use one-based first/last, width in character units/height in points, hidden; freeze_panes uses row/column counts. set_print_layout margins are inches; choose scale or fitWidth/fitHeight. merge_cells defaults to loss:reject; loss:discard_non_anchor explicitly clears other contents; unmerge_cells retains only the anchor. write_formula uses cell/formula; fill_formula uses anchor/range/formula and relative A1/table references. New formulas have no calculated cache; report recalculation required. create_table range includes header/data/optional totals; headers are unique literal text. edit_table can rename name/columns, resize range, set calculatedColumns/totals/style/filter; shrink preserves excluded values unless clearRemovedValues:true. convert_table preserves supported references/appearance or refuses. Table style is SezzleeBlue or none; filter toggles dropdowns, not dataset filtering. Dynamic arrays/external formula links and unsupported affected preservation refuse the whole request. Use prepare_edit first for scope/effects. Retry the same source/changes for the same result; select an earlier source to undo/branch." +
-      sourceFrameAdvice +
-      sourceBlockAdvice +
-      tableAdvice +
-      expertAdvice,
-    inputSchema: z.strictObject({
-      source: workbookVersionSchema,
-      changes: editWireChangesSchema,
-    }),
+      "Publish the immutable output of a ready prepare_edit response. Send only preparationId from the same server session within 15 minutes; never repeat source or changes here. Sources are checked again before first publication. Retrying the same id returns its verified output receipt without applying another edit. To change the plan or branch from an earlier version, call prepare_edit again. Originals never change. Formula caches are not calculated; report recalculation required when indicated.",
+    inputSchema: applyEditSchema,
     annotations: ownOutput,
   },
   create_workbook_version: {
@@ -196,7 +197,8 @@ export function createWritingHandlers(
   root: WorkbookRoot,
   output: WorkbookOutput,
   results: ResultStore,
-): HandlersOf<typeof writingToolDefinitions> {
+): HandlersOf<typeof writingToolDefinitions> & { dispose(): void } {
+  const preparations = createEditPreparations();
   /**
    * Guard: a preparation retains file-sized source and output buffers, so
    * admission must be bounded before the first source read allocates them.
@@ -361,6 +363,7 @@ export function createWritingHandlers(
     return { snapshots, buffers };
   }
   return {
+    dispose: () => preparations.clear(),
     calculate_workbook: guardWriting<
       typeof writingToolDefinitions,
       "calculate_workbook"
@@ -505,12 +508,32 @@ export function createWritingHandlers(
               : { placements: prepared.placements }),
             ...withSources(sources),
           };
+          const preparationId =
+            blockers.length === 0 && prepared !== undefined
+              ? preparations.add({
+                  source: snapshot.version,
+                  dependencies: [
+                    ...copies.snapshots.map((copy) => copy.version),
+                    ...sources.receipts.flatMap((source) =>
+                      source.kind === "result" ? [] : [source.version],
+                    ),
+                  ],
+                  applied: prepared,
+                  sources: [...sources.receipts],
+                })
+              : undefined;
           return json(
             editPreparationSchema.parse(
-              blockers.length === 0
+              preparationId !== undefined
                 ? {
                     kind: "ready",
                     ...common,
+                    preparationId,
+                    publication: "not_published",
+                    nextAction: {
+                      tool: "edit_workbook",
+                      arguments: { preparationId },
+                    },
                     profile:
                       prepared?.editing === undefined
                         ? "canonical_values"
@@ -677,61 +700,43 @@ export function createWritingHandlers(
       "edit_workbook",
       (args, _name, signal) =>
         admitted(async () => {
-          checkInput(args);
-          await checkpoint(signal);
-          const snapshot = await readWorkbookSnapshot(
-            root,
-            args.source.filePath,
-            args.source.versionId,
-          );
-          const sources = createSourceResolver(root, results);
-          const resolved = await resolveChanges(args.changes, sources);
-          const plan = refuseBlockedPlan(
-            planWorkbookEdit(
-              snapshot.bytes,
-              resolved,
-              externalCopies(resolved),
-            ),
-          );
-          const copies = await copySources(resolved);
-          const applied = applyPlannedEdit(
-            snapshot.bytes,
-            plan,
-            args.changes.length,
-            copies.buffers,
-          );
-          const { changes, bytes } = applied;
-          await checkpoint(signal);
-          await readWorkbookSnapshot(
-            root,
-            snapshot.version.filePath,
-            snapshot.version.versionId,
-          );
-          for (const source of copies.snapshots)
+          const entry = preparations.get(args.preparationId);
+          if (entry.kind === "published") {
             await readWorkbookSnapshot(
               root,
-              source.version.filePath,
-              source.version.versionId,
+              entry.receipt.version.filePath,
+              entry.receipt.version.versionId,
             );
-          await sources.verify();
+            return json(entry.receipt);
+          }
+          const { applied, source, dependencies, sources } = entry.plan;
+          const { changes, bytes } = applied;
+          await checkpoint(signal);
+          await readWorkbookSnapshot(root, source.filePath, source.versionId);
+          for (const dependency of dependencies)
+            await readSourceSnapshot(
+              root,
+              dependency.filePath,
+              dependency.versionId,
+            );
           await checkpoint(signal);
           const receipt = await output.publish(bytes, {
             kind: "source",
-            version: snapshot.version,
+            version: source,
           });
-          return json(
-            mutationReceiptSchema.parse({
-              ...receipt,
-              changes,
-              ...(applied.editing === undefined
-                ? {}
-                : { editing: applied.editing }),
-              ...(applied.placements.length === 0
-                ? {}
-                : { placements: applied.placements }),
-              ...withSources(sources),
-            }),
-          );
+          const mutation = mutationReceiptSchema.parse({
+            ...receipt,
+            changes,
+            ...(applied.editing === undefined
+              ? {}
+              : { editing: applied.editing }),
+            ...(applied.placements.length === 0
+              ? {}
+              : { placements: applied.placements }),
+            ...(sources.length === 0 ? {} : { sources }),
+          });
+          preparations.published(args.preparationId, mutation);
+          return json(mutation);
         }),
     ),
     create_workbook_version: guardWriting<

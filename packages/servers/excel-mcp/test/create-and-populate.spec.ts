@@ -135,7 +135,7 @@ it("creates blank, header-only and positioned typed sheets readable independentl
         },
       ],
     };
-    const result = await client.callTool({
+    const result = await preparedCall(client, {
       name: "create_workbook",
       arguments: args,
     });
@@ -169,7 +169,7 @@ it("creates blank, header-only and positioned typed sheets readable independentl
     expect(
       await zip.file("xl/worksheets/sheet2.xml")?.async("string"),
     ).toContain("<sheetData></sheetData>");
-    const read = await client.callTool({
+    const read = await preparedCall(client, {
       name: "read_sheet",
       arguments: {
         filePath: receipt.version.filePath,
@@ -193,7 +193,10 @@ it("creates blank, header-only and positioned typed sheets readable independentl
     });
     const retry = mutationReceiptSchema.parse(
       payload(
-        await client.callTool({ name: "create_workbook", arguments: args }),
+        await preparedCall(client, {
+          name: "create_workbook",
+          arguments: args,
+        }),
       ),
     );
     expect(retry.version).toEqual(receipt.version);
@@ -205,7 +208,7 @@ it("atomically corrects, appends and adds a sheet, reuses retries and keeps sour
   await workspace(async (directory, client) => {
     const original = mutationReceiptSchema.parse(
       payload(
-        await client.callTool({
+        await preparedCall(client, {
           name: "create_workbook",
           arguments: {
             sheets: [
@@ -263,7 +266,7 @@ it("atomically corrects, appends and adds a sheet, reuses retries and keeps sour
     };
     const edited = mutationReceiptSchema.parse(
       payload(
-        await client.callTool({ name: "edit_workbook", arguments: args }),
+        await preparedCall(client, { name: "edit_workbook", arguments: args }),
       ),
     );
     expect(edited).toMatchObject({
@@ -280,13 +283,13 @@ it("atomically corrects, appends and adds a sheet, reuses retries and keeps sour
     expect(independent.Sheets["Gelirler"]?.["A1"]?.v).toBe(100);
     const retry = mutationReceiptSchema.parse(
       payload(
-        await client.callTool({ name: "edit_workbook", arguments: args }),
+        await preparedCall(client, { name: "edit_workbook", arguments: args }),
       ),
     );
     expect(retry.version).toEqual(edited.version);
     const branch = mutationReceiptSchema.parse(
       payload(
-        await client.callTool({
+        await preparedCall(client, {
           name: "edit_workbook",
           arguments: {
             source: original.version,
@@ -321,7 +324,7 @@ it("rejects invalid wire data and late transaction failures without publishing a
   await workspace(async (directory, client) => {
     const original = mutationReceiptSchema.parse(
       payload(
-        await client.callTool({
+        await preparedCall(client, {
           name: "create_workbook",
           arguments: {
             sheets: [
@@ -442,7 +445,7 @@ it("rejects invalid wire data and late transaction failures without publishing a
         "unknown_sheet",
       ],
     ] as const) {
-      const result = await client.callTool({ name, arguments: args });
+      const result = await preparedCall(client, { name, arguments: args });
       expect(result.isError, JSON.stringify(args)).toBe(true);
       expect(payload(result)).toMatchObject({ error });
       expect((await readdir(join(directory, "out"))).length).toBe(1);
@@ -454,7 +457,7 @@ it("preserves opaque source parts instead of silently dropping them", async () =
   await workspace(async (directory, client) => {
     const original = mutationReceiptSchema.parse(
       payload(
-        await client.callTool({
+        await preparedCall(client, {
           name: "create_workbook",
           arguments: { sheets: [{ name: "Data" }] },
         }),
@@ -466,7 +469,7 @@ it("preserves opaque source parts instead of silently dropping them", async () =
     zip.file("custom/important.xml", "<important>retain me</important>");
     const bytes = await zip.generateAsync({ type: "nodebuffer" });
     await writeFile(join(directory, "external.xlsx"), bytes);
-    const result = await client.callTool({
+    const result = await preparedCall(client, {
       name: "edit_workbook",
       arguments: {
         source: {
@@ -519,3 +522,4 @@ it("shares admission across all writing tools and honors cancellation before pub
     await rm(directory, { recursive: true, force: true });
   }
 });
+import { preparedCall } from "./fixtures/prepared-call.js";

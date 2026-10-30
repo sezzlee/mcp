@@ -445,6 +445,8 @@ function scenario(kind: Kind): LabScenario {
         verified.stdout + verified.stderr,
       );
       assert.equal(verified.status, 0, verified.stdout + verified.stderr);
+      if (output !== undefined)
+        await session.recordVerifiedOutput(output.version);
       if (mode === "model" && needsFinishedAnswer) {
         assertAdditionClaims(final);
         assert.match(

@@ -27,6 +27,8 @@ import {
   type StructuredReference,
 } from "./structured-reference.js";
 import { workbookTables } from "./table-model.js";
+import { occupiedTarget } from "./occupied.js";
+import { SezzleeExcelError } from "../platform/errors.js";
 import {
   containsCell,
   occupiedCell,
@@ -329,8 +331,24 @@ export function validateAuthoredFormula(
             (n) =>
               fold(n.attributes.get("name") ?? "") === fold(token?.text ?? ""),
           )
-        )
-          invalidPresentation("The formula refers to an unknown defined name.");
+        ) {
+          const unknownName = token.text;
+          const table = workbookTables(workbook).find(
+            (candidate) =>
+              candidate.sheet.name === sheetName &&
+              containsCell(candidate.bounds, row, column),
+          );
+          const tableColumn = table?.columns.find(
+            (candidate) => fold(candidate.name) === fold(unknownName),
+          );
+          throw new SezzleeExcelError(
+            "invalid_argument",
+            `Formula at ${JSON.stringify(sheetName)}!${formatCellRef(row, column)} refers to unknown defined name ${JSON.stringify(token.text)}.`,
+            tableColumn === undefined
+              ? "Check describe_workbook definedNames and use an existing name, or define the intended name before authoring this formula."
+              : `This is a table column. Use a row-context structured reference such as [@${tableColumn.name}] instead of the bare column name; for example [@Qty]*[@Price].`,
+          );
+        }
       }
     } else invalidPresentation("The formula needs an operand.");
     while (tokens[at]?.kind === "operator") {
@@ -414,9 +432,7 @@ export function applyFormulaChange(
       const key = keyOf(row, column),
         cell = grid.cells.get(key);
       if (!change.overwrite && occupiedCell(cell))
-        invalidPresentation(
-          "The formula target is occupied. Choose overwrite explicitly.",
-        );
+        occupiedTarget(change.sheetName, formatCellRef(row, column));
       let text = copyFormula(
         formula,
         change.sheetName,

@@ -138,10 +138,6 @@ function scenario(kind: Kind): LabScenario {
     async grade({ session, context, state, final }) {
       const selected = state.selected;
       assert(selected !== undefined, "No successful calculation receipt.");
-      assert(
-        final.trim() !== "",
-        "Model did not finish within the call budget.",
-      );
       const cells: Record<string, CalculationExpectation["cells"][string]> = {
         C1: { formula: "A1*B1", value: kind === "edit_calculate" ? 40 : 20 },
         C2: { formula: "A2*B2", value: 20 },
@@ -169,6 +165,8 @@ function scenario(kind: Kind): LabScenario {
         context.sourceHash,
         "Source changed.",
       );
+      await session.recordVerifiedOutput(selected.version);
+      assert(final.trim() !== "", "The final calculation answer is missing.");
       const { answer } = parseCalculationAnswer(final);
       assert.equal(answer.filePath, selected.version.filePath);
       if (kind === "unavailable") {

@@ -669,9 +669,7 @@ function editTable(
           occupiedCell(grid.cells.get(keyOf(bounds.bottom, col))) &&
           !change.overwrite
         )
-          invalidPresentation(
-            "Moving the totals row would overwrite data. Choose overwrite explicitly.",
-          );
+          occupiedTarget(change.sheetName, formatCellRef(bounds.bottom, col));
   }
   if (newDataBottom < oldDataBottom) {
     const current = gridOf(workbook.xml(part), part);

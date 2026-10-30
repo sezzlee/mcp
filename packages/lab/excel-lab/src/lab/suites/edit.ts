@@ -215,16 +215,20 @@ function scenario(kind: Kind): LabScenario {
       retained: [],
       mutationChanges: [],
     }),
-    observe(state, { name, args, body }) {
+    observe(state, { name, args, body, preparedEdit }) {
       const parsed = completeSchema.safeParse(body);
       if (parsed.success) {
         if (name === "edit_workbook")
           state.mutationChanges.push(
-            ...z.array(tracedChange).parse(args["changes"]),
+            ...z
+              .array(tracedChange)
+              .parse(preparedEdit?.changes ?? args["changes"]),
           );
         state.retained.push({
           version: parsed.data.version,
-          parent: versionSchema.safeParse(args["source"]).data?.versionId,
+          parent: versionSchema.safeParse(
+            preparedEdit?.source ?? args["source"],
+          ).data?.versionId,
         });
         state.completed += 1;
         if (name === "edit_workbook") state.edited = true;
@@ -481,6 +485,7 @@ function scenario(kind: Kind): LabScenario {
         verified.stdout + verified.stderr,
       );
       assert.equal(verified.status, 0, verified.stdout + verified.stderr);
+      await session.recordVerifiedOutput(last);
       if (
         mode === "model" &&
         [

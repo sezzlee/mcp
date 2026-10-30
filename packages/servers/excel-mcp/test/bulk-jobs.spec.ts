@@ -133,7 +133,7 @@ async function readStep(
   };
 }
 async function invoke(client: Client, group: unknown, tool = "run_bulk_job") {
-  return client.callTool({
+  return preparedCall(client, {
     name: tool,
     arguments: { job: { kind: "dependent", group } },
   });
@@ -189,7 +189,7 @@ it("returns bounded batch summaries with retrievable full output inventories", a
     await connected(
       directory,
       async (client) => {
-        const response = await client.callTool({
+        const response = await preparedCall(client, {
           name: "run_bulk_job",
           arguments: { job: { kind: "independent", jobs } },
         });
@@ -214,7 +214,7 @@ it("returns bounded batch summaries with retrievable full output inventories", a
           throw new Error("Missing completed child");
         const full = bulkGroupReceiptSchema.parse(
           payload(
-            await client.callTool({
+            await preparedCall(client, {
               name: "get_bulk_job",
               arguments: { jobId: child.result.jobId },
             }),
@@ -254,7 +254,7 @@ it("refuses a truncated completion inventory even when its retained files still 
       const manifest = JSON.parse(await readFile(path, "utf8"));
       manifest.result.outputs.pop();
       await writeFile(path, JSON.stringify(manifest));
-      const response = await client.callTool({
+      const response = await preparedCall(client, {
         name: "get_bulk_job",
         arguments: { jobId: result.jobId },
       });
@@ -331,7 +331,7 @@ it("prepares, atomically commits and independently reads conditional updates whi
       expect(payload(await invoke(client, group))).toEqual(receipt);
       expect(
         payload(
-          await client.callTool({
+          await preparedCall(client, {
             name: "get_bulk_job",
             arguments: { jobId: receipt.jobId },
           }),
@@ -383,7 +383,7 @@ it("recovers a committed result after restart and original-source changes, and r
       const output = replay.outputs[0];
       if (output === undefined) throw new Error("Missing output");
       await writeFile(join(directory, output.version.filePath), "tampered");
-      const response = await client.callTool({
+      const response = await preparedCall(client, {
         name: "get_bulk_job",
         arguments: { jobId: replay.jobId },
       });
@@ -427,7 +427,10 @@ it("returns nine independent reports, retains failure, and retries only the miss
     await connected(directory, async (client) => {
       first = bulkBatchReceiptSchema.parse(
         payload(
-          await client.callTool({ name: "run_bulk_job", arguments: { job } }),
+          await preparedCall(client, {
+            name: "run_bulk_job",
+            arguments: { job },
+          }),
         ),
       );
       expect(first.kind).toBe("partial");
@@ -444,7 +447,7 @@ it("returns nine independent reports, retains failure, and retries only the miss
       });
       const status = bulkBatchReceiptSchema.parse(
         payload(
-          await client.callTool({
+          await preparedCall(client, {
             name: "get_bulk_job",
             arguments: { jobId: first.jobId },
           }),
@@ -471,7 +474,10 @@ it("returns nine independent reports, retains failure, and retries only the miss
     await connected(directory, async (client) => {
       const retry = bulkBatchReceiptSchema.parse(
         payload(
-          await client.callTool({ name: "run_bulk_job", arguments: { job } }),
+          await preparedCall(client, {
+            name: "run_bulk_job",
+            arguments: { job },
+          }),
         ),
       );
       expect(retry.kind).toBe("complete");
@@ -1471,7 +1477,7 @@ it("keeps successful independent outputs when the failed job diagnostic location
         })
         .parse(
           payload(
-            await client.callTool({
+            await preparedCall(client, {
               name: "prepare_bulk_job",
               arguments: { job },
             }),
@@ -1483,7 +1489,7 @@ it("keeps successful independent outputs when the failed job diagnostic location
         join(directory, "out", `failed-${badId}`),
         "occupied diagnostic path",
       );
-      const response = await client.callTool({
+      const response = await preparedCall(client, {
         name: "run_bulk_job",
         arguments: { job },
       });
@@ -1586,7 +1592,7 @@ it("bounds the advertised job catalog while keeping kind-specific argument valid
           group: { steps: [read], outputs: [newOutput("orders")] },
         },
       ]) {
-        const invalid = await client.callTool({
+        const invalid = await preparedCall(client, {
           name: "run_bulk_job",
           arguments: { job },
         });
@@ -1597,3 +1603,4 @@ it("bounds the advertised job catalog while keeping kind-specific argument valid
     }),
   );
 });
+import { preparedCall } from "./fixtures/prepared-call.js";

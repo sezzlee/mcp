@@ -13,6 +13,7 @@ import {
   type ToolCall,
 } from "../src/agent/host.ts";
 import { runLab } from "../src/lab/runner.ts";
+import { calcScenarios } from "../src/lab/suites/calc.ts";
 import {
   defineScenario,
   notOffered,
@@ -241,9 +242,9 @@ class FixedHost implements ModelHost {
   readonly model = "stub";
   readonly endpoint = "stub://host";
   requests = 0;
-  readonly #answer: () => ChatResult;
+  readonly #answer: (request: ChatRequest) => ChatResult;
 
-  constructor(answer: () => ChatResult) {
+  constructor(answer: (request: ChatRequest) => ChatResult) {
     this.#answer = answer;
   }
 
@@ -257,9 +258,9 @@ class FixedHost implements ModelHost {
     };
   }
 
-  async chat(): Promise<ChatResult> {
+  async chat(request: ChatRequest): Promise<ChatResult> {
     this.requests += 1;
-    return this.#answer();
+    return this.#answer(request);
   }
 
   async loadedWindow() {
@@ -267,7 +268,10 @@ class FixedHost implements ModelHost {
   }
 }
 
-function claiming(id: string): LabScenario {
+function claiming(
+  id: string,
+  verifiedOutput?: { filePath: string; versionId: string },
+): LabScenario {
   return defineScenario<null, null>({
     id,
     scriptedLanguages: ["en"],
@@ -279,7 +283,9 @@ function claiming(id: string): LabScenario {
     start: () => null,
     observe() {},
     scripted: async () => "",
-    async grade({ final }) {
+    async grade({ final, session }) {
+      if (verifiedOutput !== undefined)
+        await session.recordVerifiedOutput(verifiedOutput);
       assert.match(
         final,
         /calculat/,
@@ -312,6 +318,11 @@ it("names an empty final answer instead of the claim it lacks", async () => {
   expect(trial.failure).toBe(
     "No final answer: the output limit ended the reply. Final answer must disclose calculation.",
   );
+  expect(trial).toMatchObject({
+    passed: false,
+    termination: "output_limit",
+    finalAnswer: "missing",
+  });
 });
 
 it("fails a malformed tool call once as the model's, not the host's", async () => {
@@ -330,7 +341,311 @@ it("fails a malformed tool call once as the model's, not the host's", async () =
     retryDelayMs: 0,
   });
   expect(host.requests).toBe(1);
+  expect(trial.termination).toBe("malformed_tool_call");
   expect(trial.failure).toBe(
     "The model sent a malformed tool call: Ollama: error parsing tool call: raw='[1,]'",
   );
+});
+
+it("keeps the grader's verified artifact when the final answer hits the output limit", async () => {
+  const host = new FixedHost(() => ({
+    kind: "reply",
+    content: "",
+    thinking: "long",
+    toolCalls: [],
+    estimatedTokens: 1,
+    usage: null,
+    timing: null,
+    doneReason: "length",
+    ms: 0,
+  }));
+  const output = {
+    filePath: "out/verified.xlsx",
+    versionId: "oracle-verified-version",
+  };
+  const trial = await claiming("test/verified-but-silent", output).run({
+    mode: "model",
+    language: "en",
+    directory: await temporary(),
+    fixtures: { corpus: undefined },
+    host,
+  });
+  expect(trial).toMatchObject({
+    passed: false,
+    termination: "output_limit",
+    artifact: { status: "passed", output },
+    output,
+    finalAnswer: "missing",
+  });
+});
+
+it("verifies the real calculation file even when the model omits its final answer", async () => {
+  let turn = 0;
+  const host = new FixedHost((request) => {
+    const brief = request.messages.find(
+      (entry) => entry.role === "user",
+    )?.content;
+    const source =
+      typeof brief === "string" ? brief.match(/\{[^}]+\}/)?.[0] : undefined;
+    assert(source !== undefined, "The task must supply a source version.");
+    return {
+      kind: "reply",
+      content: "",
+      thinking: "",
+      toolCalls:
+        turn++ === 0
+          ? [
+              {
+                function: {
+                  name: "calculate_workbook",
+                  arguments: { source: JSON.parse(source) },
+                },
+              },
+            ]
+          : [],
+      estimatedTokens: 1,
+      usage: null,
+      timing: null,
+      doneReason: "stop",
+      ms: 0,
+    };
+  });
+  const calculation = calcScenarios.find(
+    (entry) => entry.id === "calc/calculate",
+  );
+  assert(calculation !== undefined);
+  const trial = await calculation.run({
+    mode: "model",
+    language: "en",
+    directory: await temporary(),
+    fixtures: { corpus: undefined },
+    host,
+  });
+  expect(trial).toMatchObject({
+    passed: false,
+    termination: "empty_reply",
+    artifact: { status: "passed" },
+    finalAnswer: "missing",
+  });
+});
+
+it.each(["correct", "wrong", "tool"] as const)(
+  "reserves finalization inside the original request budget and still grades a %s answer",
+  async (answer) => {
+    const host = new FixedHost((request) => {
+      const calculation = request.messages.find(
+        (entry) =>
+          entry.role === "tool" && entry.tool_name === "calculate_workbook",
+      );
+      const filePath = calculation?.content.match(/"filePath":"([^"]+)"/)?.[1];
+      const brief = request.messages.find(
+        (entry) => entry.role === "user",
+      )?.content;
+      const source = brief?.match(/\{[^}]+\}/)?.[0];
+      assert(source !== undefined);
+      const finalizing = request.tools.length === 0;
+      return {
+        kind: "reply",
+        content:
+          finalizing && answer !== "tool"
+            ? JSON.stringify({
+                filePath,
+                total: answer === "correct" ? 40 : 41,
+              })
+            : "",
+        thinking: "",
+        toolCalls:
+          calculation === undefined
+            ? [
+                {
+                  function: {
+                    name: "calculate_workbook",
+                    arguments: { source: JSON.parse(source) },
+                  },
+                },
+              ]
+            : !finalizing || answer === "tool"
+              ? [
+                  {
+                    function: {
+                      name: "read_sheet",
+                      arguments: {
+                        filePath,
+                        sheetName: "Budget",
+                        range: "C3",
+                        headerRow: 0,
+                      },
+                    },
+                  },
+                ]
+              : [],
+        estimatedTokens: 1,
+        usage: null,
+        timing: null,
+        doneReason: "stop",
+        ms: 0,
+      };
+    });
+    const calculation = calcScenarios.find(
+      (entry) => entry.id === "calc/calculate",
+    );
+    assert(calculation !== undefined);
+    const trial = await calculation.run({
+      mode: "model",
+      language: "en",
+      directory: await temporary(),
+      fixtures: { corpus: undefined },
+      host,
+      condition: { finalization: "reserve_last" },
+    });
+    expect(host.requests).toBe(calculation.policy.requests);
+    expect(trial.calls.dispatched).toBe(calculation.policy.requests - 1);
+    expect(trial.passed).toBe(answer === "correct");
+    expect(trial.artifact?.status).toBe("passed");
+    expect(trial.finalAnswer).toBe(
+      answer === "tool"
+        ? "missing"
+        : answer === "correct"
+          ? "passed"
+          : "failed",
+    );
+    expect(trial.calls.refusedCatalog).toBe(answer === "tool" ? 1 : 0);
+  },
+);
+
+it("uses a remaining request to finalize an empty reply after publication without accepting the silence", async () => {
+  let turn = 0;
+  const host = new FixedHost((request) => {
+    const brief = request.messages.find(
+      (entry) => entry.role === "user",
+    )?.content;
+    const source = brief?.match(/\{[^}]+\}/)?.[0];
+    assert(source !== undefined);
+    const calculation = request.messages.find(
+      (entry) =>
+        entry.role === "tool" && entry.tool_name === "calculate_workbook",
+    );
+    const filePath = calculation?.content.match(/"filePath":"([^"]+)"/)?.[1];
+    const current = turn++;
+    if (current === 2) expect(request.tools).toEqual([]);
+    return {
+      kind: "reply",
+      content: current === 2 ? JSON.stringify({ filePath, total: 40 }) : "",
+      thinking: "",
+      toolCalls:
+        current === 0
+          ? [
+              {
+                function: {
+                  name: "calculate_workbook",
+                  arguments: { source: JSON.parse(source) },
+                },
+              },
+            ]
+          : [],
+      estimatedTokens: 1,
+      usage: null,
+      timing: null,
+      doneReason: "stop",
+      ms: 0,
+    };
+  });
+  const calculation = calcScenarios.find(
+    (entry) => entry.id === "calc/calculate",
+  );
+  assert(calculation !== undefined);
+  const trial = await calculation.run({
+    mode: "model",
+    language: "en",
+    directory: await temporary(),
+    fixtures: { corpus: undefined },
+    host,
+    condition: { finalization: "reserve_last" },
+  });
+  expect(host.requests).toBe(3);
+  expect(trial).toMatchObject({
+    passed: true,
+    calls: { dispatched: 1 },
+    artifact: { status: "passed" },
+    finalAnswer: "passed",
+  });
+});
+
+it("marks a published workbook as unverified when the host fails before grading", async () => {
+  let turn = 0;
+  const host = new FixedHost(() => {
+    if (turn++ > 0) throw new HostRequestError("host disconnected", "fatal");
+    return {
+      kind: "reply",
+      content: "",
+      thinking: "",
+      toolCalls: [
+        {
+          function: {
+            name: "create_workbook",
+            arguments: { sheets: [{ name: "S" }] },
+          },
+        },
+      ],
+      estimatedTokens: 1,
+      usage: null,
+      timing: null,
+      doneReason: "stop",
+      ms: 0,
+    };
+  });
+  const directory = await temporary();
+  const trial = await defineScenario<null, null>({
+    id: "test/unverified-output",
+    scriptedLanguages: ["en"],
+    policy: { ...policy, catalog: ["create_workbook"] },
+    setup: async () => null,
+    brief: () => ({ system: "system", user: "user" }),
+    start: () => null,
+    observe() {},
+    scripted: async () => "",
+    grade: async () => ({}),
+  }).run({
+    mode: "model",
+    language: "en",
+    directory,
+    fixtures: { corpus: undefined },
+    host,
+  });
+  expect(await readdir(join(directory, "out"))).toHaveLength(1);
+  expect(trial).toMatchObject({
+    passed: false,
+    termination: "host_failure",
+    artifact: { status: "not_verified" },
+    output: null,
+  });
+});
+
+it("overrides only thinking history through an explicit condition", async () => {
+  class ThinkingHost extends ScriptedHost {
+    override async chat(request: ChatRequest): Promise<ChatResult> {
+      const result = await super.chat(request);
+      return result.kind === "reply"
+        ? { ...result, thinking: "private reasoning" }
+        : result;
+    }
+  }
+  const host = new ThinkingHost([[offeredCall], []]);
+  await scenario("test/history", async () => "").run({
+    mode: "model",
+    language: "en",
+    directory: await temporary(),
+    fixtures: { corpus: undefined },
+    host,
+    condition: { thinking: "field" },
+  });
+  const assistant = host.requests[1]?.messages.find(
+    (message) => message.role === "assistant",
+  );
+  expect(assistant).toMatchObject({
+    content: "",
+    thinking: "private reasoning",
+  });
+  expect(host.requests[0]?.numPredict).toBeNull();
+  expect(host.requests[0]?.window).toBe(8192);
 });

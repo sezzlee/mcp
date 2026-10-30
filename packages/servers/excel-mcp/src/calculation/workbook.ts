@@ -101,7 +101,14 @@ export function calculateWorkbook(bytes: Buffer) {
   if (inspection.blockers.length > 0)
     throw new SezzleeExcelError(
       "invalid_argument",
-      "Calculation cannot safely preserve this source's unsupported editing features.",
+      `Calculation cannot safely preserve this source's unsupported editing features: ${inspection.blockers.map((blocker) => blocker.code).join(", ")}.`,
+      inspection.blockers.some(
+        (blocker) =>
+          blocker.code === "protected_sheet" ||
+          blocker.code === "protected_workbook",
+      )
+        ? "For a calculated and protected output, calculate before applying protection. If the task authorizes removing existing protection, use prepare_edit and edit_workbook with unprotect_sheet/unprotect_workbook and any required password, calculate that version, then restore the requested protection. Other listed blockers still apply. Retrying the unchanged protected version cannot resolve this refusal."
+        : "Retrying the unchanged source cannot resolve these blockers. Keep the existing output and report that its formulas still require calculation in a compatible spreadsheet application; do not claim that cached values were recalculated.",
     );
   const workbook = new PreservedWorkbook(bytes);
   const workbookPart = workbook.workbookPart(),
@@ -514,7 +521,8 @@ export function calculateWorkbook(bytes: Buffer) {
       complete: unavailable === 0,
       cacheStatus: unavailable === 0 ? "current" : "partial",
       cachedFormulaValues: formulaCount - unavailable,
-      recalculationRequired: true,
+      recalculationRequired: unavailable > 0,
+      recalculationOnOpen: true,
       dependencies: [...dependencies.values()].reduce(
         (total, edges) => total + edges.size,
         0,

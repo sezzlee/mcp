@@ -14,6 +14,7 @@ import {
   createWorkbookOutput,
   columnToLetters,
   writingToolDefinitions,
+  workbookVersionSchema,
   bulkJobSchema,
   bulkGroupReceiptSchema,
   bulkBatchReceiptSchema,
@@ -147,7 +148,7 @@ async function measure(): Promise<void> {
       .parse(ready).transfer;
     const seed = z
       .object({
-        version: writingToolDefinitions.edit_workbook.inputSchema.shape.source,
+        version: workbookVersionSchema,
       })
       .parse(
         await call("transfer_data", {

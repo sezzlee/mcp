@@ -2084,6 +2084,20 @@
       "answer": {
         "kind": "text",
         "value": "duplicateValues",
+        "match": "contains",
+        "reject": [
+          "uniqueValues",
+          "unique values",
+          "benzersiz",
+          "tekil",
+          "not",
+          "no",
+          "değil",
+          "yok",
+          "or",
+          "veya",
+          "ya da"
+        ],
         "accept": [
           "Duplicate values",
           "Duplicate values highlighting",
@@ -4836,8 +4850,8 @@
       "cases": ["D5", "V6", "S2", "T2"],
       "files": ["uk-fhrs-audit"],
       "question": {
-        "tr": "FHRS puanı 4 olan işletmelerin yüzde kaçında etiket görülmüş?",
-        "en": "Among businesses with an FHRS rating of 4, what percentage had a sticker on show?"
+        "tr": "FHRS puanı 4 olan işletmelerin yüzde kaçında dışarıda görülebilen bir etiket var? Yalnız içeride görülen etiketleri sayma.",
+        "en": "Among businesses with an FHRS rating of 4, what percentage had an FHRS sticker visible outside? Exclude stickers seen only inside."
       },
       "answer": {
         "kind": "percent",

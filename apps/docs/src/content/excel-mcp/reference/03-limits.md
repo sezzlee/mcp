@@ -1,8 +1,18 @@
 # Limits
 
-> Generated from the exported `limits` object of `@sezzlee/excel-mcp` 0.13.1.
+> Generated from the exported `limits` object of `@sezzlee/excel-mcp` 0.14.0.
 
 These bounds are exported by the server. Tool arguments can request smaller pages or samples within them. Truncation and continuation are tool-specific: follow a cursor only when the response supplies one. An operation that cannot stay within its resource budget can fail with `resource_limit`.
+
+## Prepared edits
+
+| Limit                                                                                   | Value |
+| --------------------------------------------------------------------------------------- | ----- |
+| Pending edit preparations retained by one server session                                | 8     |
+| Combined pending preparations and replay receipts retained by one server session        | 72    |
+| Materialized output and metadata bytes retained by one preparation                      | 32 MB |
+| Combined bytes retained by the session's preparations and replay receipts               | 64 MB |
+| Preparation and replay receipt lifetime in milliseconds; application does not extend it | 900 s |
 
 ## Files
 

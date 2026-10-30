@@ -7,7 +7,7 @@ import {
   type RefusalReason,
 } from "./task.ts";
 
-export const graderVersion = "v2";
+export const graderVersion = "v3";
 
 const scalar = z.union([z.string(), z.number()]);
 type Scalar = z.infer<typeof scalar>;
@@ -235,6 +235,21 @@ function sameText(expected: string, got: string): boolean {
   return want[0] === have[0] || want[1] === have[1];
 }
 
+function containsText(expected: string, got: string): boolean {
+  return foldings(expected).some((wanted, locale) => {
+    const actual = foldings(got)[locale] ?? "";
+    let at = actual.indexOf(wanted);
+    while (at >= 0) {
+      const before = [...actual.slice(0, at)].at(-1) ?? "";
+      const after = [...actual.slice(at + wanted.length)][0] ?? "";
+      if (!/[\p{L}\p{N}_]/u.test(before) && !/[\p{L}\p{N}_]/u.test(after))
+        return true;
+      at = actual.indexOf(wanted, at + 1);
+    }
+    return false;
+  });
+}
+
 const temporalReadings: Readonly<
   Record<"date" | "month" | "localDateTime", RegExp>
 > = {
@@ -298,8 +313,13 @@ function judgeField(expected: Field, got: Scalar | undefined): FieldVerdict {
         bare: typeof got === "string" && got.trim() !== "",
         same:
           typeof got === "string" &&
+          !(expected.reject ?? []).some((wording) =>
+            containsText(wording, got),
+          ) &&
           [expected.value, ...(expected.accept ?? [])].some((wording) =>
-            sameText(wording, got),
+            expected.match === "contains"
+              ? containsText(wording, got)
+              : sameText(wording, got),
           ),
         detail: JSON.stringify(got),
       };

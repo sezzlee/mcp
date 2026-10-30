@@ -12,7 +12,8 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import JSZip from "jszip";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
+import { z } from "zod";
 import { createWorkbookRoot } from "../src/platform/paths.js";
 import {
   createWorkbookOutput,
@@ -28,6 +29,289 @@ const main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 const office =
   "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const types = "http://schemas.openxmlformats.org/package/2006/content-types";
+
+async function seed(client: Client) {
+  return mutationReceiptSchema.parse(
+    payload(
+      await client.callTool({
+        name: "create_workbook",
+        arguments: {
+          sheets: [
+            {
+              name: "Data",
+              blocks: [
+                { startCell: "A1", values: [[{ kind: "number", value: 1 }]] },
+              ],
+            },
+          ],
+        },
+      }),
+    ),
+  );
+}
+
+it("applies only the prepared edit and replays a verified receipt without another output", async () => {
+  await workspace(async (directory, client) => {
+    const original = await seed(client);
+    const originalBytes = await readFile(
+      join(directory, original.version.filePath),
+    );
+    const ready = await prepare(client, {
+      filePath: original.version.filePath,
+      expectedVersion: original.version,
+      changes: [
+        {
+          kind: "write_cells",
+          sheetName: "Data",
+          startCell: "A1",
+          values: [[{ kind: "number", value: 2 }]],
+          overwrite: true,
+        },
+      ],
+    });
+    expect(ready.kind).toBe("ready");
+    if (ready.kind !== "ready") throw new Error("Expected ready edit");
+    const invalid = await client.callTool({
+      name: "edit_workbook",
+      arguments: {
+        preparationId: ready.preparationId,
+        changes: [{ kind: "delete_sheet", sheetName: "Data" }],
+      },
+    });
+    expect(invalid.isError).toBe(true);
+    expect(JSON.stringify(payload(invalid))).toContain("Unrecognized key");
+    const apply = () =>
+      client.callTool({
+        name: ready.nextAction.tool,
+        arguments: ready.nextAction.arguments,
+      });
+    const result = await apply();
+    expect(result.isError).not.toBe(true);
+    const receipt = mutationReceiptSchema.parse(payload(result));
+    const outputs = await readdir(join(directory, "out"));
+    expect(payload(await apply())).toEqual(receipt);
+    expect(await readdir(join(directory, "out"))).toEqual(outputs);
+    expect(await readFile(join(directory, original.version.filePath))).toEqual(
+      originalBytes,
+    );
+    const read = payload(
+      await client.callTool({
+        name: "read_sheet",
+        arguments: {
+          filePath: receipt.version.filePath,
+          sheetName: "Data",
+          headerRow: 0,
+        },
+      }),
+    );
+    expect(read).toMatchObject({ values: [[2]] });
+    await writeFile(join(directory, receipt.version.filePath), "changed");
+    const changed = await apply();
+    expect(changed.isError).toBe(true);
+    expect(payload(changed)).toMatchObject({ error: "file_changed" });
+  });
+});
+
+it("refuses stale sources and preparation ids from another session before publishing", async () => {
+  await workspace(async (directory, client) => {
+    const original = await seed(client);
+    const ready = await prepare(client, {
+      filePath: original.version.filePath,
+      changes: [{ kind: "add_sheet", name: "New" }],
+    });
+    if (ready.kind !== "ready") throw new Error("Expected ready edit");
+    await workspace(async (_otherDirectory, other) => {
+      const result = await other.callTool({
+        name: "edit_workbook",
+        arguments: { preparationId: ready.preparationId },
+      });
+      expect(result.isError).toBe(true);
+      expect(payload(result)).toMatchObject({
+        error: "invalid_argument",
+        message: expect.stringContaining("another server session"),
+      });
+    });
+    const outputs = await readdir(join(directory, "out"));
+    await writeFile(join(directory, original.version.filePath), "changed");
+    const result = await client.callTool({
+      name: "edit_workbook",
+      arguments: { preparationId: ready.preparationId },
+    });
+    expect(result.isError).toBe(true);
+    expect(payload(result)).toMatchObject({ error: "file_changed" });
+    expect(await readdir(join(directory, "out"))).toEqual(outputs);
+  });
+});
+
+it("expires preparations after fifteen minutes without publishing them", async () => {
+  await workspace(async (directory, client) => {
+    const original = await seed(client);
+    const ready = await prepare(client, {
+      filePath: original.version.filePath,
+      changes: [{ kind: "add_sheet", name: "New" }],
+    });
+    if (ready.kind !== "ready") throw new Error("Expected ready edit");
+    const outputs = await readdir(join(directory, "out"));
+    const now = Date.now();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(now + 16 * 60_000);
+      const result = await client.callTool({
+        name: "edit_workbook",
+        arguments: { preparationId: ready.preparationId },
+      });
+      expect(result.isError).toBe(true);
+      expect(payload(result)).toMatchObject({
+        error: "invalid_argument",
+        message: expect.stringContaining("expired"),
+      });
+      expect(await readdir(join(directory, "out"))).toEqual(outputs);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+it("bounds a session to eight retained preparations and releases expired slots", async () => {
+  await workspace(async (_directory, client) => {
+    const original = await seed(client);
+    const args = {
+      filePath: original.version.filePath,
+      changes: [{ kind: "add_sheet", name: "New" }],
+    };
+    for (let index = 0; index < 8; index++)
+      expect((await prepare(client, args)).kind).toBe("ready");
+    const result = await client.callTool({
+      name: "prepare_edit",
+      arguments: args,
+    });
+    expect(result.isError).toBe(true);
+    expect(payload(result)).toMatchObject({
+      error: "resource_limit",
+      message: expect.stringContaining("preparation store"),
+    });
+    const now = Date.now();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(now + 16 * 60_000);
+      expect((await prepare(client, args)).kind).toBe("ready");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+it("rechecks external copy dependencies before applying a prepared edit", async () => {
+  await workspace(async (directory, client) => {
+    const original = await seed(client);
+    const external = mutationReceiptSchema.parse(
+      payload(
+        await client.callTool({
+          name: "create_workbook",
+          arguments: {
+            sheets: [
+              {
+                name: "Other",
+                blocks: [
+                  { startCell: "A1", values: [[{ kind: "number", value: 7 }]] },
+                ],
+              },
+            ],
+          },
+        }),
+      ),
+    );
+    const ready = await prepare(client, {
+      filePath: original.version.filePath,
+      changes: [
+        {
+          kind: "copy_range",
+          sheetName: "Other",
+          range: "A1",
+          targetSheet: "Data",
+          startCell: "B1",
+          mode: "values",
+          from: external.version,
+        },
+      ],
+    });
+    if (ready.kind !== "ready") throw new Error("Expected ready edit");
+    const outputs = await readdir(join(directory, "out"));
+    await writeFile(join(directory, external.version.filePath), "changed");
+    const result = await client.callTool({
+      name: "edit_workbook",
+      arguments: { preparationId: ready.preparationId },
+    });
+    expect(result.isError).toBe(true);
+    expect(payload(result)).toMatchObject({ error: "file_changed" });
+    expect(await readdir(join(directory, "out"))).toEqual(outputs);
+  });
+});
+
+it("pins materialized retained rows even if the retained query expires before application", async () => {
+  await workspace(async (_directory, client) => {
+    const original = await seed(client);
+    const aggregate = await client.callTool({
+      name: "aggregate_sheet",
+      arguments: {
+        filePath: original.version.filePath,
+        sheetName: "Data",
+        headerRow: 0,
+        range: "A1:A1",
+        metrics: [{ fn: "sum", column: "A" }],
+        resultMode: "retained",
+      },
+    });
+    expect(aggregate.isError).not.toBe(true);
+    const resultId = z
+      .object({ resultId: z.string() })
+      .parse(payload(aggregate)).resultId;
+    const now = Date.now();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(now + 14 * 60_000);
+      const ready = await prepare(client, {
+        filePath: original.version.filePath,
+        changes: [
+          {
+            kind: "write_cells",
+            sheetName: "Data",
+            startCell: "B1",
+            source: { kind: "result", resultId },
+          },
+        ],
+      });
+      if (ready.kind !== "ready") throw new Error("Expected ready edit");
+      vi.setSystemTime(now + 16 * 60_000);
+      const expired = await client.callTool({
+        name: "query_result",
+        arguments: { resultId },
+      });
+      expect(expired.isError).toBe(true);
+      expect(payload(expired)).toMatchObject({
+        message: expect.stringMatching(/expired/),
+      });
+      const applied = await client.callTool({
+        name: "edit_workbook",
+        arguments: { preparationId: ready.preparationId },
+      });
+      expect(applied.isError).not.toBe(true);
+      const receipt = mutationReceiptSchema.parse(payload(applied));
+      const read = await client.callTool({
+        name: "read_sheet",
+        arguments: {
+          filePath: receipt.version.filePath,
+          sheetName: "Data",
+          range: "B2:B2",
+          headerRow: 0,
+        },
+      });
+      expect(payload(read)).toMatchObject({ values: [[1]] });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
 
 function payload(result: { readonly content: readonly unknown[] }): unknown {
   const block = result.content[0];
@@ -108,7 +392,7 @@ async function sourceBytes({
 }
 
 async function prepare(client: Client, args: Record<string, unknown>) {
-  const result = await client.callTool({
+  const result = await preparedCall(client, {
     name: "prepare_edit",
     arguments: args,
   });
@@ -124,7 +408,7 @@ it("keeps edit inspection unavailable in default read mode", async () => {
       ),
     ).toBeUndefined();
     await expect(
-      client.callTool({
+      preparedCall(client, {
         name: "prepare_edit",
         arguments: {
           filePath: "missing.xlsx",
@@ -139,7 +423,7 @@ it("prepares an executable canonical edit without output and binds both source a
   await workspace(async (directory, client) => {
     const original = mutationReceiptSchema.parse(
       payload(
-        await client.callTool({
+        await preparedCall(client, {
           name: "create_workbook",
           arguments: {
             sheets: [
@@ -170,6 +454,8 @@ it("prepares an executable canonical edit without output and binds both source a
       ],
     };
     const first = await prepare(client, args);
+    if (first.kind !== "ready")
+      throw new Error("Expected a ready preparation.");
     expect(first).toMatchObject({
       kind: "ready",
       source: original.version,
@@ -178,11 +464,26 @@ it("prepares an executable canonical edit without output and binds both source a
       cellsRequested: 1,
       features: { sheets: 1, formulas: 0 },
       recalculated: false,
+      publication: "not_published",
+      nextAction: {
+        tool: "edit_workbook",
+        arguments: { preparationId: first.preparationId },
+      },
     });
     expect(first.source.versionId).toBe(
       createHash("sha256").update(bytes).digest("hex"),
     );
-    expect(await prepare(client, args)).toEqual(first);
+    const repeated = await prepare(client, args);
+    if (repeated.kind !== "ready")
+      throw new Error("Expected a ready preparation.");
+    expect(repeated).toEqual({
+      ...first,
+      preparationId: repeated.preparationId,
+      nextAction: {
+        tool: "edit_workbook",
+        arguments: { preparationId: repeated.preparationId },
+      },
+    });
     const changed = await prepare(client, {
       ...args,
       changes: [{ kind: "add_sheet", name: "New" }],
@@ -203,10 +504,17 @@ it("prepares an executable canonical edit without output and binds both source a
         filePath: args.filePath,
         changes: [{ ...defaultedChange, overwrite: false }],
       }),
-    ).toEqual(defaulted);
+    ).toEqual({
+      ...defaulted,
+      preparationId: expect.any(String),
+      nextAction: {
+        tool: "edit_workbook",
+        arguments: { preparationId: expect.any(String) },
+      },
+    });
     expect(JSON.stringify(first).length).toBeLessThan(2048);
     expect(await readdir(join(directory, "out"))).toEqual(priorOutputs);
-    const result = await client.callTool({
+    const result = await preparedCall(client, {
       name: "edit_workbook",
       arguments: { source: first.source, changes: args.changes },
     });
@@ -268,7 +576,7 @@ it("prepares supported external edits and reports features without publishing", 
     });
     expect(await readdir(join(directory, "out"))).toEqual([]);
     expect(await readFile(join(directory, "source.xlsx"))).toEqual(bytes);
-    const executed = await client.callTool({
+    const executed = await preparedCall(client, {
       name: "edit_workbook",
       arguments: {
         source: report.source,
@@ -386,7 +694,7 @@ it("prepares and executes explicit clearing without shifting coordinates", async
   await workspace(async (directory, client) => {
     const created = mutationReceiptSchema.parse(
       payload(
-        await client.callTool({
+        await preparedCall(client, {
           name: "create_workbook",
           arguments: { sheets: [{ name: "Data" }] },
         }),
@@ -404,7 +712,7 @@ it("prepares and executes explicit clearing without shifting coordinates", async
       profile: "preserved_package",
       cellsRequested: 9,
     });
-    const execution = await client.callTool({
+    const execution = await preparedCall(client, {
       name: "edit_workbook",
       arguments: { source: result.source, changes },
     });
@@ -459,7 +767,7 @@ it.each([
 ])("refuses $label before returning readiness", async ({ changes, error }) => {
   await workspace(async (directory, client) => {
     await writeFile(join(directory, "source.xlsx"), await sourceBytes());
-    const result = await client.callTool({
+    const result = await preparedCall(client, {
       name: "prepare_edit",
       arguments: { filePath: "source.xlsx", changes },
     });
@@ -473,7 +781,7 @@ it("rejects occupied canonical targets unless overwrite is explicit", async () =
   await workspace(async (_directory, client) => {
     const created = mutationReceiptSchema.parse(
       payload(
-        await client.callTool({
+        await preparedCall(client, {
           name: "create_workbook",
           arguments: {
             sheets: [
@@ -488,7 +796,7 @@ it("rejects occupied canonical targets unless overwrite is explicit", async () =
         }),
       ),
     );
-    const result = await client.callTool({
+    const result = await preparedCall(client, {
       name: "prepare_edit",
       arguments: {
         filePath: created.version.filePath,
@@ -516,7 +824,7 @@ it("takes expectedVersion as the version object a receipt returned", async () =>
   await workspace(async (_directory, client) => {
     const created = mutationReceiptSchema.parse(
       payload(
-        await client.callTool({
+        await preparedCall(client, {
           name: "create_workbook",
           arguments: {
             sheets: [
@@ -539,7 +847,7 @@ it("takes expectedVersion as the version object a receipt returned", async () =>
         values: [[{ kind: "number", value: 2 }]],
       },
     ];
-    const ready = await client.callTool({
+    const ready = await preparedCall(client, {
       name: "prepare_edit",
       arguments: {
         filePath: created.version.filePath,
@@ -552,7 +860,7 @@ it("takes expectedVersion as the version object a receipt returned", async () =>
       kind: "ready",
       source: created.version,
     });
-    const stale = await client.callTool({
+    const stale = await preparedCall(client, {
       name: "prepare_edit",
       arguments: {
         filePath: created.version.filePath,
@@ -606,7 +914,7 @@ it("rejects stale sources, non-xlsx formats, compound-file containers and path e
         ],
         [{ filePath: "escape.xlsx" }, "path_outside_root"],
       ] as const) {
-        const result = await client.callTool({
+        const result = await preparedCall(client, {
           name: "prepare_edit",
           arguments: { ...args, changes },
         });
@@ -669,7 +977,7 @@ it.each([
 ])("returns a specific error for $label", async ({ options, error }) => {
   await workspace(async (directory, client) => {
     await writeFile(join(directory, "source.xlsx"), await sourceBytes(options));
-    const result = await client.callTool({
+    const result = await preparedCall(client, {
       name: "prepare_edit",
       arguments: {
         filePath: "source.xlsx",
@@ -731,3 +1039,4 @@ it.skipIf(process.env["SEZZLEE_CORPUS"] === undefined).each([
     });
   },
 );
+import { preparedCall } from "./fixtures/prepared-call.js";

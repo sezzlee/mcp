@@ -324,7 +324,7 @@ export const toolDefinitions = {
             fn: z
               .enum(metricFunctions)
               .describe(
-                "count counts matched rows, countValues non-empty cells, countDistinct distinct values; trueRatio is true over valid booleans. Numeric functions read numeric text and skip identifiers; percentiles are PERCENTILE.INC; stddev is the sample deviation.",
+                "count counts matched rows including blank cells, regardless of column. countValues counts non-empty cells in column; countDistinct counts distinct values. trueRatio is true over valid booleans. Numeric functions read numeric text and skip identifiers; percentiles are PERCENTILE.INC; stddev is the sample deviation.",
               ),
             column: columnRef.optional(),
             percentile: z

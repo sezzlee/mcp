@@ -251,6 +251,7 @@ function marksOf(spec: Extract<ColumnSpec, { type: "number" }>): NumberMarks {
     throw new SezzleeExcelError(
       "invalid_argument",
       `columns entry '${spec.column}': number requires decimal or locale.`,
+      `Keep the other columns unchanged. For ${JSON.stringify(spec.column)}, specify decimal:"." or decimal:"," from the actual data format, or supply its known locale. Do not guess a locale.`,
     );
   const group = spec.group ?? (decimal === "," ? "." : ",");
   if (decimal === "." && group !== ".") return { decimal: ".", group };
