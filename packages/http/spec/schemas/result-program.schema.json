@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "result-program.schema.json",
+  "title": "ResultProgram",
+  "description": "Values of the host-side executor port, not MCP response envelopes. AbortSignal is a host capability outside this JSON contract.",
+  "oneOf": [
+    { "$ref": "#/$defs/ProgramInput" },
+    { "$ref": "#/$defs/ProgramSuccess" },
+    { "$ref": "#/$defs/ProgramFailure" }
+  ],
+  "$defs": {
+    "ProgramInput": {
+      "title": "ProgramInput",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "json"],
+      "properties": {
+        "code": { "type": "string" },
+        "json": { "type": "string" }
+      }
+    },
+    "ProgramSuccess": {
+      "title": "ProgramSuccess",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "json"],
+      "properties": {
+        "kind": { "const": "success" },
+        "json": { "type": "string" }
+      }
+    },
+    "ProgramFailure": {
+      "title": "ProgramFailure",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "reason"],
+      "properties": {
+        "kind": { "const": "failure" },
+        "reason": {
+          "$ref": "result-execution.schema.json#/$defs/ExecutionFailure/properties/reason"
+        }
+      }
+    }
+  }
+}

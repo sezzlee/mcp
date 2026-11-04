@@ -1,4 +1,6 @@
 import { asciiUpper, json, measureJson } from "@sezzlee/file-core";
+import { QuickJsExecutor, type DataExecutor } from "@sezzlee/compute-core";
+import { executeExcelResult } from "./result-execution.js";
 import { limits, modePolicy } from "../platform/limits.js";
 import {
   listWorkbooks,
@@ -102,9 +104,11 @@ type ToolCondition = NonNullable<ToolInput<"aggregate_sheet">["where"]>[number];
 export function createHandlers(
   root: WorkbookRoot,
   results: ResultStore = createResultStore(),
+  executor: DataExecutor = new QuickJsExecutor(),
 ): ToolHandlers & { readonly dispose: () => void } {
   const cache = createDocumentCache(root.real);
   let disposed = false;
+  const executions = new AbortController();
   const openXlsx = createXlsxOpener(root, cache);
   const openFor = async (path: string, csv: CsvOptions = {}) =>
     cache.load(await resolveWorkbookPath(root, path), csv);
@@ -189,6 +193,7 @@ export function createHandlers(
   return {
     dispose: () => {
       disposed = true;
+      executions.abort();
       results.clear();
       cache.clear();
     },
@@ -584,6 +589,24 @@ export function createHandlers(
     query_result: guard(
       { root: root.real, tool: "query_result" },
       async (args) => json(results.query(args)),
+    ),
+
+    execute_result: guard(
+      { root: root.real, tool: "execute_result" },
+      async (args, _tool, signal) =>
+        executeExcelResult({
+          ...args,
+          results,
+          executor,
+          signal:
+            signal === undefined
+              ? executions.signal
+              : AbortSignal.any([signal, executions.signal]),
+        }),
+    ),
+
+    read_result: guard({ root: root.real, tool: "read_result" }, async (args) =>
+      json(results.readJson(args)),
     ),
 
     find_in_sheet: guard(

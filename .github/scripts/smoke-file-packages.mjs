@@ -46,6 +46,7 @@ try {
         "@modelcontextprotocol/client": "^2.0.0",
         "@e965/xlsx": "0.20.3",
         "@sezzlee/file-core-native": archive("sezzlee-file-core-native"),
+        "@sezzlee/compute-core": archive("sezzlee-compute-core"),
         "@sezzlee/mcp-core": archive("sezzlee-mcp-core"),
         "@sezzlee/llm-mcp": archive("sezzlee-llm-mcp"),
         "@sezzlee/file-core": archive("sezzlee-file-core"),
@@ -57,6 +58,7 @@ try {
           : {}),
       },
       overrides: {
+        "@sezzlee/compute-core": "$@sezzlee/compute-core",
         "@sezzlee/file-core-native": "$@sezzlee/file-core-native",
         "@sezzlee/mcp-core": "$@sezzlee/mcp-core",
         "@sezzlee/file-core": "$@sezzlee/file-core",
@@ -119,6 +121,12 @@ try {
   assert.deepEqual(JSON.parse(result.content[0].text).values, [['a','1'],['b','2']]);
   const regex = await client.callTool({ name:'find_in_sheet', arguments:{ filePath:'smoke.csv', query:'^a$', matchMode:'regex' } });
   assert.notEqual(regex.isError, true); assert.equal(JSON.parse(regex.content[0].text).total,1);
+  const retained = await client.callTool({ name:'aggregate_sheet', arguments:{ filePath:'smoke.csv', groupBy:['name'], metrics:[{fn:'sum',column:'value'}], resultMode:'retained', maxGroups:1 } });
+  assert.notEqual(retained.isError, true);
+  const resultId = JSON.parse(retained.content[0].text).resultId;
+  const computed = await client.callTool({ name:'execute_result', arguments:{ resultId, code:'return data.rows.reduce((n,r) => n + r[1], 0);' } });
+  assert.notEqual(computed.isError, true);
+  assert.equal(JSON.parse(computed.content[0].text).value,3);
 } finally { await client.close(); await transport.close(); }
 `,
   );

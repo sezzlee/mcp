@@ -2,6 +2,8 @@ export { SezzleeExcelError, asExcelError } from "./platform/errors.js";
 export type { SezzleeExcelErrorCode } from "./platform/errors.js";
 export { limits } from "./platform/limits.js";
 export type { Limits } from "./platform/limits.js";
+export { executionLimits } from "@sezzlee/compute-core";
+export type { ResultExecutionSource } from "./tools/result-execution-schema.js";
 export { formats } from "./platform/formats.js";
 export type { DocumentFormat } from "./platform/formats.js";
 export {

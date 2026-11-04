@@ -7,19 +7,17 @@ export const filePath = z.string().describe("Path under the root.");
 export const sheetName = z
   .string()
   .optional()
-  .describe("Exact sheet; default first visible.");
+  .describe("Sheet; default first visible.");
 export const table = z
   .string()
   .min(1)
   .max(255)
   .optional()
-  .describe(
-    "Declared table name; selects its data rows. Not with range. XLSX only.",
-  );
+  .describe("XLSX table: data rows, not range.");
 export const visibleOnly = z
   .boolean()
   .optional()
-  .describe("Skip saved hidden rows, AutoFilter's included. XLSX only.");
+  .describe("XLSX: skip hidden/AutoFilter rows.");
 export { columnRef, readingHintsSchema } from "../grid/column-spec.js";
 import { columnRef, columnSpecsSchema } from "../grid/column-spec.js";
 
@@ -42,7 +40,7 @@ export const groupAxis = z
   .max(limits.maxMetrics);
 
 export const groupAxisForms =
-  "A key is a column, {column, by} for a UTC date part (month includes the year, week is ISO, weekday Monday=1), or {column, bins} or {column, width, origin?} for [lower, upper) bins.";
+  "Keys: column; {column,by} UTC part (month includes year, ISO week, Monday=1); {column,bins} or {column,width,origin?} for [lower,upper) bins.";
 
 export const rowConditions = z
   .array(
@@ -95,7 +93,7 @@ export const rowConditions = z
   .max(limits.maxConditions);
 
 export const rowConditionForms =
-  "Conditions {column, op, value?, values?, source?}. Comparison, text and isError ops take value; in takes values; between takes [low, high]; isEmpty, isNotEmpty, isNumber and isText take neither. inColumn and notInColumn take source {filePath?, sheetName?, column, range?, headerRow?}, another column matched as eq compares. Incomparable cells are reported.";
+  "Filters {column,op,value?,values?,source?}. Comparison/text/isError take value; in takes values; between takes [low,high]; other unary ops take neither. inColumn/notInColumn use source with eq semantics. Incomparable cells are reported.";
 
 export const drawingKind = z
   .enum(["picture", "chart", "pivotTable", "sparkline"])
@@ -114,6 +112,4 @@ export const encoding = z
 
 export const columnSpecs = columnSpecsSchema
   .optional()
-  .describe(
-    "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
-  );
+  .describe("Readings {column,type,...}; reuse profile_sheet.");

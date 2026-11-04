@@ -15,6 +15,8 @@ const schemas = [
   "tool-definition.schema.json",
   "invoke-result.schema.json",
   "result-reading.schema.json",
+  "result-execution.schema.json",
+  "result-program.schema.json",
   "provider-result.schema.json",
   "type-shape.schema.json",
   "fixture.schema.json",

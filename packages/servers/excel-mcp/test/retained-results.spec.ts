@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import type { CallToolResult } from "@modelcontextprotocol/client";
 import ExcelJS from "exceljs";
+import { QuickJsExecutor } from "@sezzlee/compute-core";
 import {
   afterAll,
   afterEach,
@@ -15,7 +16,10 @@ import {
 } from "vitest";
 import { createWorkbookRoot } from "../src/platform/paths.js";
 import { limits } from "../src/platform/limits.js";
-import { createExcelMcpServer } from "../src/server.js";
+import {
+  createExcelMcpServer,
+  type ExcelMcpServerOptions,
+} from "../src/server.js";
 
 const customerCount = 1_000;
 const referenceDate = "2026-10-15";
@@ -64,8 +68,11 @@ function paymentArguments(): Record<string, unknown> {
   };
 }
 
-async function connect(root = directory): Promise<Client> {
-  const server = createExcelMcpServer(await createWorkbookRoot(root));
+async function connect(
+  root = directory,
+  options: ExcelMcpServerOptions = { mode: "read" },
+): Promise<Client> {
+  const server = createExcelMcpServer(await createWorkbookRoot(root), options);
   const client = new Client({
     name: "retained-results-spec",
     version: "0.0.0",
@@ -124,6 +131,15 @@ beforeAll(async () => {
     "Customer,Amount\nAlpha,4\nBeta,7\nAlpha,6\n",
   );
   await writeFile(
+    join(directory, "compute-snapshot.csv"),
+    "Customer,Amount\nAlpha,4\nBeta,7\nAlpha,6\n",
+  );
+  const longKey = "z".repeat(700);
+  await writeFile(
+    join(directory, "compute-long.csv"),
+    `Key,Amount\n${longKey}A,10\n${longKey}B,20\n`,
+  );
+  await writeFile(
     join(directory, "sales.csv"),
     "Region,Quarter,Product,Amount\nNorth,Q1,Pen,10\nNorth,Q2,Pen,20\nSouth,Q1,Ink,5\nSouth,Q1,Pen,7\nEast,Q2,Ink,3\n",
   );
@@ -151,6 +167,202 @@ afterAll(async () => {
 });
 
 describe("retained results through real MCP calls", () => {
+  it("executes across the complete aggregate, independent of maxGroups preview and later source edits", async () => {
+    const client = await connect();
+    const retained = await retain(client, {
+      filePath: "compute-snapshot.csv",
+      groupBy: ["Customer"],
+      metrics: [{ fn: "sum", column: "Amount" }],
+      maxGroups: 1,
+    });
+    expect(rowsOf(retained)).toHaveLength(1);
+    const resultId = resultIdOf(retained);
+    await writeFile(
+      join(directory, "compute-snapshot.csv"),
+      "Customer,Amount\nChanged,999\n",
+    );
+    const result = await client.callTool({
+      name: "execute_result",
+      arguments: {
+        resultId,
+        code: "return {groups: data.rows.length, total: data.rows.reduce((n,r) => n + r[1], 0), sourceRows: data.rowSourceCounts.reduce((n,c) => n + c, 0)};",
+      },
+    });
+    expect(result.isError).not.toBe(true);
+    expect(payload(result)).toMatchObject({
+      source: {
+        resultId,
+        kind: "aggregate",
+        scope: "retained_result",
+        totalRows: 2,
+        totalColumns: 2,
+        matchedSourceRows: 3,
+        sourcePolicy: "snapshot",
+      },
+      value: { groups: 2, total: 17, sourceRows: 3 },
+    });
+    expectBounded(result);
+  });
+
+  it("uses complete cell strings rather than their 512-character previews", async () => {
+    const client = await connect();
+    const retained = await retain(client, {
+      filePath: "compute-long.csv",
+      groupBy: ["Key"],
+      metrics: [{ fn: "sum", column: "Amount" }],
+      maxGroups: 1,
+    });
+    expect(payload(retained)["valueTruncation"]).toMatchObject({ cells: 1 });
+    const resultId = resultIdOf(retained);
+    const result = await client.callTool({
+      name: "execute_result",
+      arguments: {
+        resultId,
+        code: "const row = data.rows.find(r => r[0].endsWith('B')); return {length: row[0].length, amount: row[1]};",
+      },
+    });
+    expect(payload(result)["value"]).toEqual({ length: 701, amount: 20 });
+    const read = await client.callTool({
+      name: "read_result",
+      arguments: { resultId, path: "/rows/1/0", offset: 699, limit: 2 },
+    });
+    expect(payload(read)["value"]).toBe("zB");
+    expectBounded(read);
+  });
+
+  it("retains large JSON and reads or computes it again without reopening a workbook", async () => {
+    const client = await connect();
+    const aggregate = resultIdOf(
+      await retain(client, {
+        filePath: "small.csv",
+        groupBy: ["Customer"],
+        metrics: [{ fn: "count" }],
+      }),
+    );
+    const result = await client.callTool({
+      name: "execute_result",
+      arguments: {
+        resultId: aggregate,
+        code: "return Array.from({length: 2000}, (_,id) => ({id, note: 'x'.repeat(20)}));",
+      },
+    });
+    const computed = resultIdOf(result);
+    expectBounded(result);
+    const read = await client.callTool({
+      name: "read_result",
+      arguments: {
+        resultId: computed,
+        path: "/value",
+        select: ["id"],
+        offset: 1000,
+        limit: 2,
+      },
+    });
+    expect(payload(read)).toMatchObject({
+      kind: "array",
+      total: 2000,
+      nextOffset: 1002,
+      value: [{ id: 1000 }, { id: 1001 }],
+      source: { kind: "computed", scope: "computed_json" },
+    });
+    expectBounded(read);
+    const again = await client.callTool({
+      name: "execute_result",
+      arguments: {
+        resultId: computed,
+        code: "return {count: data.value.length, last: data.value.at(-1).id};",
+      },
+    });
+    expect(payload(again)["value"]).toEqual({ count: 2000, last: 1999 });
+    const tabular = await client.callTool({
+      name: "query_result",
+      arguments: { resultId: computed },
+    });
+    expect(payload(tabular)["error"]).toBe("invalid_argument");
+    const foreign = await connect();
+    for (const name of ["read_result", "execute_result"]) {
+      const rejected = await foreign.callTool({
+        name,
+        arguments: {
+          resultId: computed,
+          ...(name === "execute_result" ? { code: "return data;" } : {}),
+        },
+      });
+      expect(rejected.isError).toBe(true);
+      expect(payload(rejected)["error"]).toBe("result_unavailable");
+    }
+  });
+
+  it("shares the existing live-result quota and preserves existing snapshots on admission failure", async () => {
+    const client = await connect();
+    const resultId = resultIdOf(
+      await retain(client, {
+        filePath: "small.csv",
+        groupBy: ["Customer"],
+        metrics: [{ fn: "count" }],
+      }),
+    );
+    const args = { resultId, code: "return 'x'.repeat(20000);" };
+    const first = resultIdOf(
+      await client.callTool({ name: "execute_result", arguments: args }),
+    );
+    for (let count = 0; count < 2; count++)
+      resultIdOf(
+        await client.callTool({ name: "execute_result", arguments: args }),
+      );
+    const full = await client.callTool({
+      name: "execute_result",
+      arguments: args,
+    });
+    expect(full.isError).toBe(true);
+    expect(payload(full)["error"]).toBe("resource_limit");
+    const source = await client.callTool({
+      name: "query_result",
+      arguments: { resultId },
+    });
+    expect(source.isError).not.toBe(true);
+    const derived = await client.callTool({
+      name: "read_result",
+      arguments: { resultId: first, path: "/value", limit: 3 },
+    });
+    expect(payload(derived)["value"]).toBe("xxx");
+  });
+
+  it("advertises effective executor limits and returns repairable errors without guest details", async () => {
+    const client = await connect(directory, {
+      mode: "read",
+      executor: new QuickJsExecutor({ maxOutputBytes: 64 }),
+    });
+    const resultId = resultIdOf(
+      await retain(client, {
+        filePath: "small.csv",
+        metrics: [{ fn: "count" }],
+      }),
+    );
+    expect(
+      (await client.listTools()).tools.find(
+        (tool) => tool.name === "execute_result",
+      )?.description,
+    ).toContain('"maxOutputBytes":64');
+    for (const [code, reason] of [
+      ["return 'x'.repeat(100);", "output_limit"],
+      ["throw new Error('private-guest-detail');", "program_failed"],
+    ]) {
+      const result = await client.callTool({
+        name: "execute_result",
+        arguments: { resultId, code },
+      });
+      expect(result.isError).toBe(true);
+      expect(payload(result)).toMatchObject({
+        error: "result_execution_failed",
+        reason,
+        limits: { maxOutputBytes: 64 },
+      });
+      expect(textOf(result)).not.toContain("private-guest-detail");
+      expectBounded(result);
+    }
+  });
+
   it("preserves default and explicit inline behavior for small results", async () => {
     const client = await connect();
     const args = {

@@ -6,6 +6,10 @@ from pathlib import Path
 RUNTIME_FIELDS = ("dependencies", "peerDependencies", "optionalDependencies")
 REQUIRED_ENTRY = "package/dist/index.js"
 EXACT_PINS = {
+    "@sezzlee/compute-core": {
+        "@jitl/quickjs-wasmfile-release-sync": "0.32.0",
+        "quickjs-emscripten-core": "0.32.0",
+    },
     "@sezzlee/xml-mcp": {"libxml2-wasm": "0.7.2"},
     "@sezzlee/pdf-mcp": {"@firecrawl/pdf-inspector": "1.23.0"},
     # pdf.js 5 and @napi-rs/canvas 1.x fail at ctx.fill(path) the moment a glyph
@@ -57,6 +61,8 @@ def check(path):
                     problems += fail(f"{path.name} is missing {target}")
     if manifest.get("name") == "@sezzlee/excel-mcp" and "package/dist/regex-worker.js" not in names:
         problems += fail(f"{path.name} is missing the regex worker")
+    if manifest.get("name") == "@sezzlee/compute-core" and "package/dist/worker.js" not in names:
+        problems += fail(f"{path.name} is missing the execution worker")
     if manifest.get("name") == "@sezzlee/xml-mcp" and "package/dist/xml-worker.js" not in names:
         problems += fail(f"{path.name} is missing the XML parse worker")
 

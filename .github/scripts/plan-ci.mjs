@@ -23,6 +23,7 @@ const nativePackages = [
   "@sezzlee/ocr-ollama",
 ];
 const httpPackages = [
+  "@sezzlee/compute-core",
   "@sezzlee/core",
   "@sezzlee/openapi",
   "@sezzlee/openapi-mcp",

@@ -16,17 +16,25 @@ on the other, in either direction.
 
 One module per spec concept. The source is a click away, so this list points rather than describes.
 
-| Area             | Files                                                |
-| ---------------- | ---------------------------------------------------- |
-| Naming           | `naming.ts`                                          |
-| Selection        | `selection.ts`                                       |
-| Tool assembly    | `tool.ts`, `tool-definition.ts`, `argument-names.ts` |
-| Request path     | `request-template.ts`, `request-composer.ts`         |
-| Schema pipeline  | `schema-simplification.ts`, `json-schema.ts`         |
-| Search and cards | `search.ts`, `card.ts`                               |
-| Visibility       | `visibility.ts`                                      |
-| Errors           | `error-mapping.ts`, `leak-filter.ts`, `errors.ts`    |
-| Cache            | `cache/`                                             |
+| Area             | Files                                                                   |
+| ---------------- | ----------------------------------------------------------------------- |
+| Naming           | `naming.ts`                                                             |
+| Selection        | `selection.ts`                                                          |
+| Tool assembly    | `tool.ts`, `tool-definition.ts`, `argument-names.ts`                    |
+| Request path     | `request-template.ts`, `request-composer.ts`                            |
+| Schema pipeline  | `schema-simplification.ts`, `json-schema.ts`                            |
+| Search and cards | `search.ts`, `card.ts`                                                  |
+| Visibility       | `visibility.ts`                                                         |
+| Errors           | `error-mapping.ts`, `leak-filter.ts`, `errors.ts`                       |
+| Cache            | `cache/`                                                                |
+| Retained results | `results/`, `meta-tools/read-result.ts`, `meta-tools/execute-result.ts` |
+
+The optional [result execution](../spec/result-execution.md) adapter accepts a host-supplied
+`DataExecutor`. `@sezzlee/compute-core` supplies the bounded QuickJS implementation; the HTTP
+core imports no engine at runtime and keeps no runtime dependencies. Use
+`executeStoredResult` inside the existing `emitGuarded` response gate with the caller's
+`ResultShelf`, so both ordinary and derived results keep the same response budget and
+producing-tool ownership. The NestJS SDK wires this through its `resultExecutor` extension.
 
 `src/index.ts` is the barrel and may only re-export from the canonical file for each concept. In
 particular it must never re-export the embedded `EndpointDescriptor` / `ToolDefinition` copies

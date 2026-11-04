@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { McpServer } from "@modelcontextprotocol/server";
-import type { ResultStore } from "@sezzlee/core";
+import type { DataExecutor, ResultStore } from "@sezzlee/core";
 import type { CallerScopeResolver } from "../cache.js";
 import { SezzleeCatalog } from "../catalog.js";
 import { SezzleeDispatcher } from "../dispatcher.js";
@@ -36,6 +36,7 @@ export class SezzleeMcpEndpoint {
     @Inject(extensionTokens.callerScopeResolver) scopes: CallerScopeResolver,
     @Inject(SEZZLEE_OPTIONS) options: SezzleeOptions,
     @Inject(extensionTokens.resultStore) results: ResultStore | null,
+    @Inject(extensionTokens.resultExecutor) resultExecutor: DataExecutor | null,
   ) {
     this.deps = {
       catalog,
@@ -45,6 +46,7 @@ export class SezzleeMcpEndpoint {
       scopes,
       options,
       results,
+      resultExecutor,
     };
   }
 

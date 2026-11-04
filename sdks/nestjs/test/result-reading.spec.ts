@@ -22,7 +22,15 @@ import {
 } from "@modelcontextprotocol/client";
 import type { Request, Response } from "express";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { InvokeStored, ReadResult, SdkError } from "@sezzlee/core";
+import { QuickJsExecutor } from "@sezzlee/compute-core";
+import type {
+  ExecutedResult,
+  ExecutionFailure,
+  InvokeStored,
+  ProviderStored,
+  ReadResult,
+  SdkError,
+} from "@sezzlee/core";
 import { McpTool } from "../src/decorators.js";
 import type { OuterRequest } from "../src/options.js";
 import { SezzleeModule } from "../src/sezzlee.module.js";
@@ -34,11 +42,14 @@ import type {
   ToolAuthorizer,
 } from "../src/visibility/authorizer.js";
 
+let sourceCalls = 0;
+
 @Controller()
 class RowsController {
   @Get("rows")
   @McpTool({ name: "list_rows" })
   rows(@Query("limit") limit?: string) {
+    sourceCalls++;
     return Array.from({ length: Number(limit ?? "1") }, (_value, id) => ({
       id,
       note: "x".repeat(64),
@@ -176,7 +187,10 @@ describe("over-budget answers kept for read_result", () => {
               },
             };
           },
-          { toolAuthorizer: { useValue: authorizer } },
+          {
+            toolAuthorizer: { useValue: authorizer },
+            resultExecutor: { useValue: new QuickJsExecutor() },
+          },
         ),
       ],
       controllers: [RowsController, ResultsMcpController],
@@ -266,6 +280,130 @@ describe("over-budget answers kept for read_result", () => {
   it("classes read_result as the read meta-tool for the rate limit", () => {
     expect(calls).toContain("read:read_result");
   });
+
+  it("advertises the opt-in execution tool, its arguments and its effective budgets", async () => {
+    await stored("discovery");
+    const tools = await clients.get("discovery")?.listTools();
+    const execution = tools?.tools.find(
+      (tool) => tool.name === "execute_result",
+    );
+    expect(execution?.inputSchema.required).toEqual(["handle", "code"]);
+    expect(execution?.annotations).toMatchObject({
+      readOnlyHint: true,
+      openWorldHint: false,
+    });
+    expect(execution?.description).toContain('"maxInputBytes":8388608');
+    expect(execution?.description).toContain("upstream page or sample");
+  });
+
+  it("computes across the complete stored body through the real MCP transport", async () => {
+    const answer = await stored("compute");
+    const { parsed, isError } = await call<ExecutedResult>(
+      "compute",
+      "execute_result",
+      {
+        handle: answer.stored.handle,
+        code: "const rows = data.filter(x => x.id % 2 === 0); return {count: rows.length, total: rows.reduce((n, x) => n + x.id, 0)};",
+      },
+    );
+    expect(isError).toBe(false);
+    expect(parsed).toEqual({
+      source: {
+        handle: answer.stored.handle,
+        tool: "list_rows",
+        scope: "stored_body",
+      },
+      value: { count: 100, total: 9_900 },
+    });
+    expect(calls).toContain("read:execute_result");
+  });
+
+  it("retains an oversized derived value and reads it without replaying an applied write", async () => {
+    const answer = await stored("derived", "export_rows");
+    const before = sourceCalls;
+    const result = await call<ProviderStored>("derived", "execute_result", {
+      handle: answer.stored.handle,
+      code: "return data;",
+    });
+    expect(result.isError).toBe(false);
+    expect(result.parsed).not.toHaveProperty("status");
+    expect(result.parsed.stored.limit).toBe(4_096);
+    const read = await call<ReadResult>("derived", "read_result", {
+      handle: result.parsed.stored.handle,
+      path: "/value",
+      select: ["id"],
+      offset: 10,
+      limit: 2,
+    });
+    expect(read.isError).toBe(false);
+    expect(read.parsed.value).toEqual([{ id: 10 }, { id: 11 }]);
+    authorizer.revoked.add("Bearer derived export_rows");
+    for (const name of ["read_result", "execute_result"]) {
+      const revoked = await call<SdkError>("derived", name, {
+        handle: result.parsed.stored.handle,
+        ...(name === "execute_result" ? { code: "return data;" } : {}),
+      });
+      expect(revoked.isError).toBe(true);
+      expect(revoked.parsed.error).toBe("result_unavailable");
+    }
+    expect(sourceCalls).toBe(before);
+  });
+
+  it("rejects a foreign handle and a handle whose producing tool was revoked", async () => {
+    const answer = await stored("execution-owner");
+    const foreign = await call<SdkError>("execution-other", "execute_result", {
+      handle: answer.stored.handle,
+      code: "return data;",
+    });
+    authorizer.revoked.add("Bearer execution-owner list_rows");
+    const revoked = await call<SdkError>("execution-owner", "execute_result", {
+      handle: answer.stored.handle,
+      code: "return data;",
+    });
+    expect(foreign.isError).toBe(true);
+    expect(revoked.isError).toBe(true);
+    expect(foreign.parsed.error).toBe("result_unavailable");
+    expect(revoked.parsed).toEqual(foreign.parsed);
+  });
+
+  it("returns bounded, repairable execution failures without source exceptions", async () => {
+    const answer = await stored("execution-failure");
+    const result = await call<ExecutionFailure>(
+      "execution-failure",
+      "execute_result",
+      {
+        handle: answer.stored.handle,
+        code: "throw new Error('private-guest-exception');",
+      },
+    );
+    expect(result.isError).toBe(true);
+    expect(result.parsed.error).toBe("result_execution_failed");
+    expect(result.parsed.reason).toBe("program_failed");
+    expect(result.parsed.limits.maxConcurrent).toBe(2);
+    expect(result.parsed.message).toContain("read_result");
+    expect(JSON.stringify(result.parsed)).not.toContain(
+      "private-guest-exception",
+    );
+  });
+
+  it.each([
+    [{ code: "return 1;" }, "unknown_argument"],
+    [{ handle: "not-a-handle" }, "unknown_argument"],
+    [{ handle: 1, code: "return 1;" }, "invalid_selection"],
+    [{ handle: "not-a-handle", code: [] }, "invalid_selection"],
+    [{ handle: "not-a-handle", code: "return 1;" }, "result_unavailable"],
+  ])(
+    "answers malformed execution arguments with the normal JSON envelope",
+    async (args, error) => {
+      const result = await call<SdkError>(
+        "malformed-execution",
+        "execute_result",
+        args,
+      );
+      expect(result.isError).toBe(true);
+      expect(result.parsed.error).toBe(error);
+    },
+  );
 });
 
 describe("a stored result whose tool a probe now denies", () => {
@@ -318,6 +456,13 @@ describe("a stored result whose tool a probe now denies", () => {
     };
   };
 
+  it("keeps result execution absent unless the host supplies an executor", async () => {
+    const tools = await client.listTools();
+    expect(tools.tools.map((tool) => tool.name)).not.toContain(
+      "execute_result",
+    );
+  });
+
   it("stops serving it when the denial's body is over the read cap", async () => {
     const { parsed } = await call("invoke_tool", {
       name: "list_guarded_rows",
@@ -328,6 +473,35 @@ describe("a stored result whose tool a probe now denies", () => {
     const read = await call("read_result", { handle, limit: 1 });
     expect(read.isError).toBe(true);
     expect(read.parsed["error"]).toBe("result_unavailable");
+  });
+});
+
+describe("result execution without a result store", () => {
+  it("keeps the execution tool absent even when an executor is supplied", async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        SezzleeModule.forRoot(undefined, {
+          resultStore: { useValue: null },
+          resultExecutor: { useValue: new QuickJsExecutor() },
+        }),
+      ],
+      controllers: [RowsController, ResultsMcpController],
+    }).compile();
+    const app = moduleRef.createNestApplication({ logger: false });
+    const client = new Client({ name: "no-store", version: "0.0.0" });
+    try {
+      await app.init();
+      await app.listen(0);
+      await client.connect(
+        new StreamableHTTPClientTransport(new URL(`${await app.getUrl()}/mcp`)),
+      );
+      const names = (await client.listTools()).tools.map((tool) => tool.name);
+      expect(names).not.toContain("execute_result");
+      expect(names).not.toContain("read_result");
+    } finally {
+      await client.close();
+      await app.close();
+    }
   });
 });
 

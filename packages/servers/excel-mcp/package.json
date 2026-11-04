@@ -61,6 +61,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@sezzlee/compute-core": "workspace:^",
     "@modelcontextprotocol/server": "^2.0.0",
     "@sezzlee/file-core": "workspace:^",
     "@sezzlee/file-core-native": "workspace:^",

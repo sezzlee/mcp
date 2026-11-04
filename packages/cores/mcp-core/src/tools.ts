@@ -88,8 +88,14 @@ export type ErrorNormalizer = (
   context: ErrorContext,
 ) => McpSourceError;
 
-export function json(payload: unknown): CallToolResult {
-  return { content: [{ type: "text", text: JSON.stringify(payload) }] };
+export function json(
+  payload: unknown,
+  options?: { readonly isError: true },
+): CallToolResult {
+  return {
+    content: [{ type: "text", text: JSON.stringify(payload) }],
+    ...(options?.isError === true ? { isError: true } : {}),
+  };
 }
 
 interface ErrorEnvelope {

@@ -85,6 +85,7 @@ function defaultProviders(): Provider[] {
     },
     { provide: extensionTokens.toolRanker, useValue: null },
     { provide: extensionTokens.toolAuthorizer, useValue: null },
+    { provide: extensionTokens.resultExecutor, useValue: null },
     {
       provide: extensionTokens.resultStore,
       useFactory: (options: SezzleeOptions) =>

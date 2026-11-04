@@ -49,6 +49,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@sezzlee/compute-core": "workspace:^",
     "@apidevtools/json-schema-ref-parser": "^16.0.1",
     "@sezzlee/oxlint-config": "workspace:*",
     "@sezzlee/spec": "workspace:*",

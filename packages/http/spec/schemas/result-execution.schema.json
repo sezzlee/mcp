@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "result-execution.schema.json",
+  "title": "ResultExecution",
+  "oneOf": [
+    { "$ref": "#/$defs/ExecutedResult" },
+    { "$ref": "provider-result.schema.json#/$defs/ProviderStored" },
+    { "$ref": "#/$defs/ExecutionFailure" },
+    { "$ref": "invoke-result.schema.json#/$defs/SdkError" }
+  ],
+  "$defs": {
+    "ExecutionFailure": {
+      "title": "ExecutionFailure",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error", "message", "reason", "limits", "retryable"],
+      "properties": {
+        "error": { "const": "result_execution_failed" },
+        "message": { "type": "string", "minLength": 1 },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "invalid_input",
+            "code_limit",
+            "input_limit",
+            "output_limit",
+            "invalid_program",
+            "program_failed",
+            "invalid_result",
+            "memory_limit",
+            "timeout",
+            "cancelled",
+            "busy",
+            "unavailable"
+          ]
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "maxCodeBytes",
+            "maxInputBytes",
+            "maxOutputBytes",
+            "maxMemoryBytes",
+            "maxStackBytes",
+            "timeoutMs",
+            "maxConcurrent"
+          ],
+          "properties": {
+            "maxCodeBytes": { "type": "integer", "minimum": 1 },
+            "maxInputBytes": { "type": "integer", "minimum": 1 },
+            "maxOutputBytes": { "type": "integer", "minimum": 1 },
+            "maxMemoryBytes": { "type": "integer", "minimum": 1048576 },
+            "maxStackBytes": { "type": "integer", "minimum": 16384 },
+            "timeoutMs": { "type": "integer", "minimum": 1 },
+            "maxConcurrent": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "retryable": { "type": "boolean" }
+      }
+    },
+    "ExecutedResult": {
+      "title": "ExecutedResult",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "value"],
+      "properties": {
+        "source": {
+          "title": "ExecutionSource",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["handle", "tool", "scope"],
+          "properties": {
+            "handle": { "type": "string", "pattern": "^[A-Za-z0-9_-]{22}$" },
+            "tool": { "type": "string", "minLength": 1 },
+            "scope": {
+              "const": "stored_body",
+              "description": "The complete stored body, which may itself be a page or a sample from the upstream source."
+            }
+          }
+        },
+        "value": {}
+      }
+    }
+  }
+}

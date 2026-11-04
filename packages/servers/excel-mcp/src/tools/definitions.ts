@@ -7,6 +7,8 @@ import {
   type ToolNameOf,
 } from "@sezzlee/file-core";
 import { z } from "zod";
+import { executionLimits } from "@sezzlee/compute-core";
+import { resultExecutionDescription } from "./result-execution.js";
 import { limits } from "../platform/limits.js";
 import { metricFunctions } from "../grid/aggregate-metrics.js";
 import {
@@ -32,7 +34,7 @@ const typedOptions = {
   columnMode: z
     .enum(["auto", "header", "letter"])
     .optional()
-    .describe("Column references: auto (default), header text or A1 letter."),
+    .describe("Column: auto (default), header, letter."),
 };
 
 const selectionOptions = { table, visibleOnly };
@@ -47,12 +49,12 @@ const profileHeaders = {
     .max(1_048_576)
     .optional()
     .describe(
-      "Header row (0: none). Default: table/AutoFilter header, first text header above data, else 1.",
+      "Header: 0 none; default table/AutoFilter, text above data, else 1.",
     ),
   headerScan: z
     .boolean()
     .optional()
-    .describe("Strict header detection: refuse when two rows or none qualify."),
+    .describe("Refuse ambiguous or missing headers."),
 };
 
 const derivedTerms = z
@@ -100,7 +102,7 @@ export const toolDefinitions = {
   },
   describe_workbook: {
     description:
-      "Discover sheets, used ranges, each sheet's header row and first column names (the row reads use by default), merge and validation counts, formula cache coverage and defined names. A known file and columns can be read or aggregated directly.",
+      "Discover sheets, ranges, default headers and columns, merge/validation counts, formula cache coverage and defined names. Known files and columns need no discovery.",
     inputSchema: z.object({
       filePath,
       includeDefinedNames: z
@@ -114,7 +116,7 @@ export const toolDefinitions = {
   },
   read_sheet: {
     description:
-      "Read a rectangular cell range as a compact grid: hoisted column headers plus row arrays, with rowNumbers giving the sheet row of each array. Pass nextCursor back to continue a truncated read. A date and time stored without a zone is returned without one, as a local wall clock; a written offset is kept.",
+      "Read a rectangle as headers and row arrays; rowNumbers locate sheet rows. Continue with nextCursor. Unzoned dates/times remain local wall clocks; written offsets are kept.",
     inputSchema: z.object({
       filePath,
       sheetName,
@@ -122,9 +124,7 @@ export const toolDefinitions = {
       range: z
         .string()
         .optional()
-        .describe(
-          "A1 range such as B2:D40, B:D or 2:40. Defaults to the used range.",
-        ),
+        .describe("A1: B2:D40, B:D, 2:40; default used range."),
       ...typedOptions,
       includeTyped: z
         .boolean()
@@ -134,16 +134,14 @@ export const toolDefinitions = {
         .string()
         .optional()
         .describe(
-          "nextCursor of the previous page; not with sheetName or range. Options are inherited.",
+          "Continue nextCursor; not with sheetName/range. Inherits options.",
         ),
       maxCells: z
         .int()
         .min(1)
         .max(limits.maxCellsHard)
         .optional()
-        .describe(
-          "Cells per response, default 2000. May change between cursor pages.",
-        ),
+        .describe("Cells per page, default 2000; cursor pages may differ."),
       valueMode: z
         .enum(["values", "formulas", "both"])
         .optional()
@@ -161,13 +159,13 @@ export const toolDefinitions = {
         .min(0)
         .optional()
         .describe(
-          "Header row (0: none). Default: table/AutoFilter header, first text header above data, else 1.",
+          "Header: 0 none; default table/AutoFilter, text above data, else 1.",
         ),
       headerScan: z
         .boolean()
         .optional()
         .describe(
-          "Strict header detection: refuse when two rows or none qualify. Cannot be combined with headerRow on a new read. Cursor-bound: omit to inherit.",
+          "Refuse missing/ambiguous headers; not with headerRow on a new read. Cursor-bound: omit to inherit.",
         ),
       includeHyperlinks: z
         .boolean()
@@ -182,7 +180,7 @@ export const toolDefinitions = {
   },
   profile_sheet: {
     description:
-      "Profile a bounded rectangular prefix: types and confidence, formats, missing and distinct values, extrema, frequent values, unreadable examples and identifier signals. Returns reusable columns plus explicit sampling limits. This inspects cell contents.",
+      "Sample a bounded prefix for types/confidence, formats, missing/distinct values, extrema, frequencies, unreadable examples and identifiers. Returns reusable columns and sampling limits.",
     inputSchema: z.object({
       filePath,
       sheetName,
@@ -275,7 +273,7 @@ export const toolDefinitions = {
 
   aggregate_sheet: {
     description:
-      "Calculate filtered totals, grouped rankings, conditional metrics or pivots across the selected range. Known files and columns need no discovery call. Use resultMode retained for a full snapshot and query_result continuation. Unzoned dates remain local wall clocks.",
+      "Calculate filtered totals, grouped rankings, conditional metrics or pivots over the selected range. resultMode retained enables query_result/execute_result over all groups. Unzoned dates remain local wall clocks.",
     inputSchema: z.object({
       filePath,
       sheetName,
@@ -504,6 +502,45 @@ export const toolDefinitions = {
         .max(limits.maxGroupsHard)
         .optional()
         .describe("Returned rows, default 50; 16 KiB may admit fewer."),
+    }),
+    annotations: readOnly,
+  },
+  execute_result: {
+    description: resultExecutionDescription(executionLimits),
+    inputSchema: z.strictObject({
+      resultId: z
+        .string()
+        .min(1)
+        .max(128)
+        .describe("This instance's retained result."),
+      code: z.string().min(1).describe("Function body; return JSON from data."),
+    }),
+    annotations: { ...readOnly, idempotentHint: false, openWorldHint: false },
+  },
+  read_result: {
+    description:
+      "Read exact JSON by RFC 6901 path: /value for computed data, /rows for aggregates. select projects members; offset/limit page arrays, objects or UTF-16 strings. Narrow windows over 16 KiB; no value truncation.",
+    inputSchema: z.strictObject({
+      resultId: z.string().min(1).max(128).describe("Stored result."),
+      path: z.string().max(4_096).optional().describe("JSON Pointer."),
+      select: z
+        .array(z.string().max(4_096))
+        .min(1)
+        .max(32)
+        .optional()
+        .describe("Member names."),
+      offset: z
+        .int()
+        .min(0)
+        .max(limits.maxResultBytes)
+        .optional()
+        .describe("Start; default 0."),
+      limit: z
+        .int()
+        .min(1)
+        .max(limits.maxGroupsHard)
+        .optional()
+        .describe("Max items; default 50."),
     }),
     annotations: readOnly,
   },

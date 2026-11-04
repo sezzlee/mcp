@@ -36,6 +36,7 @@ try {
         rxjs: "^7.8.0",
         zod: "^4.5.4",
         "@sezzlee/core": archive("sezzlee-core"),
+        "@sezzlee/compute-core": archive("sezzlee-compute-core"),
         "@sezzlee/openapi": archive("sezzlee-openapi"),
         "@sezzlee/openapi-mcp": archive("sezzlee-openapi-mcp"),
         "@sezzlee/sdk-nestjs": archive("sezzlee-sdk-nestjs"),
@@ -142,6 +143,10 @@ import assert from 'node:assert/strict';
 const sdk = await import('@sezzlee/sdk-nestjs');
 for (const name of ['SezzleeModule', 'SezzleeCatalog', 'SezzleeDispatcher'])
   assert.equal(typeof sdk[name], 'function', name);
+const { QuickJsExecutor } = await import('@sezzlee/compute-core');
+const executor = new QuickJsExecutor();
+sdk.SezzleeModule.forRoot(undefined, { resultExecutor: { useValue: executor } });
+assert.deepEqual(await executor.execute({ json: '{"values":[3,5]}', code: 'return data.values.reduce((n, x) => n + x, 0);' }), { kind: 'success', json: '8' });
 `,
   );
   for (const script of ["smoke-gateway.mjs", "smoke-nestjs.mjs"]) {
@@ -153,8 +158,25 @@ for (const name of ['SezzleeModule', 'SezzleeCatalog', 'SezzleeDispatcher'])
     if (run.status !== 0)
       throw new Error(`Installed ${script} failed: ${run.stderr}`);
   }
+  const stdinWorker = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "--eval",
+      `
+import assert from 'node:assert/strict';
+import { QuickJsExecutor } from '@sezzlee/compute-core';
+assert.deepEqual(await new QuickJsExecutor().execute({json: 'null', code: 'return 42;'}), {kind: 'success', json: '42'});
+`,
+    ],
+    { cwd: directory, encoding: "utf8", timeout: 30000 },
+  );
+  if (stdinWorker.status !== 0)
+    throw new Error(
+      `Packed worker failed under an ESM eval parent: ${stdinWorker.stderr}`,
+    );
   console.log(
-    "Installed HTTP catalog packages; gateway search and load over stdio and the NestJS SDK import passed.",
+    "Installed HTTP catalog packages; gateway stdio, NestJS import and packed QuickJS worker execution passed.",
   );
 } finally {
   await rm(directory, { recursive: true, force: true });

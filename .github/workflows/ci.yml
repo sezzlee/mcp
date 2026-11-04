@@ -101,7 +101,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node .github/scripts/prepare-native.mjs
       - run: pnpm turbo run test check-types --filter=@sezzlee/file-core-native --filter=@sezzlee/mcp-core --filter=@sezzlee/file-core --filter=@sezzlee/ooxml-core --filter=@sezzlee/excel-mcp --filter=@sezzlee/xml-mcp --filter=@sezzlee/llm-mcp ${{ matrix.target.pdf && '--filter=@sezzlee/pdf-mcp --filter=@sezzlee/pdf-raster-pdfjs --filter=@sezzlee/ocr-ollama' || '' }}
-      - run: pnpm pack --filter=@sezzlee/file-core-native --filter=@sezzlee/mcp-core --filter=@sezzlee/file-core --filter=@sezzlee/ooxml-core --filter=@sezzlee/excel-mcp --filter=@sezzlee/xml-mcp --filter=@sezzlee/llm-mcp ${{ matrix.target.pdf && '--filter=@sezzlee/pdf-mcp --filter=@sezzlee/pdf-raster-pdfjs --filter=@sezzlee/ocr-ollama' || '' }} --pack-destination ./local/native-tarballs
+      - run: pnpm pack --filter=@sezzlee/compute-core --filter=@sezzlee/file-core-native --filter=@sezzlee/mcp-core --filter=@sezzlee/file-core --filter=@sezzlee/ooxml-core --filter=@sezzlee/excel-mcp --filter=@sezzlee/xml-mcp --filter=@sezzlee/llm-mcp ${{ matrix.target.pdf && '--filter=@sezzlee/pdf-mcp --filter=@sezzlee/pdf-raster-pdfjs --filter=@sezzlee/ocr-ollama' || '' }} --pack-destination ./local/native-tarballs
       - run: python3 .github/scripts/check-npm-tarballs.py local/native-tarballs
       - run: node .github/scripts/smoke-file-packages.mjs local/native-tarballs
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
