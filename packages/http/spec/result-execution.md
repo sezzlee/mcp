@@ -37,6 +37,10 @@ before publishing a success. A computation's derived result remains owned by the
 producing tool, so a later read is subject to that tool's visibility. Handle expiry, eviction,
 identity-carrier scope and multi-process store limitations remain unchanged.
 
+After the final asynchronous visibility check, check cancellation again before constructing a
+successful or storable answer. A cancelled call returns `result_execution_failed` with reason
+`cancelled` and produces no storable success.
+
 Execution is the `read` meta-tool class for rate limiting, with `toolName: "execute_result"` and
 no target. The class's admission is taken before accessing the stored value. The data executor
 also bounds active workers. Client cancellation must reach the executor.

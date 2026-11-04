@@ -1,8 +1,64 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { QuickJsExecutor } from "@sezzlee/compute-core";
-import { executeStoredResult, MemoryResultStore } from "../src/index.js";
+import {
+  emitGuarded,
+  executeStoredResult,
+  MemoryResultStore,
+} from "../src/index.js";
 
 describe("retained result execution authorization lifecycle", () => {
+  it("does not publish or retain a success cancelled during the final visibility check", async () => {
+    const store = new MemoryResultStore();
+    const handle = "q7Vd2Zc0xTn4bQ1kLw9sYA";
+    await store.put(
+      "caller",
+      handle,
+      JSON.stringify({
+        tool: "list_orders",
+        body: { value: "x".repeat(20_000) },
+      }),
+    );
+    const put = vi.spyOn(store, "put");
+    const controller = new AbortController();
+    let decisions = 0;
+    try {
+      const result = await emitGuarded(
+        () => 2_048,
+        () =>
+          executeStoredResult({
+            handle,
+            code: "return data;",
+            shelf: { store, partition: "caller" },
+            executor: new QuickJsExecutor(),
+            signal: controller.signal,
+            visible: () => {
+              decisions++;
+              return decisions === 2
+                ? new Promise<boolean>((resolve) =>
+                    queueMicrotask(() => {
+                      controller.abort();
+                      resolve(true);
+                    }),
+                  )
+                : Promise.resolve(true);
+            },
+          }),
+        { store, partition: "caller" },
+      );
+      expect(decisions).toBe(2);
+      expect(controller.signal.aborted).toBe(true);
+      expect(put.mock.calls.length).toBe(0);
+      expect(result.isError).toBe(true);
+      const payload: unknown = JSON.parse(result.content[0]?.text ?? "{}");
+      expect(payload).toMatchObject({
+        error: "result_execution_failed",
+        reason: "cancelled",
+      });
+    } finally {
+      put.mockRestore();
+    }
+  });
+
   it("rechecks the producing tool after execution and withholds a newly revoked result", async () => {
     const store = new MemoryResultStore();
     const handle = "q7Vd2Zc0xTn4bQ1kLw9sYA";

@@ -83,23 +83,29 @@ export async function executeStoredResult(input: {
   if (record === undefined || !(await input.visible(record.tool))) {
     return unavailable();
   }
+  const failed = (reason: ExecutionFailure["reason"]): MetaResponse<never> => {
+    const payload: ExecutionFailure = {
+      error: "result_execution_failed",
+      message: recovery[reason],
+      reason,
+      limits: input.executor.limits,
+      retryable: reason === "busy",
+    };
+    return textResult(payload, true);
+  };
   const result = await input.executor.execute({
     json: JSON.stringify(record.body) ?? "null",
     code,
     ...(input.signal === undefined ? {} : { signal: input.signal }),
   });
   if (result.kind === "failure") {
-    const payload: ExecutionFailure = {
-      error: "result_execution_failed",
-      message: recovery[result.reason],
-      reason: result.reason,
-      limits: input.executor.limits,
-      retryable: result.reason === "busy",
-    };
-    return textResult(payload, true);
+    return failed(result.reason);
   }
   if (!(await input.visible(record.tool))) {
     return unavailable();
+  }
+  if (input.signal?.aborted === true) {
+    return failed("cancelled");
   }
   const value: unknown = JSON.parse(result.json);
   const payload: ExecutedResult = {
