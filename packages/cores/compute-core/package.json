@@ -43,6 +43,7 @@
     "lint": "oxlint --deny-warnings",
     "check-types": "tsc -p tsconfig.test.json",
     "test": "vitest run",
+    "probe:memory": "node --expose-gc test/memory-probe.mjs",
     "prepack": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc"
   },
   "dependencies": {

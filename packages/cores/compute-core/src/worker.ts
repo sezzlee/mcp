@@ -2,6 +2,7 @@ import { parentPort, workerData } from "node:worker_threads";
 import RELEASE_SYNC from "@jitl/quickjs-wasmfile-release-sync";
 import {
   newQuickJSWASMModuleFromVariant,
+  newVariant,
   Scope,
 } from "quickjs-emscripten-core";
 import {
@@ -40,7 +41,22 @@ async function execute(input: unknown): Promise<DataExecution> {
   const { json, code, limits } = parsed.data;
   const variant =
     "default" in RELEASE_SYNC ? RELEASE_SYNC.default : RELEASE_SYNC;
-  const quickjs = await newQuickJSWASMModuleFromVariant(variant);
+  /**
+   * Guard: the pinned WASM imports at least 256 pages. JS_SetMemoryLimit does not
+   * account for every string/ArrayBuffer allocation (upstream #255), so the
+   * imported memory independently caps growth. Configuration rejects budgets
+   * below the pinned binary's 16 MiB initialization floor.
+   */
+  const wasmMemory = new WebAssembly.Memory({
+    initial: 256,
+    maximum: Math.floor(limits.maxMemoryBytes / 65_536),
+  });
+  const quickjs = await newQuickJSWASMModuleFromVariant(
+    newVariant(variant, { wasmMemory }),
+  );
+  if (quickjs.getWasmMemory() !== wasmMemory) {
+    return executionFailure("unavailable");
+  }
   return Scope.withScope((scope) => {
     const runtime = scope.manage(quickjs.newRuntime());
     runtime.setMemoryLimit(limits.maxMemoryBytes);

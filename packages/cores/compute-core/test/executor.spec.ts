@@ -1,7 +1,48 @@
 import { describe, expect, it, vi } from "vitest";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 import { QuickJsExecutor } from "@sezzlee/compute-core";
 
 describe("published synchronous JSON executor contract", () => {
+  it("bounds repeated string and ArrayBuffer allocation in an isolated process and recovers", async () => {
+    const { stdout } = await promisify(execFile)(
+      process.execPath,
+      [
+        "--expose-gc",
+        fileURLToPath(new URL("./memory-probe.mjs", import.meta.url)),
+      ],
+      { encoding: "utf8", timeout: 25_000, maxBuffer: 16_384 },
+    );
+    const evidence: unknown = JSON.parse(stdout);
+    expect(evidence).toMatchObject({
+      variant: "0.32.0",
+      guestMemoryBytes: 33_554_432,
+      results: [
+        {
+          round: 1,
+          kind: "strings",
+          result: { kind: "failure", reason: "program_failed" },
+        },
+        {
+          round: 1,
+          kind: "array_buffers",
+          result: { kind: "failure", reason: "program_failed" },
+        },
+        {
+          round: 2,
+          kind: "strings",
+          result: { kind: "failure", reason: "program_failed" },
+        },
+        {
+          round: 2,
+          kind: "array_buffers",
+          result: { kind: "failure", reason: "program_failed" },
+        },
+      ],
+    });
+  }, 30_000);
+
   it("filters and totals the complete supplied body without exposing its rows", async () => {
     const executor = new QuickJsExecutor();
     const result = await executor.execute({
@@ -156,7 +197,7 @@ describe("published synchronous JSON executor contract", () => {
 
   it.each([
     [
-      { maxMemoryBytes: 1_048_576 },
+      { maxMemoryBytes: 16_777_216 },
       "return new Array(10_000_000).fill(1).length;",
     ],
     [
@@ -181,5 +222,18 @@ describe("published synchronous JSON executor contract", () => {
     expect(() => new QuickJsExecutor({ timeoutMs: 2_001 })).toThrow();
     expect(() => new QuickJsExecutor({ maxConcurrent: 3 })).toThrow();
     expect(() => new QuickJsExecutor({ maxInputBytes: 0 })).toThrow();
+    expect(
+      () => new QuickJsExecutor({ maxMemoryBytes: 16_777_215 }),
+    ).toThrowError(
+      expect.objectContaining({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            code: "too_small",
+            path: ["maxMemoryBytes"],
+            minimum: 16_777_216,
+          }),
+        ]),
+      }),
+    );
   });
 });

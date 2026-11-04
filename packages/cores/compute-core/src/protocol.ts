@@ -14,7 +14,7 @@ export const executionLimitsSchema = z.strictObject({
   maxCodeBytes: z.int().positive().max(executionLimits.maxCodeBytes),
   maxInputBytes: z.int().positive().max(executionLimits.maxInputBytes),
   maxOutputBytes: z.int().positive().max(executionLimits.maxOutputBytes),
-  maxMemoryBytes: z.int().min(1_048_576).max(executionLimits.maxMemoryBytes),
+  maxMemoryBytes: z.int().min(16_777_216).max(executionLimits.maxMemoryBytes),
   maxStackBytes: z.int().min(16_384).max(executionLimits.maxStackBytes),
   timeoutMs: z.int().positive().max(executionLimits.timeoutMs),
   maxConcurrent: z.int().positive().max(executionLimits.maxConcurrent),
