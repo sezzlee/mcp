@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { QuickJsExecutor } from "@sezzlee/compute-core";
 
 describe("published synchronous JSON executor contract", () => {
@@ -88,18 +88,33 @@ describe("published synchronous JSON executor contract", () => {
   );
 
   it("interrupts an infinite program and can execute another job afterwards", async () => {
-    const executor = new QuickJsExecutor({ timeoutMs: 500 });
+    const executor = new QuickJsExecutor();
     expect(
       await executor.execute({ json: "null", code: "while (true) {}" }),
     ).toEqual({ kind: "failure", reason: "timeout" });
     expect(
       await executor.execute({ json: "null", code: "return 42;" }),
     ).toEqual({ kind: "success", json: "42" });
+  }, 10_000);
+
+  it("enforces a short wall-clock budget without requiring the worker to start within it", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const executor = new QuickJsExecutor({ timeoutMs: 500 });
+      const running = executor.execute({
+        json: "null",
+        code: "while (true) {}",
+      });
+      await vi.advanceTimersByTimeAsync(500);
+      expect(await running).toEqual({ kind: "failure", reason: "timeout" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("applies the deadline to user code invoked during serialization", async () => {
     expect(
-      await new QuickJsExecutor({ timeoutMs: 500 }).execute({
+      await new QuickJsExecutor().execute({
         json: "null",
         code: "return {toJSON() { while (true) {} }};",
       }),
