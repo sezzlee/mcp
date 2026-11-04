@@ -147,6 +147,11 @@ const { QuickJsExecutor } = await import('@sezzlee/compute-core');
 const executor = new QuickJsExecutor();
 sdk.SezzleeModule.forRoot(undefined, { resultExecutor: { useValue: executor } });
 assert.deepEqual(await executor.execute({ json: '{"values":[3,5]}', code: 'return data.values.reduce((n, x) => n + x, 0);' }), { kind: 'success', json: '8' });
+for (const code of [
+  "const chunks=[]; for(let i=0;i<48;i++) chunks.push(String(i)+'x'.repeat(1024*1024)); return chunks.length;",
+  "const chunks=[]; for(let i=0;i<48;i++){const b=new ArrayBuffer(1024*1024);new Uint8Array(b).fill(97);chunks.push(b);} return chunks.length;"
+]) assert.deepEqual(await executor.execute({json:'null',code}), {kind:'failure',reason:'program_failed'});
+assert.deepEqual(await executor.execute({json:'null',code:'return 42;'}), {kind:'success',json:'42'});
 `,
   );
   for (const script of ["smoke-gateway.mjs", "smoke-nestjs.mjs"]) {
