@@ -1,6 +1,6 @@
 # Error codes
 
-> Generated from the error-code union types of `@sezzlee/excel-mcp` 0.14.0.
+> Generated from the error-code union types of `@sezzlee/excel-mcp` 0.15.0.
 
 A tool that fails answers with `isError: true` and one text item holding a JSON object with three fields: `error`, a stable machine code from this page; `message`, what went wrong; and `recovery`, what the next call should do differently. Branch on `error`, never on `message`.
 
@@ -28,7 +28,7 @@ The text item, parsed:
 }
 ```
 
-The server has 34 codes.
+The server has 35 codes.
 
 ## Arguments and paging
 
@@ -41,7 +41,8 @@ The server has 34 codes.
 | `stale_cursor`             | The file changed between two pages of the same read. Start again without a cursor.                                                                                                                                                                                                                                                                              |
 | `invalid_pattern`          | `find_in_sheet` refused a `regex` query: it is longer than 256 characters, uses a Unicode property escape (`\p{…}`), or is not a valid JavaScript regular expression.                                                                                                                                                                                           |
 | `resource_limit`           | The request would exceed a fixed processing, response or retained-result budget, or a regex search timed out or found the queue full. No partial aggregate is published. A full result store refuses admission until entries expire or the server restarts. See [Limits](/docs/excel-mcp/limits).                                                               |
-| `result_unavailable`       | The result identifier is unknown, expired, or belongs to another server instance. Retained results are snapshots in one instance, not durable identifiers. Repeat aggregate_sheet with resultMode retained to create a new result.                                                                                                                              |
+| `result_unavailable`       | The result identifier is unknown, expired, or belongs to another server instance. Retained results are snapshots in one instance, not durable identifiers. Recreate the aggregate or computed result in that instance.                                                                                                                                          |
+| `result_execution_failed`  | A result program was refused or failed. The response names the reason, effective execution limits and a recovery action. No guest exception details, source data or partial computation are included.                                                                                                                                                           |
 
 ## Files and paths
 

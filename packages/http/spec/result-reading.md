@@ -10,6 +10,11 @@ The budget protects the agent's context, and refusal keeps it honest: no fragmen
 
 ## When an answer is stored
 
+The optional [result execution](result-execution.md) extension also retains computed answers
+that exceed the response budget. They reuse this store and reading protocol, carry no HTTP
+status, and remain owned by the original producing tool. The rules below describe invocation
+answers; execution has its own admission and computation budgets.
+
 At the gate of [invoke-semantics.md](invoke-semantics.md), an answer that is over the budget is stored instead of refused when all of these hold:
 
 - a result store is bound;

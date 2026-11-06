@@ -239,8 +239,7 @@ rows. The primary result and its grouping sets are admitted together or not at a
 `inColumn`/`notInColumn` members are read once before the calculation; when they come from
 another file, `memberSourceVersions` lists that file's captured fingerprint. The complete
 calculation still uses the existing `SheetView`, typed interpretations and aggregate state/visit
-budgets. A failure publishes no partial result or identifier. No workbook is changed and there
-is no code execution API.
+budgets. A failure publishes no partial result or identifier. No workbook is changed.
 
 The returned `resultId` identifies all finalized result rows, captured before response string
 truncation and independently of `maxGroups`. `query_result` can select original result columns
@@ -249,7 +248,7 @@ original aggregate order. Filtering visits the complete retained result. It does
 hash or parse the source. Equality is case-sensitive and performs no trimming, normalization,
 coercion or ranked text retrieval. The stored numeric values include requested metric rounding;
 the original aggregate order was determined before that rounding, as in inline mode. There is
-no follow-up sorting or reaggregation in this slice.
+no sorting or reaggregation in `query_result`; `execute_result` can program against the complete finalized result.
 
 The response distinguishes these scopes:
 
@@ -337,6 +336,81 @@ The [architecture recommendations](ARCHITECTURE_RECOMMENDATIONS.md) map the curr
 Excel's package, dataset and analytical schemas, identify a reproduced derived-total overflow
 defect, and prioritize existing-tool improvements and possible new operations. They distinguish
 review findings from proposed behavior; the recommendations are not an implemented contract.
+
+## Compute over a retained result
+
+The installed Excel server includes `execute_result` and `read_result`; no second MCP server,
+client hook or agent-loop integration is needed. Start with `aggregate_sheet` in retained mode.
+Inspect its columns and preview, then pass its `resultId` and a synchronous JavaScript function
+body to `execute_result`. For the clean-install smoke test's `smoke.csv` (`name,value`, with rows
+`a,1` and `b,2`), the MCP calls are:
+
+```json
+{
+  "name": "aggregate_sheet",
+  "arguments": {
+    "filePath": "smoke.csv",
+    "groupBy": ["name"],
+    "metrics": [{ "fn": "sum", "column": "value" }],
+    "resultMode": "retained",
+    "maxGroups": 1
+  }
+}
+```
+
+```json
+{
+  "name": "execute_result",
+  "arguments": {
+    "resultId": "<the issued resultId>",
+    "code": "return data.rows.reduce((n,r) => n + r[1], 0);"
+  }
+}
+```
+
+The tested `value` is `3`, even though the preview contains one group. `data` has the complete
+aggregate metadata, original `columns`, one-based `dateColumns`, every finalized `rows` value and `rowSourceCounts`
+(the source rows represented by each result row). Strings have not passed through the
+512-character presentation limit. Requested metric rounding retains its aggregate meaning.
+`source.scope: "retained_result"` describes aggregate output, not unaggregated worksheet rows.
+Each grouping-set identifier can be executed independently. Programs do not reopen or revalidate
+the workbook; later source edits cannot change a snapshot.
+
+Use `return`, not logging. Only supplied JSON is available: no filesystem, network, Node globals,
+imports, credentials or tool calls. Numbers use binary64; preserve exact decimal text and
+identifiers unless explicitly converting them. Return finite JSON without undefined,
+functions, promises, bigint, cycles or unsupported object types.
+
+A small answer is `{ source, value }`. Above the existing 16 KiB complete-response budget, its
+entire JSON is retained under a new `resultId`, with an outline and expiry. `read_result` reads
+that identifier at `/value`; `offset`, `limit` and `select` return exact windows. Strings can be
+paged without presentation truncation. Another `execute_result` receives the computed envelope,
+so its value is `data.value`. `query_result` and tabular write sources remain aggregate-only;
+computed JSON is refused with recovery to `read_result`.
+
+Computed JSON shares the existing four-entry, 16 MiB store and 15-minute absolute lifetime with
+aggregate snapshots. A full store refuses admission without evicting live results. Per-result
+admission stays at 8 MiB; execution input, guest allocation and worker output have separate
+limits. The complete stored envelope is checked before publication, including metadata and JSON
+escaping. Closing the handler clears both kinds and cancels active programs. Identifiers work
+only in their issuing handler/server instance; a derived identifier can outlive its parent.
+
+`executionLimits` is exported by the Excel package and published in tool descriptions and
+refusals. The [shared runtime guide](../../cores/compute-core/README.md#budgets-and-recovery)
+explains each enforcement point. Programmatic hosts can pass
+`{ mode: "read", executor: new QuickJsExecutor({ timeoutMs: 1000 }) }` to
+`createExcelMcpServer`; limits only tighten the shared ceilings. Reuse an executor when several
+hosted servers should share its two-slot admission bound.
+
+Failures have `error: "result_execution_failed"`, a machine-readable `reason`, effective
+`limits` and concrete `recovery`. `busy` means wait; `input_limit` means retain a narrower
+aggregate; `output_limit` means return fewer fields or an aggregate. Executor refusals publish
+no partial value or identifier. Guest exceptions are withheld because programs can throw source
+contents. The existing payload guard and root-redacted errors still apply.
+
+Real MCP coverage lives in `test/retained-results.spec.ts`; the packed CLI is exercised by
+`.github/scripts/smoke-file-packages.mjs`. This does not claim real-model success or token savings.
+Direct programs over raw worksheet rows and cross-server joins need separate source/resource contracts.
 
 ## Profile and reuse a column interpretation
 

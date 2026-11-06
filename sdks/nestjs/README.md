@@ -4,7 +4,7 @@ An MCP layer that embeds into your existing NestJS backend. It exposes your endp
 a search-first tool catalog and replays each call through **your own** pipeline, so your guards,
 pipes and interceptors keep running unchanged. Not a gateway, not duplicated business logic.
 
-> Status: `1.0.0`, stable; a breaking change is a major version. [samples/demo-api](samples/demo-api) is
+> Status: `1.1.0`, stable; a breaking change is a major version. [samples/demo-api](samples/demo-api) is
 > the reference wiring.
 
 ## Requirements
@@ -850,6 +850,68 @@ the RFC 9728 metadata handler for you.
 | Host will not boot, fatal diagnostic                        | `name_collision` / `ambiguous_selection` / `invalid_name`           | Read the codes in the log, then `options.diagnostics.downgrade`                 |
 | A tool is missing and `unresolved_query_shape` was reported | Its `@Query()` type carries no readable members                     | Decorate the DTO, declare `options.schema.typeShape`, or downgrade the code     |
 | PRM 404s under a global prefix                              | `prm_path_prefixed` — Nest prefixed the `.well-known` path          | Add the metadata path to `setGlobalPrefix`'s `exclude` list                     |
+
+## Compute over stored results
+
+An agent can filter, project or calculate over a large retained result without reading every
+page into its context. Install the executor and bind it once for the application:
+
+```sh
+pnpm add @sezzlee/compute-core
+```
+
+```ts
+import { QuickJsExecutor } from "@sezzlee/compute-core";
+import { SezzleeModule } from "@sezzlee/sdk-nestjs";
+
+SezzleeModule.forRoot(undefined, {
+  resultExecutor: { useValue: new QuickJsExecutor() },
+});
+```
+
+This is the same extension wiring exercised by `test/result-reading.spec.ts`. With the default
+result store enabled, `tools/list` now includes `execute_result`. Without an executor, or with
+`resultStore: { useValue: null }`, it remains absent. No client hook or agent-loop change is
+required. A custom executor can implement `DataExecutor` from `@sezzlee/core`.
+
+The agent starts with a handle from an oversized successful invocation, uses its outline or
+`read_result` to inspect the body, then supplies a synchronous function body. In the result-reading
+test's 200-row `list_rows` fixture, this call selects the even identifiers and sums them:
+
+```json
+{
+  "handle": "q7Vd2Zc0xTn4bQ1kLw9sYA",
+  "code": "const rows = data.filter(x => x.id % 2 === 0); return {count: rows.length, total: rows.reduce((n, x) => n + x.id, 0)};"
+}
+```
+
+The example handle is a placeholder; use the issued handle. The tested `value` is
+`{ "count": 100, "total": 9900 }`. The source metadata says `scope: "stored_body"`: that
+means the input was the complete stored body, not that the upstream endpoint supplied every
+record. An output-schema wrapper is still present; use `data.result` instead of `data` when
+the outline says the rows live under `/result`.
+
+Only the supplied JSON is available. Use `return`, not logging; filesystem, network, imports,
+credentials and tool calls are unavailable. Preserve decimal text and identifiers when exact
+digits matter; JavaScript numbers use binary64. A finite JSON value is required.
+
+The tool description publishes effective byte, memory, stack, time and concurrency limits. An
+execution failure explains the reason and how to continue. The default budgets and enforcement
+points are in the [compute-core README](../../packages/cores/compute-core/README.md#budgets-and-recovery).
+Constructor options can tighten those ceilings. `busy` means retry after a running job finishes;
+`input_limit` means narrow the source; `output_limit` means return fewer fields or an aggregate.
+No limit failure returns a partial calculation as a complete answer.
+
+A computed answer above the MCP response budget is retained when it fits the separate execution
+output budget. Use its new handle with `read_result` at `/value`; this never replays the backend
+operation. If execution itself exceeds its output budget, no derived handle is created. Reads
+and executions use the original tool's visibility and caller partition, including the
+[result-store identity limitations](../../packages/http/spec/result-reading.md#known-limits).
+Execution is charged to the existing `read` rate-limit class under `toolName: "execute_result"`.
+
+The current implementation supplies HTTP/NestJS and [Excel retained-result](../../packages/servers/excel-mcp/README.md#compute-over-a-retained-result)
+adapters. XML and gateway exposure remain separate work. The exact HTTP result
+and refusal contracts are in [result execution](../../packages/http/spec/result-execution.md).
 
 ## 7. What's next
 

@@ -388,6 +388,23 @@ export type {
   ProviderStored,
 } from "./generated/provider-result.js";
 export { readStoredResult } from "./meta-tools/read-result.js";
+export {
+  executeStoredResult,
+  executeResultDescription,
+  executeCodeDescription,
+} from "./meta-tools/execute-result.js";
+export type { DataExecutor, ExecutionLimits } from "./results/executor.js";
+export type {
+  ProgramInput,
+  ProgramSuccess,
+  ProgramFailure,
+} from "./generated/result-program.js";
+export type {
+  ExecutedResult,
+  ExecutionSource,
+  ExecutionFailure,
+  ResultExecution,
+} from "./generated/result-execution.js";
 export type { ReadResultCall } from "./meta-tools/read-result.js";
 export {
   outlineOf,

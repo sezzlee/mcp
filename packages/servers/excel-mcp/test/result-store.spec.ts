@@ -1,5 +1,7 @@
 import { json, measureJson } from "@sezzlee/file-core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, inject, it, vi } from "vitest";
+import { createHandlers } from "../src/tools/handlers.js";
+import { createWorkbookRoot } from "../src/platform/paths.js";
 import type { CellScalar } from "../src/grid/cell-value.js";
 import { limits } from "../src/platform/limits.js";
 import {
@@ -59,6 +61,59 @@ afterEach(() => {
 });
 
 describe("retained result snapshots", () => {
+  it("expires computed JSON under the same absolute lifetime and releases its shared slot", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const now = Date.now();
+    const store = createResultStore();
+    const saved = store.retainJson('{"value":[1,2]}');
+    vi.setSystemTime(now + limits.resultTtlMs + 1);
+    expect(() => store.readJson({ resultId: saved.resultId })).toThrowError(
+      expect.objectContaining({ code: "result_unavailable" }),
+    );
+    for (let count = 0; count < 4; count++) store.retainJson('{"value":7}');
+    expect(() => store.retainJson('{"value":8}')).toThrowError(
+      expect.objectContaining({ code: "resource_limit" }),
+    );
+  });
+
+  it("refuses an oversized computed outline before consuming a result slot", () => {
+    const store = createResultStore();
+    expect(() =>
+      store.retainJson(JSON.stringify({ ["k".repeat(17_000)]: 1 })),
+    ).toThrowError(expect.objectContaining({ code: "resource_limit" }));
+    for (let count = 0; count < 4; count++) store.retainJson('{"value":7}');
+    expect(() => store.retainJson('{"value":8}')).toThrowError(
+      expect.objectContaining({ code: "resource_limit" }),
+    );
+  });
+
+  it("cancels a real result program when its owning handler closes", async () => {
+    const store = createResultStore();
+    const retained = store.retain(
+      [{ capture: capture([["Alpha", 10]]), metadata: metadata(1) }],
+      1,
+    );
+    const handlers = createHandlers(
+      await createWorkbookRoot(inject("fixtures").root),
+      store,
+    );
+    const running = handlers.execute_result({
+      resultId: retained.resultId,
+      code: "while (true) {}",
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    handlers.dispose();
+    const result = await running;
+    expect(result.isError).toBe(true);
+    const block = result.content[0];
+    if (block?.type !== "text") throw new Error("Missing JSON response");
+    const body: unknown = JSON.parse(block.text);
+    expect(body).toMatchObject({
+      error: "result_execution_failed",
+      reason: "cancelled",
+    });
+  });
+
   it("refuses oversized raw text before serializing plain or nested cells", () => {
     budget.maxResultBytes = 64;
     const large = "a".repeat(128);

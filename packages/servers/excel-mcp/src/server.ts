@@ -1,10 +1,12 @@
 import { createRequire } from "node:module";
+import { QuickJsExecutor, type DataExecutor } from "@sezzlee/compute-core";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { createFileSourceServer } from "@sezzlee/file-core";
 import type { WorkbookRoot } from "./platform/paths.js";
 import { toolDefinitions } from "./tools/definitions.js";
 import { createHandlers } from "./tools/handlers.js";
 import { createResultStore } from "./tools/retained-results.js";
+import { resultExecutionDescription } from "./tools/result-execution.js";
 import { closeRegexWorkers } from "./platform/regex.js";
 import { createMcpOutputServer } from "./platform/writing.js";
 import type { WorkbookOutput } from "./platform/versions.js";
@@ -23,9 +25,10 @@ const manifest = createRequire(import.meta.url)("../package.json") as {
   version: string;
 };
 
-export type ExcelMcpServerOptions =
+export type ExcelMcpServerOptions = (
   | { readonly mode: "read" }
-  | { readonly mode: "write"; readonly output: WorkbookOutput };
+  | { readonly mode: "write"; readonly output: WorkbookOutput }
+) & { readonly executor?: DataExecutor };
 
 export function createExcelMcpServer(
   root: WorkbookRoot,
@@ -33,11 +36,19 @@ export function createExcelMcpServer(
 ): McpServer {
   const identity = { name: "sezzlee-excel", version: manifest.version };
   const results = createResultStore();
-  const { dispose, ...handlers } = createHandlers(root, results);
+  const executor = options.executor ?? new QuickJsExecutor();
+  const definitions = {
+    ...toolDefinitions,
+    execute_result: {
+      ...toolDefinitions.execute_result,
+      description: resultExecutionDescription(executor.limits),
+    },
+  };
+  const { dispose, ...handlers } = createHandlers(root, results, executor);
   const { server, disposeWriting } =
     options.mode === "read"
       ? {
-          server: createFileSourceServer(identity, toolDefinitions, handlers),
+          server: createFileSourceServer(identity, definitions, handlers),
           disposeWriting: () => {},
         }
       : (() => {
@@ -47,7 +58,7 @@ export function createExcelMcpServer(
             disposeWriting,
             server: createMcpOutputServer(
               identity,
-              { ...toolDefinitions, ...writingToolDefinitions },
+              { ...definitions, ...writingToolDefinitions },
               {
                 ...handlers,
                 ...writingHandlers,

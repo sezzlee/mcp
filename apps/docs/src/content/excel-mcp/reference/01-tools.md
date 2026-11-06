@@ -1,10 +1,10 @@
 # Tools
 
-> Generated from the `tools/list` answer (server name `sezzlee-excel`) of `@sezzlee/excel-mcp` 0.14.0.
+> Generated from the `tools/list` answer (server name `sezzlee-excel`) of `@sezzlee/excel-mcp` 0.15.0.
 
 The descriptions are the text the server publishes to every client, so your agent reads exactly what this page shows. Every input schema is closed: an argument a tool does not list here, or a value of the wrong type, is refused with `invalid_argument` and never silently ignored.
 
-24 tools: `list_workbooks`, `describe_workbook`, `read_sheet`, `profile_sheet`, `get_merged_ranges`, `get_data_validations`, `get_tables`, `get_conditional_formats`, `get_images`, `get_charts`, `aggregate_sheet`, `query_result`, `find_in_sheet`, `calculate_workbook`, `prepare_bulk_job`, `run_bulk_job`, `get_bulk_job`, `prepare_bulk`, `prepare_edit`, `prepare_transfer`, `transfer_data`, `create_workbook`, `edit_workbook`, `create_workbook_version`.
+26 tools: `list_workbooks`, `describe_workbook`, `read_sheet`, `profile_sheet`, `get_merged_ranges`, `get_data_validations`, `get_tables`, `get_conditional_formats`, `get_images`, `get_charts`, `aggregate_sheet`, `query_result`, `execute_result`, `read_result`, `find_in_sheet`, `calculate_workbook`, `prepare_bulk_job`, `run_bulk_job`, `get_bulk_job`, `prepare_bulk`, `prepare_edit`, `prepare_transfer`, `transfer_data`, `create_workbook`, `edit_workbook`, `create_workbook_version`.
 
 ## `list_workbooks`
 
@@ -20,7 +20,7 @@ Annotations: read-only, idempotent, closed world.
 
 ## `describe_workbook`
 
-Discover sheets, used ranges, each sheet's header row and first column names (the row reads use by default), merge and validation counts, formula cache coverage and defined names. A known file and columns can be read or aggregated directly.
+Discover sheets, ranges, default headers and columns, merge/validation counts, formula cache coverage and defined names. Known files and columns need no discovery.
 
 Annotations: read-only, idempotent, closed world.
 
@@ -33,86 +33,86 @@ Annotations: read-only, idempotent, closed world.
 
 ## `read_sheet`
 
-Read a rectangular cell range as a compact grid: hoisted column headers plus row arrays, with rowNumbers giving the sheet row of each array. Pass nextCursor back to continue a truncated read. A date and time stored without a zone is returned without one, as a local wall clock; a written offset is kept.
+Read a rectangle as headers and row arrays; rowNumbers locate sheet rows. Continue with nextCursor. Unzoned dates/times remain local wall clocks; written offsets are kept.
 
 Annotations: read-only, idempotent, closed world.
 
-| Argument                    | Type                                                                                                                                                                                                  | Required | Description                                                                                                                                    |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `filePath`                  | string                                                                                                                                                                                                | yes      | Path under the root.                                                                                                                           |
-| `sheetName`                 | string                                                                                                                                                                                                |          | Exact sheet; default first visible.                                                                                                            |
-| `table`                     | string (1–255 chars)                                                                                                                                                                                  |          | Declared table name; selects its data rows. Not with range. XLSX only.                                                                         |
-| `visibleOnly`               | boolean                                                                                                                                                                                               |          | Skip saved hidden rows, AutoFilter's included. XLSX only.                                                                                      |
-| `range`                     | string                                                                                                                                                                                                |          | A1 range such as B2:D40, B:D or 2:40. Defaults to the used range.                                                                              |
-| `columns`                   | array of object (1–64 items)                                                                                                                                                                          |          | Readings [{column,type,...}] from profile_sheet; type-specific fields below.                                                                   |
-| `columns[].column`          | string                                                                                                                                                                                                | yes      | Column.                                                                                                                                        |
-| `columns[].type`            | `"number"` \| `"date"` \| `"boolean"` \| `"time"` \| `"duration"` \| `"text"`                                                                                                                         | yes      | How to read the column.                                                                                                                        |
-| `columns[].missingValues`   | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Missing-text tokens.                                                                                                                           |
-| `columns[].decimal`         | `"."` \| `","`                                                                                                                                                                                        |          | Decimal separator, for number.                                                                                                                 |
-| `columns[].group`           | `"none"` \| `"."` \| `","` \| `" "` \| `"'"`                                                                                                                                                          |          | Thousands separator, for number.                                                                                                               |
-| `columns[].locale`          | string (2–64 chars)                                                                                                                                                                                   |          | File locale, for number or date.                                                                                                               |
-| `columns[].numberingSystem` | string (3–32 chars)                                                                                                                                                                                   |          | Numbering system, for number.                                                                                                                  |
-| `columns[].identifiers`     | `"refuse"` \| `"read"`                                                                                                                                                                                |          | Whether to read digit identifiers, for number.                                                                                                 |
-| `columns[].format`          | string (1–64 chars)                                                                                                                                                                                   |          | Date pattern such as dd.MM.yyyy, for date.                                                                                                     |
-| `columns[].order`           | `"dmy"` \| `"mdy"`                                                                                                                                                                                    |          | Day/month order without a format, for date.                                                                                                    |
-| `columns[].trueValues`      | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | True-text tokens, for boolean.                                                                                                                 |
-| `columns[].falseValues`     | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | False-text tokens, for boolean.                                                                                                                |
-| `locale`                    | string (2–64 chars)                                                                                                                                                                                   |          | File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.                                                      |
-| `numberingSystem`           | string (3–32 chars)                                                                                                                                                                                   |          | Numbering system such as arab; needs locale.                                                                                                   |
-| `missingValues`             | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Missing-text tokens; default N/A, NULL, -, —, #N/A.                                                                                            |
-| `trueValues`                | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | True-text tokens; default true, yes, y, Evet, E.                                                                                               |
-| `falseValues`               | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | False-text tokens; default false, no, n, Hayır, H.                                                                                             |
-| `columnMode`                | `"auto"` \| `"header"` \| `"letter"`                                                                                                                                                                  |          | Column references: auto (default), header text or A1 letter.                                                                                   |
-| `includeTyped`              | boolean                                                                                                                                                                                               |          | Add a typedValues grid read by columns, which it requires.                                                                                     |
-| `cursor`                    | string                                                                                                                                                                                                |          | nextCursor of the previous page; not with sheetName or range. Options are inherited.                                                           |
-| `maxCells`                  | integer (1–10000)                                                                                                                                                                                     |          | Cells per response, default 2000. May change between cursor pages.                                                                             |
-| `valueMode`                 | `"values"` \| `"formulas"` \| `"both"`                                                                                                                                                                |          | values (default), formulas, or values with formula notes. XLSX only.                                                                           |
-| `mergedCells`               | `"master"` \| `"repeat"`                                                                                                                                                                              |          | Merged cells: master value only (default) or repeated. XLSX only.                                                                              |
-| `headerRow`                 | integer (≥ 0)                                                                                                                                                                                         |          | Header row (0: none). Default: table/AutoFilter header, first text header above data, else 1.                                                  |
-| `headerScan`                | boolean                                                                                                                                                                                               |          | Strict header detection: refuse when two rows or none qualify. Cannot be combined with headerRow on a new read. Cursor-bound: omit to inherit. |
-| `includeHyperlinks`         | boolean                                                                                                                                                                                               |          | Include hyperlink notes, default false. Cursor-bound; true requires XLSX.                                                                      |
-| `delimiter`                 | `"comma"` \| `"semicolon"` \| `"tab"` \| `"pipe"`                                                                                                                                                     |          | CSV separator; sniffed when omitted.                                                                                                           |
-| `encoding`                  | `"utf-8"` \| `"utf-16le"` \| `"utf-16be"` \| `"windows-1254"` \| `"iso-8859-9"` \| `"windows-1252"` \| `"windows-1251"` \| `"windows-1256"` \| `"shift_jis"` \| `"gb18030"` \| `"big5"` \| `"euc-kr"` |          | CSV encoding; BOM or utf-8 when omitted.                                                                                                       |
+| Argument                    | Type                                                                                                                                                                                                  | Required | Description                                                                                        |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------- |
+| `filePath`                  | string                                                                                                                                                                                                | yes      | Path under the root.                                                                               |
+| `sheetName`                 | string                                                                                                                                                                                                |          | Sheet; default first visible.                                                                      |
+| `table`                     | string (1–255 chars)                                                                                                                                                                                  |          | XLSX table: data rows, not range.                                                                  |
+| `visibleOnly`               | boolean                                                                                                                                                                                               |          | XLSX: skip hidden/AutoFilter rows.                                                                 |
+| `range`                     | string                                                                                                                                                                                                |          | A1: B2:D40, B:D, 2:40; default used range.                                                         |
+| `columns`                   | array of object (1–64 items)                                                                                                                                                                          |          | Readings {column,type,...}; reuse profile_sheet.                                                   |
+| `columns[].column`          | string                                                                                                                                                                                                | yes      | Column.                                                                                            |
+| `columns[].type`            | `"number"` \| `"date"` \| `"boolean"` \| `"time"` \| `"duration"` \| `"text"`                                                                                                                         | yes      | Reading type.                                                                                      |
+| `columns[].missingValues`   | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Missing-text tokens.                                                                               |
+| `columns[].decimal`         | `"."` \| `","`                                                                                                                                                                                        |          | Number decimal mark.                                                                               |
+| `columns[].group`           | `"none"` \| `"."` \| `","` \| `" "` \| `"'"`                                                                                                                                                          |          | Number group mark.                                                                                 |
+| `columns[].locale`          | string (2–64 chars)                                                                                                                                                                                   |          | Number/date locale.                                                                                |
+| `columns[].numberingSystem` | string (3–32 chars)                                                                                                                                                                                   |          | Number digit system.                                                                               |
+| `columns[].identifiers`     | `"refuse"` \| `"read"`                                                                                                                                                                                |          | Number: read digit identifiers?                                                                    |
+| `columns[].format`          | string (1–64 chars)                                                                                                                                                                                   |          | Date pattern, e.g. dd.MM.yyyy.                                                                     |
+| `columns[].order`           | `"dmy"` \| `"mdy"`                                                                                                                                                                                    |          | Date order if no format.                                                                           |
+| `columns[].trueValues`      | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Boolean true tokens.                                                                               |
+| `columns[].falseValues`     | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Boolean false tokens.                                                                              |
+| `locale`                    | string (2–64 chars)                                                                                                                                                                                   |          | BCP 47 locale: separators/month names, not date order.                                             |
+| `numberingSystem`           | string (3–32 chars)                                                                                                                                                                                   |          | Locale digit system, e.g. arab.                                                                    |
+| `missingValues`             | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Missing tokens: N/A, NULL, -, —, #N/A.                                                             |
+| `trueValues`                | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | True tokens: true, yes, y, Evet, E.                                                                |
+| `falseValues`               | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | False tokens: false, no, n, Hayır, H.                                                              |
+| `columnMode`                | `"auto"` \| `"header"` \| `"letter"`                                                                                                                                                                  |          | Column: auto (default), header, letter.                                                            |
+| `includeTyped`              | boolean                                                                                                                                                                                               |          | Add a typedValues grid read by columns, which it requires.                                         |
+| `cursor`                    | string                                                                                                                                                                                                |          | Continue nextCursor; not with sheetName/range. Inherits options.                                   |
+| `maxCells`                  | integer (1–10000)                                                                                                                                                                                     |          | Cells per page, default 2000; cursor pages may differ.                                             |
+| `valueMode`                 | `"values"` \| `"formulas"` \| `"both"`                                                                                                                                                                |          | values (default), formulas, or values with formula notes. XLSX only.                               |
+| `mergedCells`               | `"master"` \| `"repeat"`                                                                                                                                                                              |          | Merged cells: master value only (default) or repeated. XLSX only.                                  |
+| `headerRow`                 | integer (≥ 0)                                                                                                                                                                                         |          | Header: 0 none; default table/AutoFilter, text above data, else 1.                                 |
+| `headerScan`                | boolean                                                                                                                                                                                               |          | Refuse missing/ambiguous headers; not with headerRow on a new read. Cursor-bound: omit to inherit. |
+| `includeHyperlinks`         | boolean                                                                                                                                                                                               |          | Include hyperlink notes, default false. Cursor-bound; true requires XLSX.                          |
+| `delimiter`                 | `"comma"` \| `"semicolon"` \| `"tab"` \| `"pipe"`                                                                                                                                                     |          | CSV separator; sniffed when omitted.                                                               |
+| `encoding`                  | `"utf-8"` \| `"utf-16le"` \| `"utf-16be"` \| `"windows-1254"` \| `"iso-8859-9"` \| `"windows-1252"` \| `"windows-1251"` \| `"windows-1256"` \| `"shift_jis"` \| `"gb18030"` \| `"big5"` \| `"euc-kr"` |          | CSV encoding; BOM or utf-8 when omitted.                                                           |
 
 ## `profile_sheet`
 
-Profile a bounded rectangular prefix: types and confidence, formats, missing and distinct values, extrema, frequent values, unreadable examples and identifier signals. Returns reusable columns plus explicit sampling limits. This inspects cell contents.
+Sample a bounded prefix for types/confidence, formats, missing/distinct values, extrema, frequencies, unreadable examples and identifiers. Returns reusable columns and sampling limits.
 
 Annotations: read-only, idempotent, closed world.
 
-| Argument                    | Type                                                                                                                                                                                                  | Required | Description                                                                                   |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------- |
-| `filePath`                  | string                                                                                                                                                                                                | yes      | Path under the root.                                                                          |
-| `sheetName`                 | string                                                                                                                                                                                                |          | Exact sheet; default first visible.                                                           |
-| `table`                     | string (1–255 chars)                                                                                                                                                                                  |          | Declared table name; selects its data rows. Not with range. XLSX only.                        |
-| `visibleOnly`               | boolean                                                                                                                                                                                               |          | Skip saved hidden rows, AutoFilter's included. XLSX only.                                     |
-| `range`                     | string                                                                                                                                                                                                |          | A1 range including any header row, default used range.                                        |
-| `headerRow`                 | integer (0–1048576)                                                                                                                                                                                   |          | Header row (0: none). Default: table/AutoFilter header, first text header above data, else 1. |
-| `headerScan`                | boolean                                                                                                                                                                                               |          | Strict header detection: refuse when two rows or none qualify.                                |
-| `columns`                   | array of object (1–64 items)                                                                                                                                                                          |          | Readings [{column,type,...}] from profile_sheet; type-specific fields below.                  |
-| `columns[].column`          | string                                                                                                                                                                                                | yes      | Column.                                                                                       |
-| `columns[].type`            | `"number"` \| `"date"` \| `"boolean"` \| `"time"` \| `"duration"` \| `"text"`                                                                                                                         | yes      | How to read the column.                                                                       |
-| `columns[].missingValues`   | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Missing-text tokens.                                                                          |
-| `columns[].decimal`         | `"."` \| `","`                                                                                                                                                                                        |          | Decimal separator, for number.                                                                |
-| `columns[].group`           | `"none"` \| `"."` \| `","` \| `" "` \| `"'"`                                                                                                                                                          |          | Thousands separator, for number.                                                              |
-| `columns[].locale`          | string (2–64 chars)                                                                                                                                                                                   |          | File locale, for number or date.                                                              |
-| `columns[].numberingSystem` | string (3–32 chars)                                                                                                                                                                                   |          | Numbering system, for number.                                                                 |
-| `columns[].identifiers`     | `"refuse"` \| `"read"`                                                                                                                                                                                |          | Whether to read digit identifiers, for number.                                                |
-| `columns[].format`          | string (1–64 chars)                                                                                                                                                                                   |          | Date pattern such as dd.MM.yyyy, for date.                                                    |
-| `columns[].order`           | `"dmy"` \| `"mdy"`                                                                                                                                                                                    |          | Day/month order without a format, for date.                                                   |
-| `columns[].trueValues`      | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | True-text tokens, for boolean.                                                                |
-| `columns[].falseValues`     | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | False-text tokens, for boolean.                                                               |
-| `locale`                    | string (2–64 chars)                                                                                                                                                                                   |          | File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.     |
-| `numberingSystem`           | string (3–32 chars)                                                                                                                                                                                   |          | Numbering system such as arab; needs locale.                                                  |
-| `missingValues`             | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Missing-text tokens; default N/A, NULL, -, —, #N/A.                                           |
-| `trueValues`                | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | True-text tokens; default true, yes, y, Evet, E.                                              |
-| `falseValues`               | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | False-text tokens; default false, no, n, Hayır, H.                                            |
-| `columnMode`                | `"auto"` \| `"header"` \| `"letter"`                                                                                                                                                                  |          | Column references: auto (default), header text or A1 letter.                                  |
-| `mergedCells`               | `"master"` \| `"repeat"`                                                                                                                                                                              |          | Merged cell policy, default master.                                                           |
-| `maxRows`                   | integer (1–5000)                                                                                                                                                                                      |          | Sampled rows, default 1000.                                                                   |
-| `maxColumns`                | integer (1–64)                                                                                                                                                                                        |          | Profiled columns, default 16.                                                                 |
-| `delimiter`                 | `"comma"` \| `"semicolon"` \| `"tab"` \| `"pipe"`                                                                                                                                                     |          | CSV separator; sniffed when omitted.                                                          |
-| `encoding`                  | `"utf-8"` \| `"utf-16le"` \| `"utf-16be"` \| `"windows-1254"` \| `"iso-8859-9"` \| `"windows-1252"` \| `"windows-1251"` \| `"windows-1256"` \| `"shift_jis"` \| `"gb18030"` \| `"big5"` \| `"euc-kr"` |          | CSV encoding; BOM or utf-8 when omitted.                                                      |
+| Argument                    | Type                                                                                                                                                                                                  | Required | Description                                                        |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------ |
+| `filePath`                  | string                                                                                                                                                                                                | yes      | Path under the root.                                               |
+| `sheetName`                 | string                                                                                                                                                                                                |          | Sheet; default first visible.                                      |
+| `table`                     | string (1–255 chars)                                                                                                                                                                                  |          | XLSX table: data rows, not range.                                  |
+| `visibleOnly`               | boolean                                                                                                                                                                                               |          | XLSX: skip hidden/AutoFilter rows.                                 |
+| `range`                     | string                                                                                                                                                                                                |          | A1 range including any header row, default used range.             |
+| `headerRow`                 | integer (0–1048576)                                                                                                                                                                                   |          | Header: 0 none; default table/AutoFilter, text above data, else 1. |
+| `headerScan`                | boolean                                                                                                                                                                                               |          | Refuse ambiguous or missing headers.                               |
+| `columns`                   | array of object (1–64 items)                                                                                                                                                                          |          | Readings {column,type,...}; reuse profile_sheet.                   |
+| `columns[].column`          | string                                                                                                                                                                                                | yes      | Column.                                                            |
+| `columns[].type`            | `"number"` \| `"date"` \| `"boolean"` \| `"time"` \| `"duration"` \| `"text"`                                                                                                                         | yes      | Reading type.                                                      |
+| `columns[].missingValues`   | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Missing-text tokens.                                               |
+| `columns[].decimal`         | `"."` \| `","`                                                                                                                                                                                        |          | Number decimal mark.                                               |
+| `columns[].group`           | `"none"` \| `"."` \| `","` \| `" "` \| `"'"`                                                                                                                                                          |          | Number group mark.                                                 |
+| `columns[].locale`          | string (2–64 chars)                                                                                                                                                                                   |          | Number/date locale.                                                |
+| `columns[].numberingSystem` | string (3–32 chars)                                                                                                                                                                                   |          | Number digit system.                                               |
+| `columns[].identifiers`     | `"refuse"` \| `"read"`                                                                                                                                                                                |          | Number: read digit identifiers?                                    |
+| `columns[].format`          | string (1–64 chars)                                                                                                                                                                                   |          | Date pattern, e.g. dd.MM.yyyy.                                     |
+| `columns[].order`           | `"dmy"` \| `"mdy"`                                                                                                                                                                                    |          | Date order if no format.                                           |
+| `columns[].trueValues`      | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Boolean true tokens.                                               |
+| `columns[].falseValues`     | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Boolean false tokens.                                              |
+| `locale`                    | string (2–64 chars)                                                                                                                                                                                   |          | BCP 47 locale: separators/month names, not date order.             |
+| `numberingSystem`           | string (3–32 chars)                                                                                                                                                                                   |          | Locale digit system, e.g. arab.                                    |
+| `missingValues`             | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Missing tokens: N/A, NULL, -, —, #N/A.                             |
+| `trueValues`                | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | True tokens: true, yes, y, Evet, E.                                |
+| `falseValues`               | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | False tokens: false, no, n, Hayır, H.                              |
+| `columnMode`                | `"auto"` \| `"header"` \| `"letter"`                                                                                                                                                                  |          | Column: auto (default), header, letter.                            |
+| `mergedCells`               | `"master"` \| `"repeat"`                                                                                                                                                                              |          | Merged cell policy, default master.                                |
+| `maxRows`                   | integer (1–5000)                                                                                                                                                                                      |          | Sampled rows, default 1000.                                        |
+| `maxColumns`                | integer (1–64)                                                                                                                                                                                        |          | Profiled columns, default 16.                                      |
+| `delimiter`                 | `"comma"` \| `"semicolon"` \| `"tab"` \| `"pipe"`                                                                                                                                                     |          | CSV separator; sniffed when omitted.                               |
+| `encoding`                  | `"utf-8"` \| `"utf-16le"` \| `"utf-16be"` \| `"windows-1254"` \| `"iso-8859-9"` \| `"windows-1252"` \| `"windows-1251"` \| `"windows-1256"` \| `"shift_jis"` \| `"gb18030"` \| `"big5"` \| `"euc-kr"` |          | CSV encoding; BOM or utf-8 when omitted.                           |
 
 ## `get_merged_ranges`
 
@@ -120,10 +120,10 @@ List the merged cell ranges of a worksheet.
 
 Annotations: read-only, idempotent, closed world.
 
-| Argument    | Type   | Required | Description                         |
-| ----------- | ------ | -------- | ----------------------------------- |
-| `filePath`  | string | yes      | Path under the root.                |
-| `sheetName` | string |          | Exact sheet; default first visible. |
+| Argument    | Type   | Required | Description                   |
+| ----------- | ------ | -------- | ----------------------------- |
+| `filePath`  | string | yes      | Path under the root.          |
+| `sheetName` | string |          | Sheet; default first visible. |
 
 ## `get_data_validations`
 
@@ -131,10 +131,10 @@ List the data validation rules of a worksheet, grouped back into rectangular ran
 
 Annotations: read-only, idempotent, closed world.
 
-| Argument    | Type   | Required | Description                         |
-| ----------- | ------ | -------- | ----------------------------------- |
-| `filePath`  | string | yes      | Path under the root.                |
-| `sheetName` | string |          | Exact sheet; default first visible. |
+| Argument    | Type   | Required | Description                   |
+| ----------- | ------ | -------- | ----------------------------- |
+| `filePath`  | string | yes      | Path under the root.          |
+| `sheetName` | string |          | Sheet; default first visible. |
 
 ## `get_tables`
 
@@ -142,10 +142,10 @@ List the Excel Tables (ListObjects) a worksheet declares: range, header and tota
 
 Annotations: read-only, idempotent, closed world.
 
-| Argument    | Type   | Required | Description                         |
-| ----------- | ------ | -------- | ----------------------------------- |
-| `filePath`  | string | yes      | Path under the root.                |
-| `sheetName` | string |          | Exact sheet; default first visible. |
+| Argument    | Type   | Required | Description                   |
+| ----------- | ------ | -------- | ----------------------------- |
+| `filePath`  | string | yes      | Path under the root.          |
+| `sheetName` | string |          | Sheet; default first visible. |
 
 ## `get_conditional_formats`
 
@@ -153,10 +153,10 @@ List the conditional formatting rules of a worksheet as predicates: target range
 
 Annotations: read-only, idempotent, closed world.
 
-| Argument    | Type   | Required | Description                         |
-| ----------- | ------ | -------- | ----------------------------------- |
-| `filePath`  | string | yes      | Path under the root.                |
-| `sheetName` | string |          | Exact sheet; default first visible. |
+| Argument    | Type   | Required | Description                   |
+| ----------- | ------ | -------- | ----------------------------- |
+| `filePath`  | string | yes      | Path under the root.          |
+| `sheetName` | string |          | Sheet; default first visible. |
 
 ## `get_images`
 
@@ -167,7 +167,7 @@ Annotations: read-only, idempotent, closed world.
 | Argument    | Type                                                        | Required | Description                                        |
 | ----------- | ----------------------------------------------------------- | -------- | -------------------------------------------------- |
 | `filePath`  | string                                                      | yes      | Path under the root.                               |
-| `sheetName` | string                                                      |          | Exact sheet; default first visible.                |
+| `sheetName` | string                                                      |          | Sheet; default first visible.                      |
 | `kind`      | `"picture"` \| `"chart"` \| `"pivotTable"` \| `"sparkline"` |          | Only picture is read here; charts are get_charts'. |
 
 ## `get_charts`
@@ -179,99 +179,99 @@ Annotations: read-only, idempotent, closed world.
 | Argument    | Type             | Required | Description                                                                         |
 | ----------- | ---------------- | -------- | ----------------------------------------------------------------------------------- |
 | `filePath`  | string           | yes      | Path under the root.                                                                |
-| `sheetName` | string           |          | Exact sheet; default first visible.                                                 |
+| `sheetName` | string           |          | Sheet; default first visible.                                                       |
 | `chartId`   | integer (≥ 1)    |          | 1-based chart index on the sheet. Omit to list every chart up to the per-sheet cap. |
 | `maxPoints` | integer (1–2000) |          | Cached points per series, default 200, at most 2000.                                |
 
 ## `aggregate_sheet`
 
-Calculate filtered totals, grouped rankings, conditional metrics or pivots across the selected range. Known files and columns need no discovery call. Use resultMode retained for a full snapshot and query_result continuation. Unzoned dates remain local wall clocks.
+Calculate filtered totals, grouped rankings, conditional metrics or pivots over the selected range. resultMode retained enables query_result/execute_result over all groups. Unzoned dates remain local wall clocks.
 
 Annotations: read-only, closed world.
 
-| Argument                             | Type                                                                                                                                                                                                                                                   | Required | Description                                                                                                                                                                                                                                                                                                                                                                      |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `filePath`                           | string                                                                                                                                                                                                                                                 | yes      | Path under the root.                                                                                                                                                                                                                                                                                                                                                             |
-| `sheetName`                          | string                                                                                                                                                                                                                                                 |          | Exact sheet; default first visible.                                                                                                                                                                                                                                                                                                                                              |
-| `resultMode`                         | `"inline"` \| `"retained"`                                                                                                                                                                                                                             |          | inline (default), or retain all groups for 15 minutes in this instance. retained returns a preview up to 16 KiB and resultId, plus one per groupingSets entry; a wide preview lists totalColumns. All processing limits apply; failures store nothing.                                                                                                                           |
-| `table`                              | string (1–255 chars)                                                                                                                                                                                                                                   |          | Declared table name; selects its data rows. Not with range. XLSX only.                                                                                                                                                                                                                                                                                                           |
-| `visibleOnly`                        | boolean                                                                                                                                                                                                                                                |          | Skip saved hidden rows, AutoFilter's included. XLSX only.                                                                                                                                                                                                                                                                                                                        |
-| `range`                              | string                                                                                                                                                                                                                                                 |          | A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.                                                                                                                                                                                                                                                                                     |
-| `groupBy`                            | array of any (≤ 8 items)                                                                                                                                                                                                                               |          | Row grouping keys; omit for a whole-range total. A key is a column, {column, by} for a UTC date part (month includes the year, week is ISO, weekday Monday=1), or {column, bins} or {column, width, origin?} for [lower, upper) bins.                                                                                                                                            |
-| `pivotBy`                            | array of any (≤ 8 items)                                                                                                                                                                                                                               |          | Column axis of a dense pivot, in groupBy's key forms. Missing combinations have count 0, other metrics null.                                                                                                                                                                                                                                                                     |
-| `groupingSets`                       | array of object (1–8 items)                                                                                                                                                                                                                            |          | More breakdowns [{groupBy}] in groupBy's key forms over the same scan, returned in groupingSets; [] gives a grand total.                                                                                                                                                                                                                                                         |
-| `groupingSets[].groupBy`             | array of any (≤ 8 items)                                                                                                                                                                                                                               | yes      | Keys in groupBy's forms.                                                                                                                                                                                                                                                                                                                                                         |
-| `compact`                            | boolean                                                                                                                                                                                                                                                |          | Omit repeated CSV and mode metadata; diagnostics remain.                                                                                                                                                                                                                                                                                                                         |
-| `metrics`                            | array of object (1–8 items)                                                                                                                                                                                                                            | yes      | Values to compute [{fn, column?, percentile?, round?, where?}], one output column each after the group keys. A metric's where has the top-level where's form and applies after it.                                                                                                                                                                                               |
-| `metrics[].fn`                       | `"count"` \| `"countValues"` \| `"countDistinct"` \| `"countTrue"` \| `"countFalse"` \| `"trueRatio"` \| `"sum"` \| `"avg"` \| `"min"` \| `"max"` \| `"stddev"` \| `"median"` \| `"p50"` \| `"p90"` \| `"percentile"`                                  | yes      | count counts matched rows including blank cells, regardless of column. countValues counts non-empty cells in column; countDistinct counts distinct values. trueRatio is true over valid booleans. Numeric functions read numeric text and skip identifiers; percentiles are PERCENTILE.INC; stddev is the sample deviation.                                                      |
-| `metrics[].column`                   | string                                                                                                                                                                                                                                                 |          | Column.                                                                                                                                                                                                                                                                                                                                                                          |
-| `metrics[].percentile`               | number (0–1)                                                                                                                                                                                                                                           |          | Fraction 0 to 1, for fn percentile.                                                                                                                                                                                                                                                                                                                                              |
-| `metrics[].round`                    | integer (0–10)                                                                                                                                                                                                                                         |          | Decimal places, half away from zero as ROUND.                                                                                                                                                                                                                                                                                                                                    |
-| `metrics[].where`                    | array of object (≤ 16 items)                                                                                                                                                                                                                           |          | Filter for this metric, in where's form.                                                                                                                                                                                                                                                                                                                                         |
-| `metrics[].where[].column`           | string                                                                                                                                                                                                                                                 | yes      | Column.                                                                                                                                                                                                                                                                                                                                                                          |
-| `metrics[].where[].op`               | `"eq"` \| `"ne"` \| `"lt"` \| `"lte"` \| `"gt"` \| `"gte"` \| `"contains"` \| `"startsWith"` \| `"endsWith"` \| `"in"` \| `"between"` \| `"isEmpty"` \| `"isNotEmpty"` \| `"isError"` \| `"isNumber"` \| `"isText"` \| `"inColumn"` \| `"notInColumn"` | yes      | Operator.                                                                                                                                                                                                                                                                                                                                                                        |
-| `metrics[].where[].value`            | string \| number \| boolean                                                                                                                                                                                                                            |          | Operand.                                                                                                                                                                                                                                                                                                                                                                         |
-| `metrics[].where[].values`           | array of string \| number \| boolean (1–64 items)                                                                                                                                                                                                      |          | Operands of in, or [low, high] of between.                                                                                                                                                                                                                                                                                                                                       |
-| `metrics[].where[].source`           | object                                                                                                                                                                                                                                                 |          | Column inColumn and notInColumn test against.                                                                                                                                                                                                                                                                                                                                    |
-| `metrics[].where[].source.filePath`  | string                                                                                                                                                                                                                                                 |          | Defaults to this file.                                                                                                                                                                                                                                                                                                                                                           |
-| `metrics[].where[].source.sheetName` | string                                                                                                                                                                                                                                                 |          | Source sheet.                                                                                                                                                                                                                                                                                                                                                                    |
-| `metrics[].where[].source.column`    | string                                                                                                                                                                                                                                                 | yes      | Column.                                                                                                                                                                                                                                                                                                                                                                          |
-| `metrics[].where[].source.range`     | string                                                                                                                                                                                                                                                 |          | Source range.                                                                                                                                                                                                                                                                                                                                                                    |
-| `metrics[].where[].source.headerRow` | integer (≥ 0)                                                                                                                                                                                                                                          |          | Source header row.                                                                                                                                                                                                                                                                                                                                                               |
-| `where`                              | array of object (≤ 16 items)                                                                                                                                                                                                                           |          | Row filter. Conditions {column, op, value?, values?, source?}. Comparison, text and isError ops take value; in takes values; between takes [low, high]; isEmpty, isNotEmpty, isNumber and isText take neither. inColumn and notInColumn take source {filePath?, sheetName?, column, range?, headerRow?}, another column matched as eq compares. Incomparable cells are reported. |
-| `where[].column`                     | string                                                                                                                                                                                                                                                 | yes      | Column.                                                                                                                                                                                                                                                                                                                                                                          |
-| `where[].op`                         | `"eq"` \| `"ne"` \| `"lt"` \| `"lte"` \| `"gt"` \| `"gte"` \| `"contains"` \| `"startsWith"` \| `"endsWith"` \| `"in"` \| `"between"` \| `"isEmpty"` \| `"isNotEmpty"` \| `"isError"` \| `"isNumber"` \| `"isText"` \| `"inColumn"` \| `"notInColumn"` | yes      | Operator.                                                                                                                                                                                                                                                                                                                                                                        |
-| `where[].value`                      | string \| number \| boolean                                                                                                                                                                                                                            |          | Operand.                                                                                                                                                                                                                                                                                                                                                                         |
-| `where[].values`                     | array of string \| number \| boolean (1–64 items)                                                                                                                                                                                                      |          | Operands of in, or [low, high] of between.                                                                                                                                                                                                                                                                                                                                       |
-| `where[].source`                     | object                                                                                                                                                                                                                                                 |          | Column inColumn and notInColumn test against.                                                                                                                                                                                                                                                                                                                                    |
-| `where[].source.filePath`            | string                                                                                                                                                                                                                                                 |          | Defaults to this file.                                                                                                                                                                                                                                                                                                                                                           |
-| `where[].source.sheetName`           | string                                                                                                                                                                                                                                                 |          | Source sheet.                                                                                                                                                                                                                                                                                                                                                                    |
-| `where[].source.column`              | string                                                                                                                                                                                                                                                 | yes      | Column.                                                                                                                                                                                                                                                                                                                                                                          |
-| `where[].source.range`               | string                                                                                                                                                                                                                                                 |          | Source range.                                                                                                                                                                                                                                                                                                                                                                    |
-| `where[].source.headerRow`           | integer (≥ 0)                                                                                                                                                                                                                                          |          | Source header row.                                                                                                                                                                                                                                                                                                                                                               |
-| `match`                              | `"all"` \| `"any"`                                                                                                                                                                                                                                     |          | Combine predicates with all (default) or any.                                                                                                                                                                                                                                                                                                                                    |
-| `headerRow`                          | integer (≥ 0)                                                                                                                                                                                                                                          |          | Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.                                                                                                                                                                                                                                                                               |
-| `headerScan`                         | boolean                                                                                                                                                                                                                                                |          | Strict header detection: refuse when two rows or none qualify.                                                                                                                                                                                                                                                                                                                   |
-| `columnMode`                         | `"auto"` \| `"header"` \| `"letter"`                                                                                                                                                                                                                   |          | Column references: auto (default), header text or A1 letter.                                                                                                                                                                                                                                                                                                                     |
-| `caseSensitive`                      | boolean                                                                                                                                                                                                                                                |          | Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.                                                                                                                                                                                                                                                                                         |
-| `columns`                            | array of object (1–64 items)                                                                                                                                                                                                                           |          | Readings [{column,type,...}] from profile_sheet; type-specific fields below.                                                                                                                                                                                                                                                                                                     |
-| `columns[].column`                   | string                                                                                                                                                                                                                                                 | yes      | Column.                                                                                                                                                                                                                                                                                                                                                                          |
-| `columns[].type`                     | `"number"` \| `"date"` \| `"boolean"` \| `"time"` \| `"duration"` \| `"text"`                                                                                                                                                                          | yes      | How to read the column.                                                                                                                                                                                                                                                                                                                                                          |
-| `columns[].missingValues`            | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                                                                             |          | Missing-text tokens.                                                                                                                                                                                                                                                                                                                                                             |
-| `columns[].decimal`                  | `"."` \| `","`                                                                                                                                                                                                                                         |          | Decimal separator, for number.                                                                                                                                                                                                                                                                                                                                                   |
-| `columns[].group`                    | `"none"` \| `"."` \| `","` \| `" "` \| `"'"`                                                                                                                                                                                                           |          | Thousands separator, for number.                                                                                                                                                                                                                                                                                                                                                 |
-| `columns[].locale`                   | string (2–64 chars)                                                                                                                                                                                                                                    |          | File locale, for number or date.                                                                                                                                                                                                                                                                                                                                                 |
-| `columns[].numberingSystem`          | string (3–32 chars)                                                                                                                                                                                                                                    |          | Numbering system, for number.                                                                                                                                                                                                                                                                                                                                                    |
-| `columns[].identifiers`              | `"refuse"` \| `"read"`                                                                                                                                                                                                                                 |          | Whether to read digit identifiers, for number.                                                                                                                                                                                                                                                                                                                                   |
-| `columns[].format`                   | string (1–64 chars)                                                                                                                                                                                                                                    |          | Date pattern such as dd.MM.yyyy, for date.                                                                                                                                                                                                                                                                                                                                       |
-| `columns[].order`                    | `"dmy"` \| `"mdy"`                                                                                                                                                                                                                                     |          | Day/month order without a format, for date.                                                                                                                                                                                                                                                                                                                                      |
-| `columns[].trueValues`               | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                                                                             |          | True-text tokens, for boolean.                                                                                                                                                                                                                                                                                                                                                   |
-| `columns[].falseValues`              | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                                                                             |          | False-text tokens, for boolean.                                                                                                                                                                                                                                                                                                                                                  |
-| `locale`                             | string (2–64 chars)                                                                                                                                                                                                                                    |          | File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.                                                                                                                                                                                                                                                                                        |
-| `numberingSystem`                    | string (3–32 chars)                                                                                                                                                                                                                                    |          | Numbering system such as arab; needs locale.                                                                                                                                                                                                                                                                                                                                     |
-| `missingValues`                      | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                                                                             |          | Missing-text tokens; default N/A, NULL, -, —, #N/A.                                                                                                                                                                                                                                                                                                                              |
-| `trueValues`                         | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                                                                             |          | True-text tokens; default true, yes, y, Evet, E.                                                                                                                                                                                                                                                                                                                                 |
-| `falseValues`                        | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                                                                             |          | False-text tokens; default false, no, n, Hayır, H.                                                                                                                                                                                                                                                                                                                               |
-| `mergedCells`                        | `"master"` \| `"repeat"`                                                                                                                                                                                                                               |          | Merged values and header detection policy, default master.                                                                                                                                                                                                                                                                                                                       |
-| `orderBy`                            | `"group"` \| `"metric"`                                                                                                                                                                                                                                |          | Sort by group key (default) or selected metric.                                                                                                                                                                                                                                                                                                                                  |
-| `orderByMetric`                      | integer (1–8)                                                                                                                                                                                                                                          |          | One-based index into metrics, default 1. Cannot exceed the actual metrics count.                                                                                                                                                                                                                                                                                                 |
-| `orderByDerived`                     | string                                                                                                                                                                                                                                                 |          | Derived metric to sort by with orderBy metric.                                                                                                                                                                                                                                                                                                                                   |
-| `derived`                            | array of object (1–4 items)                                                                                                                                                                                                                            |          | Per-group values from the metrics: ratios, shares, differences, adjusted totals; appended after the metrics. Not with pivotBy.                                                                                                                                                                                                                                                   |
-| `derived[].name`                     | string (1–64 chars)                                                                                                                                                                                                                                    | yes      | Output column label.                                                                                                                                                                                                                                                                                                                                                             |
-| `derived[].numerator`                | array of object (1–8 items)                                                                                                                                                                                                                            | yes      | Terms added together: factor (default 1) × metric.                                                                                                                                                                                                                                                                                                                               |
-| `derived[].numerator[].metric`       | integer (1–8)                                                                                                                                                                                                                                          | yes      | One-based index into metrics.                                                                                                                                                                                                                                                                                                                                                    |
-| `derived[].numerator[].factor`       | number                                                                                                                                                                                                                                                 |          | Multiplier, default 1.                                                                                                                                                                                                                                                                                                                                                           |
-| `derived[].numerator[].scope`        | `"group"` \| `"total"`                                                                                                                                                                                                                                 |          | group (default) or total: the metric summed over every group, for a share; counts and sum only.                                                                                                                                                                                                                                                                                  |
-| `derived[].denominator`              | array of object (1–8 items)                                                                                                                                                                                                                            |          | Terms added together; a zero denominator gives null.                                                                                                                                                                                                                                                                                                                             |
-| `derived[].denominator[].metric`     | integer (1–8)                                                                                                                                                                                                                                          | yes      | One-based index into metrics.                                                                                                                                                                                                                                                                                                                                                    |
-| `derived[].denominator[].factor`     | number                                                                                                                                                                                                                                                 |          | Multiplier, default 1.                                                                                                                                                                                                                                                                                                                                                           |
-| `derived[].denominator[].scope`      | `"group"` \| `"total"`                                                                                                                                                                                                                                 |          | group (default) or total: the metric summed over every group, for a share; counts and sum only.                                                                                                                                                                                                                                                                                  |
-| `derived[].scale`                    | number                                                                                                                                                                                                                                                 |          | Final multiplier, such as 100.                                                                                                                                                                                                                                                                                                                                                   |
-| `derived[].round`                    | integer (0–10)                                                                                                                                                                                                                                         |          | Decimal places, half away from zero.                                                                                                                                                                                                                                                                                                                                             |
-| `descending`                         | boolean                                                                                                                                                                                                                                                |          | Descending sort, default false.                                                                                                                                                                                                                                                                                                                                                  |
-| `maxGroups`                          | integer (1–500)                                                                                                                                                                                                                                        |          | Returned groups, default 50. In retained mode, caps only the byte-bounded preview.                                                                                                                                                                                                                                                                                               |
-| `delimiter`                          | `"comma"` \| `"semicolon"` \| `"tab"` \| `"pipe"`                                                                                                                                                                                                      |          | CSV separator; sniffed when omitted.                                                                                                                                                                                                                                                                                                                                             |
-| `encoding`                           | `"utf-8"` \| `"utf-16le"` \| `"utf-16be"` \| `"windows-1254"` \| `"iso-8859-9"` \| `"windows-1252"` \| `"windows-1251"` \| `"windows-1256"` \| `"shift_jis"` \| `"gb18030"` \| `"big5"` \| `"euc-kr"`                                                  |          | CSV encoding; BOM or utf-8 when omitted.                                                                                                                                                                                                                                                                                                                                         |
+| Argument                             | Type                                                                                                                                                                                                                                                   | Required | Description                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `filePath`                           | string                                                                                                                                                                                                                                                 | yes      | Path under the root.                                                                                                                                                                                                                                                                                                        |
+| `sheetName`                          | string                                                                                                                                                                                                                                                 |          | Sheet; default first visible.                                                                                                                                                                                                                                                                                               |
+| `resultMode`                         | `"inline"` \| `"retained"`                                                                                                                                                                                                                             |          | inline (default), or retain all groups for 15 minutes in this instance. retained returns a preview up to 16 KiB and resultId, plus one per groupingSets entry; a wide preview lists totalColumns. All processing limits apply; failures store nothing.                                                                      |
+| `table`                              | string (1–255 chars)                                                                                                                                                                                                                                   |          | XLSX table: data rows, not range.                                                                                                                                                                                                                                                                                           |
+| `visibleOnly`                        | boolean                                                                                                                                                                                                                                                |          | XLSX: skip hidden/AutoFilter rows.                                                                                                                                                                                                                                                                                          |
+| `range`                              | string                                                                                                                                                                                                                                                 |          | A1 range such as A1:H500, B:D or 2:40, including the header row. Defaults to the used range.                                                                                                                                                                                                                                |
+| `groupBy`                            | array of any (≤ 8 items)                                                                                                                                                                                                                               |          | Row grouping keys; omit for a whole-range total. Keys: column; {column,by} UTC part (month includes year, ISO week, Monday=1); {column,bins} or {column,width,origin?} for [lower,upper) bins.                                                                                                                              |
+| `pivotBy`                            | array of any (≤ 8 items)                                                                                                                                                                                                                               |          | Column axis of a dense pivot, in groupBy's key forms. Missing combinations have count 0, other metrics null.                                                                                                                                                                                                                |
+| `groupingSets`                       | array of object (1–8 items)                                                                                                                                                                                                                            |          | More breakdowns [{groupBy}] in groupBy's key forms over the same scan, returned in groupingSets; [] gives a grand total.                                                                                                                                                                                                    |
+| `groupingSets[].groupBy`             | array of any (≤ 8 items)                                                                                                                                                                                                                               | yes      | Keys in groupBy's forms.                                                                                                                                                                                                                                                                                                    |
+| `compact`                            | boolean                                                                                                                                                                                                                                                |          | Omit repeated CSV and mode metadata; diagnostics remain.                                                                                                                                                                                                                                                                    |
+| `metrics`                            | array of object (1–8 items)                                                                                                                                                                                                                            | yes      | Values to compute [{fn, column?, percentile?, round?, where?}], one output column each after the group keys. A metric's where has the top-level where's form and applies after it.                                                                                                                                          |
+| `metrics[].fn`                       | `"count"` \| `"countValues"` \| `"countDistinct"` \| `"countTrue"` \| `"countFalse"` \| `"trueRatio"` \| `"sum"` \| `"avg"` \| `"min"` \| `"max"` \| `"stddev"` \| `"median"` \| `"p50"` \| `"p90"` \| `"percentile"`                                  | yes      | count counts matched rows including blank cells, regardless of column. countValues counts non-empty cells in column; countDistinct counts distinct values. trueRatio is true over valid booleans. Numeric functions read numeric text and skip identifiers; percentiles are PERCENTILE.INC; stddev is the sample deviation. |
+| `metrics[].column`                   | string                                                                                                                                                                                                                                                 |          | Column.                                                                                                                                                                                                                                                                                                                     |
+| `metrics[].percentile`               | number (0–1)                                                                                                                                                                                                                                           |          | Fraction 0 to 1, for fn percentile.                                                                                                                                                                                                                                                                                         |
+| `metrics[].round`                    | integer (0–10)                                                                                                                                                                                                                                         |          | Decimal places, half away from zero as ROUND.                                                                                                                                                                                                                                                                               |
+| `metrics[].where`                    | array of object (≤ 16 items)                                                                                                                                                                                                                           |          | Filter for this metric, in where's form.                                                                                                                                                                                                                                                                                    |
+| `metrics[].where[].column`           | string                                                                                                                                                                                                                                                 | yes      | Column.                                                                                                                                                                                                                                                                                                                     |
+| `metrics[].where[].op`               | `"eq"` \| `"ne"` \| `"lt"` \| `"lte"` \| `"gt"` \| `"gte"` \| `"contains"` \| `"startsWith"` \| `"endsWith"` \| `"in"` \| `"between"` \| `"isEmpty"` \| `"isNotEmpty"` \| `"isError"` \| `"isNumber"` \| `"isText"` \| `"inColumn"` \| `"notInColumn"` | yes      | Operator.                                                                                                                                                                                                                                                                                                                   |
+| `metrics[].where[].value`            | string \| number \| boolean                                                                                                                                                                                                                            |          | Operand.                                                                                                                                                                                                                                                                                                                    |
+| `metrics[].where[].values`           | array of string \| number \| boolean (1–64 items)                                                                                                                                                                                                      |          | Operands of in, or [low, high] of between.                                                                                                                                                                                                                                                                                  |
+| `metrics[].where[].source`           | object                                                                                                                                                                                                                                                 |          | Column inColumn and notInColumn test against.                                                                                                                                                                                                                                                                               |
+| `metrics[].where[].source.filePath`  | string                                                                                                                                                                                                                                                 |          | Defaults to this file.                                                                                                                                                                                                                                                                                                      |
+| `metrics[].where[].source.sheetName` | string                                                                                                                                                                                                                                                 |          | Source sheet.                                                                                                                                                                                                                                                                                                               |
+| `metrics[].where[].source.column`    | string                                                                                                                                                                                                                                                 | yes      | Column.                                                                                                                                                                                                                                                                                                                     |
+| `metrics[].where[].source.range`     | string                                                                                                                                                                                                                                                 |          | Source range.                                                                                                                                                                                                                                                                                                               |
+| `metrics[].where[].source.headerRow` | integer (≥ 0)                                                                                                                                                                                                                                          |          | Source header row.                                                                                                                                                                                                                                                                                                          |
+| `where`                              | array of object (≤ 16 items)                                                                                                                                                                                                                           |          | Row filter. Filters {column,op,value?,values?,source?}. Comparison/text/isError take value; in takes values; between takes [low,high]; other unary ops take neither. inColumn/notInColumn use source with eq semantics. Incomparable cells are reported.                                                                    |
+| `where[].column`                     | string                                                                                                                                                                                                                                                 | yes      | Column.                                                                                                                                                                                                                                                                                                                     |
+| `where[].op`                         | `"eq"` \| `"ne"` \| `"lt"` \| `"lte"` \| `"gt"` \| `"gte"` \| `"contains"` \| `"startsWith"` \| `"endsWith"` \| `"in"` \| `"between"` \| `"isEmpty"` \| `"isNotEmpty"` \| `"isError"` \| `"isNumber"` \| `"isText"` \| `"inColumn"` \| `"notInColumn"` | yes      | Operator.                                                                                                                                                                                                                                                                                                                   |
+| `where[].value`                      | string \| number \| boolean                                                                                                                                                                                                                            |          | Operand.                                                                                                                                                                                                                                                                                                                    |
+| `where[].values`                     | array of string \| number \| boolean (1–64 items)                                                                                                                                                                                                      |          | Operands of in, or [low, high] of between.                                                                                                                                                                                                                                                                                  |
+| `where[].source`                     | object                                                                                                                                                                                                                                                 |          | Column inColumn and notInColumn test against.                                                                                                                                                                                                                                                                               |
+| `where[].source.filePath`            | string                                                                                                                                                                                                                                                 |          | Defaults to this file.                                                                                                                                                                                                                                                                                                      |
+| `where[].source.sheetName`           | string                                                                                                                                                                                                                                                 |          | Source sheet.                                                                                                                                                                                                                                                                                                               |
+| `where[].source.column`              | string                                                                                                                                                                                                                                                 | yes      | Column.                                                                                                                                                                                                                                                                                                                     |
+| `where[].source.range`               | string                                                                                                                                                                                                                                                 |          | Source range.                                                                                                                                                                                                                                                                                                               |
+| `where[].source.headerRow`           | integer (≥ 0)                                                                                                                                                                                                                                          |          | Source header row.                                                                                                                                                                                                                                                                                                          |
+| `match`                              | `"all"` \| `"any"`                                                                                                                                                                                                                                     |          | Combine predicates with all (default) or any.                                                                                                                                                                                                                                                                               |
+| `headerRow`                          | integer (≥ 0)                                                                                                                                                                                                                                          |          | Header row (0: none). Default: table/autofilter header, then first text header above data, else 1.                                                                                                                                                                                                                          |
+| `headerScan`                         | boolean                                                                                                                                                                                                                                                |          | Strict header detection: refuse when two rows or none qualify.                                                                                                                                                                                                                                                              |
+| `columnMode`                         | `"auto"` \| `"header"` \| `"letter"`                                                                                                                                                                                                                   |          | Column references: auto (default), header text or A1 letter.                                                                                                                                                                                                                                                                |
+| `caseSensitive`                      | boolean                                                                                                                                                                                                                                                |          | Case-sensitive text comparisons, default false. Applies to predicate bounds and min/max.                                                                                                                                                                                                                                    |
+| `columns`                            | array of object (1–64 items)                                                                                                                                                                                                                           |          | Readings {column,type,...}; reuse profile_sheet.                                                                                                                                                                                                                                                                            |
+| `columns[].column`                   | string                                                                                                                                                                                                                                                 | yes      | Column.                                                                                                                                                                                                                                                                                                                     |
+| `columns[].type`                     | `"number"` \| `"date"` \| `"boolean"` \| `"time"` \| `"duration"` \| `"text"`                                                                                                                                                                          | yes      | Reading type.                                                                                                                                                                                                                                                                                                               |
+| `columns[].missingValues`            | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                                                                             |          | Missing-text tokens.                                                                                                                                                                                                                                                                                                        |
+| `columns[].decimal`                  | `"."` \| `","`                                                                                                                                                                                                                                         |          | Number decimal mark.                                                                                                                                                                                                                                                                                                        |
+| `columns[].group`                    | `"none"` \| `"."` \| `","` \| `" "` \| `"'"`                                                                                                                                                                                                           |          | Number group mark.                                                                                                                                                                                                                                                                                                          |
+| `columns[].locale`                   | string (2–64 chars)                                                                                                                                                                                                                                    |          | Number/date locale.                                                                                                                                                                                                                                                                                                         |
+| `columns[].numberingSystem`          | string (3–32 chars)                                                                                                                                                                                                                                    |          | Number digit system.                                                                                                                                                                                                                                                                                                        |
+| `columns[].identifiers`              | `"refuse"` \| `"read"`                                                                                                                                                                                                                                 |          | Number: read digit identifiers?                                                                                                                                                                                                                                                                                             |
+| `columns[].format`                   | string (1–64 chars)                                                                                                                                                                                                                                    |          | Date pattern, e.g. dd.MM.yyyy.                                                                                                                                                                                                                                                                                              |
+| `columns[].order`                    | `"dmy"` \| `"mdy"`                                                                                                                                                                                                                                     |          | Date order if no format.                                                                                                                                                                                                                                                                                                    |
+| `columns[].trueValues`               | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                                                                             |          | Boolean true tokens.                                                                                                                                                                                                                                                                                                        |
+| `columns[].falseValues`              | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                                                                             |          | Boolean false tokens.                                                                                                                                                                                                                                                                                                       |
+| `locale`                             | string (2–64 chars)                                                                                                                                                                                                                                    |          | BCP 47 locale: separators/month names, not date order.                                                                                                                                                                                                                                                                      |
+| `numberingSystem`                    | string (3–32 chars)                                                                                                                                                                                                                                    |          | Locale digit system, e.g. arab.                                                                                                                                                                                                                                                                                             |
+| `missingValues`                      | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                                                                             |          | Missing tokens: N/A, NULL, -, —, #N/A.                                                                                                                                                                                                                                                                                      |
+| `trueValues`                         | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                                                                             |          | True tokens: true, yes, y, Evet, E.                                                                                                                                                                                                                                                                                         |
+| `falseValues`                        | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                                                                             |          | False tokens: false, no, n, Hayır, H.                                                                                                                                                                                                                                                                                       |
+| `mergedCells`                        | `"master"` \| `"repeat"`                                                                                                                                                                                                                               |          | Merged values and header detection policy, default master.                                                                                                                                                                                                                                                                  |
+| `orderBy`                            | `"group"` \| `"metric"`                                                                                                                                                                                                                                |          | Sort by group key (default) or selected metric.                                                                                                                                                                                                                                                                             |
+| `orderByMetric`                      | integer (1–8)                                                                                                                                                                                                                                          |          | One-based index into metrics, default 1. Cannot exceed the actual metrics count.                                                                                                                                                                                                                                            |
+| `orderByDerived`                     | string                                                                                                                                                                                                                                                 |          | Derived metric to sort by with orderBy metric.                                                                                                                                                                                                                                                                              |
+| `derived`                            | array of object (1–4 items)                                                                                                                                                                                                                            |          | Per-group values from the metrics: ratios, shares, differences, adjusted totals; appended after the metrics. Not with pivotBy.                                                                                                                                                                                              |
+| `derived[].name`                     | string (1–64 chars)                                                                                                                                                                                                                                    | yes      | Output column label.                                                                                                                                                                                                                                                                                                        |
+| `derived[].numerator`                | array of object (1–8 items)                                                                                                                                                                                                                            | yes      | Terms added together: factor (default 1) × metric.                                                                                                                                                                                                                                                                          |
+| `derived[].numerator[].metric`       | integer (1–8)                                                                                                                                                                                                                                          | yes      | One-based index into metrics.                                                                                                                                                                                                                                                                                               |
+| `derived[].numerator[].factor`       | number                                                                                                                                                                                                                                                 |          | Multiplier, default 1.                                                                                                                                                                                                                                                                                                      |
+| `derived[].numerator[].scope`        | `"group"` \| `"total"`                                                                                                                                                                                                                                 |          | group (default) or total: the metric summed over every group, for a share; counts and sum only.                                                                                                                                                                                                                             |
+| `derived[].denominator`              | array of object (1–8 items)                                                                                                                                                                                                                            |          | Terms added together; a zero denominator gives null.                                                                                                                                                                                                                                                                        |
+| `derived[].denominator[].metric`     | integer (1–8)                                                                                                                                                                                                                                          | yes      | One-based index into metrics.                                                                                                                                                                                                                                                                                               |
+| `derived[].denominator[].factor`     | number                                                                                                                                                                                                                                                 |          | Multiplier, default 1.                                                                                                                                                                                                                                                                                                      |
+| `derived[].denominator[].scope`      | `"group"` \| `"total"`                                                                                                                                                                                                                                 |          | group (default) or total: the metric summed over every group, for a share; counts and sum only.                                                                                                                                                                                                                             |
+| `derived[].scale`                    | number                                                                                                                                                                                                                                                 |          | Final multiplier, such as 100.                                                                                                                                                                                                                                                                                              |
+| `derived[].round`                    | integer (0–10)                                                                                                                                                                                                                                         |          | Decimal places, half away from zero.                                                                                                                                                                                                                                                                                        |
+| `descending`                         | boolean                                                                                                                                                                                                                                                |          | Descending sort, default false.                                                                                                                                                                                                                                                                                             |
+| `maxGroups`                          | integer (1–500)                                                                                                                                                                                                                                        |          | Returned groups, default 50. In retained mode, caps only the byte-bounded preview.                                                                                                                                                                                                                                          |
+| `delimiter`                          | `"comma"` \| `"semicolon"` \| `"tab"` \| `"pipe"`                                                                                                                                                                                                      |          | CSV separator; sniffed when omitted.                                                                                                                                                                                                                                                                                        |
+| `encoding`                           | `"utf-8"` \| `"utf-16le"` \| `"utf-16be"` \| `"windows-1254"` \| `"iso-8859-9"` \| `"windows-1252"` \| `"windows-1251"` \| `"windows-1256"` \| `"shift_jis"` \| `"gb18030"` \| `"big5"` \| `"euc-kr"`                                                  |          | CSV encoding; BOM or utf-8 when omitted.                                                                                                                                                                                                                                                                                    |
 
 ## `query_result`
 
@@ -289,6 +289,31 @@ Annotations: read-only, idempotent, closed world.
 | `offset`         | integer (0–100000)                         |          | Zero-based offset among matches; default 0, then nextOffset.    |
 | `maxRows`        | integer (1–500)                            |          | Returned rows, default 50; 16 KiB may admit fewer.              |
 
+## `execute_result`
+
+Compute a retained resultId with synchronous JS. data: aggregate metadata, columns, exact rows, rowSourceCounts; or computed source/value. Return finite JSON, e.g. return data.rows.length; No Node, I/O, imports or tools. Scope: retained aggregate, not raw sheet rows. Large outputs get a resultId for read_result. Numbers are binary64; keep exact digits as text. Limits: {"maxCodeBytes":16384,"maxInputBytes":8388608,"maxOutputBytes":1048576,"maxMemoryBytes":33554432,"maxStackBytes":524288,"timeoutMs":2000,"maxConcurrent":2}.
+
+Annotations: read-only, closed world.
+
+| Argument   | Type                 | Required | Description                           |
+| ---------- | -------------------- | -------- | ------------------------------------- |
+| `resultId` | string (1–128 chars) | yes      | This instance's retained result.      |
+| `code`     | string (≥ 1 chars)   | yes      | Function body; return JSON from data. |
+
+## `read_result`
+
+Read exact JSON by RFC 6901 path: /value for computed data, /rows for aggregates. select projects members; offset/limit page arrays, objects or UTF-16 strings. Narrow windows over 16 KiB; no value truncation.
+
+Annotations: read-only, idempotent, closed world.
+
+| Argument   | Type                                        | Required | Description            |
+| ---------- | ------------------------------------------- | -------- | ---------------------- |
+| `resultId` | string (1–128 chars)                        | yes      | Stored result.         |
+| `path`     | string (≤ 4096 chars)                       |          | JSON Pointer.          |
+| `select`   | array of string (≤ 4096 chars) (1–32 items) |          | Member names.          |
+| `offset`   | integer (0–8388608)                         |          | Start; default 0.      |
+| `limit`    | integer (1–500)                             |          | Max items; default 50. |
+
 ## `find_in_sheet`
 
 Find cells whose value or formula matches a query. Use this instead of paging a large sheet.
@@ -300,29 +325,29 @@ Annotations: read-only, idempotent, closed world.
 | `filePath`                  | string                                                                                                                                                                                                | yes      | Path under the root.                                                                                                       |
 | `query`                     | string (≥ 1 chars)                                                                                                                                                                                    | yes      | Text to find, or a JavaScript regular expression of at most 256 characters when matchMode is regex.                        |
 | `sheetName`                 | string                                                                                                                                                                                                |          | Exact worksheet name. Omitted with no range, table or columns: every worksheet is searched and each match names its sheet. |
-| `table`                     | string (1–255 chars)                                                                                                                                                                                  |          | Declared table name; selects its data rows. Not with range. XLSX only.                                                     |
-| `visibleOnly`               | boolean                                                                                                                                                                                               |          | Skip saved hidden rows, AutoFilter's included. XLSX only.                                                                  |
-| `headerRow`                 | integer (0–1048576)                                                                                                                                                                                   |          | Header row (0: none). Default: table/AutoFilter header, first text header above data, else 1.                              |
-| `headerScan`                | boolean                                                                                                                                                                                               |          | Strict header detection: refuse when two rows or none qualify.                                                             |
-| `columns`                   | array of object (1–64 items)                                                                                                                                                                          |          | Readings [{column,type,...}] from profile_sheet; type-specific fields below.                                               |
+| `table`                     | string (1–255 chars)                                                                                                                                                                                  |          | XLSX table: data rows, not range.                                                                                          |
+| `visibleOnly`               | boolean                                                                                                                                                                                               |          | XLSX: skip hidden/AutoFilter rows.                                                                                         |
+| `headerRow`                 | integer (0–1048576)                                                                                                                                                                                   |          | Header: 0 none; default table/AutoFilter, text above data, else 1.                                                         |
+| `headerScan`                | boolean                                                                                                                                                                                               |          | Refuse ambiguous or missing headers.                                                                                       |
+| `columns`                   | array of object (1–64 items)                                                                                                                                                                          |          | Readings {column,type,...}; reuse profile_sheet.                                                                           |
 | `columns[].column`          | string                                                                                                                                                                                                | yes      | Column.                                                                                                                    |
-| `columns[].type`            | `"number"` \| `"date"` \| `"boolean"` \| `"time"` \| `"duration"` \| `"text"`                                                                                                                         | yes      | How to read the column.                                                                                                    |
+| `columns[].type`            | `"number"` \| `"date"` \| `"boolean"` \| `"time"` \| `"duration"` \| `"text"`                                                                                                                         | yes      | Reading type.                                                                                                              |
 | `columns[].missingValues`   | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Missing-text tokens.                                                                                                       |
-| `columns[].decimal`         | `"."` \| `","`                                                                                                                                                                                        |          | Decimal separator, for number.                                                                                             |
-| `columns[].group`           | `"none"` \| `"."` \| `","` \| `" "` \| `"'"`                                                                                                                                                          |          | Thousands separator, for number.                                                                                           |
-| `columns[].locale`          | string (2–64 chars)                                                                                                                                                                                   |          | File locale, for number or date.                                                                                           |
-| `columns[].numberingSystem` | string (3–32 chars)                                                                                                                                                                                   |          | Numbering system, for number.                                                                                              |
-| `columns[].identifiers`     | `"refuse"` \| `"read"`                                                                                                                                                                                |          | Whether to read digit identifiers, for number.                                                                             |
-| `columns[].format`          | string (1–64 chars)                                                                                                                                                                                   |          | Date pattern such as dd.MM.yyyy, for date.                                                                                 |
-| `columns[].order`           | `"dmy"` \| `"mdy"`                                                                                                                                                                                    |          | Day/month order without a format, for date.                                                                                |
-| `columns[].trueValues`      | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | True-text tokens, for boolean.                                                                                             |
-| `columns[].falseValues`     | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | False-text tokens, for boolean.                                                                                            |
-| `locale`                    | string (2–64 chars)                                                                                                                                                                                   |          | File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.                                  |
-| `numberingSystem`           | string (3–32 chars)                                                                                                                                                                                   |          | Numbering system such as arab; needs locale.                                                                               |
-| `missingValues`             | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Missing-text tokens; default N/A, NULL, -, —, #N/A.                                                                        |
-| `trueValues`                | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | True-text tokens; default true, yes, y, Evet, E.                                                                           |
-| `falseValues`               | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | False-text tokens; default false, no, n, Hayır, H.                                                                         |
-| `columnMode`                | `"auto"` \| `"header"` \| `"letter"`                                                                                                                                                                  |          | Column references: auto (default), header text or A1 letter.                                                               |
+| `columns[].decimal`         | `"."` \| `","`                                                                                                                                                                                        |          | Number decimal mark.                                                                                                       |
+| `columns[].group`           | `"none"` \| `"."` \| `","` \| `" "` \| `"'"`                                                                                                                                                          |          | Number group mark.                                                                                                         |
+| `columns[].locale`          | string (2–64 chars)                                                                                                                                                                                   |          | Number/date locale.                                                                                                        |
+| `columns[].numberingSystem` | string (3–32 chars)                                                                                                                                                                                   |          | Number digit system.                                                                                                       |
+| `columns[].identifiers`     | `"refuse"` \| `"read"`                                                                                                                                                                                |          | Number: read digit identifiers?                                                                                            |
+| `columns[].format`          | string (1–64 chars)                                                                                                                                                                                   |          | Date pattern, e.g. dd.MM.yyyy.                                                                                             |
+| `columns[].order`           | `"dmy"` \| `"mdy"`                                                                                                                                                                                    |          | Date order if no format.                                                                                                   |
+| `columns[].trueValues`      | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Boolean true tokens.                                                                                                       |
+| `columns[].falseValues`     | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Boolean false tokens.                                                                                                      |
+| `locale`                    | string (2–64 chars)                                                                                                                                                                                   |          | BCP 47 locale: separators/month names, not date order.                                                                     |
+| `numberingSystem`           | string (3–32 chars)                                                                                                                                                                                   |          | Locale digit system, e.g. arab.                                                                                            |
+| `missingValues`             | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | Missing tokens: N/A, NULL, -, —, #N/A.                                                                                     |
+| `trueValues`                | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | True tokens: true, yes, y, Evet, E.                                                                                        |
+| `falseValues`               | array of string (1–128 chars) (≤ 64 items)                                                                                                                                                            |          | False tokens: false, no, n, Hayır, H.                                                                                      |
+| `columnMode`                | `"auto"` \| `"header"` \| `"letter"`                                                                                                                                                                  |          | Column: auto (default), header, letter.                                                                                    |
 | `matchMode`                 | `"contains"` \| `"exact"` \| `"regex"`                                                                                                                                                                |          | Contains (default), exact text or JavaScript regex. Regex runs in an isolated worker with a two-second deadline.           |
 | `caseSensitive`             | boolean                                                                                                                                                                                               |          | Case-sensitive matching, default false. Literal search uses NFC/folding; regex retains JavaScript semantics.               |
 | `searchIn`                  | `"values"` \| `"formulas"` \| `"both"`                                                                                                                                                                |          | Search values (default), formulas or both. CSV supports values only.                                                       |
@@ -483,7 +508,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "const": "records"
                       },
                       "sheetName": {
-                        "description": "Exact sheet; default first visible.",
+                        "description": "Sheet; default first visible.",
                         "type": "string"
                       },
                       "range": {
@@ -492,13 +517,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}:[A-Za-z]{1,3}[1-9][0-9]{0,6}$"
                       },
                       "table": {
-                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "description": "XLSX table: data rows, not range.",
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 255
                       },
                       "visibleOnly": {
-                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "description": "XLSX: skip hidden/AutoFilter rows.",
                         "type": "boolean"
                       },
                       "headerRow": {
@@ -520,7 +545,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "boolean"
                       },
                       "columns": {
-                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "description": "Readings {column,type,...}; reuse profile_sheet.",
                         "minItems": 1,
                         "maxItems": 64,
                         "type": "array",
@@ -541,7 +566,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 "duration",
                                 "text"
                               ],
-                              "description": "How to read the column."
+                              "description": "Reading type."
                             },
                             "missingValues": {
                               "description": "Missing-text tokens.",
@@ -554,7 +579,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "decimal": {
-                              "description": "Decimal separator, for number.",
+                              "description": "Number decimal mark.",
                               "type": "string",
                               "enum": [
                                 ".",
@@ -562,7 +587,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "group": {
-                              "description": "Thousands separator, for number.",
+                              "description": "Number group mark.",
                               "type": "string",
                               "enum": [
                                 "none",
@@ -573,19 +598,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "locale": {
-                              "description": "File locale, for number or date.",
+                              "description": "Number/date locale.",
                               "type": "string",
                               "minLength": 2,
                               "maxLength": 64
                             },
                             "numberingSystem": {
-                              "description": "Numbering system, for number.",
+                              "description": "Number digit system.",
                               "type": "string",
                               "minLength": 3,
                               "maxLength": 32
                             },
                             "identifiers": {
-                              "description": "Whether to read digit identifiers, for number.",
+                              "description": "Number: read digit identifiers?",
                               "type": "string",
                               "enum": [
                                 "refuse",
@@ -593,13 +618,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "format": {
-                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "description": "Date pattern, e.g. dd.MM.yyyy.",
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 64
                             },
                             "order": {
-                              "description": "Day/month order without a format, for date.",
+                              "description": "Date order if no format.",
                               "type": "string",
                               "enum": [
                                 "dmy",
@@ -607,7 +632,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "trueValues": {
-                              "description": "True-text tokens, for boolean.",
+                              "description": "Boolean true tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -617,7 +642,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "falseValues": {
-                              "description": "False-text tokens, for boolean.",
+                              "description": "Boolean false tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -671,19 +696,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "locale": {
-                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "description": "BCP 47 locale: separators/month names, not date order.",
                         "type": "string",
                         "minLength": 2,
                         "maxLength": 64
                       },
                       "numberingSystem": {
-                        "description": "Numbering system such as arab; needs locale.",
+                        "description": "Locale digit system, e.g. arab.",
                         "type": "string",
                         "minLength": 3,
                         "maxLength": 32
                       },
                       "missingValues": {
-                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -693,7 +718,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "trueValues": {
-                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "description": "True tokens: true, yes, y, Evet, E.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -703,7 +728,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "falseValues": {
-                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "description": "False tokens: false, no, n, Hayır, H.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -1851,7 +1876,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               "const": "records"
                             },
                             "sheetName": {
-                              "description": "Exact sheet; default first visible.",
+                              "description": "Sheet; default first visible.",
                               "type": "string"
                             },
                             "range": {
@@ -1860,13 +1885,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}:[A-Za-z]{1,3}[1-9][0-9]{0,6}$"
                             },
                             "table": {
-                              "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                              "description": "XLSX table: data rows, not range.",
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 255
                             },
                             "visibleOnly": {
-                              "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                              "description": "XLSX: skip hidden/AutoFilter rows.",
                               "type": "boolean"
                             },
                             "headerRow": {
@@ -1888,7 +1913,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               "type": "boolean"
                             },
                             "columns": {
-                              "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                              "description": "Readings {column,type,...}; reuse profile_sheet.",
                               "minItems": 1,
                               "maxItems": 64,
                               "type": "array",
@@ -1909,7 +1934,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                       "duration",
                                       "text"
                                     ],
-                                    "description": "How to read the column."
+                                    "description": "Reading type."
                                   },
                                   "missingValues": {
                                     "description": "Missing-text tokens.",
@@ -1922,7 +1947,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     }
                                   },
                                   "decimal": {
-                                    "description": "Decimal separator, for number.",
+                                    "description": "Number decimal mark.",
                                     "type": "string",
                                     "enum": [
                                       ".",
@@ -1930,7 +1955,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     ]
                                   },
                                   "group": {
-                                    "description": "Thousands separator, for number.",
+                                    "description": "Number group mark.",
                                     "type": "string",
                                     "enum": [
                                       "none",
@@ -1941,19 +1966,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     ]
                                   },
                                   "locale": {
-                                    "description": "File locale, for number or date.",
+                                    "description": "Number/date locale.",
                                     "type": "string",
                                     "minLength": 2,
                                     "maxLength": 64
                                   },
                                   "numberingSystem": {
-                                    "description": "Numbering system, for number.",
+                                    "description": "Number digit system.",
                                     "type": "string",
                                     "minLength": 3,
                                     "maxLength": 32
                                   },
                                   "identifiers": {
-                                    "description": "Whether to read digit identifiers, for number.",
+                                    "description": "Number: read digit identifiers?",
                                     "type": "string",
                                     "enum": [
                                       "refuse",
@@ -1961,13 +1986,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     ]
                                   },
                                   "format": {
-                                    "description": "Date pattern such as dd.MM.yyyy, for date.",
+                                    "description": "Date pattern, e.g. dd.MM.yyyy.",
                                     "type": "string",
                                     "minLength": 1,
                                     "maxLength": 64
                                   },
                                   "order": {
-                                    "description": "Day/month order without a format, for date.",
+                                    "description": "Date order if no format.",
                                     "type": "string",
                                     "enum": [
                                       "dmy",
@@ -1975,7 +2000,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     ]
                                   },
                                   "trueValues": {
-                                    "description": "True-text tokens, for boolean.",
+                                    "description": "Boolean true tokens.",
                                     "maxItems": 64,
                                     "type": "array",
                                     "items": {
@@ -1985,7 +2010,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     }
                                   },
                                   "falseValues": {
-                                    "description": "False-text tokens, for boolean.",
+                                    "description": "Boolean false tokens.",
                                     "maxItems": 64,
                                     "type": "array",
                                     "items": {
@@ -2039,19 +2064,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "locale": {
-                              "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                              "description": "BCP 47 locale: separators/month names, not date order.",
                               "type": "string",
                               "minLength": 2,
                               "maxLength": 64
                             },
                             "numberingSystem": {
-                              "description": "Numbering system such as arab; needs locale.",
+                              "description": "Locale digit system, e.g. arab.",
                               "type": "string",
                               "minLength": 3,
                               "maxLength": 32
                             },
                             "missingValues": {
-                              "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                              "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -2061,7 +2086,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "trueValues": {
-                              "description": "True-text tokens; default true, yes, y, Evet, E.",
+                              "description": "True tokens: true, yes, y, Evet, E.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -2071,7 +2096,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "falseValues": {
-                              "description": "False-text tokens; default false, no, n, Hayır, H.",
+                              "description": "False tokens: false, no, n, Hayır, H.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -4537,7 +4562,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "const": "records"
                       },
                       "sheetName": {
-                        "description": "Exact sheet; default first visible.",
+                        "description": "Sheet; default first visible.",
                         "type": "string"
                       },
                       "range": {
@@ -4546,13 +4571,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}:[A-Za-z]{1,3}[1-9][0-9]{0,6}$"
                       },
                       "table": {
-                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "description": "XLSX table: data rows, not range.",
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 255
                       },
                       "visibleOnly": {
-                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "description": "XLSX: skip hidden/AutoFilter rows.",
                         "type": "boolean"
                       },
                       "headerRow": {
@@ -4574,7 +4599,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "boolean"
                       },
                       "columns": {
-                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "description": "Readings {column,type,...}; reuse profile_sheet.",
                         "minItems": 1,
                         "maxItems": 64,
                         "type": "array",
@@ -4595,7 +4620,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 "duration",
                                 "text"
                               ],
-                              "description": "How to read the column."
+                              "description": "Reading type."
                             },
                             "missingValues": {
                               "description": "Missing-text tokens.",
@@ -4608,7 +4633,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "decimal": {
-                              "description": "Decimal separator, for number.",
+                              "description": "Number decimal mark.",
                               "type": "string",
                               "enum": [
                                 ".",
@@ -4616,7 +4641,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "group": {
-                              "description": "Thousands separator, for number.",
+                              "description": "Number group mark.",
                               "type": "string",
                               "enum": [
                                 "none",
@@ -4627,19 +4652,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "locale": {
-                              "description": "File locale, for number or date.",
+                              "description": "Number/date locale.",
                               "type": "string",
                               "minLength": 2,
                               "maxLength": 64
                             },
                             "numberingSystem": {
-                              "description": "Numbering system, for number.",
+                              "description": "Number digit system.",
                               "type": "string",
                               "minLength": 3,
                               "maxLength": 32
                             },
                             "identifiers": {
-                              "description": "Whether to read digit identifiers, for number.",
+                              "description": "Number: read digit identifiers?",
                               "type": "string",
                               "enum": [
                                 "refuse",
@@ -4647,13 +4672,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "format": {
-                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "description": "Date pattern, e.g. dd.MM.yyyy.",
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 64
                             },
                             "order": {
-                              "description": "Day/month order without a format, for date.",
+                              "description": "Date order if no format.",
                               "type": "string",
                               "enum": [
                                 "dmy",
@@ -4661,7 +4686,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "trueValues": {
-                              "description": "True-text tokens, for boolean.",
+                              "description": "Boolean true tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -4671,7 +4696,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "falseValues": {
-                              "description": "False-text tokens, for boolean.",
+                              "description": "Boolean false tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -4725,19 +4750,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "locale": {
-                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "description": "BCP 47 locale: separators/month names, not date order.",
                         "type": "string",
                         "minLength": 2,
                         "maxLength": 64
                       },
                       "numberingSystem": {
-                        "description": "Numbering system such as arab; needs locale.",
+                        "description": "Locale digit system, e.g. arab.",
                         "type": "string",
                         "minLength": 3,
                         "maxLength": 32
                       },
                       "missingValues": {
-                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -4747,7 +4772,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "trueValues": {
-                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "description": "True tokens: true, yes, y, Evet, E.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -4757,7 +4782,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "falseValues": {
-                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "description": "False tokens: false, no, n, Hayır, H.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -5905,7 +5930,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               "const": "records"
                             },
                             "sheetName": {
-                              "description": "Exact sheet; default first visible.",
+                              "description": "Sheet; default first visible.",
                               "type": "string"
                             },
                             "range": {
@@ -5914,13 +5939,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}:[A-Za-z]{1,3}[1-9][0-9]{0,6}$"
                             },
                             "table": {
-                              "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                              "description": "XLSX table: data rows, not range.",
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 255
                             },
                             "visibleOnly": {
-                              "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                              "description": "XLSX: skip hidden/AutoFilter rows.",
                               "type": "boolean"
                             },
                             "headerRow": {
@@ -5942,7 +5967,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               "type": "boolean"
                             },
                             "columns": {
-                              "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                              "description": "Readings {column,type,...}; reuse profile_sheet.",
                               "minItems": 1,
                               "maxItems": 64,
                               "type": "array",
@@ -5963,7 +5988,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                       "duration",
                                       "text"
                                     ],
-                                    "description": "How to read the column."
+                                    "description": "Reading type."
                                   },
                                   "missingValues": {
                                     "description": "Missing-text tokens.",
@@ -5976,7 +6001,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     }
                                   },
                                   "decimal": {
-                                    "description": "Decimal separator, for number.",
+                                    "description": "Number decimal mark.",
                                     "type": "string",
                                     "enum": [
                                       ".",
@@ -5984,7 +6009,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     ]
                                   },
                                   "group": {
-                                    "description": "Thousands separator, for number.",
+                                    "description": "Number group mark.",
                                     "type": "string",
                                     "enum": [
                                       "none",
@@ -5995,19 +6020,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     ]
                                   },
                                   "locale": {
-                                    "description": "File locale, for number or date.",
+                                    "description": "Number/date locale.",
                                     "type": "string",
                                     "minLength": 2,
                                     "maxLength": 64
                                   },
                                   "numberingSystem": {
-                                    "description": "Numbering system, for number.",
+                                    "description": "Number digit system.",
                                     "type": "string",
                                     "minLength": 3,
                                     "maxLength": 32
                                   },
                                   "identifiers": {
-                                    "description": "Whether to read digit identifiers, for number.",
+                                    "description": "Number: read digit identifiers?",
                                     "type": "string",
                                     "enum": [
                                       "refuse",
@@ -6015,13 +6040,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     ]
                                   },
                                   "format": {
-                                    "description": "Date pattern such as dd.MM.yyyy, for date.",
+                                    "description": "Date pattern, e.g. dd.MM.yyyy.",
                                     "type": "string",
                                     "minLength": 1,
                                     "maxLength": 64
                                   },
                                   "order": {
-                                    "description": "Day/month order without a format, for date.",
+                                    "description": "Date order if no format.",
                                     "type": "string",
                                     "enum": [
                                       "dmy",
@@ -6029,7 +6054,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     ]
                                   },
                                   "trueValues": {
-                                    "description": "True-text tokens, for boolean.",
+                                    "description": "Boolean true tokens.",
                                     "maxItems": 64,
                                     "type": "array",
                                     "items": {
@@ -6039,7 +6064,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                     }
                                   },
                                   "falseValues": {
-                                    "description": "False-text tokens, for boolean.",
+                                    "description": "Boolean false tokens.",
                                     "maxItems": 64,
                                     "type": "array",
                                     "items": {
@@ -6093,19 +6118,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "locale": {
-                              "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                              "description": "BCP 47 locale: separators/month names, not date order.",
                               "type": "string",
                               "minLength": 2,
                               "maxLength": 64
                             },
                             "numberingSystem": {
-                              "description": "Numbering system such as arab; needs locale.",
+                              "description": "Locale digit system, e.g. arab.",
                               "type": "string",
                               "minLength": 3,
                               "maxLength": 32
                             },
                             "missingValues": {
-                              "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                              "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -6115,7 +6140,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "trueValues": {
-                              "description": "True-text tokens; default true, yes, y, Evet, E.",
+                              "description": "True tokens: true, yes, y, Evet, E.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -6125,7 +6150,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "falseValues": {
-                              "description": "False-text tokens; default false, no, n, Hayır, H.",
+                              "description": "False tokens: false, no, n, Hayır, H.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -8547,7 +8572,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "const": "records"
             },
             "sheetName": {
-              "description": "Exact sheet; default first visible.",
+              "description": "Sheet; default first visible.",
               "type": "string"
             },
             "range": {
@@ -8556,13 +8581,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}:[A-Za-z]{1,3}[1-9][0-9]{0,6}$"
             },
             "table": {
-              "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+              "description": "XLSX table: data rows, not range.",
               "type": "string",
               "minLength": 1,
               "maxLength": 255
             },
             "visibleOnly": {
-              "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+              "description": "XLSX: skip hidden/AutoFilter rows.",
               "type": "boolean"
             },
             "headerRow": {
@@ -8584,7 +8609,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "type": "boolean"
             },
             "columns": {
-              "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+              "description": "Readings {column,type,...}; reuse profile_sheet.",
               "minItems": 1,
               "maxItems": 64,
               "type": "array",
@@ -8605,7 +8630,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                       "duration",
                       "text"
                     ],
-                    "description": "How to read the column."
+                    "description": "Reading type."
                   },
                   "missingValues": {
                     "description": "Missing-text tokens.",
@@ -8618,7 +8643,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     }
                   },
                   "decimal": {
-                    "description": "Decimal separator, for number.",
+                    "description": "Number decimal mark.",
                     "type": "string",
                     "enum": [
                       ".",
@@ -8626,7 +8651,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "group": {
-                    "description": "Thousands separator, for number.",
+                    "description": "Number group mark.",
                     "type": "string",
                     "enum": [
                       "none",
@@ -8637,19 +8662,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "locale": {
-                    "description": "File locale, for number or date.",
+                    "description": "Number/date locale.",
                     "type": "string",
                     "minLength": 2,
                     "maxLength": 64
                   },
                   "numberingSystem": {
-                    "description": "Numbering system, for number.",
+                    "description": "Number digit system.",
                     "type": "string",
                     "minLength": 3,
                     "maxLength": 32
                   },
                   "identifiers": {
-                    "description": "Whether to read digit identifiers, for number.",
+                    "description": "Number: read digit identifiers?",
                     "type": "string",
                     "enum": [
                       "refuse",
@@ -8657,13 +8682,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "format": {
-                    "description": "Date pattern such as dd.MM.yyyy, for date.",
+                    "description": "Date pattern, e.g. dd.MM.yyyy.",
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
                   },
                   "order": {
-                    "description": "Day/month order without a format, for date.",
+                    "description": "Date order if no format.",
                     "type": "string",
                     "enum": [
                       "dmy",
@@ -8671,7 +8696,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "trueValues": {
-                    "description": "True-text tokens, for boolean.",
+                    "description": "Boolean true tokens.",
                     "maxItems": 64,
                     "type": "array",
                     "items": {
@@ -8681,7 +8706,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     }
                   },
                   "falseValues": {
-                    "description": "False-text tokens, for boolean.",
+                    "description": "Boolean false tokens.",
                     "maxItems": 64,
                     "type": "array",
                     "items": {
@@ -8735,19 +8760,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               ]
             },
             "locale": {
-              "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+              "description": "BCP 47 locale: separators/month names, not date order.",
               "type": "string",
               "minLength": 2,
               "maxLength": 64
             },
             "numberingSystem": {
-              "description": "Numbering system such as arab; needs locale.",
+              "description": "Locale digit system, e.g. arab.",
               "type": "string",
               "minLength": 3,
               "maxLength": 32
             },
             "missingValues": {
-              "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+              "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -8757,7 +8782,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               }
             },
             "trueValues": {
-              "description": "True-text tokens; default true, yes, y, Evet, E.",
+              "description": "True tokens: true, yes, y, Evet, E.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -8767,7 +8792,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               }
             },
             "falseValues": {
-              "description": "False-text tokens; default false, no, n, Hayır, H.",
+              "description": "False tokens: false, no, n, Hayır, H.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -8938,7 +8963,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "const": "records"
             },
             "sheetName": {
-              "description": "Exact sheet; default first visible.",
+              "description": "Sheet; default first visible.",
               "type": "string"
             },
             "range": {
@@ -8947,7 +8972,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "pattern": "^[A-Za-z]{1,3}[1-9][0-9]{0,6}:[A-Za-z]{1,3}[1-9][0-9]{0,6}$"
             },
             "table": {
-              "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+              "description": "XLSX table: data rows, not range.",
               "type": "string",
               "minLength": 1,
               "maxLength": 255
@@ -8971,7 +8996,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "type": "boolean"
             },
             "columns": {
-              "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+              "description": "Readings {column,type,...}; reuse profile_sheet.",
               "minItems": 1,
               "maxItems": 64,
               "type": "array",
@@ -8992,7 +9017,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                       "duration",
                       "text"
                     ],
-                    "description": "How to read the column."
+                    "description": "Reading type."
                   },
                   "missingValues": {
                     "description": "Missing-text tokens.",
@@ -9005,7 +9030,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     }
                   },
                   "decimal": {
-                    "description": "Decimal separator, for number.",
+                    "description": "Number decimal mark.",
                     "type": "string",
                     "enum": [
                       ".",
@@ -9013,7 +9038,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "group": {
-                    "description": "Thousands separator, for number.",
+                    "description": "Number group mark.",
                     "type": "string",
                     "enum": [
                       "none",
@@ -9024,19 +9049,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "locale": {
-                    "description": "File locale, for number or date.",
+                    "description": "Number/date locale.",
                     "type": "string",
                     "minLength": 2,
                     "maxLength": 64
                   },
                   "numberingSystem": {
-                    "description": "Numbering system, for number.",
+                    "description": "Number digit system.",
                     "type": "string",
                     "minLength": 3,
                     "maxLength": 32
                   },
                   "identifiers": {
-                    "description": "Whether to read digit identifiers, for number.",
+                    "description": "Number: read digit identifiers?",
                     "type": "string",
                     "enum": [
                       "refuse",
@@ -9044,13 +9069,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "format": {
-                    "description": "Date pattern such as dd.MM.yyyy, for date.",
+                    "description": "Date pattern, e.g. dd.MM.yyyy.",
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
                   },
                   "order": {
-                    "description": "Day/month order without a format, for date.",
+                    "description": "Date order if no format.",
                     "type": "string",
                     "enum": [
                       "dmy",
@@ -9058,7 +9083,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "trueValues": {
-                    "description": "True-text tokens, for boolean.",
+                    "description": "Boolean true tokens.",
                     "maxItems": 64,
                     "type": "array",
                     "items": {
@@ -9068,7 +9093,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     }
                   },
                   "falseValues": {
-                    "description": "False-text tokens, for boolean.",
+                    "description": "Boolean false tokens.",
                     "maxItems": 64,
                     "type": "array",
                     "items": {
@@ -9122,19 +9147,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               ]
             },
             "locale": {
-              "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+              "description": "BCP 47 locale: separators/month names, not date order.",
               "type": "string",
               "minLength": 2,
               "maxLength": 64
             },
             "numberingSystem": {
-              "description": "Numbering system such as arab; needs locale.",
+              "description": "Locale digit system, e.g. arab.",
               "type": "string",
               "minLength": 3,
               "maxLength": 32
             },
             "missingValues": {
-              "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+              "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -9144,7 +9169,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               }
             },
             "trueValues": {
-              "description": "True-text tokens; default true, yes, y, Evet, E.",
+              "description": "True tokens: true, yes, y, Evet, E.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -9154,7 +9179,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               }
             },
             "falseValues": {
-              "description": "False-text tokens; default false, no, n, Hayır, H.",
+              "description": "False tokens: false, no, n, Hayır, H.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -9597,7 +9622,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "const": "range"
                       },
                       "sheetName": {
-                        "description": "Exact sheet; default first visible.",
+                        "description": "Sheet; default first visible.",
                         "type": "string"
                       },
                       "range": {
@@ -9605,13 +9630,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "string"
                       },
                       "table": {
-                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "description": "XLSX table: data rows, not range.",
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 255
                       },
                       "visibleOnly": {
-                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "description": "XLSX: skip hidden/AutoFilter rows.",
                         "type": "boolean"
                       },
                       "headerRow": {
@@ -9634,7 +9659,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "boolean"
                       },
                       "columns": {
-                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "description": "Readings {column,type,...}; reuse profile_sheet.",
                         "minItems": 1,
                         "maxItems": 64,
                         "type": "array",
@@ -9655,7 +9680,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 "duration",
                                 "text"
                               ],
-                              "description": "How to read the column."
+                              "description": "Reading type."
                             },
                             "missingValues": {
                               "description": "Missing-text tokens.",
@@ -9668,7 +9693,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "decimal": {
-                              "description": "Decimal separator, for number.",
+                              "description": "Number decimal mark.",
                               "type": "string",
                               "enum": [
                                 ".",
@@ -9676,7 +9701,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "group": {
-                              "description": "Thousands separator, for number.",
+                              "description": "Number group mark.",
                               "type": "string",
                               "enum": [
                                 "none",
@@ -9687,19 +9712,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "locale": {
-                              "description": "File locale, for number or date.",
+                              "description": "Number/date locale.",
                               "type": "string",
                               "minLength": 2,
                               "maxLength": 64
                             },
                             "numberingSystem": {
-                              "description": "Numbering system, for number.",
+                              "description": "Number digit system.",
                               "type": "string",
                               "minLength": 3,
                               "maxLength": 32
                             },
                             "identifiers": {
-                              "description": "Whether to read digit identifiers, for number.",
+                              "description": "Number: read digit identifiers?",
                               "type": "string",
                               "enum": [
                                 "refuse",
@@ -9707,13 +9732,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "format": {
-                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "description": "Date pattern, e.g. dd.MM.yyyy.",
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 64
                             },
                             "order": {
-                              "description": "Day/month order without a format, for date.",
+                              "description": "Date order if no format.",
                               "type": "string",
                               "enum": [
                                 "dmy",
@@ -9721,7 +9746,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "trueValues": {
-                              "description": "True-text tokens, for boolean.",
+                              "description": "Boolean true tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -9731,7 +9756,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "falseValues": {
-                              "description": "False-text tokens, for boolean.",
+                              "description": "Boolean false tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -9785,19 +9810,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "locale": {
-                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "description": "BCP 47 locale: separators/month names, not date order.",
                         "type": "string",
                         "minLength": 2,
                         "maxLength": 64
                       },
                       "numberingSystem": {
-                        "description": "Numbering system such as arab; needs locale.",
+                        "description": "Locale digit system, e.g. arab.",
                         "type": "string",
                         "minLength": 3,
                         "maxLength": 32
                       },
                       "missingValues": {
-                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -9807,7 +9832,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "trueValues": {
-                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "description": "True tokens: true, yes, y, Evet, E.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -9817,7 +9842,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "falseValues": {
-                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "description": "False tokens: false, no, n, Hayır, H.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -9860,7 +9885,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "const": "records"
                       },
                       "sheetName": {
-                        "description": "Exact sheet; default first visible.",
+                        "description": "Sheet; default first visible.",
                         "type": "string"
                       },
                       "range": {
@@ -9868,13 +9893,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "string"
                       },
                       "table": {
-                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "description": "XLSX table: data rows, not range.",
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 255
                       },
                       "visibleOnly": {
-                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "description": "XLSX: skip hidden/AutoFilter rows.",
                         "type": "boolean"
                       },
                       "headerRow": {
@@ -9897,7 +9922,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "boolean"
                       },
                       "columns": {
-                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "description": "Readings {column,type,...}; reuse profile_sheet.",
                         "minItems": 1,
                         "maxItems": 64,
                         "type": "array",
@@ -9918,7 +9943,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 "duration",
                                 "text"
                               ],
-                              "description": "How to read the column."
+                              "description": "Reading type."
                             },
                             "missingValues": {
                               "description": "Missing-text tokens.",
@@ -9931,7 +9956,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "decimal": {
-                              "description": "Decimal separator, for number.",
+                              "description": "Number decimal mark.",
                               "type": "string",
                               "enum": [
                                 ".",
@@ -9939,7 +9964,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "group": {
-                              "description": "Thousands separator, for number.",
+                              "description": "Number group mark.",
                               "type": "string",
                               "enum": [
                                 "none",
@@ -9950,19 +9975,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "locale": {
-                              "description": "File locale, for number or date.",
+                              "description": "Number/date locale.",
                               "type": "string",
                               "minLength": 2,
                               "maxLength": 64
                             },
                             "numberingSystem": {
-                              "description": "Numbering system, for number.",
+                              "description": "Number digit system.",
                               "type": "string",
                               "minLength": 3,
                               "maxLength": 32
                             },
                             "identifiers": {
-                              "description": "Whether to read digit identifiers, for number.",
+                              "description": "Number: read digit identifiers?",
                               "type": "string",
                               "enum": [
                                 "refuse",
@@ -9970,13 +9995,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "format": {
-                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "description": "Date pattern, e.g. dd.MM.yyyy.",
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 64
                             },
                             "order": {
-                              "description": "Day/month order without a format, for date.",
+                              "description": "Date order if no format.",
                               "type": "string",
                               "enum": [
                                 "dmy",
@@ -9984,7 +10009,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "trueValues": {
-                              "description": "True-text tokens, for boolean.",
+                              "description": "Boolean true tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -9994,7 +10019,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "falseValues": {
-                              "description": "False-text tokens, for boolean.",
+                              "description": "Boolean false tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -10048,19 +10073,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "locale": {
-                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "description": "BCP 47 locale: separators/month names, not date order.",
                         "type": "string",
                         "minLength": 2,
                         "maxLength": 64
                       },
                       "numberingSystem": {
-                        "description": "Numbering system such as arab; needs locale.",
+                        "description": "Locale digit system, e.g. arab.",
                         "type": "string",
                         "minLength": 3,
                         "maxLength": 32
                       },
                       "missingValues": {
-                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -10070,7 +10095,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "trueValues": {
-                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "description": "True tokens: true, yes, y, Evet, E.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -10080,7 +10105,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "falseValues": {
-                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "description": "False tokens: false, no, n, Hayır, H.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -10239,7 +10264,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "const": "aggregate"
                       },
                       "sheetName": {
-                        "description": "Exact sheet; default first visible.",
+                        "description": "Sheet; default first visible.",
                         "type": "string"
                       },
                       "range": {
@@ -10247,13 +10272,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "string"
                       },
                       "table": {
-                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "description": "XLSX table: data rows, not range.",
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 255
                       },
                       "visibleOnly": {
-                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "description": "XLSX: skip hidden/AutoFilter rows.",
                         "type": "boolean"
                       },
                       "headerRow": {
@@ -10276,7 +10301,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "boolean"
                       },
                       "columns": {
-                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "description": "Readings {column,type,...}; reuse profile_sheet.",
                         "minItems": 1,
                         "maxItems": 64,
                         "type": "array",
@@ -10297,7 +10322,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 "duration",
                                 "text"
                               ],
-                              "description": "How to read the column."
+                              "description": "Reading type."
                             },
                             "missingValues": {
                               "description": "Missing-text tokens.",
@@ -10310,7 +10335,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "decimal": {
-                              "description": "Decimal separator, for number.",
+                              "description": "Number decimal mark.",
                               "type": "string",
                               "enum": [
                                 ".",
@@ -10318,7 +10343,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "group": {
-                              "description": "Thousands separator, for number.",
+                              "description": "Number group mark.",
                               "type": "string",
                               "enum": [
                                 "none",
@@ -10329,19 +10354,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "locale": {
-                              "description": "File locale, for number or date.",
+                              "description": "Number/date locale.",
                               "type": "string",
                               "minLength": 2,
                               "maxLength": 64
                             },
                             "numberingSystem": {
-                              "description": "Numbering system, for number.",
+                              "description": "Number digit system.",
                               "type": "string",
                               "minLength": 3,
                               "maxLength": 32
                             },
                             "identifiers": {
-                              "description": "Whether to read digit identifiers, for number.",
+                              "description": "Number: read digit identifiers?",
                               "type": "string",
                               "enum": [
                                 "refuse",
@@ -10349,13 +10374,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "format": {
-                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "description": "Date pattern, e.g. dd.MM.yyyy.",
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 64
                             },
                             "order": {
-                              "description": "Day/month order without a format, for date.",
+                              "description": "Date order if no format.",
                               "type": "string",
                               "enum": [
                                 "dmy",
@@ -10363,7 +10388,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "trueValues": {
-                              "description": "True-text tokens, for boolean.",
+                              "description": "Boolean true tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -10373,7 +10398,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "falseValues": {
-                              "description": "False-text tokens, for boolean.",
+                              "description": "Boolean false tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -10427,19 +10452,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "locale": {
-                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "description": "BCP 47 locale: separators/month names, not date order.",
                         "type": "string",
                         "minLength": 2,
                         "maxLength": 64
                       },
                       "numberingSystem": {
-                        "description": "Numbering system such as arab; needs locale.",
+                        "description": "Locale digit system, e.g. arab.",
                         "type": "string",
                         "minLength": 3,
                         "maxLength": 32
                       },
                       "missingValues": {
-                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -10449,7 +10474,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "trueValues": {
-                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "description": "True tokens: true, yes, y, Evet, E.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -10459,7 +10484,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "falseValues": {
-                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "description": "False tokens: false, no, n, Hayır, H.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -10469,7 +10494,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "groupBy": {
-                        "description": "Row grouping keys; omit for a whole-range total. A key is a column, {column, by} for a UTC date part (month includes the year, week is ISO, weekday Monday=1), or {column, bins} or {column, width, origin?} for [lower, upper) bins.",
+                        "description": "Row grouping keys; omit for a whole-range total. Keys: column; {column,by} UTC part (month includes year, ISO week, Monday=1); {column,bins} or {column,width,origin?} for [lower,upper) bins.",
                         "maxItems": 8,
                         "type": "array",
                         "items": {
@@ -13618,7 +13643,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "const": "range"
                       },
                       "sheetName": {
-                        "description": "Exact sheet; default first visible.",
+                        "description": "Sheet; default first visible.",
                         "type": "string"
                       },
                       "range": {
@@ -13626,13 +13651,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "string"
                       },
                       "table": {
-                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "description": "XLSX table: data rows, not range.",
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 255
                       },
                       "visibleOnly": {
-                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "description": "XLSX: skip hidden/AutoFilter rows.",
                         "type": "boolean"
                       },
                       "headerRow": {
@@ -13655,7 +13680,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "boolean"
                       },
                       "columns": {
-                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "description": "Readings {column,type,...}; reuse profile_sheet.",
                         "minItems": 1,
                         "maxItems": 64,
                         "type": "array",
@@ -13676,7 +13701,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 "duration",
                                 "text"
                               ],
-                              "description": "How to read the column."
+                              "description": "Reading type."
                             },
                             "missingValues": {
                               "description": "Missing-text tokens.",
@@ -13689,7 +13714,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "decimal": {
-                              "description": "Decimal separator, for number.",
+                              "description": "Number decimal mark.",
                               "type": "string",
                               "enum": [
                                 ".",
@@ -13697,7 +13722,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "group": {
-                              "description": "Thousands separator, for number.",
+                              "description": "Number group mark.",
                               "type": "string",
                               "enum": [
                                 "none",
@@ -13708,19 +13733,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "locale": {
-                              "description": "File locale, for number or date.",
+                              "description": "Number/date locale.",
                               "type": "string",
                               "minLength": 2,
                               "maxLength": 64
                             },
                             "numberingSystem": {
-                              "description": "Numbering system, for number.",
+                              "description": "Number digit system.",
                               "type": "string",
                               "minLength": 3,
                               "maxLength": 32
                             },
                             "identifiers": {
-                              "description": "Whether to read digit identifiers, for number.",
+                              "description": "Number: read digit identifiers?",
                               "type": "string",
                               "enum": [
                                 "refuse",
@@ -13728,13 +13753,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "format": {
-                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "description": "Date pattern, e.g. dd.MM.yyyy.",
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 64
                             },
                             "order": {
-                              "description": "Day/month order without a format, for date.",
+                              "description": "Date order if no format.",
                               "type": "string",
                               "enum": [
                                 "dmy",
@@ -13742,7 +13767,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "trueValues": {
-                              "description": "True-text tokens, for boolean.",
+                              "description": "Boolean true tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -13752,7 +13777,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "falseValues": {
-                              "description": "False-text tokens, for boolean.",
+                              "description": "Boolean false tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -13806,19 +13831,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "locale": {
-                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "description": "BCP 47 locale: separators/month names, not date order.",
                         "type": "string",
                         "minLength": 2,
                         "maxLength": 64
                       },
                       "numberingSystem": {
-                        "description": "Numbering system such as arab; needs locale.",
+                        "description": "Locale digit system, e.g. arab.",
                         "type": "string",
                         "minLength": 3,
                         "maxLength": 32
                       },
                       "missingValues": {
-                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -13828,7 +13853,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "trueValues": {
-                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "description": "True tokens: true, yes, y, Evet, E.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -13838,7 +13863,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "falseValues": {
-                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "description": "False tokens: false, no, n, Hayır, H.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -13881,7 +13906,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "const": "records"
                       },
                       "sheetName": {
-                        "description": "Exact sheet; default first visible.",
+                        "description": "Sheet; default first visible.",
                         "type": "string"
                       },
                       "range": {
@@ -13889,13 +13914,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "string"
                       },
                       "table": {
-                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "description": "XLSX table: data rows, not range.",
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 255
                       },
                       "visibleOnly": {
-                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "description": "XLSX: skip hidden/AutoFilter rows.",
                         "type": "boolean"
                       },
                       "headerRow": {
@@ -13918,7 +13943,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "boolean"
                       },
                       "columns": {
-                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "description": "Readings {column,type,...}; reuse profile_sheet.",
                         "minItems": 1,
                         "maxItems": 64,
                         "type": "array",
@@ -13939,7 +13964,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 "duration",
                                 "text"
                               ],
-                              "description": "How to read the column."
+                              "description": "Reading type."
                             },
                             "missingValues": {
                               "description": "Missing-text tokens.",
@@ -13952,7 +13977,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "decimal": {
-                              "description": "Decimal separator, for number.",
+                              "description": "Number decimal mark.",
                               "type": "string",
                               "enum": [
                                 ".",
@@ -13960,7 +13985,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "group": {
-                              "description": "Thousands separator, for number.",
+                              "description": "Number group mark.",
                               "type": "string",
                               "enum": [
                                 "none",
@@ -13971,19 +13996,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "locale": {
-                              "description": "File locale, for number or date.",
+                              "description": "Number/date locale.",
                               "type": "string",
                               "minLength": 2,
                               "maxLength": 64
                             },
                             "numberingSystem": {
-                              "description": "Numbering system, for number.",
+                              "description": "Number digit system.",
                               "type": "string",
                               "minLength": 3,
                               "maxLength": 32
                             },
                             "identifiers": {
-                              "description": "Whether to read digit identifiers, for number.",
+                              "description": "Number: read digit identifiers?",
                               "type": "string",
                               "enum": [
                                 "refuse",
@@ -13991,13 +14016,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "format": {
-                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "description": "Date pattern, e.g. dd.MM.yyyy.",
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 64
                             },
                             "order": {
-                              "description": "Day/month order without a format, for date.",
+                              "description": "Date order if no format.",
                               "type": "string",
                               "enum": [
                                 "dmy",
@@ -14005,7 +14030,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "trueValues": {
-                              "description": "True-text tokens, for boolean.",
+                              "description": "Boolean true tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -14015,7 +14040,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "falseValues": {
-                              "description": "False-text tokens, for boolean.",
+                              "description": "Boolean false tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -14069,19 +14094,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "locale": {
-                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "description": "BCP 47 locale: separators/month names, not date order.",
                         "type": "string",
                         "minLength": 2,
                         "maxLength": 64
                       },
                       "numberingSystem": {
-                        "description": "Numbering system such as arab; needs locale.",
+                        "description": "Locale digit system, e.g. arab.",
                         "type": "string",
                         "minLength": 3,
                         "maxLength": 32
                       },
                       "missingValues": {
-                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -14091,7 +14116,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "trueValues": {
-                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "description": "True tokens: true, yes, y, Evet, E.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -14101,7 +14126,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "falseValues": {
-                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "description": "False tokens: false, no, n, Hayır, H.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -14260,7 +14285,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "const": "aggregate"
                       },
                       "sheetName": {
-                        "description": "Exact sheet; default first visible.",
+                        "description": "Sheet; default first visible.",
                         "type": "string"
                       },
                       "range": {
@@ -14268,13 +14293,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "string"
                       },
                       "table": {
-                        "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                        "description": "XLSX table: data rows, not range.",
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 255
                       },
                       "visibleOnly": {
-                        "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                        "description": "XLSX: skip hidden/AutoFilter rows.",
                         "type": "boolean"
                       },
                       "headerRow": {
@@ -14297,7 +14322,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         "type": "boolean"
                       },
                       "columns": {
-                        "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                        "description": "Readings {column,type,...}; reuse profile_sheet.",
                         "minItems": 1,
                         "maxItems": 64,
                         "type": "array",
@@ -14318,7 +14343,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 "duration",
                                 "text"
                               ],
-                              "description": "How to read the column."
+                              "description": "Reading type."
                             },
                             "missingValues": {
                               "description": "Missing-text tokens.",
@@ -14331,7 +14356,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "decimal": {
-                              "description": "Decimal separator, for number.",
+                              "description": "Number decimal mark.",
                               "type": "string",
                               "enum": [
                                 ".",
@@ -14339,7 +14364,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "group": {
-                              "description": "Thousands separator, for number.",
+                              "description": "Number group mark.",
                               "type": "string",
                               "enum": [
                                 "none",
@@ -14350,19 +14375,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "locale": {
-                              "description": "File locale, for number or date.",
+                              "description": "Number/date locale.",
                               "type": "string",
                               "minLength": 2,
                               "maxLength": 64
                             },
                             "numberingSystem": {
-                              "description": "Numbering system, for number.",
+                              "description": "Number digit system.",
                               "type": "string",
                               "minLength": 3,
                               "maxLength": 32
                             },
                             "identifiers": {
-                              "description": "Whether to read digit identifiers, for number.",
+                              "description": "Number: read digit identifiers?",
                               "type": "string",
                               "enum": [
                                 "refuse",
@@ -14370,13 +14395,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "format": {
-                              "description": "Date pattern such as dd.MM.yyyy, for date.",
+                              "description": "Date pattern, e.g. dd.MM.yyyy.",
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 64
                             },
                             "order": {
-                              "description": "Day/month order without a format, for date.",
+                              "description": "Date order if no format.",
                               "type": "string",
                               "enum": [
                                 "dmy",
@@ -14384,7 +14409,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               ]
                             },
                             "trueValues": {
-                              "description": "True-text tokens, for boolean.",
+                              "description": "Boolean true tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -14394,7 +14419,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                               }
                             },
                             "falseValues": {
-                              "description": "False-text tokens, for boolean.",
+                              "description": "Boolean false tokens.",
                               "maxItems": 64,
                               "type": "array",
                               "items": {
@@ -14448,19 +14473,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "locale": {
-                        "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                        "description": "BCP 47 locale: separators/month names, not date order.",
                         "type": "string",
                         "minLength": 2,
                         "maxLength": 64
                       },
                       "numberingSystem": {
-                        "description": "Numbering system such as arab; needs locale.",
+                        "description": "Locale digit system, e.g. arab.",
                         "type": "string",
                         "minLength": 3,
                         "maxLength": 32
                       },
                       "missingValues": {
-                        "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                        "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -14470,7 +14495,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "trueValues": {
-                        "description": "True-text tokens; default true, yes, y, Evet, E.",
+                        "description": "True tokens: true, yes, y, Evet, E.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -14480,7 +14505,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "falseValues": {
-                        "description": "False-text tokens; default false, no, n, Hayır, H.",
+                        "description": "False tokens: false, no, n, Hayır, H.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -14490,7 +14515,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "groupBy": {
-                        "description": "Row grouping keys; omit for a whole-range total. A key is a column, {column, by} for a UTC date part (month includes the year, week is ISO, weekday Monday=1), or {column, bins} or {column, width, origin?} for [lower, upper) bins.",
+                        "description": "Row grouping keys; omit for a whole-range total. Keys: column; {column,by} UTC part (month includes year, ISO week, Monday=1); {column,bins} or {column,width,origin?} for [lower,upper) bins.",
                         "maxItems": 8,
                         "type": "array",
                         "items": {
@@ -15027,7 +15052,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "const": "range"
             },
             "sheetName": {
-              "description": "Exact sheet; default first visible.",
+              "description": "Sheet; default first visible.",
               "type": "string"
             },
             "range": {
@@ -15035,13 +15060,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "type": "string"
             },
             "table": {
-              "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+              "description": "XLSX table: data rows, not range.",
               "type": "string",
               "minLength": 1,
               "maxLength": 255
             },
             "visibleOnly": {
-              "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+              "description": "XLSX: skip hidden/AutoFilter rows.",
               "type": "boolean"
             },
             "headerRow": {
@@ -15064,7 +15089,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "type": "boolean"
             },
             "columns": {
-              "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+              "description": "Readings {column,type,...}; reuse profile_sheet.",
               "minItems": 1,
               "maxItems": 64,
               "type": "array",
@@ -15085,7 +15110,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                       "duration",
                       "text"
                     ],
-                    "description": "How to read the column."
+                    "description": "Reading type."
                   },
                   "missingValues": {
                     "description": "Missing-text tokens.",
@@ -15098,7 +15123,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     }
                   },
                   "decimal": {
-                    "description": "Decimal separator, for number.",
+                    "description": "Number decimal mark.",
                     "type": "string",
                     "enum": [
                       ".",
@@ -15106,7 +15131,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "group": {
-                    "description": "Thousands separator, for number.",
+                    "description": "Number group mark.",
                     "type": "string",
                     "enum": [
                       "none",
@@ -15117,19 +15142,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "locale": {
-                    "description": "File locale, for number or date.",
+                    "description": "Number/date locale.",
                     "type": "string",
                     "minLength": 2,
                     "maxLength": 64
                   },
                   "numberingSystem": {
-                    "description": "Numbering system, for number.",
+                    "description": "Number digit system.",
                     "type": "string",
                     "minLength": 3,
                     "maxLength": 32
                   },
                   "identifiers": {
-                    "description": "Whether to read digit identifiers, for number.",
+                    "description": "Number: read digit identifiers?",
                     "type": "string",
                     "enum": [
                       "refuse",
@@ -15137,13 +15162,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "format": {
-                    "description": "Date pattern such as dd.MM.yyyy, for date.",
+                    "description": "Date pattern, e.g. dd.MM.yyyy.",
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
                   },
                   "order": {
-                    "description": "Day/month order without a format, for date.",
+                    "description": "Date order if no format.",
                     "type": "string",
                     "enum": [
                       "dmy",
@@ -15151,7 +15176,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "trueValues": {
-                    "description": "True-text tokens, for boolean.",
+                    "description": "Boolean true tokens.",
                     "maxItems": 64,
                     "type": "array",
                     "items": {
@@ -15161,7 +15186,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     }
                   },
                   "falseValues": {
-                    "description": "False-text tokens, for boolean.",
+                    "description": "Boolean false tokens.",
                     "maxItems": 64,
                     "type": "array",
                     "items": {
@@ -15215,19 +15240,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               ]
             },
             "locale": {
-              "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+              "description": "BCP 47 locale: separators/month names, not date order.",
               "type": "string",
               "minLength": 2,
               "maxLength": 64
             },
             "numberingSystem": {
-              "description": "Numbering system such as arab; needs locale.",
+              "description": "Locale digit system, e.g. arab.",
               "type": "string",
               "minLength": 3,
               "maxLength": 32
             },
             "missingValues": {
-              "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+              "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -15237,7 +15262,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               }
             },
             "trueValues": {
-              "description": "True-text tokens; default true, yes, y, Evet, E.",
+              "description": "True tokens: true, yes, y, Evet, E.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -15247,7 +15272,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               }
             },
             "falseValues": {
-              "description": "False-text tokens; default false, no, n, Hayır, H.",
+              "description": "False tokens: false, no, n, Hayır, H.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -15280,7 +15305,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "const": "records"
             },
             "sheetName": {
-              "description": "Exact sheet; default first visible.",
+              "description": "Sheet; default first visible.",
               "type": "string"
             },
             "range": {
@@ -15288,13 +15313,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "type": "string"
             },
             "table": {
-              "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+              "description": "XLSX table: data rows, not range.",
               "type": "string",
               "minLength": 1,
               "maxLength": 255
             },
             "visibleOnly": {
-              "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+              "description": "XLSX: skip hidden/AutoFilter rows.",
               "type": "boolean"
             },
             "headerRow": {
@@ -15317,7 +15342,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "type": "boolean"
             },
             "columns": {
-              "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+              "description": "Readings {column,type,...}; reuse profile_sheet.",
               "minItems": 1,
               "maxItems": 64,
               "type": "array",
@@ -15338,7 +15363,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                       "duration",
                       "text"
                     ],
-                    "description": "How to read the column."
+                    "description": "Reading type."
                   },
                   "missingValues": {
                     "description": "Missing-text tokens.",
@@ -15351,7 +15376,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     }
                   },
                   "decimal": {
-                    "description": "Decimal separator, for number.",
+                    "description": "Number decimal mark.",
                     "type": "string",
                     "enum": [
                       ".",
@@ -15359,7 +15384,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "group": {
-                    "description": "Thousands separator, for number.",
+                    "description": "Number group mark.",
                     "type": "string",
                     "enum": [
                       "none",
@@ -15370,19 +15395,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "locale": {
-                    "description": "File locale, for number or date.",
+                    "description": "Number/date locale.",
                     "type": "string",
                     "minLength": 2,
                     "maxLength": 64
                   },
                   "numberingSystem": {
-                    "description": "Numbering system, for number.",
+                    "description": "Number digit system.",
                     "type": "string",
                     "minLength": 3,
                     "maxLength": 32
                   },
                   "identifiers": {
-                    "description": "Whether to read digit identifiers, for number.",
+                    "description": "Number: read digit identifiers?",
                     "type": "string",
                     "enum": [
                       "refuse",
@@ -15390,13 +15415,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "format": {
-                    "description": "Date pattern such as dd.MM.yyyy, for date.",
+                    "description": "Date pattern, e.g. dd.MM.yyyy.",
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
                   },
                   "order": {
-                    "description": "Day/month order without a format, for date.",
+                    "description": "Date order if no format.",
                     "type": "string",
                     "enum": [
                       "dmy",
@@ -15404,7 +15429,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "trueValues": {
-                    "description": "True-text tokens, for boolean.",
+                    "description": "Boolean true tokens.",
                     "maxItems": 64,
                     "type": "array",
                     "items": {
@@ -15414,7 +15439,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     }
                   },
                   "falseValues": {
-                    "description": "False-text tokens, for boolean.",
+                    "description": "Boolean false tokens.",
                     "maxItems": 64,
                     "type": "array",
                     "items": {
@@ -15468,19 +15493,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               ]
             },
             "locale": {
-              "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+              "description": "BCP 47 locale: separators/month names, not date order.",
               "type": "string",
               "minLength": 2,
               "maxLength": 64
             },
             "numberingSystem": {
-              "description": "Numbering system such as arab; needs locale.",
+              "description": "Locale digit system, e.g. arab.",
               "type": "string",
               "minLength": 3,
               "maxLength": 32
             },
             "missingValues": {
-              "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+              "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -15490,7 +15515,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               }
             },
             "trueValues": {
-              "description": "True-text tokens; default true, yes, y, Evet, E.",
+              "description": "True tokens: true, yes, y, Evet, E.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -15500,7 +15525,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               }
             },
             "falseValues": {
-              "description": "False-text tokens; default false, no, n, Hayır, H.",
+              "description": "False tokens: false, no, n, Hayır, H.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -15649,7 +15674,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "const": "aggregate"
             },
             "sheetName": {
-              "description": "Exact sheet; default first visible.",
+              "description": "Sheet; default first visible.",
               "type": "string"
             },
             "range": {
@@ -15657,13 +15682,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "type": "string"
             },
             "table": {
-              "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+              "description": "XLSX table: data rows, not range.",
               "type": "string",
               "minLength": 1,
               "maxLength": 255
             },
             "visibleOnly": {
-              "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+              "description": "XLSX: skip hidden/AutoFilter rows.",
               "type": "boolean"
             },
             "headerRow": {
@@ -15686,7 +15711,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               "type": "boolean"
             },
             "columns": {
-              "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+              "description": "Readings {column,type,...}; reuse profile_sheet.",
               "minItems": 1,
               "maxItems": 64,
               "type": "array",
@@ -15707,7 +15732,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                       "duration",
                       "text"
                     ],
-                    "description": "How to read the column."
+                    "description": "Reading type."
                   },
                   "missingValues": {
                     "description": "Missing-text tokens.",
@@ -15720,7 +15745,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     }
                   },
                   "decimal": {
-                    "description": "Decimal separator, for number.",
+                    "description": "Number decimal mark.",
                     "type": "string",
                     "enum": [
                       ".",
@@ -15728,7 +15753,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "group": {
-                    "description": "Thousands separator, for number.",
+                    "description": "Number group mark.",
                     "type": "string",
                     "enum": [
                       "none",
@@ -15739,19 +15764,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "locale": {
-                    "description": "File locale, for number or date.",
+                    "description": "Number/date locale.",
                     "type": "string",
                     "minLength": 2,
                     "maxLength": 64
                   },
                   "numberingSystem": {
-                    "description": "Numbering system, for number.",
+                    "description": "Number digit system.",
                     "type": "string",
                     "minLength": 3,
                     "maxLength": 32
                   },
                   "identifiers": {
-                    "description": "Whether to read digit identifiers, for number.",
+                    "description": "Number: read digit identifiers?",
                     "type": "string",
                     "enum": [
                       "refuse",
@@ -15759,13 +15784,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "format": {
-                    "description": "Date pattern such as dd.MM.yyyy, for date.",
+                    "description": "Date pattern, e.g. dd.MM.yyyy.",
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
                   },
                   "order": {
-                    "description": "Day/month order without a format, for date.",
+                    "description": "Date order if no format.",
                     "type": "string",
                     "enum": [
                       "dmy",
@@ -15773,7 +15798,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     ]
                   },
                   "trueValues": {
-                    "description": "True-text tokens, for boolean.",
+                    "description": "Boolean true tokens.",
                     "maxItems": 64,
                     "type": "array",
                     "items": {
@@ -15783,7 +15808,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                     }
                   },
                   "falseValues": {
-                    "description": "False-text tokens, for boolean.",
+                    "description": "Boolean false tokens.",
                     "maxItems": 64,
                     "type": "array",
                     "items": {
@@ -15837,19 +15862,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               ]
             },
             "locale": {
-              "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+              "description": "BCP 47 locale: separators/month names, not date order.",
               "type": "string",
               "minLength": 2,
               "maxLength": 64
             },
             "numberingSystem": {
-              "description": "Numbering system such as arab; needs locale.",
+              "description": "Locale digit system, e.g. arab.",
               "type": "string",
               "minLength": 3,
               "maxLength": 32
             },
             "missingValues": {
-              "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+              "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -15859,7 +15884,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               }
             },
             "trueValues": {
-              "description": "True-text tokens; default true, yes, y, Evet, E.",
+              "description": "True tokens: true, yes, y, Evet, E.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -15869,7 +15894,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               }
             },
             "falseValues": {
-              "description": "False-text tokens; default false, no, n, Hayır, H.",
+              "description": "False tokens: false, no, n, Hayır, H.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -15879,7 +15904,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
               }
             },
             "groupBy": {
-              "description": "Row grouping keys; omit for a whole-range total. A key is a column, {column, by} for a UTC date part (month includes the year, week is ISO, weekday Monday=1), or {column, bins} or {column, width, origin?} for [lower, upper) bins.",
+              "description": "Row grouping keys; omit for a whole-range total. Keys: column; {column,by} UTC part (month includes year, ISO week, Monday=1); {column,bins} or {column,width,origin?} for [lower,upper) bins.",
               "maxItems": 8,
               "type": "array",
               "items": {
@@ -16225,7 +16250,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   "const": "range"
                 },
                 "sheetName": {
-                  "description": "Exact sheet; default first visible.",
+                  "description": "Sheet; default first visible.",
                   "type": "string"
                 },
                 "range": {
@@ -16233,13 +16258,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   "type": "string"
                 },
                 "table": {
-                  "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                  "description": "XLSX table: data rows, not range.",
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 255
                 },
                 "visibleOnly": {
-                  "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                  "description": "XLSX: skip hidden/AutoFilter rows.",
                   "type": "boolean"
                 },
                 "headerRow": {
@@ -16262,7 +16287,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   "type": "boolean"
                 },
                 "columns": {
-                  "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                  "description": "Readings {column,type,...}; reuse profile_sheet.",
                   "minItems": 1,
                   "maxItems": 64,
                   "type": "array",
@@ -16283,7 +16308,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           "duration",
                           "text"
                         ],
-                        "description": "How to read the column."
+                        "description": "Reading type."
                       },
                       "missingValues": {
                         "description": "Missing-text tokens.",
@@ -16296,7 +16321,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "decimal": {
-                        "description": "Decimal separator, for number.",
+                        "description": "Number decimal mark.",
                         "type": "string",
                         "enum": [
                           ".",
@@ -16304,7 +16329,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "group": {
-                        "description": "Thousands separator, for number.",
+                        "description": "Number group mark.",
                         "type": "string",
                         "enum": [
                           "none",
@@ -16315,19 +16340,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "locale": {
-                        "description": "File locale, for number or date.",
+                        "description": "Number/date locale.",
                         "type": "string",
                         "minLength": 2,
                         "maxLength": 64
                       },
                       "numberingSystem": {
-                        "description": "Numbering system, for number.",
+                        "description": "Number digit system.",
                         "type": "string",
                         "minLength": 3,
                         "maxLength": 32
                       },
                       "identifiers": {
-                        "description": "Whether to read digit identifiers, for number.",
+                        "description": "Number: read digit identifiers?",
                         "type": "string",
                         "enum": [
                           "refuse",
@@ -16335,13 +16360,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "format": {
-                        "description": "Date pattern such as dd.MM.yyyy, for date.",
+                        "description": "Date pattern, e.g. dd.MM.yyyy.",
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 64
                       },
                       "order": {
-                        "description": "Day/month order without a format, for date.",
+                        "description": "Date order if no format.",
                         "type": "string",
                         "enum": [
                           "dmy",
@@ -16349,7 +16374,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "trueValues": {
-                        "description": "True-text tokens, for boolean.",
+                        "description": "Boolean true tokens.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -16359,7 +16384,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "falseValues": {
-                        "description": "False-text tokens, for boolean.",
+                        "description": "Boolean false tokens.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -16413,19 +16438,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   ]
                 },
                 "locale": {
-                  "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                  "description": "BCP 47 locale: separators/month names, not date order.",
                   "type": "string",
                   "minLength": 2,
                   "maxLength": 64
                 },
                 "numberingSystem": {
-                  "description": "Numbering system such as arab; needs locale.",
+                  "description": "Locale digit system, e.g. arab.",
                   "type": "string",
                   "minLength": 3,
                   "maxLength": 32
                 },
                 "missingValues": {
-                  "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                  "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                   "maxItems": 64,
                   "type": "array",
                   "items": {
@@ -16435,7 +16460,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   }
                 },
                 "trueValues": {
-                  "description": "True-text tokens; default true, yes, y, Evet, E.",
+                  "description": "True tokens: true, yes, y, Evet, E.",
                   "maxItems": 64,
                   "type": "array",
                   "items": {
@@ -16445,7 +16470,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   }
                 },
                 "falseValues": {
-                  "description": "False-text tokens; default false, no, n, Hayır, H.",
+                  "description": "False tokens: false, no, n, Hayır, H.",
                   "maxItems": 64,
                   "type": "array",
                   "items": {
@@ -16478,7 +16503,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   "const": "records"
                 },
                 "sheetName": {
-                  "description": "Exact sheet; default first visible.",
+                  "description": "Sheet; default first visible.",
                   "type": "string"
                 },
                 "range": {
@@ -16486,13 +16511,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   "type": "string"
                 },
                 "table": {
-                  "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                  "description": "XLSX table: data rows, not range.",
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 255
                 },
                 "visibleOnly": {
-                  "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                  "description": "XLSX: skip hidden/AutoFilter rows.",
                   "type": "boolean"
                 },
                 "headerRow": {
@@ -16515,7 +16540,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   "type": "boolean"
                 },
                 "columns": {
-                  "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                  "description": "Readings {column,type,...}; reuse profile_sheet.",
                   "minItems": 1,
                   "maxItems": 64,
                   "type": "array",
@@ -16536,7 +16561,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           "duration",
                           "text"
                         ],
-                        "description": "How to read the column."
+                        "description": "Reading type."
                       },
                       "missingValues": {
                         "description": "Missing-text tokens.",
@@ -16549,7 +16574,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "decimal": {
-                        "description": "Decimal separator, for number.",
+                        "description": "Number decimal mark.",
                         "type": "string",
                         "enum": [
                           ".",
@@ -16557,7 +16582,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "group": {
-                        "description": "Thousands separator, for number.",
+                        "description": "Number group mark.",
                         "type": "string",
                         "enum": [
                           "none",
@@ -16568,19 +16593,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "locale": {
-                        "description": "File locale, for number or date.",
+                        "description": "Number/date locale.",
                         "type": "string",
                         "minLength": 2,
                         "maxLength": 64
                       },
                       "numberingSystem": {
-                        "description": "Numbering system, for number.",
+                        "description": "Number digit system.",
                         "type": "string",
                         "minLength": 3,
                         "maxLength": 32
                       },
                       "identifiers": {
-                        "description": "Whether to read digit identifiers, for number.",
+                        "description": "Number: read digit identifiers?",
                         "type": "string",
                         "enum": [
                           "refuse",
@@ -16588,13 +16613,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "format": {
-                        "description": "Date pattern such as dd.MM.yyyy, for date.",
+                        "description": "Date pattern, e.g. dd.MM.yyyy.",
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 64
                       },
                       "order": {
-                        "description": "Day/month order without a format, for date.",
+                        "description": "Date order if no format.",
                         "type": "string",
                         "enum": [
                           "dmy",
@@ -16602,7 +16627,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "trueValues": {
-                        "description": "True-text tokens, for boolean.",
+                        "description": "Boolean true tokens.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -16612,7 +16637,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "falseValues": {
-                        "description": "False-text tokens, for boolean.",
+                        "description": "Boolean false tokens.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -16666,19 +16691,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   ]
                 },
                 "locale": {
-                  "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                  "description": "BCP 47 locale: separators/month names, not date order.",
                   "type": "string",
                   "minLength": 2,
                   "maxLength": 64
                 },
                 "numberingSystem": {
-                  "description": "Numbering system such as arab; needs locale.",
+                  "description": "Locale digit system, e.g. arab.",
                   "type": "string",
                   "minLength": 3,
                   "maxLength": 32
                 },
                 "missingValues": {
-                  "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                  "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                   "maxItems": 64,
                   "type": "array",
                   "items": {
@@ -16688,7 +16713,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   }
                 },
                 "trueValues": {
-                  "description": "True-text tokens; default true, yes, y, Evet, E.",
+                  "description": "True tokens: true, yes, y, Evet, E.",
                   "maxItems": 64,
                   "type": "array",
                   "items": {
@@ -16698,7 +16723,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   }
                 },
                 "falseValues": {
-                  "description": "False-text tokens; default false, no, n, Hayır, H.",
+                  "description": "False tokens: false, no, n, Hayır, H.",
                   "maxItems": 64,
                   "type": "array",
                   "items": {
@@ -16847,7 +16872,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   "const": "aggregate"
                 },
                 "sheetName": {
-                  "description": "Exact sheet; default first visible.",
+                  "description": "Sheet; default first visible.",
                   "type": "string"
                 },
                 "range": {
@@ -16855,13 +16880,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   "type": "string"
                 },
                 "table": {
-                  "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                  "description": "XLSX table: data rows, not range.",
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 255
                 },
                 "visibleOnly": {
-                  "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                  "description": "XLSX: skip hidden/AutoFilter rows.",
                   "type": "boolean"
                 },
                 "headerRow": {
@@ -16884,7 +16909,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   "type": "boolean"
                 },
                 "columns": {
-                  "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                  "description": "Readings {column,type,...}; reuse profile_sheet.",
                   "minItems": 1,
                   "maxItems": 64,
                   "type": "array",
@@ -16905,7 +16930,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           "duration",
                           "text"
                         ],
-                        "description": "How to read the column."
+                        "description": "Reading type."
                       },
                       "missingValues": {
                         "description": "Missing-text tokens.",
@@ -16918,7 +16943,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "decimal": {
-                        "description": "Decimal separator, for number.",
+                        "description": "Number decimal mark.",
                         "type": "string",
                         "enum": [
                           ".",
@@ -16926,7 +16951,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "group": {
-                        "description": "Thousands separator, for number.",
+                        "description": "Number group mark.",
                         "type": "string",
                         "enum": [
                           "none",
@@ -16937,19 +16962,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "locale": {
-                        "description": "File locale, for number or date.",
+                        "description": "Number/date locale.",
                         "type": "string",
                         "minLength": 2,
                         "maxLength": 64
                       },
                       "numberingSystem": {
-                        "description": "Numbering system, for number.",
+                        "description": "Number digit system.",
                         "type": "string",
                         "minLength": 3,
                         "maxLength": 32
                       },
                       "identifiers": {
-                        "description": "Whether to read digit identifiers, for number.",
+                        "description": "Number: read digit identifiers?",
                         "type": "string",
                         "enum": [
                           "refuse",
@@ -16957,13 +16982,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "format": {
-                        "description": "Date pattern such as dd.MM.yyyy, for date.",
+                        "description": "Date pattern, e.g. dd.MM.yyyy.",
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 64
                       },
                       "order": {
-                        "description": "Day/month order without a format, for date.",
+                        "description": "Date order if no format.",
                         "type": "string",
                         "enum": [
                           "dmy",
@@ -16971,7 +16996,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         ]
                       },
                       "trueValues": {
-                        "description": "True-text tokens, for boolean.",
+                        "description": "Boolean true tokens.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -16981,7 +17006,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                         }
                       },
                       "falseValues": {
-                        "description": "False-text tokens, for boolean.",
+                        "description": "Boolean false tokens.",
                         "maxItems": 64,
                         "type": "array",
                         "items": {
@@ -17035,19 +17060,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   ]
                 },
                 "locale": {
-                  "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                  "description": "BCP 47 locale: separators/month names, not date order.",
                   "type": "string",
                   "minLength": 2,
                   "maxLength": 64
                 },
                 "numberingSystem": {
-                  "description": "Numbering system such as arab; needs locale.",
+                  "description": "Locale digit system, e.g. arab.",
                   "type": "string",
                   "minLength": 3,
                   "maxLength": 32
                 },
                 "missingValues": {
-                  "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                  "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                   "maxItems": 64,
                   "type": "array",
                   "items": {
@@ -17057,7 +17082,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   }
                 },
                 "trueValues": {
-                  "description": "True-text tokens; default true, yes, y, Evet, E.",
+                  "description": "True tokens: true, yes, y, Evet, E.",
                   "maxItems": 64,
                   "type": "array",
                   "items": {
@@ -17067,7 +17092,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   }
                 },
                 "falseValues": {
-                  "description": "False-text tokens; default false, no, n, Hayır, H.",
+                  "description": "False tokens: false, no, n, Hayır, H.",
                   "maxItems": 64,
                   "type": "array",
                   "items": {
@@ -17077,7 +17102,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                   }
                 },
                 "groupBy": {
-                  "description": "Row grouping keys; omit for a whole-range total. A key is a column, {column, by} for a UTC date part (month includes the year, week is ISO, weekday Monday=1), or {column, bins} or {column, width, origin?} for [lower, upper) bins.",
+                  "description": "Row grouping keys; omit for a whole-range total. Keys: column; {column,by} UTC part (month includes year, ISO week, Monday=1); {column,bins} or {column,width,origin?} for [lower,upper) bins.",
                   "maxItems": 8,
                   "type": "array",
                   "items": {
@@ -17723,7 +17748,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           "const": "range"
                         },
                         "sheetName": {
-                          "description": "Exact sheet; default first visible.",
+                          "description": "Sheet; default first visible.",
                           "type": "string"
                         },
                         "range": {
@@ -17731,13 +17756,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           "type": "string"
                         },
                         "table": {
-                          "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                          "description": "XLSX table: data rows, not range.",
                           "type": "string",
                           "minLength": 1,
                           "maxLength": 255
                         },
                         "visibleOnly": {
-                          "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                          "description": "XLSX: skip hidden/AutoFilter rows.",
                           "type": "boolean"
                         },
                         "headerRow": {
@@ -17760,7 +17785,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           "type": "boolean"
                         },
                         "columns": {
-                          "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                          "description": "Readings {column,type,...}; reuse profile_sheet.",
                           "minItems": 1,
                           "maxItems": 64,
                           "type": "array",
@@ -17781,7 +17806,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                   "duration",
                                   "text"
                                 ],
-                                "description": "How to read the column."
+                                "description": "Reading type."
                               },
                               "missingValues": {
                                 "description": "Missing-text tokens.",
@@ -17794,7 +17819,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 }
                               },
                               "decimal": {
-                                "description": "Decimal separator, for number.",
+                                "description": "Number decimal mark.",
                                 "type": "string",
                                 "enum": [
                                   ".",
@@ -17802,7 +17827,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 ]
                               },
                               "group": {
-                                "description": "Thousands separator, for number.",
+                                "description": "Number group mark.",
                                 "type": "string",
                                 "enum": [
                                   "none",
@@ -17813,19 +17838,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 ]
                               },
                               "locale": {
-                                "description": "File locale, for number or date.",
+                                "description": "Number/date locale.",
                                 "type": "string",
                                 "minLength": 2,
                                 "maxLength": 64
                               },
                               "numberingSystem": {
-                                "description": "Numbering system, for number.",
+                                "description": "Number digit system.",
                                 "type": "string",
                                 "minLength": 3,
                                 "maxLength": 32
                               },
                               "identifiers": {
-                                "description": "Whether to read digit identifiers, for number.",
+                                "description": "Number: read digit identifiers?",
                                 "type": "string",
                                 "enum": [
                                   "refuse",
@@ -17833,13 +17858,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 ]
                               },
                               "format": {
-                                "description": "Date pattern such as dd.MM.yyyy, for date.",
+                                "description": "Date pattern, e.g. dd.MM.yyyy.",
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64
                               },
                               "order": {
-                                "description": "Day/month order without a format, for date.",
+                                "description": "Date order if no format.",
                                 "type": "string",
                                 "enum": [
                                   "dmy",
@@ -17847,7 +17872,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 ]
                               },
                               "trueValues": {
-                                "description": "True-text tokens, for boolean.",
+                                "description": "Boolean true tokens.",
                                 "maxItems": 64,
                                 "type": "array",
                                 "items": {
@@ -17857,7 +17882,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 }
                               },
                               "falseValues": {
-                                "description": "False-text tokens, for boolean.",
+                                "description": "Boolean false tokens.",
                                 "maxItems": 64,
                                 "type": "array",
                                 "items": {
@@ -17911,19 +17936,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           ]
                         },
                         "locale": {
-                          "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                          "description": "BCP 47 locale: separators/month names, not date order.",
                           "type": "string",
                           "minLength": 2,
                           "maxLength": 64
                         },
                         "numberingSystem": {
-                          "description": "Numbering system such as arab; needs locale.",
+                          "description": "Locale digit system, e.g. arab.",
                           "type": "string",
                           "minLength": 3,
                           "maxLength": 32
                         },
                         "missingValues": {
-                          "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                          "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                           "maxItems": 64,
                           "type": "array",
                           "items": {
@@ -17933,7 +17958,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           }
                         },
                         "trueValues": {
-                          "description": "True-text tokens; default true, yes, y, Evet, E.",
+                          "description": "True tokens: true, yes, y, Evet, E.",
                           "maxItems": 64,
                           "type": "array",
                           "items": {
@@ -17943,7 +17968,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           }
                         },
                         "falseValues": {
-                          "description": "False-text tokens; default false, no, n, Hayır, H.",
+                          "description": "False tokens: false, no, n, Hayır, H.",
                           "maxItems": 64,
                           "type": "array",
                           "items": {
@@ -17986,7 +18011,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           "const": "records"
                         },
                         "sheetName": {
-                          "description": "Exact sheet; default first visible.",
+                          "description": "Sheet; default first visible.",
                           "type": "string"
                         },
                         "range": {
@@ -17994,13 +18019,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           "type": "string"
                         },
                         "table": {
-                          "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                          "description": "XLSX table: data rows, not range.",
                           "type": "string",
                           "minLength": 1,
                           "maxLength": 255
                         },
                         "visibleOnly": {
-                          "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                          "description": "XLSX: skip hidden/AutoFilter rows.",
                           "type": "boolean"
                         },
                         "headerRow": {
@@ -18023,7 +18048,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           "type": "boolean"
                         },
                         "columns": {
-                          "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                          "description": "Readings {column,type,...}; reuse profile_sheet.",
                           "minItems": 1,
                           "maxItems": 64,
                           "type": "array",
@@ -18044,7 +18069,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                   "duration",
                                   "text"
                                 ],
-                                "description": "How to read the column."
+                                "description": "Reading type."
                               },
                               "missingValues": {
                                 "description": "Missing-text tokens.",
@@ -18057,7 +18082,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 }
                               },
                               "decimal": {
-                                "description": "Decimal separator, for number.",
+                                "description": "Number decimal mark.",
                                 "type": "string",
                                 "enum": [
                                   ".",
@@ -18065,7 +18090,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 ]
                               },
                               "group": {
-                                "description": "Thousands separator, for number.",
+                                "description": "Number group mark.",
                                 "type": "string",
                                 "enum": [
                                   "none",
@@ -18076,19 +18101,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 ]
                               },
                               "locale": {
-                                "description": "File locale, for number or date.",
+                                "description": "Number/date locale.",
                                 "type": "string",
                                 "minLength": 2,
                                 "maxLength": 64
                               },
                               "numberingSystem": {
-                                "description": "Numbering system, for number.",
+                                "description": "Number digit system.",
                                 "type": "string",
                                 "minLength": 3,
                                 "maxLength": 32
                               },
                               "identifiers": {
-                                "description": "Whether to read digit identifiers, for number.",
+                                "description": "Number: read digit identifiers?",
                                 "type": "string",
                                 "enum": [
                                   "refuse",
@@ -18096,13 +18121,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 ]
                               },
                               "format": {
-                                "description": "Date pattern such as dd.MM.yyyy, for date.",
+                                "description": "Date pattern, e.g. dd.MM.yyyy.",
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64
                               },
                               "order": {
-                                "description": "Day/month order without a format, for date.",
+                                "description": "Date order if no format.",
                                 "type": "string",
                                 "enum": [
                                   "dmy",
@@ -18110,7 +18135,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 ]
                               },
                               "trueValues": {
-                                "description": "True-text tokens, for boolean.",
+                                "description": "Boolean true tokens.",
                                 "maxItems": 64,
                                 "type": "array",
                                 "items": {
@@ -18120,7 +18145,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 }
                               },
                               "falseValues": {
-                                "description": "False-text tokens, for boolean.",
+                                "description": "Boolean false tokens.",
                                 "maxItems": 64,
                                 "type": "array",
                                 "items": {
@@ -18174,19 +18199,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           ]
                         },
                         "locale": {
-                          "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                          "description": "BCP 47 locale: separators/month names, not date order.",
                           "type": "string",
                           "minLength": 2,
                           "maxLength": 64
                         },
                         "numberingSystem": {
-                          "description": "Numbering system such as arab; needs locale.",
+                          "description": "Locale digit system, e.g. arab.",
                           "type": "string",
                           "minLength": 3,
                           "maxLength": 32
                         },
                         "missingValues": {
-                          "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                          "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                           "maxItems": 64,
                           "type": "array",
                           "items": {
@@ -18196,7 +18221,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           }
                         },
                         "trueValues": {
-                          "description": "True-text tokens; default true, yes, y, Evet, E.",
+                          "description": "True tokens: true, yes, y, Evet, E.",
                           "maxItems": 64,
                           "type": "array",
                           "items": {
@@ -18206,7 +18231,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           }
                         },
                         "falseValues": {
-                          "description": "False-text tokens; default false, no, n, Hayır, H.",
+                          "description": "False tokens: false, no, n, Hayır, H.",
                           "maxItems": 64,
                           "type": "array",
                           "items": {
@@ -18365,7 +18390,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           "const": "aggregate"
                         },
                         "sheetName": {
-                          "description": "Exact sheet; default first visible.",
+                          "description": "Sheet; default first visible.",
                           "type": "string"
                         },
                         "range": {
@@ -18373,13 +18398,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           "type": "string"
                         },
                         "table": {
-                          "description": "Declared table name; selects its data rows. Not with range. XLSX only.",
+                          "description": "XLSX table: data rows, not range.",
                           "type": "string",
                           "minLength": 1,
                           "maxLength": 255
                         },
                         "visibleOnly": {
-                          "description": "Skip saved hidden rows, AutoFilter's included. XLSX only.",
+                          "description": "XLSX: skip hidden/AutoFilter rows.",
                           "type": "boolean"
                         },
                         "headerRow": {
@@ -18402,7 +18427,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           "type": "boolean"
                         },
                         "columns": {
-                          "description": "Readings [{column,type,...}] from profile_sheet; type-specific fields below.",
+                          "description": "Readings {column,type,...}; reuse profile_sheet.",
                           "minItems": 1,
                           "maxItems": 64,
                           "type": "array",
@@ -18423,7 +18448,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                   "duration",
                                   "text"
                                 ],
-                                "description": "How to read the column."
+                                "description": "Reading type."
                               },
                               "missingValues": {
                                 "description": "Missing-text tokens.",
@@ -18436,7 +18461,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 }
                               },
                               "decimal": {
-                                "description": "Decimal separator, for number.",
+                                "description": "Number decimal mark.",
                                 "type": "string",
                                 "enum": [
                                   ".",
@@ -18444,7 +18469,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 ]
                               },
                               "group": {
-                                "description": "Thousands separator, for number.",
+                                "description": "Number group mark.",
                                 "type": "string",
                                 "enum": [
                                   "none",
@@ -18455,19 +18480,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 ]
                               },
                               "locale": {
-                                "description": "File locale, for number or date.",
+                                "description": "Number/date locale.",
                                 "type": "string",
                                 "minLength": 2,
                                 "maxLength": 64
                               },
                               "numberingSystem": {
-                                "description": "Numbering system, for number.",
+                                "description": "Number digit system.",
                                 "type": "string",
                                 "minLength": 3,
                                 "maxLength": 32
                               },
                               "identifiers": {
-                                "description": "Whether to read digit identifiers, for number.",
+                                "description": "Number: read digit identifiers?",
                                 "type": "string",
                                 "enum": [
                                   "refuse",
@@ -18475,13 +18500,13 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 ]
                               },
                               "format": {
-                                "description": "Date pattern such as dd.MM.yyyy, for date.",
+                                "description": "Date pattern, e.g. dd.MM.yyyy.",
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64
                               },
                               "order": {
-                                "description": "Day/month order without a format, for date.",
+                                "description": "Date order if no format.",
                                 "type": "string",
                                 "enum": [
                                   "dmy",
@@ -18489,7 +18514,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 ]
                               },
                               "trueValues": {
-                                "description": "True-text tokens, for boolean.",
+                                "description": "Boolean true tokens.",
                                 "maxItems": 64,
                                 "type": "array",
                                 "items": {
@@ -18499,7 +18524,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                                 }
                               },
                               "falseValues": {
-                                "description": "False-text tokens, for boolean.",
+                                "description": "Boolean false tokens.",
                                 "maxItems": 64,
                                 "type": "array",
                                 "items": {
@@ -18553,19 +18578,19 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           ]
                         },
                         "locale": {
-                          "description": "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
+                          "description": "BCP 47 locale: separators/month names, not date order.",
                           "type": "string",
                           "minLength": 2,
                           "maxLength": 64
                         },
                         "numberingSystem": {
-                          "description": "Numbering system such as arab; needs locale.",
+                          "description": "Locale digit system, e.g. arab.",
                           "type": "string",
                           "minLength": 3,
                           "maxLength": 32
                         },
                         "missingValues": {
-                          "description": "Missing-text tokens; default N/A, NULL, -, —, #N/A.",
+                          "description": "Missing tokens: N/A, NULL, -, —, #N/A.",
                           "maxItems": 64,
                           "type": "array",
                           "items": {
@@ -18575,7 +18600,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           }
                         },
                         "trueValues": {
-                          "description": "True-text tokens; default true, yes, y, Evet, E.",
+                          "description": "True tokens: true, yes, y, Evet, E.",
                           "maxItems": 64,
                           "type": "array",
                           "items": {
@@ -18585,7 +18610,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           }
                         },
                         "falseValues": {
-                          "description": "False-text tokens; default false, no, n, Hayır, H.",
+                          "description": "False tokens: false, no, n, Hayır, H.",
                           "maxItems": 64,
                           "type": "array",
                           "items": {
@@ -18595,7 +18620,7 @@ Available only with `--write <relative-output-directory>`. The registered JSON S
                           }
                         },
                         "groupBy": {
-                          "description": "Row grouping keys; omit for a whole-range total. A key is a column, {column, by} for a UTC date part (month includes the year, week is ISO, weekday Monday=1), or {column, bins} or {column, width, origin?} for [lower, upper) bins.",
+                          "description": "Row grouping keys; omit for a whole-range total. Keys: column; {column,by} UTC part (month includes year, ISO week, Monday=1); {column,bins} or {column,width,origin?} for [lower,upper) bins.",
                           "maxItems": 8,
                           "type": "array",
                           "items": {

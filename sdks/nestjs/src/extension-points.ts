@@ -1,5 +1,10 @@
 import type { InjectionToken, Provider, Type } from "@nestjs/common";
-import type { ResultStore, SezzleeCache, ToolRanker } from "@sezzlee/core";
+import type {
+  DataExecutor,
+  ResultStore,
+  SezzleeCache,
+  ToolRanker,
+} from "@sezzlee/core";
 import type { CallerScopeResolver } from "./cache.js";
 import type { InvokeResultMapper } from "./invoke-result-mapper.js";
 import type { VisibilityEvaluator } from "./visibility/evaluator.js";
@@ -15,6 +20,7 @@ export interface ExtensionPoints {
   toolRanker: ToolRanker | null;
   toolAuthorizer: ToolAuthorizer | null;
   resultStore: ResultStore | null;
+  resultExecutor: DataExecutor | null;
 }
 
 export const extensionTokens = {
@@ -26,6 +32,7 @@ export const extensionTokens = {
   toolRanker: Symbol("SEZZLEE_TOOL_RANKER"),
   toolAuthorizer: Symbol("SEZZLEE_TOOL_AUTHORIZER"),
   resultStore: Symbol("SEZZLEE_RESULT_STORE"),
+  resultExecutor: Symbol("SEZZLEE_RESULT_EXECUTOR"),
 } as const satisfies { readonly [K in keyof ExtensionPoints]: symbol };
 
 export type OverrideProvider<T> =

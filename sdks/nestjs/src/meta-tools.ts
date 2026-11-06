@@ -6,6 +6,9 @@ import {
   createLoadedTool,
   emitGuarded as emitWithin,
   errorResult,
+  executeCodeDescription,
+  executeResultDescription,
+  executeStoredResult,
   invokeArgumentsDescription,
   invokeDescription,
   invokeResponse,
@@ -44,6 +47,7 @@ import {
   searchTools,
   describeRankerEvent,
   type CallerScope,
+  type DataExecutor,
   type MetaResponse,
   type ResultShelf,
   type ResultStore,
@@ -93,6 +97,7 @@ export interface MetaToolDependencies {
   readonly options: SezzleeOptions;
   /** Where an over-budget `invoke_tool` success is kept; absent or `null` refuses it instead. */
   readonly results?: ResultStore | null;
+  readonly resultExecutor?: DataExecutor | null;
 }
 
 interface ToolContext {
@@ -358,18 +363,18 @@ function limited(
   metaTool: keyof typeof metaToolNames,
   name: unknown,
   produce: () => Promise<MetaResponse<InvokeTarget>>,
+  toolName: string = metaToolNames[metaTool],
 ): Promise<WireResult> {
   return emitGuarded(
     deps,
     () =>
-      throttled(
-        deps,
-        ctx,
-        { metaTool, toolName: metaToolNames[metaTool], name },
-        produce,
-        (error) => ({ payload: error, isError: true }),
-      ),
-    metaTool === "invoke" ? shelfFor(deps, ctx) : undefined,
+      throttled(deps, ctx, { metaTool, toolName, name }, produce, (error) => ({
+        payload: error,
+        isError: true,
+      })),
+    metaTool === "invoke" || toolName === "execute_result"
+      ? shelfFor(deps, ctx)
+      : undefined,
   );
 }
 
@@ -686,6 +691,47 @@ export function registerSezzleeTools(
   const store = deps.results;
   if (store === undefined || store === null) {
     return;
+  }
+  const executor = deps.resultExecutor;
+  if (executor !== undefined && executor !== null) {
+    server.registerTool(
+      "execute_result",
+      {
+        description: `${executeResultDescription} Execution limits: ${JSON.stringify(executor.limits)}.`,
+        _meta: generationMeta(),
+        annotations: { readOnlyHint: true, openWorldHint: false },
+        inputSchema: z
+          .object({
+            handle: namedArgument(readHandleDescription),
+            code: namedArgument(executeCodeDescription),
+          })
+          .meta({ required: ["handle", "code"] }),
+      },
+      async ({ handle, code }, ctx) =>
+        limited(
+          deps,
+          ctx,
+          "read",
+          undefined,
+          () =>
+            executeStoredResult({
+              handle,
+              code,
+              shelf: { store, partition: scopeFor(deps, outerFrom(ctx)).key },
+              executor,
+              signal: deadlineFrom(ctx)?.signal,
+              visible: async (tool) => {
+                deps.catalog.ensureValid();
+                const entry = deps.catalog.findCallable(tool);
+                return (
+                  entry !== undefined &&
+                  deps.visibility.visible(await decisionFor(deps, ctx, entry))
+                );
+              },
+            }),
+          "execute_result",
+        ),
+    );
   }
   server.registerTool(
     "read_result",

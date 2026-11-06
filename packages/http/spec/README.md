@@ -21,6 +21,7 @@ treat a file as binding without reading it.
 | `error-mapping.md`           | Error envelope, code dictionary, leak prevention | normative                                |
 | `invoke-semantics.md`        | Response budget, invoke deadline, cancellation   | normative                                |
 | `result-reading.md`          | Stored over-budget results, `read_result`        | normative                                |
+| `result-execution.md`        | Bounded computation over stored results          | normative optional extension             |
 | `provider-tools.md`          | Provider tools without HTTP routes               | normative optional extension             |
 | `transport.md`               | Streamable HTTP, PRM, the 401 rule               | normative                                |
 | `fixture-format.md`          | Fixture envelope and kinds                       | normative                                |

@@ -1,4 +1,10 @@
 import { json, measureJson } from "@sezzlee/file-core";
+import {
+  outlineJsonValue,
+  readJsonValue,
+  type JsonReadRequest,
+} from "@sezzlee/compute-core";
+import type { ResultExecutionSource } from "./result-execution-schema.js";
 import type { AggregateResult } from "../grid/aggregate.js";
 import {
   isCellError,
@@ -175,11 +181,48 @@ export interface RetainRequest {
 }
 
 interface StoredResult extends CapturedResult {
+  readonly kind: "aggregate";
   readonly id: string;
   readonly expiresAt: number;
   readonly metadata: ResultMetadata;
   readonly dateColumns: ReadonlySet<number>;
   index?: ReadonlyMap<string, readonly number[]>;
+}
+
+interface StoredJsonResult {
+  readonly kind: "computed";
+  readonly id: string;
+  readonly expiresAt: number;
+  readonly sizeBytes: number;
+  readonly json: string;
+}
+
+export interface ResultProgramInput {
+  readonly source: ResultExecutionSource;
+  readonly json: string;
+}
+
+type StoredEntry = StoredResult | StoredJsonResult;
+
+function sourceOf(entry: StoredEntry): ResultExecutionSource {
+  return entry.kind === "aggregate"
+    ? {
+        kind: "aggregate",
+        resultId: entry.id,
+        scope: "retained_result",
+        totalRows: entry.rows.length,
+        totalColumns: entry.metadata.columns.length,
+        matchedSourceRows: entry.metadata.matchedRows,
+        sourceVersion: entry.metadata.sourceVersion,
+        sourcePolicy: "snapshot",
+      }
+    : { kind: "computed", resultId: entry.id, scope: "computed_json" };
+}
+
+function programJson(entry: StoredEntry): string {
+  if (entry.kind === "computed") return entry.json;
+  const metadata = JSON.stringify(entry.metadata);
+  return `${metadata.slice(0, -1)},"dateColumns":${JSON.stringify([...entry.dateColumns])},"rows":[${entry.rows.map((row) => row.json).join(",")}],"rowSourceCounts":[${entry.rows.map((row) => row.matchedRows).join(",")}]}`;
 }
 
 export interface ResultRowsQuery extends Omit<ResultQuery, "maxRows"> {
@@ -547,12 +590,21 @@ export interface ResultStore {
   ): RetainedPreview;
   query(query: ResultQuery): RetainedPage;
   rows(query: ResultRowsQuery): ResultRows;
+  program(resultId: string): ResultProgramInput;
+  retainJson(value: string): {
+    readonly resultId: string;
+    readonly expiresAt: string;
+    readonly bytes: number;
+    readonly outline: ReturnType<typeof outlineJsonValue>;
+    readonly message: string;
+  };
+  readJson(query: JsonReadRequest & { readonly resultId: string }): unknown;
   repeated(rows: readonly (readonly CellScalar[])[]): string | undefined;
   clear(): void;
 }
 
 export function createResultStore(): ResultStore {
-  const entries = new Map<string, StoredResult>();
+  const entries = new Map<string, StoredEntry>();
   let sizeBytes = 0;
   const expire = (now: number): void => {
     for (const [id, entry] of entries)
@@ -561,16 +613,36 @@ export function createResultStore(): ResultStore {
         sizeBytes -= entry.sizeBytes;
       }
   };
-  const live = (resultId: string): StoredResult => {
+  const live = (resultId: string): StoredEntry => {
     expire(Date.now());
     const entry = entries.get(resultId);
     if (entry === undefined)
       throw new SezzleeExcelError(
         "result_unavailable",
         "The result is unknown, expired, or belongs to another server instance.",
-        "Run aggregate_sheet with resultMode retained in this server instance to create a new result.",
+        "Create a new retained aggregate in this server instance; if this was a computed result, recreate it from its source snapshot.",
       );
     return entry;
+  };
+  const table = (resultId: string): StoredResult => {
+    const entry = live(resultId);
+    if (entry.kind !== "aggregate")
+      invalid(
+        "This is a computed JSON result.",
+        "Use read_result or execute_result, not query_result or a tabular write source.",
+      );
+    return entry;
+  };
+  const admit = (admitted: readonly StoredEntry[]): void => {
+    const bytes = admitted.reduce((sum, entry) => sum + entry.sizeBytes, 0);
+    if (
+      entries.size + admitted.length > limits.maxResults ||
+      sizeBytes + bytes > limits.maxResultStoreBytes
+    )
+      throw resource(
+        `The result store is full (${limits.maxResults} results, ${limits.maxResultStoreBytes} bytes).`,
+        "Wait for an existing result to expire, or start a new server instance. Existing results remain readable.",
+      );
   };
   return {
     retain([first, ...rest], maxRows) {
@@ -596,6 +668,7 @@ export function createResultStore(): ResultStore {
             `A retained result exceeds ${limits.maxResultBytes} bytes.`,
           );
         return {
+          kind: "aggregate",
           ...captured,
           sizeBytes: bytes,
           id: createResultId(),
@@ -607,15 +680,7 @@ export function createResultStore(): ResultStore {
       const primary = prepare(first);
       const sets = rest.map(prepare);
       const admitted = [primary, ...sets];
-      const bytes = admitted.reduce((sum, entry) => sum + entry.sizeBytes, 0);
-      if (
-        entries.size + admitted.length > limits.maxResults ||
-        sizeBytes + bytes > limits.maxResultStoreBytes
-      )
-        throw resource(
-          `The result store is full (${limits.maxResults} results, ${limits.maxResultStoreBytes} bytes).`,
-          "Wait for an existing result to expire, or start a new server instance. Existing results remain readable.",
-        );
+      admit(admitted);
       const head = slotOf(planOf(primary, { maxRows }));
       const tail = sets.map((entry) => slotOf(planOf(entry, { maxRows })));
       const previewOf = (): RetainedPreview => ({
@@ -630,11 +695,11 @@ export function createResultStore(): ResultStore {
       );
       const preview = previewOf();
       for (const entry of admitted) entries.set(entry.id, entry);
-      sizeBytes += bytes;
+      sizeBytes += admitted.reduce((sum, entry) => sum + entry.sizeBytes, 0);
       return preview;
     },
     query(query) {
-      const entry = live(query.resultId);
+      const entry = table(query.resultId);
       const slot = slotOf(planOf(entry, query));
       fit(
         [slot],
@@ -645,7 +710,7 @@ export function createResultStore(): ResultStore {
       return pageOf(slot, false);
     },
     rows(query) {
-      const entry = live(query.resultId);
+      const entry = table(query.resultId);
       const maxRows = query.maxRows ?? limits.maxResultRows;
       if (
         !Number.isSafeInteger(maxRows) ||
@@ -666,9 +731,71 @@ export function createResultStore(): ResultStore {
         }),
       };
     },
+    program(resultId) {
+      const entry = live(resultId);
+      return { source: sourceOf(entry), json: programJson(entry) };
+    },
+    retainJson(value) {
+      const now = Date.now();
+      expire(now);
+      const bytes = resultUtf8Bytes(value);
+      const id = createResultId();
+      const expiresAt = now + limits.resultTtlMs;
+      const entry: StoredJsonResult = {
+        kind: "computed",
+        id,
+        expiresAt,
+        json: value,
+        sizeBytes: bytes + measureJson({ id, expiresAt, kind: "computed" }),
+      };
+      if (entry.sizeBytes > limits.maxResultBytes)
+        throw resource(
+          `A retained result exceeds ${limits.maxResultBytes} bytes.`,
+          "Return a smaller projection or aggregate from the program.",
+        );
+      admit([entry]);
+      const answer = {
+        resultId: id,
+        expiresAt: new Date(expiresAt).toISOString(),
+        bytes,
+        outline: outlineJsonValue(value),
+        message:
+          "The complete computed JSON was stored. Use read_result with this resultId and path /value, or execute_result with data.value. The workbook was not read again.",
+      };
+      if (!fitsPage(answer))
+        throw resource(
+          "The computed result outline exceeds the response budget.",
+          "Return fewer or shorter object member names.",
+        );
+      entries.set(id, entry);
+      sizeBytes += entry.sizeBytes;
+      return answer;
+    },
+    readJson(query) {
+      const entry = live(query.resultId);
+      const read = readJsonValue(programJson(entry), query);
+      if (read.kind === "invalid")
+        invalid(
+          read.message,
+          "Choose a path from the outline and a smaller window with offset and limit.",
+        );
+      const answer = {
+        ...read,
+        resultId: entry.id,
+        source: sourceOf(entry),
+        expiresAt: new Date(entry.expiresAt).toISOString(),
+      };
+      if (!fitsPage(answer))
+        throw resource(
+          "The selected JSON window exceeds the response budget.",
+          "Select fewer fields, reduce limit, or choose a nested path. Strings support offset and limit; no characters were truncated.",
+        );
+      return answer;
+    },
     repeated(rows) {
       expire(Date.now());
       for (const entry of entries.values()) {
+        if (entry.kind !== "aggregate") continue;
         const index = indexOf(entry);
         let run = 0;
         for (const row of rows) {

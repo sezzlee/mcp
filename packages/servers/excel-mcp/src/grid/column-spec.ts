@@ -17,21 +17,17 @@ const numberingSystem = z.string().min(3).max(32);
 export const readingHintsSchema = {
   locale: locale
     .optional()
-    .describe(
-      "File's BCP 47 locale: separators and month names, never day/month order. Omit if unknown.",
-    ),
+    .describe("BCP 47 locale: separators/month names, not date order."),
   numberingSystem: numberingSystem
     .optional()
-    .describe("Numbering system such as arab; needs locale."),
+    .describe("Locale digit system, e.g. arab."),
   missingValues: tokens
     .optional()
-    .describe("Missing-text tokens; default N/A, NULL, -, —, #N/A."),
-  trueValues: tokens
-    .optional()
-    .describe("True-text tokens; default true, yes, y, Evet, E."),
+    .describe("Missing tokens: N/A, NULL, -, —, #N/A."),
+  trueValues: tokens.optional().describe("True tokens: true, yes, y, Evet, E."),
   falseValues: tokens
     .optional()
-    .describe("False-text tokens; default false, no, n, Hayır, H."),
+    .describe("False tokens: false, no, n, Hayır, H."),
 } as const;
 
 const common = {
@@ -82,36 +78,33 @@ const flatColumnSpec = z
     column: columnRef,
     type: z
       .enum(["number", "date", "boolean", "time", "duration", "text"])
-      .describe("How to read the column."),
+      .describe("Reading type."),
     missingValues: tokens.optional().describe("Missing-text tokens."),
-    decimal: z
-      .enum([".", ","])
-      .optional()
-      .describe("Decimal separator, for number."),
+    decimal: z.enum([".", ","]).optional().describe("Number decimal mark."),
     group: z
       .enum(["none", ".", ",", " ", "'"])
       .optional()
-      .describe("Thousands separator, for number."),
-    locale: locale.optional().describe("File locale, for number or date."),
+      .describe("Number group mark."),
+    locale: locale.optional().describe("Number/date locale."),
     numberingSystem: numberingSystem
       .optional()
-      .describe("Numbering system, for number."),
+      .describe("Number digit system."),
     identifiers: z
       .enum(["refuse", "read"])
       .optional()
-      .describe("Whether to read digit identifiers, for number."),
+      .describe("Number: read digit identifiers?"),
     format: z
       .string()
       .min(1)
       .max(64)
       .optional()
-      .describe("Date pattern such as dd.MM.yyyy, for date."),
+      .describe("Date pattern, e.g. dd.MM.yyyy."),
     order: z
       .enum(["dmy", "mdy"])
       .optional()
-      .describe("Day/month order without a format, for date."),
-    trueValues: tokens.optional().describe("True-text tokens, for boolean."),
-    falseValues: tokens.optional().describe("False-text tokens, for boolean."),
+      .describe("Date order if no format."),
+    trueValues: tokens.optional().describe("Boolean true tokens."),
+    falseValues: tokens.optional().describe("Boolean false tokens."),
   })
   .pipe(columnSpecSchema);
 
