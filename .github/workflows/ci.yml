@@ -136,9 +136,23 @@ jobs:
           pnpm turbo run build check-types lint validate "${filters[@]}"
       - run: pnpm turbo run format:check
       - if: ${{ needs.plan.outputs.filters != '' }}
+        name: Test, with compute and OOXML alone first
         run: |
           read -ra filters <<< "$FILTERS"
-          pnpm turbo run test "${filters[@]}"
+          serial=()
+          rest=()
+          for filter in "${filters[@]}"; do
+            case "$filter" in
+              --filter=@sezzlee/compute-core | --filter=@sezzlee/ooxml-core) serial+=("$filter") ;;
+              *) rest+=("$filter") ;;
+            esac
+          done
+          if ((${#serial[@]})); then
+            pnpm turbo run test --concurrency=1 "${serial[@]}"
+          fi
+          if ((${#rest[@]})); then
+            pnpm turbo run test "${rest[@]}"
+          fi
 
   # The lockfile pins the NestJS SDK's host stack to Nest 11 on Express 5,
   # which the node job covers. Its peer range also admits Nest 10 on Express 4
