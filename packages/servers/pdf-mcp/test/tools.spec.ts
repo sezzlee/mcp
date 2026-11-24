@@ -17,11 +17,12 @@ beforeAll(async () => {
 });
 
 describe("catalogue", () => {
-  it("registers exactly the four read-only tools", () => {
+  it("registers exactly the five read-only tools", () => {
     expect([...toolNames]).toStrictEqual([
       "list_documents",
       "describe_document",
       "read_pages",
+      "view_pages",
       "find_in_document",
     ]);
   });
@@ -57,6 +58,7 @@ describe("describe_document", () => {
     );
     expect(body["pageCount"]).toBe(3);
     expect(body["pagesNeedingOcr"]).toStrictEqual([2]);
+    expect(body["pagesWithoutText"]).toStrictEqual([2]);
     expect(body["needsOcr"]).toBe(true);
     expect(body["documentType"]).toBe("image_based");
   });
@@ -76,6 +78,7 @@ describe("describe_document", () => {
     );
     const capabilities = body["capabilities"] as Record<string, boolean>;
     expect(capabilities["ocr"]).toBe(false);
+    expect(capabilities["pageImages"]).toBe(false);
     expect(capabilities["perPageOcrDetection"]).toBe(true);
     expect(body["needsOcr"]).toBe(true);
   });

@@ -37,7 +37,7 @@ export const toolDefinitions = {
   },
   describe_document: {
     description:
-      "Summarise one PDF: page count, document type, which pages carry no trustworthy text, and what this server can do with it. pagesNeedingOcr is determined per page from the extracted text. documentType and classificationConfidence come from a separate document-level classifier: the confidence scores that verdict, NOT the accuracy of any extracted text, and the classifier reports a whole document as image-based when a single page is a scan. Calling this first is optional; read_pages and find_in_document work from filePath alone.",
+      "Summarise one PDF: page count, document type, which pages carry no trustworthy text, and whether OCR and page images are available. Use pagesNeedingOcr to identify likely scans and pagesWithoutText to find pages with no readable text, including blank pages. documentType and classificationConfidence come from a separate document-level classifier: the confidence scores that verdict, NOT the accuracy of any extracted text, and the classifier reports a whole document as image-based when a single page is a scan.",
     inputSchema: z.object({ filePath }),
     annotations: readOnly,
   },
@@ -67,6 +67,19 @@ export const toolDefinitions = {
         .describe(
           "nextCursor from a previous read_pages response. It carries the selection it was produced for, so it cannot be combined with pages.",
         ),
+    }),
+    annotations: readOnly,
+  },
+  view_pages: {
+    description:
+      "Render selected pages as images for a vision-capable model, including pages without readable text. Requires a configured rasterizer, reported by describe_document as capabilities.pageImages. Returns one image per requested page in request order and a text summary. The page pixels are sent to the caller.",
+    inputSchema: z.object({
+      filePath,
+      pages: z
+        .array(z.int().min(1))
+        .min(1)
+        .max(limits.maxViewPages)
+        .describe("Distinct page numbers to render, counted from 1."),
     }),
     annotations: readOnly,
   },

@@ -14,7 +14,9 @@ export type SezzleePdfErrorCode =
   | "encrypted_pdf"
   | "extraction_failed"
   | "ocr_unavailable"
-  | "ocr_failed";
+  | "ocr_failed"
+  | "pages_unavailable"
+  | "pages_failed";
 
 export class SezzleePdfError extends FileSourceError {
   declare readonly code: SezzleePdfErrorCode;

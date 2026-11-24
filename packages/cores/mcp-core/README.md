@@ -17,14 +17,22 @@ A consumer declares its tools as a `satisfies ToolDefinitions` catalogue built w
 `GuardedHandler`, and passes the catalogue plus the `HandlersOf<D>` map to
 `createMcpSourceServer` (or `createMcpOutputServer`) together with a `ServerIdentity`.
 `serveMcpSourceStdio` wires the result to stdio and process signals. `guard()` is the only
-function that produces a `GuardedHandler`, so a hand-written handler cannot be registered — this
-is what makes the `mcpCoreLimits.maxPayloadBytes` response budget unbypassable.
+function that produces a `GuardedHandler` and checks the response budget before returning.
+
+For tools that return images, call `imageResult(text, images)` from a guarded handler.
+It emits the supplied text first, followed by an MCP image block for each
+`{ bytes: Uint8Array, mimeType: string }` entry. The guard measures the UTF-8 size of the
+serialized result object, including the base64 strings, MIME types and text. Set
+`GuardContext.maxImagePayloadBytes` to give results containing an image block their own limit.
+It defaults to the guard's `maxBytes`, which defaults to `mcpCoreLimits.maxPayloadBytes` (512 KiB).
+`maxBytes` also bounds error envelopes. Text-only responses use the sum of their text blocks'
+UTF-8 byte lengths. An oversized result returns a `resource_limit` envelope and zero images.
 
 ## API
 
 | Module       | Exports                                                                                                                                                                                     |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tools`      | `readOnly`, `ownOutput`, `json`, `toToolError`, `guard`, `HandlersOf<D>`, `ToolCatalog` and the tool type machinery                                                                         |
+| `tools`      | `readOnly`, `ownOutput`, `json`, `imageResult`, `toToolError`, `guard`, `HandlersOf<D>`, `ToolCatalog` and the tool type machinery                                                          |
 | `server`     | `createMcpSourceServer` (read-only), `createMcpOutputServer` (catalogue with an output-writing tool), `serveMcpSourceStdio` — registers tools from the definitions, wires stdio and signals |
 | `payload`    | `measureJson`, `createPageBudget`, `clampJsonField` — the response budget                                                                                                                   |
 | `errors`     | `McpSourceError`, `SourceErrorCode`, `ErrorFactory`, the `internal_error` policy, injected redaction                                                                                        |

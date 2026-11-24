@@ -10,7 +10,7 @@
 export interface RenderedPage {
   readonly page: number;
   readonly image: Uint8Array;
-  readonly mediaType: "image/png";
+  readonly mediaType: "image/png" | "image/jpeg";
 }
 
 export interface RenderJob {

@@ -56,7 +56,7 @@
 
 - A published package may never depend on a `private: true` workspace package. `pnpm publish` silently rewrites `workspace:^` to the private package's `0.0.0`, the publish succeeds, and the failure surfaces in the consumer's `install`. The CI `pack` job guards this ([.github/scripts/check-npm-tarballs.py](.github/scripts/check-npm-tarballs.py)).
 
-- No source-server tool response may bypass the payload budget. `json()` and `toToolError()` in `packages/cores/mcp-core` are the only sanctioned response constructors (`file-core` re-exports them and wraps `toToolError` to bind the root redactor); a hand-built `CallToolResult` in a product package is a defect.
+- No source-server tool response may bypass the payload budget. `json()`, `imageResult()` and `toToolError()` in `packages/cores/mcp-core` are the only sanctioned response constructors (`file-core` re-exports them and wraps `toToolError` to bind the root redactor); a hand-built `CallToolResult` in a product package is a defect.
 
 - Visibility ≠ enforcement: search filtering is not a security mechanism; enforcement must always happen in the backend pipeline at invoke time.
 

@@ -27,6 +27,7 @@ export {
   type Fingerprint,
 } from "@sezzlee/mcp-core";
 export {
+  imageResult,
   json,
   readOnly,
   type ErrorNormalizer,

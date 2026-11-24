@@ -46,6 +46,7 @@ To enable OCR, point `--ocr` at a module whose default export is an `OcrBinding`
 | `list_documents`    | Lists readable PDF candidates under the root; never opens a file       | `subdirectory`, `pattern`, `maxResults`                            |
 | `describe_document` | Page count, document type, per-page OCR need, server capabilities      | `filePath`                                                         |
 | `read_pages`        | Reads selected pages as Markdown, page numbers 1-based                 | `filePath`, `pages`, `maxPages`, `ocr`, `cursor`                   |
+| `view_pages`        | Renders selected pages as images for a vision-capable model            | `filePath`, `pages`                                                |
 | `find_in_document`  | Literal search over extracted text, with page number and match context | `filePath`, `query`, `matchMode`, `caseSensitive`, `ocr`, `cursor` |
 
 If the file path is already known, `describe_document` is optional: `read_pages` and
@@ -53,21 +54,68 @@ If the file path is already known, `describe_document` is optional: `read_pages`
 
 ## Configuration
 
-CLI (`sezzlee-pdf <pdf-source-root> [--ocr <module>]`):
+CLI (`sezzlee-pdf <pdf-source-root> [--ocr <module>] [--pages <module>]`):
 
 | Argument            | Default  | Meaning                                                                                                                                                                                                                      |
 | ------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<pdf-source-root>` | required | Sandbox root; every readable path is resolved and checked against it.                                                                                                                                                        |
 | `--ocr <module>`    | none     | Path or package specifier to a module whose default export is `{ rasterizer, provider }`. Absent means no OCR: `read_pages`/`find_in_document` refuse `ocr: true` and `describe_document` reports `capabilities.ocr: false`. |
+| `--pages <module>`  | none     | Path or package specifier to a module whose default export is a `PageImageBinding`. With `--ocr` alone, page images use the OCR binding's rasterizer.                                                                        |
 
 Programmatic (`createPdfMcpServer(root, options)`):
 
-| Option                     | Default | Meaning                                                                                                                                |
-| -------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `documentCacheSize`        | `2`     | Extracted documents held in memory at once, 1–16. A budget, not a guard: each cached document holds every page's Markdown on the heap. |
-| `maxConcurrentListings`    | `4`     | Concurrent `list_documents` calls before a request is refused.                                                                         |
-| `maxConcurrentExtractions` | `2`     | Concurrent PDF extractions before a request is refused.                                                                                |
-| `ocr`                      | none    | An `OcrBinding` (`{ rasterizer, provider, dpi?, maxPagesPerCall?, timeoutMs? }`). Neither port is a dependency of this package.        |
+| Option                     | Default | Meaning                                                                                                                                                 |
+| -------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `documentCacheSize`        | `2`     | Extracted documents held in memory at once, 1–16. A budget, not a guard: each cached document holds every page's Markdown on the heap.                  |
+| `maxConcurrentListings`    | `4`     | Concurrent `list_documents` calls before a request is refused.                                                                                          |
+| `maxConcurrentExtractions` | `2`     | Concurrent PDF extractions before a request is refused.                                                                                                 |
+| `ocr`                      | none    | An `OcrBinding` (`{ rasterizer, provider, dpi?, maxPagesPerCall?, timeoutMs? }`). Neither port is a dependency of this package.                         |
+| `pageImages`               | none    | A `PageImageBinding` (`{ rasterizer, dpi?, maxPagesPerCall?, maxImageBytes?, timeoutMs? }`). Takes precedence over the OCR rasterizer for `view_pages`. |
+
+## Page images
+
+When `describe_document` reports `capabilities.pageImages: true`, a vision-capable model can use
+`view_pages` to read a page without readable text. `pagesWithoutText` lists those pages, including
+blank pages. `pagesNeedingOcr` identifies likely scans.
+
+To enable page images independently of OCR, pass `--pages ./page-image-binding.mjs`. A binding
+module can use any compatible `PageRasterizer`. For example, with `@sezzlee/pdf-raster-pdfjs`
+installed alongside the binding module:
+
+```js
+import { createPdfjsRasterizer } from "@sezzlee/pdf-raster-pdfjs";
+
+export default {
+  rasterizer: createPdfjsRasterizer({ format: "jpeg", jpegQuality: 80 }),
+  dpi: 144,
+};
+```
+
+Call `view_pages` with a root-relative `filePath` and a list of distinct, 1-based `pages`
+within the document. For example, `{ "filePath": "scanned.pdf", "pages": [2, 1] }` returns
+`Showing pages 2, 1.` followed by two MCP image blocks in that order. Each image contains base64
+data and its MIME type (PNG, JPEG or WebP). The page pixels leave the server process in the
+response to whoever called the tool.
+
+| Binding option    | Default | Allowed range                                          |
+| ----------------- | ------- | ------------------------------------------------------ |
+| `dpi`             | 144     | 1–200                                                  |
+| `maxPagesPerCall` | 4       | 1–4                                                    |
+| `maxImageBytes`   | 512 KiB | 1–2,097,152 bytes per image before base64              |
+| `timeoutMs`       | 20,000  | 1–20,000 ms to reread and rasterize the selected pages |
+
+`describe_document` reports the configured page count limit as `limits.maxViewPages`. When the
+rasterizer comes from the OCR binding, page images use the defaults above. OCR and page rendering
+share one execution slot. A timed-out render holds the slot until it settles.
+
+The default 512 KiB per-image limit fits the 323,468-byte JPEG measured on a synthetic A4 scan at
+144 DPI with quality 80. The combined raw images are bounded by `maxPagesPerCall × maxImageBytes`.
+The serialized MCP result, including base64 and metadata, has a separate 8 MiB limit. Four
+images of 2 MiB each exceed that limit after encoding. Text tools retain the 512 KiB budget.
+
+Without a rasterizer, the tool returns `pages_unavailable`. If an image or the serialized result
+exceeds its limit, the tool returns `resource_limit` with zero images. Use a lower DPI or JPEG
+quality for smaller images, or request fewer pages to reduce the combined response size.
 
 ## OCR
 

@@ -1,5 +1,5 @@
 /**
- * One page turned into pixels, ready for recognition.
+ * One page turned into pixels.
  *
  * Guard: `page` is 1-based like every other page number on this server's
  * surface. A rasterizer that echoes the library's 0-based indexing would shift
@@ -25,6 +25,14 @@ export interface RenderJob {
  */
 export interface PageRasterizer {
   render(job: RenderJob): Promise<readonly RenderedPage[]>;
+}
+
+export interface PageImageBinding {
+  readonly rasterizer: PageRasterizer;
+  readonly dpi?: number;
+  readonly maxPagesPerCall?: number;
+  readonly maxImageBytes?: number;
+  readonly timeoutMs?: number;
 }
 
 export interface RecognizedPage {

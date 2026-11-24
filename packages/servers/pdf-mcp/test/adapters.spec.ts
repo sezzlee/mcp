@@ -34,9 +34,7 @@ import { SezzleePdfError } from "../src/platform/errors.js";
  * property gets the contravariant check that strictFunctionTypes performs, which
  * is the one that matters: an adapter must accept every job pdf-mcp can send.
  *
- * Output is deliberately left covariant. The pdf.js rasterizer only ever emits
- * PNG and says so; forcing exact equality would make it claim it might return
- * WebP, which would be a worse contract, not a safer one.
+ * Output is checked covariantly so an adapter can support a subset of MIME types.
  */
 type StrictPageRasterizer = {
   readonly render: (job: RenderJob) => Promise<readonly RenderedPage[]>;

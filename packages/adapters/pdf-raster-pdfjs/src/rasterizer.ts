@@ -20,6 +20,9 @@ const standardFontDataUrl = `${join(
 export interface PdfjsRasterizerOptions {
   /** Upper bound on either rendered dimension, in pixels. Defaults to 4000. */
   readonly maxPixels?: number;
+  readonly format?: "png" | "jpeg";
+  /** JPEG encoder quality as an integer from 1 to 100. Defaults to 80. */
+  readonly jpegQuality?: number;
 }
 
 const defaultMaxPixels = 4000;
@@ -41,7 +44,7 @@ function assertLive(signal: AbortSignal | undefined): void {
 }
 
 /**
- * Renders selected PDF pages to PNG with pdf.js.
+ * Renders selected PDF pages to PNG or JPEG with pdf.js.
  *
  * Guard: `pdfjs-dist` and `@napi-rs/canvas` are pinned to exact versions that
  * were measured to work together. pdf.js 5 and `@napi-rs/canvas` 1.x fail at
@@ -53,6 +56,18 @@ export function createPdfjsRasterizer(
   options: PdfjsRasterizerOptions = {},
 ): PageRasterizer {
   const maxPixels = options.maxPixels ?? defaultMaxPixels;
+  const format = options.format ?? "png";
+  const jpegQuality = options.jpegQuality ?? 80;
+  if (format !== "png" && format !== "jpeg") {
+    throw new RangeError("format must be png or jpeg.");
+  }
+  if (
+    !Number.isInteger(jpegQuality) ||
+    jpegQuality < 1 ||
+    jpegQuality > 100
+  ) {
+    throw new RangeError("jpegQuality must be an integer between 1 and 100.");
+  }
 
   return {
     async render(job: RenderJob): Promise<readonly RenderedPage[]> {
@@ -81,7 +96,7 @@ export function createPdfjsRasterizer(
           const context = canvas.getContext("2d");
           /**
            * Guard: a PDF page has no background of its own. Without this fill
-           * the canvas stays transparent, which flattens to black in PNG and
+           * the canvas stays transparent, which can flatten to black and
            * hands the model an unreadable page.
            */
           context.fillStyle = "#ffffff";
@@ -95,11 +110,19 @@ export function createPdfjsRasterizer(
            */
           const canvasContext = context as unknown as CanvasRenderingContext2D;
           await page.render({ canvasContext, viewport }).promise;
-          rendered.push({
-            page: pageNumber,
-            image: canvas.toBuffer("image/png"),
-            mediaType: "image/png",
-          });
+          rendered.push(
+            format === "jpeg"
+              ? {
+                  page: pageNumber,
+                  image: canvas.toBuffer("image/jpeg", jpegQuality),
+                  mediaType: "image/jpeg",
+                }
+              : {
+                  page: pageNumber,
+                  image: canvas.toBuffer("image/png"),
+                  mediaType: "image/png",
+                },
+          );
           page.cleanup();
         }
         return rendered;

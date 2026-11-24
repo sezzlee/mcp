@@ -3,6 +3,7 @@ export interface PdfCapabilities {
   readonly literalSearch: boolean;
   readonly perPageOcrDetection: boolean;
   readonly ocr: boolean;
+  readonly pageImages: boolean;
   readonly tableExtraction: boolean;
   readonly regionExtraction: boolean;
   readonly textPositions: boolean;
@@ -10,14 +11,12 @@ export interface PdfCapabilities {
   readonly write: boolean;
 }
 
-/**
- * Guard: ocr reports whether a provider is actually bound, not whether the
- * feature exists in the code. It is reported rather than omitted so an agent can
- * tell "this server cannot read scanned pages" from "this document happens to
- * have none".
- */
-export function capabilitiesWith(ocr: boolean): PdfCapabilities {
-  return { ...capabilities, ocr };
+/** Reports which provider-backed features are available on this server. */
+export function capabilitiesWith(
+  ocr: boolean,
+  pageImages: boolean = ocr,
+): PdfCapabilities {
+  return { ...capabilities, ocr, pageImages };
 }
 
 export const capabilities: PdfCapabilities = {
@@ -25,6 +24,7 @@ export const capabilities: PdfCapabilities = {
   literalSearch: true,
   perPageOcrDetection: true,
   ocr: false,
+  pageImages: false,
   tableExtraction: false,
   regionExtraction: false,
   textPositions: false,
