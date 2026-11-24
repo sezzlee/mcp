@@ -1,6 +1,6 @@
 # Limits
 
-> Generated from the exported `limits` object of `@sezzlee/pdf-mcp` 0.1.2.
+> Generated from the exported `limits` object of `@sezzlee/pdf-mcp` 0.2.0.
 
 These bounds are exported by the server. Tool arguments can request smaller pages or samples within them. Truncation and continuation are tool-specific: follow a cursor only when the response supplies one. An operation that cannot stay within its resource budget can fail with `resource_limit`.
 
@@ -44,3 +44,15 @@ These bounds are exported by the server. Tool arguments can request smaller page
 | Time one OCR run may take; a binding's `timeoutMs` can lower it, never raise it                    | 120 s |
 | OCR runs that may be in progress at once before a new one fails with `resource_limit`              | 1     |
 | Transcribed pages kept in memory, keyed by document content and page number                        | 256   |
+
+## Page images
+
+| Limit                                                                                                                     | Value  |
+| ------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Resolution `view_pages` renders at when the binding sets none                                                             | 144    |
+| Highest resolution a page-image binding may set                                                                           | 200    |
+| Most pages one `view_pages` call may name                                                                                 | 4      |
+| Largest encoded image per page, before base64, when the binding sets none; a larger page is refused with `resource_limit` | 512 KB |
+| Highest per-image limit a page-image binding may set                                                                      | 2 MB   |
+| Largest serialized `view_pages` answer, base64 included; text answers keep `maxPayloadBytes`                              | 8 MB   |
+| Time one `view_pages` call may spend rendering before it fails with `pages_failed`                                        | 20 s   |

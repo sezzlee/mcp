@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { serveFileSourceStdio } from "@sezzlee/file-core";
 
-const usage = "Usage: sezzlee-pdf <pdf-source-root> [--ocr <module>]";
+const usage =
+  "Usage: sezzlee-pdf <pdf-source-root> [--ocr <module>] [--pages <module>]";
 
 function fail(message: string, code: number): never {
   process.stderr.write(`${message}\n`);
@@ -11,24 +12,26 @@ function fail(message: string, code: number): never {
 interface Invocation {
   readonly root: string;
   readonly ocr?: string;
+  readonly pages?: string;
 }
 
 /**
  * Guard: parsed here rather than with file-core's parseServerArgv, which refuses
- * any argument after the root. The OCR binding is opt-in by flag: with no --ocr
- * nothing is loaded, nothing can reach a network, and no page image can leave
- * this process.
+ * any argument after the root. Bindings are loaded only when the operator
+ * supplies a flag.
  */
 function parse(argv: readonly string[]): Invocation | undefined {
   const [, , ...rest] = argv;
   let root: string | undefined;
   let ocr: string | undefined;
+  let pages: string | undefined;
   for (let index = 0; index < rest.length; index += 1) {
     const argument = rest[index];
-    if (argument === "--ocr") {
+    if (argument === "--ocr" || argument === "--pages") {
       const value = rest[index + 1];
       if (value === undefined || value.startsWith("-")) return undefined;
-      ocr = value;
+      if (argument === "--ocr") ocr = value;
+      else pages = value;
       index += 1;
       continue;
     }
@@ -37,7 +40,11 @@ function parse(argv: readonly string[]): Invocation | undefined {
     root = argument;
   }
   if (root === undefined) return undefined;
-  return ocr === undefined ? { root } : { root, ocr };
+  return {
+    root,
+    ...(ocr === undefined ? {} : { ocr }),
+    ...(pages === undefined ? {} : { pages }),
+  };
 }
 
 /**
@@ -62,18 +69,28 @@ if (invocation === undefined) {
 }
 
 try {
-  const [{ createDocumentRoot }, { createPdfMcpServer }, { loadOcrBinding }] =
-    await Promise.all([
-      import("./platform/paths.js"),
-      import("./server.js"),
-      import("./ocr/load.js"),
-    ]);
+  const [
+    { createDocumentRoot },
+    { createPdfMcpServer },
+    { loadOcrBinding, loadPageImageBinding },
+  ] = await Promise.all([
+    import("./platform/paths.js"),
+    import("./server.js"),
+    import("./ocr/load.js"),
+  ]);
   const ocr =
     invocation.ocr === undefined
       ? undefined
       : await loadOcrBinding(invocation.ocr);
+  const pageImages =
+    invocation.pages === undefined
+      ? undefined
+      : await loadPageImageBinding(invocation.pages);
   const root = await createDocumentRoot(invocation.root);
-  const server = createPdfMcpServer(root, ocr === undefined ? {} : { ocr });
+  const server = createPdfMcpServer(root, {
+    ...(ocr === undefined ? {} : { ocr }),
+    ...(pageImages === undefined ? {} : { pageImages }),
+  });
   /**
    * Guard: stdio carries one connection per process, so pinning the single
    * eagerly built instance is what serveStdio's per-connection factory would

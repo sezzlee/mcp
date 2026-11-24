@@ -1,7 +1,7 @@
 import { pathToFileURL } from "node:url";
 import { isAbsolute, resolve } from "node:path";
 import { SezzleePdfError } from "../platform/errors.js";
-import type { OcrBinding } from "./port.js";
+import type { OcrBinding, PageImageBinding } from "./port.js";
 
 function hasMethod(value: unknown, name: string): boolean {
   return (
@@ -46,20 +46,38 @@ export function asOcrBinding(value: unknown, specifier: string): OcrBinding {
  * let page images leave this machine — with whoever runs the server.
  */
 export async function loadOcrBinding(specifier: string): Promise<OcrBinding> {
+  return asOcrBinding(await loadBinding(specifier, "OCR"), specifier);
+}
+
+export async function loadPageImageBinding(
+  specifier: string,
+): Promise<PageImageBinding> {
+  const binding = (await loadBinding(specifier, "page-image")) as
+    Partial<PageImageBinding> | undefined;
+  if (!hasMethod(binding?.rasterizer, "render")) {
+    throw new SezzleePdfError(
+      "invalid_argument",
+      `'${specifier}' does not export a page-image binding.`,
+      "The module's default export must be { rasterizer: { render } } with optional rendering bounds.",
+    );
+  }
+  return binding as PageImageBinding;
+}
+
+async function loadBinding(specifier: string, label: string): Promise<unknown> {
   const target =
     specifier.startsWith(".") || isAbsolute(specifier)
       ? pathToFileURL(resolve(specifier)).href
       : specifier;
-  let module: { default?: unknown };
   try {
-    module = (await import(target)) as { default?: unknown };
+    const module = (await import(target)) as { default?: unknown };
+    return module.default;
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new SezzleePdfError(
       "invalid_argument",
-      `The OCR binding '${specifier}' could not be loaded: ${detail}`,
+      `The ${label} binding '${specifier}' could not be loaded: ${detail}`,
       "Pass a path to a module, or a package name resolvable from this process.",
     );
   }
-  return asOcrBinding(module.default, specifier);
 }

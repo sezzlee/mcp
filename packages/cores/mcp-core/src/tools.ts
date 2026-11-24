@@ -98,6 +98,22 @@ export function json(
   };
 }
 
+export function imageResult(
+  text: string,
+  images: readonly { readonly bytes: Uint8Array; readonly mimeType: string }[],
+): CallToolResult {
+  return {
+    content: [
+      { type: "text", text },
+      ...images.map(({ bytes, mimeType }) => ({
+        type: "image" as const,
+        data: Buffer.from(bytes).toString("base64"),
+        mimeType,
+      })),
+    ],
+  };
+}
+
 interface ErrorEnvelope {
   readonly error: string;
   readonly message: string;
@@ -154,9 +170,8 @@ export function toToolError(
 function payloadBytes(result: CallToolResult): number {
   let total = 0;
   for (const block of result.content) {
-    if (block.type === "text") {
-      total += Buffer.byteLength(block.text, "utf8");
-    }
+    if (block.type !== "text") return measureJson(result.content);
+    total += Buffer.byteLength(block.text, "utf8");
   }
   return total;
 }
@@ -169,6 +184,7 @@ export interface GuardContext<K extends string> extends ErrorContext {
    */
   readonly fail: ErrorFactory<"resource_limit">;
   readonly maxBytes?: number;
+  readonly maxImagePayloadBytes?: number;
   /**
    * Receives a thrown error no normalizer classified.
    *
@@ -217,14 +233,18 @@ export function guard<D extends ToolCatalog, K extends ToolNameOf<D>>(
         (context.report ?? reportToStderr)(context.tool, error);
       return toToolError(normalize(error, context), context, maxBytes);
     }
-    const size = payloadBytes(result);
-    if (size <= maxBytes) {
+    const hasImage = result.content.some((block) => block.type === "image");
+    const size = hasImage ? measureJson(result) : payloadBytes(result);
+    const budget = hasImage
+      ? (context.maxImagePayloadBytes ?? maxBytes)
+      : maxBytes;
+    if (size <= budget) {
       return result;
     }
     return toToolError(
       context.fail(
         "resource_limit",
-        `${context.tool} produced a ${size} byte response; the limit is ${maxBytes} bytes.`,
+        `${context.tool} produced a ${size} byte response; the limit is ${budget} bytes.`,
       ),
       context,
       maxBytes,

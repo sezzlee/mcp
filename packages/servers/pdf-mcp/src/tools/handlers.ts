@@ -1,6 +1,7 @@
 import {
   clampJsonField,
   createPageBudget,
+  imageResult,
   json,
   measureJson,
   type Fingerprint,
@@ -19,7 +20,8 @@ import {
   type ResolvedPage,
 } from "../document/extraction.js";
 import { applyOcr, createOcrCache, type OcrCache } from "../ocr/apply.js";
-import type { OcrBinding } from "../ocr/port.js";
+import type { OcrBinding, PageImageBinding } from "../ocr/port.js";
+import { pageImageSettings, renderPageImages } from "../ocr/view.js";
 import { capabilitiesWith } from "../platform/capabilities.js";
 import { SezzleePdfError } from "../platform/errors.js";
 import {
@@ -61,6 +63,7 @@ import { guard } from "./guard.js";
 export interface PdfHandlerDeps {
   readonly store?: PdfDocumentStore;
   readonly ocr?: OcrBinding;
+  readonly pageImages?: PageImageBinding;
   readonly maxConcurrentListings?: number;
   readonly maxConcurrentExtractions?: number;
   /**
@@ -135,6 +138,11 @@ export function createHandlers(
 ): ToolHandlers {
   const store = deps.store ?? createPdfDocumentStore(root.real);
   const maxPayloadBytes = deps.maxPayloadBytes ?? limits.maxPayloadBytes;
+  const imageBinding =
+    deps.pageImages ??
+    (deps.ocr === undefined ? undefined : { rasterizer: deps.ocr.rasterizer });
+  const pageImages =
+    imageBinding === undefined ? undefined : pageImageSettings(imageBinding);
   const listings: Gate = createGate(
     deps.maxConcurrentListings ?? limits.maxConcurrentListings,
     () => {
@@ -181,11 +189,11 @@ export function createHandlers(
   };
 
   const ocrCache: OcrCache = deps.ocrCache ?? createOcrCache();
-  const ocrRuns: Gate = createGate(limits.maxConcurrentOcr, () => {
+  const rasterRuns: Gate = createGate(limits.maxConcurrentOcr, () => {
     throw new SezzleePdfError(
       "resource_limit",
-      "An OCR run is already in progress.",
-      "Retry once it finishes; transcription is the slowest thing this server does. A run that exceeded its budget keeps its slot until it ends, and only a server restart reclaims one that never does.",
+      "An OCR or page rendering run is already in progress.",
+      "Retry once it finishes. A run that exceeded its budget keeps its slot until it ends, and only a server restart reclaims one that never does.",
     );
   });
 
@@ -230,7 +238,7 @@ export function createHandlers(
       binding.timeoutMs ?? limits.maxOcrMs,
       limits.maxOcrMs,
     );
-    const release = ocrRuns.enter();
+    const release = rasterRuns.enter();
     const deadline = createDeadline(
       timeoutMs,
       () =>
@@ -299,9 +307,15 @@ export function createHandlers(
           documentType: loaded.documentType,
           classificationConfidence: loaded.classificationConfidence,
           pagesNeedingOcr: loaded.pagesNeedingOcr,
+          pagesWithoutText: loaded.pages
+            .filter((page) => page.needsOcr || page.markdown.trim() === "")
+            .map((page) => page.page),
           needsOcr: loaded.pagesNeedingOcr.length > 0,
           pagesWithTables: loaded.pagesWithTables,
-          capabilities: capabilitiesWith(deps.ocr !== undefined),
+          capabilities: capabilitiesWith(
+            deps.ocr !== undefined,
+            pageImages !== undefined,
+          ),
           ...(deps.ocr === undefined
             ? {}
             : { ocrProvider: deps.ocr.provider.name }),
@@ -309,11 +323,73 @@ export function createHandlers(
             maxPages: limits.maxPages,
             maxPdfBytes: limits.maxPdfBytes,
             maxReadPages: limits.maxReadPages,
+            ...(pageImages === undefined
+              ? {}
+              : { maxViewPages: pageImages.maxPagesPerCall }),
           },
           sizeBytes: loaded.sizeBytes,
           modifiedAt: loaded.modifiedAt,
           mode: loaded.mode,
         });
+      },
+    ),
+
+    view_pages: guard(
+      {
+        root: root.real,
+        tool: "view_pages",
+        maxImagePayloadBytes: limits.maxViewImagePayloadBytes,
+      },
+      async ({ filePath, pages }, _tool, signal) => {
+        if (pageImages === undefined) {
+          throw new SezzleePdfError(
+            "pages_unavailable",
+            "No page rasterizer is configured.",
+            "Configure a page-image binding to use view_pages.",
+          );
+        }
+        if (pages.length < 1 || pages.length > pageImages.maxPagesPerCall) {
+          throw new SezzleePdfError(
+            "invalid_argument",
+            `Request between 1 and ${String(pageImages.maxPagesPerCall)} pages at a time.`,
+          );
+        }
+        if (new Set(pages).size !== pages.length) {
+          throw new SezzleePdfError(
+            "invalid_argument",
+            "pages must contain distinct page numbers.",
+          );
+        }
+        const { path, loaded } = await open(filePath);
+        assertSelectablePages(pages, loaded.pageCount);
+
+        const release = rasterRuns.enter();
+        const deadline = createDeadline(
+          pageImages.timeoutMs,
+          () =>
+            new SezzleePdfError(
+              "pages_failed",
+              `Page rendering exceeded the ${String(pageImages.timeoutMs)} ms budget.`,
+              "Request fewer pages or configure a lower DPI.",
+            ),
+        );
+        const renderSignal =
+          signal === undefined
+            ? deadline.signal
+            : AbortSignal.any([deadline.signal, signal]);
+        const work = (async () => {
+          const bytes = await readDocumentBytes(root, path, loaded.stamp);
+          return renderPageImages(pageImages, bytes, pages, renderSignal);
+        })();
+        holdUntilSettled(work, release);
+        const rendered = await deadline.run(work);
+        return imageResult(
+          `Showing ${pages.length === 1 ? "page" : "pages"} ${pages.join(", ")}.`,
+          rendered.map(({ image, mediaType }) => ({
+            bytes: image,
+            mimeType: mediaType,
+          })),
+        );
       },
     ),
 

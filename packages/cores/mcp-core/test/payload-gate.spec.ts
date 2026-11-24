@@ -10,6 +10,7 @@ import {
 import { measureJson } from "../src/payload.js";
 import {
   guard,
+  imageResult,
   json,
   readOnly,
   toToolError,
@@ -131,6 +132,50 @@ describe("toToolError under a byte budget", () => {
 });
 
 describe("the guard payload gate", () => {
+  it("accounts for base64 and all mixed content blocks before returning images", async () => {
+    const output = imageResult("Café", [
+      { bytes: Uint8Array.of(1, 2, 3, 4), mimeType: "image/png" },
+      { bytes: Uint8Array.of(5, 6, 7), mimeType: "image/jpeg" },
+    ]);
+    const size = measureJson(output);
+    const gatedImage = (maxImagePayloadBytes: number) =>
+      guard<Definitions, "big_document">(
+        { tool: "big_document", fail, maxImagePayloadBytes },
+        async () => output,
+        normalize,
+      )({});
+
+    expect(await gatedImage(size)).toEqual({
+      content: [
+        { type: "text", text: "Café" },
+        { type: "image", data: "AQIDBA==", mimeType: "image/png" },
+        { type: "image", data: "BQYH", mimeType: "image/jpeg" },
+      ],
+    });
+    const refused = await gatedImage(size - 1);
+    expect(refused.isError).toBe(true);
+    expect(envelopeOf(refused)["error"]).toBe("resource_limit");
+    expect(refused.content.map((block) => block.type)).toEqual(["text"]);
+  });
+
+  it("uses the default text budget even when a larger image budget is configured", async () => {
+    const maxBytes = 512 * 1024;
+    const payload = { blob: "" };
+    const result = (extraBytes: number) =>
+      guard<Definitions, "big_document">(
+        { tool: "big_document", fail, maxImagePayloadBytes: 8 * 1024 * 1024 },
+        async () =>
+          json({
+            blob: "x".repeat(maxBytes - measureJson(payload) + extraBytes),
+          }),
+        normalize,
+      )({});
+    const accepted = await result(0);
+    expect(accepted.isError).toBeUndefined();
+    expect(textBytes(accepted)).toBe(maxBytes);
+    expect(envelopeOf(await result(1))["error"]).toBe("resource_limit");
+  });
+
   const gated = (body: unknown, maxBytes?: number) =>
     guard<Definitions, "big_document">(
       {

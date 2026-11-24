@@ -1,10 +1,10 @@
 # Tools
 
-> Generated from the `tools/list` answer (server name `sezzlee-pdf`) of `@sezzlee/pdf-mcp` 0.1.2.
+> Generated from the `tools/list` answer (server name `sezzlee-pdf`) of `@sezzlee/pdf-mcp` 0.2.0.
 
 The descriptions are the text the server publishes to every client, so your agent reads exactly what this page shows. Every input schema is closed: an argument a tool does not list here, or a value of the wrong type, is refused with `invalid_argument` and never silently ignored.
 
-4 tools: `list_documents`, `describe_document`, `read_pages`, `find_in_document`.
+5 tools: `list_documents`, `describe_document`, `read_pages`, `view_pages`, `find_in_document`.
 
 ## `list_documents`
 
@@ -20,7 +20,7 @@ Annotations: read-only, idempotent, closed world.
 
 ## `describe_document`
 
-Summarise one PDF: page count, document type, which pages carry no trustworthy text, and what this server can do with it. pagesNeedingOcr is determined per page from the extracted text. documentType and classificationConfidence come from a separate document-level classifier: the confidence scores that verdict, NOT the accuracy of any extracted text, and the classifier reports a whole document as image-based when a single page is a scan. Calling this first is optional; read_pages and find_in_document work from filePath alone.
+Summarise one PDF: page count, document type, which pages carry no trustworthy text, and whether OCR and page images are available. Use pagesNeedingOcr to identify likely scans and pagesWithoutText to find pages with no readable text, including blank pages. documentType and classificationConfidence come from a separate document-level classifier: the confidence scores that verdict, NOT the accuracy of any extracted text, and the classifier reports a whole document as image-based when a single page is a scan.
 
 Annotations: read-only, idempotent, closed world.
 
@@ -41,6 +41,17 @@ Annotations: read-only, idempotent, closed world.
 | `maxPages` | integer (1–50)                      |          | Maximum pages in one response, default 10. The response byte budget may stop the page earlier.                                                                                                                                   |
 | `ocr`      | boolean                             |          | Transcribe pages the text layer cannot answer, default false. Requires an OCR provider: describe_document reports whether one is configured. Sends those page images to that provider, which is slow and may leave this machine. |
 | `cursor`   | string                              |          | nextCursor from a previous read_pages response. It carries the selection it was produced for, so it cannot be combined with pages.                                                                                               |
+
+## `view_pages`
+
+Render selected pages as images for a vision-capable model, including pages without readable text. Requires a configured rasterizer, reported by describe_document as capabilities.pageImages. Returns one image per requested page in request order and a text summary. The page pixels are sent to the caller.
+
+Annotations: read-only, idempotent, closed world.
+
+| Argument   | Type                               | Required | Description                                          |
+| ---------- | ---------------------------------- | -------- | ---------------------------------------------------- |
+| `filePath` | string (≥ 1 chars)                 | yes      | Path to a PDF document, relative to the server root. |
+| `pages`    | array of integer (≥ 1) (1–4 items) | yes      | Distinct page numbers to render, counted from 1.     |
 
 ## `find_in_document`
 

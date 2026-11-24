@@ -4,7 +4,7 @@ import { createFileSourceServer } from "@sezzlee/file-core";
 import { createPdfDocumentStore } from "./document/store.js";
 import { SezzleePdfError } from "./platform/errors.js";
 import { limits } from "./platform/limits.js";
-import type { OcrBinding } from "./ocr/port.js";
+import type { OcrBinding, PageImageBinding } from "./ocr/port.js";
 import type { DocumentRoot } from "./platform/paths.js";
 import { toolDefinitions } from "./tools/definitions.js";
 import { createHandlers } from "./tools/handlers.js";
@@ -33,6 +33,7 @@ export interface PdfMcpServerOptions {
    * no model client, and never opens a socket itself.
    */
   readonly ocr?: OcrBinding;
+  readonly pageImages?: PageImageBinding;
 }
 
 function requireCacheSize(value: number | undefined): number {
@@ -64,6 +65,9 @@ export function createPdfMcpServer(
     createHandlers(root, {
       store,
       ...(options.ocr === undefined ? {} : { ocr: options.ocr }),
+      ...(options.pageImages === undefined
+        ? {}
+        : { pageImages: options.pageImages }),
       ...(options.maxConcurrentListings === undefined
         ? {}
         : { maxConcurrentListings: options.maxConcurrentListings }),

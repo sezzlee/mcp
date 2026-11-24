@@ -42,6 +42,7 @@ export {
 export type {
   OcrBinding,
   OcrProvider,
+  PageImageBinding,
   PageRasterizer,
   RecognizeJob,
   RecognizedPage,

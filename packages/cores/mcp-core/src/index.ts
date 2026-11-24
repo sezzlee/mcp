@@ -25,6 +25,7 @@ export {
 } from "./server.js";
 export {
   guard,
+  imageResult,
   json,
   ownOutput,
   readOnly,

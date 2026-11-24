@@ -20,6 +20,7 @@ export interface GuardContext<K extends string> extends ErrorContext {
   readonly tool: K;
   readonly fail: ErrorFactory<CoreErrorCode>;
   readonly maxBytes?: number;
+  readonly maxImagePayloadBytes?: number;
 }
 
 /**

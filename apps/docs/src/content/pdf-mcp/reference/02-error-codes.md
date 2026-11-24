@@ -1,6 +1,6 @@
 # Error codes
 
-> Generated from the error-code union types of `@sezzlee/pdf-mcp` 0.1.2.
+> Generated from the error-code union types of `@sezzlee/pdf-mcp` 0.2.0.
 
 A tool that fails answers with `isError: true` and one text item holding a JSON object with three fields: `error`, a stable machine code from this page; `message`, what went wrong; and `recovery`, what the next call should do differently. Branch on `error`, never on `message`.
 
@@ -28,7 +28,7 @@ The text item, parsed:
 }
 ```
 
-The server has 18 codes.
+The server has 20 codes.
 
 ## Arguments and paging
 
@@ -62,10 +62,12 @@ The server has 18 codes.
 
 ## OCR
 
-| Code              | Meaning                                                                                                                                                                                                                      |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ocr_unavailable` | A call passed `ocr: true`, but the server was started without an OCR binding. `describe_document` reports `capabilities.ocr: false` in that case. Omit `ocr` to read the text layer alone, or start the server with `--ocr`. |
-| `ocr_failed`      | The rasterizer or the OCR provider failed, or OCR took longer than its budget (two minutes at most). The pages keep their `needsOcr` marking; no text is invented for them.                                                  |
+| Code                | Meaning                                                                                                                                                                                                                          |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ocr_unavailable`   | A call passed `ocr: true`, but the server was started without an OCR binding. `describe_document` reports `capabilities.ocr: false` in that case. Omit `ocr` to read the text layer alone, or start the server with `--ocr`.     |
+| `ocr_failed`        | The rasterizer or the OCR provider failed, or OCR took longer than its budget (two minutes at most). The pages keep their `needsOcr` marking; no text is invented for them.                                                      |
+| `pages_unavailable` | A `view_pages` call reached a server started without a page-image binding. `describe_document` reports `capabilities.pageImages: false` in that case. Read the text layer with `read_pages`, or start the server with `--pages`. |
+| `pages_failed`      | The rasterizer failed or took longer than its budget. No images are returned; call again with fewer pages.                                                                                                                       |
 
 ## Server
 
