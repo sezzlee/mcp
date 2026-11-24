@@ -46,7 +46,9 @@
         "title": "OCR",
         "codes": {
           "ocr_unavailable": "A call passed `ocr: true`, but the server was started without an OCR binding. `describe_document` reports `capabilities.ocr: false` in that case. Omit `ocr` to read the text layer alone, or start the server with `--ocr`.",
-          "ocr_failed": "The rasterizer or the OCR provider failed, or OCR took longer than its budget (two minutes at most). The pages keep their `needsOcr` marking; no text is invented for them."
+          "ocr_failed": "The rasterizer or the OCR provider failed, or OCR took longer than its budget (two minutes at most). The pages keep their `needsOcr` marking; no text is invented for them.",
+          "pages_unavailable": "A `view_pages` call reached a server started without a page-image binding. `describe_document` reports `capabilities.pageImages: false` in that case. Read the text layer with `read_pages`, or start the server with `--pages`.",
+          "pages_failed": "The rasterizer failed or took longer than its budget. No images are returned; call again with fewer pages."
         }
       },
       {
@@ -99,6 +101,18 @@
           "maxOcrMs": "Time one OCR run may take; a binding's `timeoutMs` can lower it, never raise it",
           "maxConcurrentOcr": "OCR runs that may be in progress at once before a new one fails with `resource_limit`",
           "ocrCacheEntries": "Transcribed pages kept in memory, keyed by document content and page number"
+        }
+      },
+      {
+        "title": "Page images",
+        "keys": {
+          "viewDpi": "Resolution `view_pages` renders at when the binding sets none",
+          "maxViewDpi": "Highest resolution a page-image binding may set",
+          "maxViewPages": "Most pages one `view_pages` call may name",
+          "defaultViewImageBytes": "Largest encoded image per page, before base64, when the binding sets none; a larger page is refused with `resource_limit`",
+          "maxViewImageBytes": "Highest per-image limit a page-image binding may set",
+          "maxViewImagePayloadBytes": "Largest serialized `view_pages` answer, base64 included; text answers keep `maxPayloadBytes`",
+          "maxViewMs": "Time one `view_pages` call may spend rendering before it fails with `pages_failed`"
         }
       }
     ],
