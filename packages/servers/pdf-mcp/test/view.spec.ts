@@ -207,7 +207,12 @@ it("keeps the rendering slot occupied if a timed-out rasterizer has not settled"
   const pending = new Promise<void>((resolve) => {
     finish = resolve;
   });
+  let started: (() => void) | undefined;
+  const rendering = new Promise<void>((resolve) => {
+    started = resolve;
+  });
   const render = vi.fn<PageRasterizer["render"]>(async () => {
+    started?.();
     await pending;
     return [];
   });
@@ -215,12 +220,17 @@ it("keeps the rendering slot occupied if a timed-out rasterizer has not settled"
     pageImages: { rasterizer: { render }, timeoutMs: 50 },
   });
   const view = () => view_pages({ filePath, pages: [2] });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   try {
-    expect(await codeOf(view)).toBe("pages_failed");
+    const first = codeOf(view);
+    await rendering;
+    await vi.advanceTimersByTimeAsync(50);
+    expect(await first).toBe("pages_failed");
     expect(render.mock.calls[0]?.[0].signal?.aborted).toBe(true);
     expect(await codeOf(view)).toBe("resource_limit");
     expect(render).toHaveBeenCalledOnce();
   } finally {
+    vi.useRealTimers();
     finish?.();
   }
 });
