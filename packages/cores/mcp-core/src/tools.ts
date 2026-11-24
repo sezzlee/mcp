@@ -235,7 +235,9 @@ export function guard<D extends ToolCatalog, K extends ToolNameOf<D>>(
     }
     const hasImage = result.content.some((block) => block.type === "image");
     const size = hasImage ? measureJson(result) : payloadBytes(result);
-    const budget = hasImage ? (context.maxImagePayloadBytes ?? maxBytes) : maxBytes;
+    const budget = hasImage
+      ? (context.maxImagePayloadBytes ?? maxBytes)
+      : maxBytes;
     if (size <= budget) {
       return result;
     }

@@ -53,8 +53,7 @@ export async function loadPageImageBinding(
   specifier: string,
 ): Promise<PageImageBinding> {
   const binding = (await loadBinding(specifier, "page-image")) as
-    | Partial<PageImageBinding>
-    | undefined;
+    Partial<PageImageBinding> | undefined;
   if (!hasMethod(binding?.rasterizer, "render")) {
     throw new SezzleePdfError(
       "invalid_argument",

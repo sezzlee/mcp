@@ -52,7 +52,10 @@ export async function renderPageImages(
     signal.throwIfAborted();
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    throw new SezzleePdfError("pages_failed", `Page rendering failed: ${detail}`);
+    throw new SezzleePdfError(
+      "pages_failed",
+      `Page rendering failed: ${detail}`,
+    );
   }
 
   const byPage = new Map(rendered.map((entry) => [entry.page, entry]));

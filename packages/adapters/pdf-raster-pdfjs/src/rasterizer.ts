@@ -61,11 +61,7 @@ export function createPdfjsRasterizer(
   if (format !== "png" && format !== "jpeg") {
     throw new RangeError("format must be png or jpeg.");
   }
-  if (
-    !Number.isInteger(jpegQuality) ||
-    jpegQuality < 1 ||
-    jpegQuality > 100
-  ) {
+  if (!Number.isInteger(jpegQuality) || jpegQuality < 1 || jpegQuality > 100) {
     throw new RangeError("jpegQuality must be an integer between 1 and 100.");
   }
 

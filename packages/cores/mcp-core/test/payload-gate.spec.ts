@@ -165,7 +165,9 @@ describe("the guard payload gate", () => {
       guard<Definitions, "big_document">(
         { tool: "big_document", fail, maxImagePayloadBytes: 8 * 1024 * 1024 },
         async () =>
-          json({ blob: "x".repeat(maxBytes - measureJson(payload) + extraBytes) }),
+          json({
+            blob: "x".repeat(maxBytes - measureJson(payload) + extraBytes),
+          }),
         normalize,
       )({});
     const accepted = await result(0);

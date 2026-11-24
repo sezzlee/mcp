@@ -98,11 +98,14 @@ describe("rendering", () => {
 });
 
 describe("refusals", () => {
-  it.each([0, 101, 70.5, NaN, Infinity])("refuses JPEG quality %s", (jpegQuality) => {
-    expect(() => createPdfjsRasterizer({ format: "jpeg", jpegQuality })).toThrow(
-      RangeError,
-    );
-  });
+  it.each([0, 101, 70.5, NaN, Infinity])(
+    "refuses JPEG quality %s",
+    (jpegQuality) => {
+      expect(() =>
+        createPdfjsRasterizer({ format: "jpeg", jpegQuality }),
+      ).toThrow(RangeError);
+    },
+  );
 
   it.each([[0], [-1], [4], [1.5]])("refuses page %s", async (page) => {
     await expect(
